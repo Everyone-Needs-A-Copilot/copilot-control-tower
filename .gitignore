@@ -33,3 +33,10 @@ yarn-error.log*
 .vscode/
 .idea/
 *.swp
+
+# Claude Copilot memory index (local cache, not the memory entries themselves)
+.claude/memory/memory.db
+.claude/memory/memory.db-*
+
+# Task Copilot local state (tc init) — local SQLite task DB, not shared config
+.copilot/
