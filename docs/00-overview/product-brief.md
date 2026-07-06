@@ -1,9 +1,17 @@
 # Product brief — Copilot Control Tower
 
-Control Tower is the always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem. It is **two faces over one open-source binary**:
+**The why: democratization.** The Copilot ecosystem gives a deeply technical person real superpowers — write well, check the numbers, build software that does parts of the job, integrate data across sources. But those superpowers are locked behind terminal fluency almost no one has. Control Tower is the one-click bridge that hands a non-technical person (the "Bob" persona) a technical person's AI superpowers — **safely, and unattended** — so they can break out of *only ever using the software IT handed them*, without understanding the technical layers underneath. It **keeps your environment Copilot-ready**: an authorized change made once upstream simply finds its way onto the machine, quietly, on a cadence, without clobbering personal work.
 
-- **Operator mode** — a macOS menu-bar app that gives a non-technical person (the "Bob" persona) a working, focus-scoped Copilot partner from one double-click, then keeps the machine synced and self-healed for as long as it runs.
+Content inherits down a four-tier model — **foundation → org → department → personal** — where the org and department tiers are *writable by trained, gated authors* (via a markdown editor) and everyone else reads/pulls on a cadence.
+
+**Observability and honest self-heal are the mechanism, not the headline.** They are what *earn the right* to run in the background on someone else's machine: an always-on, token-holding auto-updater is only trustworthy if every pull is visible, verified, and its status never lies. Democratization is the point; supervision is what makes it safe enough to leave unattended.
+
+Control Tower delivers this as **two faces over one open-source binary**:
+
+- **Operator mode** — a macOS menu-bar app that gives Bob a working, focus-scoped Copilot partner from one double-click, then keeps the machine synced and self-healed for as long as it runs.
 - **Admin mode** — a guided, open-source tool that lets an IT team stand up and deploy the whole ecosystem for their org: seed generator, MDM-profile generator, preflight validation, fleet dashboard, deployment runbooks.
+
+> **Evidence honesty.** Claude Copilot delivering value to a team is **real and tested** (several users on Pablo's team). The Admin / IT-operator experience (MDM, fleet dashboard, deprovision) and the multi-writer org/dept authoring loop are **as-yet-unvalidated hypotheses** — no real IT operator has run Admin mode, and the propagation loop has never run with more than one writer.
 
 ## Control tower, not the pilot
 

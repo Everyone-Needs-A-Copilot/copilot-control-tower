@@ -31,6 +31,7 @@ This repo continues the design conversation that produced Control Tower. Read th
 | `01-architecture/` | The architecture; the CLI-contract prerequisite |
 | `02-prd/` | The parallel PRD |
 | `03-design/` | Three design streams (core/dist/integration) + the UI/UX track (PCC) |
+| `product-design/` | The PCC design package (Discovery → Design Challenge) + ratified `SOUL.md` — Phases 1–5 done, Phase 6 Prototype deferred |
 | `04-validation/` | Two red-team reports (use-case + platform layers) |
 | `05-security/` | Security & trust doc (to be written — the enterprise-review enablement) |
 | `06-deployment/` | MDM/IT deployment guides + admin runbooks (to be written) |

@@ -9,6 +9,7 @@ Read [`START-HERE.md`](START-HERE.md) first — it orients a fresh session, stat
 | [`02-prd/`](02-prd/) | The parallel, multi-phase PRD (workstreams, acceptance, phase gates) | Seeded |
 | [`03-design/`](03-design/) | Three engineering design streams (core / distribution / integration) | Seeded |
 | [`03-design/ui-ux/`](03-design/ui-ux/) | The UI/UX design track — visual/interaction design via Product Creation Copilot | To-be-written (README seeded) |
+| [`product-design/`](product-design/) | The Product Creation Copilot design package (Discovery → Design Challenge) + the ratified `SOUL.md` at repo root; the product-creation front-end that complements the engineering spec | Seeded (Phases 1–5 done; Phase 6 Prototype deferred) |
 | [`04-validation/`](04-validation/) | Two adversarial red-team reports (use-case layer, platform layer) | Seeded |
 | [`05-security/`](05-security/) | Security & trust doc — the enterprise security-review enablement | Stub |
 | [`06-deployment/`](06-deployment/) | Per-MDM deployment guides, managed-config reference, offline path, deprovision runbook | Stub |

@@ -33,6 +33,7 @@ yarn-error.log*
 .vscode/
 .idea/
 *.swp
+.obsidian/workspace.json
 
 # Claude Copilot memory index (local cache, not the memory entries themselves)
 .claude/memory/memory.db
