@@ -20,7 +20,10 @@
           "item": { "type": "string" },
           "dimension": { "type": "string" },
           "winning_layer": { "type": "string" },
-          "winning_sha": { "$ref": "_envelope.schema.json#/$defs/git_sha" },
+          "winning_sha": {
+            "anyOf": [ { "$ref": "_envelope.schema.json#/$defs/git_sha" }, { "type": "null" } ],
+            "description": "Resolved SHA of the winning layer's content, sourced from the lockfile; null when no lockfile entry exists yet (e.g. before first `update`). Required-but-nullable, like signer_of_introducing_commit."
+          },
           "shadowed": {
             "type": "array",
             "description": "Layers/items shadowed by the winner.",
