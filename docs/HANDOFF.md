@@ -1,12 +1,28 @@
 # HANDOFF — Copilot Control Tower (App Build)
 
-A self-contained brief to **start a fresh conversation and build the app**. Everything a new session needs with zero prior context. Supersedes the earlier "freeze WS-A" handoff — the spec is done, the CLI engine is underway, and **the next job is building the actual macOS app.**
+A self-contained brief to **start a fresh conversation and build the app**. Everything a new session needs with zero prior context. **Point Claude Code at this one file — it carries the full marching orders below.** Supersedes the earlier "freeze WS-A" handoff — the spec is done, the CLI engine is underway, and **the next job is building the actual macOS app.**
+
+> **Kickoff (paste into a fresh Claude Code session in this repo):**
+> *"Read `docs/HANDOFF.md` end-to-end and begin — it is your full brief for building Copilot Control Tower."*
 
 ---
 
-## Paste this to begin a new session
+## ▶ YOUR TASK — Claude Code, read this file end-to-end first, then execute
 
-> Read `docs/HANDOFF.md`, then `SOUL.md`, `CLAUDE.md`, and the experience-design docs (`docs/product-design/04-experience-design/50-ux-design.md`, `60-ui-design.md`, `70-copy-voice.md`) and the schemas (`docs/01-architecture/schemas/`). We are building **Copilot Control Tower**, a Tauri v2 macOS **menu-bar app**. Confirm you understand the invariants (esp. #1 *the app parses `cc --json` output; it never computes*) and the state below. The task is **milestone 1: scaffold the Tauri app and get a real tray icon on the menu bar, wired to `cc doctor --json` on a timer, rendering the honest status + the product-first dropdown**. Before coding, propose the plan (Tauri project layout, the Rust core that spawns `cc` by absolute translocation-safe path, the JSON→state parse, the web-UI dropdown, and the mock-CLI fixtures for UI dev). Route via `/protocol`.
+You've been opened fresh in this repo to **build the app**. This document is your complete starting brief; there is no prior conversation to recover. Do this, in order:
+
+1. **Read the rest of this file end-to-end** — the invariants, the 4×4 model, the engine, milestone 1, and the open decisions.
+2. **Then read these (short and load-bearing):**
+   - [`SOUL.md`](../SOUL.md) — the product's soul + **Feature Filter** (many "obvious" features are deliberately ruled out; check ideas against it).
+   - [`CLAUDE.md`](../CLAUDE.md) — the 6 invariants, verbatim (they govern everything).
+   - The app's design: `docs/product-design/04-experience-design/50-ux-design.md`, `60-ui-design.md`, `70-copy-voice.md`.
+   - The contract you parse: `docs/01-architecture/schemas/` + `docs/01-architecture/cli-contract.md` + `error-taxonomy.md`.
+3. **Confirm you understand** invariant #1 (*the app parses `cc --json`; it never computes*) and the **4 products × 4 layers, product-first** model.
+4. **Then start Milestone 1** (fully specified in "Milestone 1" below): scaffold the Tauri v2 app and get a **real menu-bar tray icon** on screen, wired to `cc doctor --json` on a timer, rendering the **honest status + the product-first dropdown**.
+5. **Before writing code, propose the plan and get a nod** — Tauri project layout; the Rust core that spawns `cc` by **absolute, translocation-safe path** (never bare `copilot`); the JSON→state parse; the web-UI dropdown; and **mock-CLI `--json` fixtures** so you can render every state/product/layer during UI dev without a real fleet.
+6. **Route the work via `/protocol`** and use the framework agents (ta to plan, me to implement, uid for the web UI, qa to test). Keep the app a **thin skin** — if you catch yourself writing resolution/sync logic in Rust, stop; it belongs in `cc`.
+
+One thing to decide as you pick this up: whether to **push the `ws-a-doctor-slice` branch / open a PR** in `claude-copilot` so the engine is reviewable (it's local-only) — but the app can be built against the frozen schemas regardless, so this need not block milestone 1.
 
 ---
 
