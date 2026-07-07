@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/freshness.schema.json",
+  "title": "copilot freshness --json",
+  "description": "The cheap poll target: a single-SHA staleness check, not a full update.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "latest_lock_sha", "current_lock_sha", "stale", "checked_at"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "latest_lock_sha": { "$ref": "_envelope.schema.json#/$defs/git_sha" },
+    "current_lock_sha": { "$ref": "_envelope.schema.json#/$defs/git_sha" },
+    "stale": {
+      "type": "boolean",
+      "description": "True when current_lock_sha lags latest_lock_sha.",
+      "$comment": "The stale<=>SHA-inequality invariant cannot be cross-field-encoded in JSON Schema; the CLI computes it and the app parses it (invariant #1)."
+    },
+    "checked_at": { "$ref": "_envelope.schema.json#/$defs/timestamp" }
+  }
+}

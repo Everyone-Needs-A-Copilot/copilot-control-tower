@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/deprovision.schema.json",
+  "title": "copilot deprovision <org> --json",
+  "description": "Result of removing an org's materialized tree and read-only clones. `secrets_touched` MUST be 0 (no secret ever lived in a layer). Dirty trees are retained, never destroyed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "result", "removed", "retained_dirty", "secrets_touched"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "result": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Overall deprovision outcome.",
+      "$comment": "Value set unspecified in the contract; left as a non-empty string."
+    },
+    "removed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["materialized", "clones"],
+      "properties": {
+        "materialized": {
+          "type": "boolean",
+          "description": "Whether the materialized tree was removed.",
+          "$comment": "Prose shows `removed:{materialized, clones[]}` without a type for `materialized`. Encoded as a boolean (was the materialized tree removed); it could instead be a path or a count. Owner to confirm."
+        },
+        "clones": {
+          "type": "array",
+          "description": "Read-only mirror clones removed.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "retained_dirty": {
+      "type": "array",
+      "description": "Dirty/human-owned working trees that were preserved, never destroyed (invariant #3).",
+      "items": { "type": "string" }
+    },
+    "secrets_touched": {
+      "type": "integer",
+      "const": 0,
+      "description": "Count of secrets touched. MUST be 0.",
+      "$comment": "cli-contract.md states secrets_touched MUST be 0 (no secret ever lived in a layer). Encoded as const:0 so any nonzero value is a hard schema violation caught by the CI contract test."
+    }
+  }
+}

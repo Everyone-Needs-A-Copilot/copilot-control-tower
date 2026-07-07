@@ -1,3 +1,5 @@
+> **Note.** This doc predates the hardened [`../01-architecture/architecture.md`](../01-architecture/architecture.md) and the ratified product name **Copilot Control Tower** (working codename "Aviator" retired). It also describes a "run doctor in a terminal" degrade path superseded by architecture.md §6. Where this doc and architecture.md conflict, architecture.md wins.
+
 # Aviator — Integration, State, Security & Observability Design
 
 | | |

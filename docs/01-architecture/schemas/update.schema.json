@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/update.schema.json",
+  "title": "copilot update --json",
+  "description": "Result of a reconciling ecosystem sync. `pruned` ops surface reconciling-sync deletions; `severity_trailer` + `shadowed_by` drive the un-dismissable security banner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "result", "lock_before", "lock_after", "changed"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "result": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Overall update outcome.",
+      "$comment": "cli-contract.md names `result` but does not enumerate its value set for update; left as a non-empty string until the CLI freezes the enum."
+    },
+    "lock_before": { "$ref": "_envelope.schema.json#/$defs/git_sha" },
+    "lock_after": { "$ref": "_envelope.schema.json#/$defs/git_sha" },
+    "changed": {
+      "type": "array",
+      "description": "Per-item changes applied by the sync.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dimension", "layer", "item", "op", "signed"],
+        "properties": {
+          "dimension": { "type": "string" },
+          "layer": { "type": "string" },
+          "item": { "type": "string" },
+          "op": {
+            "type": "string",
+            "enum": ["added", "updated", "pruned", "unchanged"],
+            "description": "`pruned` is the reconciling-sync deletion."
+          },
+          "from": { "type": ["string", "null"] },
+          "to": { "type": ["string", "null"] },
+          "signed": {
+            "type": "boolean",
+            "description": "Signature state of the introduced content. Security-relevant: a missing value is treated as unsigned (fail-closed); the CLI must always emit it."
+          },
+          "severity_trailer": {
+            "type": ["string", "null"],
+            "description": "Security-trailer text driving the un-dismissable banner; null when none.",
+            "$comment": "Prose names the field without a type; encoded as nullable string."
+          },
+          "shadowed_by": {
+            "type": ["string", "null"],
+            "description": "Identifier of the layer/item shadowing this one; null when not shadowed.",
+            "$comment": "Prose names the field without a type; encoded as nullable string."
+          }
+        }
+      }
+    },
+    "held_for_approval": {
+      "type": "array",
+      "description": "Changes withheld pending approval.",
+      "items": { "type": "object", "additionalProperties": true },
+      "$comment": "cli-contract.md shows `held_for_approval:[...]` with an unspecified element shape; encoded as an open array of objects."
+    },
+    "blocked": {
+      "type": "array",
+      "description": "Changes blocked from applying.",
+      "items": { "type": "object", "additionalProperties": true },
+      "$comment": "cli-contract.md shows `blocked:[...]` with an unspecified element shape; encoded as an open array of objects."
+    }
+  }
+}

@@ -1,3 +1,5 @@
+> **Note.** This doc predates the hardened [`../01-architecture/architecture.md`](../01-architecture/architecture.md) and the ratified product name **Copilot Control Tower** (working codename "Aviator" retired). Where this doc and architecture.md conflict, architecture.md wins.
+
 # Aviator — Distribution, Packaging, Lifecycle & IT/MDM
 
 | | |

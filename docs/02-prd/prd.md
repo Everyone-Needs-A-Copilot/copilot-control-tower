@@ -5,7 +5,7 @@
 | **Status** | Proposed — ready for `/orchestrate` |
 | **Product** | Copilot Control Tower — always-on menu-bar client + open-source IT setup/deploy tool |
 | **Repo** | `Everyone-Needs-A-Copilot/copilot-control-tower` (new, public) |
-| **Architecture** | [`05-control-tower.md`](05-control-tower.md) (validated against 25 Critical/High red-team findings) |
+| **Architecture** | [`architecture.md`](../01-architecture/architecture.md) (validated against 25 Critical/High red-team findings) |
 | **Branch** | `ecosystem-extensions` |
 
 > **How this runs in parallel.** One prerequisite workstream (**WS-A, the CLI `--json`/`flock` contract in `copilot`**) gates the rest; once its contract is *published* (schemas frozen), the eight app-side workstreams proceed **concurrently** against the frozen contract, each in its own worktree. Phases (P0–P4) are *maturity gates*, not sequential teams — a workstream advances through phases at its own pace. Acceptance criteria are per task; a workstream is "done for a phase" when its phase tasks pass and its red-team findings are closed.

@@ -6,9 +6,9 @@
 | **Branch** | `ecosystem-extensions` |
 | **Date** | 2026-07-06 |
 | **Question answered** | "What technical architecture lets an enterprise run THREE product families (Claude/Codex Copilot, Knowledge Copilot, CLI Copilot), each layered PERSONAL › DEPARTMENT › ORG › FOUNDATION, so that a non-technical person (Bob the accountant) runs ONE command and gets a working AI partner — self-healing, self-organizing, zero manual work?" |
-| **Design appendices** | [`research/design-naming-topology.md`](research/design-naming-topology.md) · [`research/design-bootstrap-orchestration.md`](research/design-bootstrap-orchestration.md) · [`research/design-product-composition.md`](research/design-product-composition.md) |
-| **Validation appendices** | [`research/redteam-A.md`](research/redteam-A.md) (onboarding/authoring, 24 findings) · [`research/redteam-B.md`](research/redteam-B.md) (governance/lifecycle, 20 findings) |
-| **Prior docs** | [`02-four-tier-and-github-topology.md`](02-four-tier-and-github-topology.md) · [`03-use-cases.md`](03-use-cases.md) |
+| **Design appendices** | `research/design-naming-topology.md` · `research/design-bootstrap-orchestration.md` · `research/design-product-composition.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))* |
+| **Validation appendices** | `research/redteam-A.md` (onboarding/authoring, 24 findings) · `research/redteam-B.md` (governance/lifecycle, 20 findings) *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))* |
+| **Prior docs** | `02-four-tier-and-github-topology.md` · `03-use-cases.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))* |
 
 > **How to read this.** §1–§8 are the architecture. **§9 is the validation** — the 30 Critical/High failures the red-team found and exactly how the design below addresses each. The architecture in §1–§8 is *already hardened* with those fixes; §9 is the audit trail proving it. If you read one thing, read §1 then §9.
 
@@ -55,7 +55,7 @@ The layered picture is in the companion **diagram artifact** (see §10); this se
 
 ## 3. Part A — The resolver & dimension semantics (the spine)
 
-There is **one** resolution engine (from [`02`](02-four-tier-and-github-topology.md) §4): load the manifest, sort layers by `rank`, and per **dimension** apply that dimension's semantics, then **materialize** the winning set into the discovery paths the host actually scans (copy, not read-time merge — the host is layer-unaware). A **product is a set of dimension-subtrees**; the resolver has no concept of "product."
+There is **one** resolution engine (from `02-four-tier-and-github-topology.md` §4 *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*): load the manifest, sort layers by `rank`, and per **dimension** apply that dimension's semantics, then **materialize** the winning set into the discovery paths the host actually scans (copy, not read-time merge — the host is layer-unaware). A **product is a set of dimension-subtrees**; the resolver has no concept of "product."
 
 ### 3.1 The authoritative resolution-semantics matrix
 
@@ -105,7 +105,7 @@ repo(product,tier)  = { foundation: "<product>-copilot",  org: "copilot-<product
 URL = transport(tier, host) + owner + "/" + repo + ".git"
 ```
 
-Worked example (`Everyone-Needs-A-Copilot` foundation, `acme-corp` enterprise, `finance` dept, `bob`): `acme-corp/copilot-claude-dept-finance`, `acme-corp/copilot-knowledge-dept-finance`, `Everyone-Needs-A-Copilot/cli-copilot`, etc. The three foundation repos are the real OSS repos (`claude-copilot`, `knowledge-copilot`, `cli-copilot`) — the convention bends once, for the public floor. Full 12-cell matrix in [`research/design-naming-topology.md`](research/design-naming-topology.md).
+Worked example (`Everyone-Needs-A-Copilot` foundation, `acme-corp` enterprise, `finance` dept, `bob`): `acme-corp/copilot-claude-dept-finance`, `acme-corp/copilot-knowledge-dept-finance`, `Everyone-Needs-A-Copilot/cli-copilot`, etc. The three foundation repos are the real OSS repos (`claude-copilot`, `knowledge-copilot`, `cli-copilot`) — the convention bends once, for the public floor. Full 12-cell matrix in `research/design-naming-topology.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*.
 
 ### 4.2 The `ecosystem.yml` seed — the one thing IT publishes
 
@@ -195,7 +195,7 @@ P2 identity  → P3 org → P4 ask-dept → P5 dept → P6 personal → P7 lock 
 | Org/Dept (private) | **`gh auth login` device flow** — browser code, no keys | **SSH host aliases**, installer-generated |
 | SSO/SAML orgs | driver runs `gh auth login --web` **SSO authorization**; a SAML 404 is classified **"needs authorization," never "layer gone"** | prints the "Configure SSO" URL for the uploaded key |
 
-The SSH-alias machinery from [`02`](02-four-tier-and-github-topology.md) §6 activates **only** when a real second-identity hostname collision exists — Bob never sees it. **A 404 is never silently "deleted"** — it is classified as unauthorized-SSO / not-yet-created / offline / actually-deleted, each with a distinct message *(fixes A-H7, A-H12)*.
+The SSH-alias machinery from `02-four-tier-and-github-topology.md` §6 *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))* activates **only** when a real second-identity hostname collision exists — Bob never sees it. **A 404 is never silently "deleted"** — it is classified as unauthorized-SSO / not-yet-created / offline / actually-deleted, each with a distinct message *(fixes A-H7, A-H12)*.
 
 ### 5.4 Personal-layer data safety *(fixes A-C6, B-C7)*
 
@@ -234,7 +234,7 @@ ENAC owns the foundation but is a **normal enterprise** (`personal › dept › 
 - **TOCTOU re-scan** *(fixes B-M3):* the leak-scan runs again as a **required status on the final merge commit**, blocking auto-merge if the base advanced since the promote-time scan.
 - **`copilot promote --to org`** exists for the **separate-repo** case too (cherry-pick preserving author/signature), not just the subfolder `git mv` *(fixes B-M5)*.
 
-Details in [`research/research-foundation-governance.md`](research/research-foundation-governance.md).
+Details in `research/research-foundation-governance.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*.
 
 ---
 
@@ -311,7 +311,7 @@ A consultant in two orgs breaks every single-tenant assumption (`layers.org` sca
 
 ## 9. Validation — the 30 Critical/High gaps and how the architecture addresses them
 
-This is the filter you asked for: every use case + Bob's journey + enterprise lifecycle, run adversarially against the design. Full reports: [`research/redteam-A.md`](research/redteam-A.md), [`research/redteam-B.md`](research/redteam-B.md). **All 13 Critical and 17 High are addressed above**; the map:
+This is the filter you asked for: every use case + Bob's journey + enterprise lifecycle, run adversarially against the design. Full reports: `research/redteam-A.md`, `research/redteam-B.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*. **All 13 Critical and 17 High are addressed above**; the map:
 
 | ID | Severity | The failure | Addressed in |
 |---|---|---|---|
@@ -386,6 +386,7 @@ Protocol chain-as-data composer; CLI-integration scoping (the net-new seam); Cod
 
 ## Appendices
 
-**Design:** [`research/design-naming-topology.md`](research/design-naming-topology.md) · [`research/design-bootstrap-orchestration.md`](research/design-bootstrap-orchestration.md) · [`research/design-product-composition.md`](research/design-product-composition.md)
-**Validation:** [`research/redteam-A.md`](research/redteam-A.md) · [`research/redteam-B.md`](research/redteam-B.md)
-**Foundations:** [`02-four-tier-and-github-topology.md`](02-four-tier-and-github-topology.md) · [`03-use-cases.md`](03-use-cases.md) · [`00-findings-and-recommendations.md`](00-findings-and-recommendations.md)
+**Design:** `research/design-naming-topology.md` · `research/design-bootstrap-orchestration.md` · `research/design-product-composition.md`
+**Validation:** `research/redteam-A.md` · `research/redteam-B.md`
+**Foundations:** `02-four-tier-and-github-topology.md` · `03-use-cases.md` · `00-findings-and-recommendations.md`
+*(All of the above are external — source-repo appendices; see [ecosystem-links.md](./ecosystem-links.md).)*

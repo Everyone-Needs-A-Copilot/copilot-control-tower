@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/repair.schema.json",
+  "title": "copilot repair --json",
+  "description": "Result of a layer-role-split repair: org/dept/foundation mirrors get fetch+reset --hard/reclone; the personal layer gets stash-and-flag (never discard).",
+  "$comment": "IMPORTANT: cli-contract.md does NOT specify a --json shape for `repair` (the verb is consumed and participates in flock serialization, but no payload is enumerated). This schema is a defensible reconstruction from architecture.md/ecosystem-architecture.md §5.2 repair semantics (A-H11: mirrors reset/reclone, personal stash-and-flag-never-discard). additionalProperties is left true and this file MUST be tightened/frozen once the CLI publishes repair's real payload.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "result", "repaired", "retained_dirty"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "result": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Overall repair outcome.",
+      "$comment": "Value set unspecified in the contract; left as a non-empty string."
+    },
+    "repaired": {
+      "type": "array",
+      "description": "Per-layer repair actions taken.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["layer", "op"],
+        "properties": {
+          "layer": { "type": "string" },
+          "role": {
+            "type": "string",
+            "enum": ["mirror", "personal", "foundation"],
+            "$comment": "Reconstructed role split (mirror vs personal vs foundation) from the split-by-layer-role repair design; not an enumerated field in cli-contract.md."
+          },
+          "op": {
+            "type": "string",
+            "enum": ["reset", "reclone", "stash-flag", "unchanged"],
+            "$comment": "Reconstructed op set: mirrors reset/reclone, personal stash-flag (never discard), else unchanged. Not enumerated in cli-contract.md."
+          }
+        }
+      }
+    },
+    "retained_dirty": {
+      "type": "array",
+      "description": "Human-owned/dirty trees that were preserved (never-destroy invariant #3). Mirrors deprovision.retained_dirty.",
+      "items": { "type": "string" }
+    }
+  }
+}

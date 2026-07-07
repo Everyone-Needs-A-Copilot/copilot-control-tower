@@ -9,8 +9,8 @@
 | **Bundle / MDM domain** | `dev.enac.controltower` |
 | **Brand** | Aviator-sunglasses silhouette (`#2D294E`), template-icon friendly |
 | **Branch** | `ecosystem-extensions` |
-| **Design appendices** | [`research/design-control-tower-core.md`](research/design-control-tower-core.md) · [`design-control-tower-dist.md`](research/design-control-tower-dist.md) · [`design-control-tower-integration.md`](research/design-control-tower-integration.md) |
-| **Validation appendices** | [`research/redteam-control-tower-A.md`](research/redteam-control-tower-A.md) (use-case layer, 17 findings) · [`redteam-control-tower-B.md`](research/redteam-control-tower-B.md) (platform layer, 18 findings) |
+| **Design appendices** | [`design-core.md`](../03-design/design-core.md) · [`design-distribution.md`](../03-design/design-distribution.md) · [`design-integration.md`](../03-design/design-integration.md) |
+| **Validation appendices** | [`redteam-use-cases.md`](../04-validation/redteam-use-cases.md) (use-case layer, 17 findings) · [`redteam-platform.md`](../04-validation/redteam-platform.md) (platform layer, 18 findings) |
 
 > **The one invariant.** Control Tower is a **face + supervisor over the `copilot`/`cc` CLI — it parses, it never computes.** Every health verdict, resolution, signature check, prune, and wipe is done by the CLI, the same hardened pipeline a headless developer runs. If Control Tower vanished, the CLI would still be correct. That contract is what makes an always-on auto-pulling agent *safer* than a human running `copilot update` by hand — and it is why the whole thing is a well-scoped skin, not a second brain.
 
@@ -164,7 +164,7 @@ The original escalation ladder routed by **event-class** (drift→auto-heal, aut
 
 ## 10. Validation — the 25 Critical/High findings and how they're addressed
 
-Full reports: [`redteam-control-tower-A.md`](research/redteam-control-tower-A.md) (use-case layer), [`redteam-control-tower-B.md`](research/redteam-control-tower-B.md) (platform layer). All addressed above.
+Full reports: [`redteam-use-cases.md`](../04-validation/redteam-use-cases.md) (use-case layer), [`redteam-platform.md`](../04-validation/redteam-platform.md) (platform layer). All addressed above.
 
 | ID | Sev | Failure | Addressed |
 |---|---|---|---|
@@ -209,7 +209,7 @@ Full reports: [`redteam-control-tower-A.md`](research/redteam-control-tower-A.md
 
 ## 12. Phased roadmap (parallelizable — see the PRD)
 
-*No time estimates — phases, priorities, complexity only. The [PRD](#) decomposes these into parallel workstreams.*
+*No time estimates — phases, priorities, complexity only. The [PRD](../02-prd/prd.md) decomposes these into parallel workstreams.*
 
 - **P0 — CLI contract + shell.** The `--json` additions + `flock` + `COPILOT_MANAGED_BY` in `copilot` (prereq); the single-process Tauri shell, status state machine, host detection, menu.
 - **P1 — Wizard + persistence + signing.** GUI wizard (silent-MDM + fail-closed validation + Waiting-for-network), SMAppService + crash-watchdog, Developer ID signing/notarization + the cross-repo binary contract, self-update via the stable watchdog + heartbeat.
@@ -224,6 +224,6 @@ Full reports: [`redteam-control-tower-A.md`](research/redteam-control-tower-A.md
 
 ## Appendices
 
-**Design:** [`research/design-control-tower-core.md`](research/design-control-tower-core.md) · [`design-control-tower-dist.md`](research/design-control-tower-dist.md) · [`design-control-tower-integration.md`](research/design-control-tower-integration.md)
-**Validation:** [`research/redteam-control-tower-A.md`](research/redteam-control-tower-A.md) · [`redteam-control-tower-B.md`](research/redteam-control-tower-B.md)
-**Parent architecture:** [`04-ecosystem-architecture.md`](04-ecosystem-architecture.md)
+**Design:** [`design-core.md`](../03-design/design-core.md) · [`design-distribution.md`](../03-design/design-distribution.md) · [`design-integration.md`](../03-design/design-integration.md)
+**Validation:** [`redteam-use-cases.md`](../04-validation/redteam-use-cases.md) · [`redteam-platform.md`](../04-validation/redteam-platform.md)
+**Parent architecture:** [`ecosystem-architecture.md`](../reference/ecosystem-architecture.md)

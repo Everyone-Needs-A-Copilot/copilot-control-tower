@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/doctor.schema.json",
+  "title": "copilot doctor --json",
+  "description": "Health verdict Control Tower renders in the tray. Mirrors `cc memory check`. Exit 0 clean / 1 any fail / 2 env error. `status` is computed CLI-side; the app only renders it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "host", "score", "status", "offline", "checkers"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "host": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Host identifier the verdict was computed for."
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Composite health score 0-100."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["healthy", "degraded", "failed"],
+      "description": "CLI-computed terminal verdict.",
+      "$comment": "cli-contract.md says status is computed CLI-side but does not enumerate the value set. Encoded as healthy|degraded|failed, aligned to the 0/1/2 exit-code intent (env errors surface via exit 2). Owner should confirm the exact string set."
+    },
+    "offline": {
+      "type": "boolean",
+      "description": "True when the verdict was produced without network reachability."
+    },
+    "checkers": {
+      "type": "array",
+      "description": "Per-checker results.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "$comment": "The contract lists an explicit trailing ellipsis on the checker object, so it is intentionally open/extensible; additionalProperties is left true. Known security-relevant fields are required.",
+        "required": ["id", "severity", "destructive"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "severity": { "$ref": "_envelope.schema.json#/$defs/severity" },
+          "repair": {
+            "type": ["string", "null"],
+            "description": "Repair action available for this checker, or null when none.",
+            "$comment": "Prose names the field `repair` without a type. Encoded as a nullable repair-action identifier; it may instead be a boolean 'repair available' flag. Owner to confirm."
+          },
+          "destructive": {
+            "type": "boolean",
+            "description": "Whether the associated repair is destructive. Security-relevant: a missing value is treated as destructive (fail-closed), so the CLI must always emit it."
+          }
+        }
+      }
+    },
+    "auth": {
+      "type": "array",
+      "description": "Auth/credential check results.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "$comment": "cli-contract.md shows `auth:[...]` with an unspecified element shape; encoded as an open array of objects until the CLI freezes the item schema."
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "Encodes the 'a false Healthy is impossible' invariant to the degree it is structurally encodable: a healthy verdict may not be offline and may not contain any checker whose severity is fail.",
+      "if": {
+        "properties": { "status": { "const": "healthy" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "offline": { "const": false },
+          "checkers": {
+            "not": {
+              "contains": {
+                "type": "object",
+                "properties": { "severity": { "const": "fail" } },
+                "required": ["severity"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

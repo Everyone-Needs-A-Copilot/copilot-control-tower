@@ -4,6 +4,8 @@ Control Tower is a face + supervisor: it **parses machine-readable CLI output; i
 
 Full detail: [`../03-design/design-integration.md`](../03-design/design-integration.md) §1. Rationale: [`architecture.md`](architecture.md) §6.
 
+> **Machine-readable source of truth:** the versioned JSON Schemas in [`schemas/`](schemas/) (one `*.schema.json` per verb, Draft 2020-12) are authoritative for the CI contract test; this prose and those schemas must stay in sync (**schemas win for machines**).
+
 ## Requirements
 
 Every consumed verb grows a **versioned `--json`** mode. All schemas carry a top-level `schema_version`. Control Tower declares a `min_schema`/`max_schema` range and **gates both directions** — a CLI schema older than its floor is as fatal as one newer. **Missing security-relevant fields fail closed** (absent `destructive`/`signed`/`severity` ⇒ treated as destructive/unsigned/fail, never safe).

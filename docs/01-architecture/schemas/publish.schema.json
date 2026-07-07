@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/publish.schema.json",
+  "title": "copilot publish --json",
+  "description": "Author-side push of a writable org/department tier. The CLI computes the rebase/merge; Control Tower only renders the plain-language chooser and passes the pick back via --resolve. Exit 0 = published or a cleanly-reported conflict; 1 = refused; 2 = env/credential error.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tier", "result", "leak_scan"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "tier": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The writable org/dept tier being published. Security-relevant: a missing/empty tier => refuse to publish (fail-closed)."
+    },
+    "result": {
+      "type": "string",
+      "enum": ["auto-merged", "needs-choice", "parked-escalated"],
+      "description": "Publish/conflict outcome. A surfaced conflict is a normal outcome, not an error."
+    },
+    "leak_scan": {
+      "type": "object",
+      "description": "Tier-scoped fail-closed leak-scan result. Security-relevant: a missing or malformed leak_scan => refuse to publish (SOUL 'The Leak').",
+      "additionalProperties": true,
+      "$comment": "cli-contract.md/inheritance-and-publish.md require leak_scan and make it fail-closed, but do not enumerate its internal shape. Presence + object-ness is enforced here (absence is a hard schema failure); internal fields left open until the CLI freezes them."
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Present only for needs-choice: content-level (never Git-marker) description of a true overlap.",
+      "required": ["tier", "file", "section", "yours", "theirs", "base"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["auto-merged", "needs-choice", "parked-escalated"],
+          "$comment": "cli-contract.md line 26 says conflict.state exists 'when conflict is present', but the needs-choice example payload omits it. Encoded as an optional mirror of `result`; owner to confirm whether it is actually emitted."
+        },
+        "tier": { "type": "string", "minLength": 1 },
+        "file": { "type": "string" },
+        "section": { "type": "string" },
+        "yours": { "$ref": "#/$defs/authored_version" },
+        "theirs": { "$ref": "#/$defs/authored_version" },
+        "base": { "$ref": "#/$defs/base_version" }
+      }
+    },
+    "resolutions": {
+      "type": "array",
+      "description": "Non-destructive options offered for needs-choice. keep-both is the always-available lossless floor; escalate is the always-available exit.",
+      "items": {
+        "type": "string",
+        "enum": ["keep-yours", "keep-theirs", "keep-both", "escalate"]
+      },
+      "uniqueItems": true
+    },
+    "parked_ref": {
+      "type": "string",
+      "description": "Durable held ref where a parked change is preserved (never lost). Present for parked-escalated."
+    },
+    "escalated_to": {
+      "type": "string",
+      "description": "Competent author / tier lead the parked change was escalated to (plain language, via §9 Bob-agency routing)."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why the change was parked/escalated (sensitive path/class, or author declined)."
+    },
+    "pushed_sha": { "$ref": "_envelope.schema.json#/$defs/git_sha" }
+  },
+  "$defs": {
+    "authored_version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["author", "ts", "rendered"],
+      "properties": {
+        "author": { "type": "string" },
+        "ts": { "$ref": "_envelope.schema.json#/$defs/timestamp" },
+        "rendered": {
+          "type": "string",
+          "description": "Rendered content version (never Git markers)."
+        }
+      }
+    },
+    "base_version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "rendered"],
+      "properties": {
+        "ts": { "$ref": "_envelope.schema.json#/$defs/timestamp" },
+        "rendered": { "type": "string" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "auto-merged: rebased + non-overlapping hunks merged; push completed. Requires pushed_sha; no conflict/resolutions/park fields.",
+      "if": { "properties": { "result": { "const": "auto-merged" } }, "required": ["result"] },
+      "then": {
+        "required": ["pushed_sha"],
+        "not": { "anyOf": [ { "required": ["conflict"] }, { "required": ["parked_ref"] }, { "required": ["escalated_to"] } ] }
+      }
+    },
+    {
+      "$comment": "needs-choice: true overlap. Requires the rendered conflict and the non-destructive resolutions list.",
+      "if": { "properties": { "result": { "const": "needs-choice" } }, "required": ["result"] },
+      "then": { "required": ["conflict", "resolutions"] }
+    },
+    {
+      "$comment": "parked-escalated: change parked on a durable ref and escalated. Requires parked_ref, escalated_to, reason.",
+      "if": { "properties": { "result": { "const": "parked-escalated" } }, "required": ["result"] },
+      "then": { "required": ["parked_ref", "escalated_to", "reason"] }
+    }
+  ]
+}

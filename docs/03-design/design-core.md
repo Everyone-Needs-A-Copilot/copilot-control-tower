@@ -1,3 +1,5 @@
+> **⚠️ SUPERSEDED (process model).** The dual-process/daemon design below is superseded by the single-process model in [`../01-architecture/architecture.md`](../01-architecture/architecture.md) (invariant #2) — retained for history/UX-surface detail. Where this doc and architecture.md conflict, architecture.md wins.
+
 # Aviator — The Menu-Bar Face & Supervisor of the Copilot Ecosystem
 
 | | |

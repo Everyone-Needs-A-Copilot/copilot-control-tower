@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Research / Illustrative (extends [`02-four-tier-and-github-topology.md`](02-four-tier-and-github-topology.md)) |
+| **Status** | Research / Illustrative (extends `02-four-tier-and-github-topology.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*) |
 | **Branch** | `ecosystem-extensions` |
 | **Date** | 2026-07-06 |
 | **Purpose** | Show how real people use the **PERSONAL › DEPARTMENT › ORG › FOUNDATION** model day to day — who authors where, what commands they run, and what resolves. |

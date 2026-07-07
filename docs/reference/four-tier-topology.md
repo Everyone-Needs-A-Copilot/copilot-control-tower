@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Status** | Research / Proposed (extends [`00-findings-and-recommendations.md`](00-findings-and-recommendations.md)) |
+| **Status** | Research / Proposed (extends `00-findings-and-recommendations.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*) |
 | **Branch** | `ecosystem-extensions` |
 | **Date** | 2026-07-06 |
 | **Question answered** | "Generalize the model from 3 tiers to **PERSONAL › DEPARTMENT › ORG › FOUNDATION** (and N tiers), map each tier to a **different GitHub account/org**, and give ENAC — who owns the foundation — a way to author foundation changes too." |
-| **Appendices** | [`research/research-ntier-arch.md`](research/research-ntier-arch.md) · [`research/research-github-topology.md`](research/research-github-topology.md) · [`research/research-foundation-governance.md`](research/research-foundation-governance.md) |
+| **Appendices** | `research/research-ntier-arch.md` · `research/research-github-topology.md` · `research/research-foundation-governance.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))* |
 
 ---
 
@@ -195,7 +195,7 @@ This is the single point where the two research streams diverged, and it is a **
 - **Option A (separate repos) is the default for every department, every product.** This is not a "pick by taste" choice — it is the only topology that actually isolates confidential departmental content.
 - **Option B (subfolders) is a narrow, explicit opt-in**, reserved for departmental content an enterprise has affirmatively decided is non-confidential (pure organizational scoping, not secrecy). Choosing it must be a deliberate, documented exception, not a default assumption — and it still buys the real wins it always did: no org↔dept version skew (one SHA), one clone, and "promote dept→org" as moving a file up a directory (accepted trade-offs *only* for genuinely non-confidential content).
 
-**The architecture does not force the mechanism, only the default.** Because the manifest layer source is `(repo, path)`, a `department` layer can be *either* a separate repo (Option A: `repo` differs, no `path`) *or* a subfolder (Option B: same `repo`, distinct `path`); the resolver is identical either way. `ecosystem.yml`'s per-product `topology` field defaults to `separate` and must be explicitly set to `subfolder` to opt out (see [`04-ecosystem-architecture.md`](04-ecosystem-architecture.md) §4.2, §8.1).
+**The architecture does not force the mechanism, only the default.** Because the manifest layer source is `(repo, path)`, a `department` layer can be *either* a separate repo (Option A: `repo` differs, no `path`) *or* a subfolder (Option B: same `repo`, distinct `path`); the resolver is identical either way. `ecosystem.yml`'s per-product `topology` field defaults to `separate` and must be explicitly set to `subfolder` to opt out (see `04-ecosystem-architecture.md` §4.2, §8.1 *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*).
 
 ### 6.3 GitHub teams mapping
 
@@ -218,7 +218,7 @@ One bootstrap wires org + department + foundation and leaves the personal seam o
 4. `cc config` the manifest layers (foundation < org < dept), print the optional personal-layer opt-in.
 5. `copilot update` materializes the resolved `.claude/`.
 
-Full script sketch in [`research/research-github-topology.md`](research/research-github-topology.md) §5.
+Full script sketch in `research/research-github-topology.md` §5 *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*.
 
 ---
 
@@ -313,6 +313,8 @@ Egress is strictly **one-way** (private→public). Ingress is the ordinary `copi
 
 ## Appendices
 
-- [`research/research-ntier-arch.md`](research/research-ntier-arch.md) — full N-tier generalization ADR (manifest schema, resolver algorithm, dept-vs-org modeling, `cc` config change, version-skew).
-- [`research/research-github-topology.md`](research/research-github-topology.md) — GitHub repo topology + multi-account credential architecture (SSH aliases, `includeIf`, GitHub App tokens, onboarding script, prior art).
-- [`research/research-foundation-governance.md`](research/research-foundation-governance.md) — ENAC-owns-foundation authoring, the promotion pipeline, per-layer governance, and supply-chain controls.
+- `research/research-ntier-arch.md` — full N-tier generalization ADR (manifest schema, resolver algorithm, dept-vs-org modeling, `cc` config change, version-skew).
+- `research/research-github-topology.md` — GitHub repo topology + multi-account credential architecture (SSH aliases, `includeIf`, GitHub App tokens, onboarding script, prior art).
+- `research/research-foundation-governance.md` — ENAC-owns-foundation authoring, the promotion pipeline, per-layer governance, and supply-chain controls.
+
+*(All three are external — source-repo appendices; see [ecosystem-links.md](./ecosystem-links.md).)*
