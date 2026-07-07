@@ -65,3 +65,10 @@ source:
   still be added upstream at freeze.
 - `resolve.schema.json` — confirmed already aligned with the upstream per-item shape; no changes
   needed beyond a confirmation note.
+- `freshness.schema.json` — **CORRECTED 2026-07-07 (WS-A slice 3, cc owner)**: `current_lock_sha` /
+  `latest_lock_sha` / `stale` widened from non-nullable to nullable, and a required `offline` boolean
+  added (mirroring `doctor.schema.json`'s existing `offline` field). The original shape had no way to
+  represent "could not check" (offline, or no local lock yet) other than fabricating a SHA or a `stale`
+  verdict — a false-Healthy-shaped bug the honesty rule forbids. `stale: null` is now the honest third
+  state; a consumer must treat it as unknown, never as `false`/"up to date". See
+  `tools/cc/src/cc/commands/freshness.py`'s module docstring in `claude-copilot` for the full rationale.
