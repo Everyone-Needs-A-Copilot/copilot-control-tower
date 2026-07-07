@@ -233,3 +233,64 @@ export function layerActionLabel(row: { badge_state: BadgeState }): string | nul
   if (row.badge_state === "triangle" || row.badge_state === "bang") return "Repair…";
   return null;
 }
+
+/**
+ * M2 S7 — Settings screen copy.
+ *
+ * Genuine design-doc gap (flagged, not invented silently): 50-ux-design.md
+ * and 60-ui-design.md do not design a repo-URL-authoring Settings screen —
+ * 60-ui-design.md explicitly names "a settings panel that re-points the
+ * update feed" as a ruled-OUT anti-pattern for Bob's surface (line 74/129).
+ * This is the DIFFERENT unmanaged/solo/author surface `.copilot/wp/5.md`
+ * ADR-M2-004 defines, reached behind Bob's (separately-designed) Preferences.
+ * The strings below follow 70-copy-voice.md's voice rules (short, one idea
+ * per sentence, honest, no invented jargon, no raw git/yaml/io text ever)
+ * and reuse existing approved phrases (`LAYER_LABEL`, "needs sign-in",
+ * "Sign in…") wherever the vocabulary already exists, but are NOT sourced
+ * from an existing row in 70-copy-voice.md for the net-new Settings-specific
+ * strings — those are marked placeholder pending a design pass. Two strings
+ * are verbatim from the S7 task brief itself (marked below).
+ */
+export const SETTINGS_TITLE = "Settings";
+/** Task brief, verbatim ("Render this honestly ('Managed by your IT admin')"). */
+export const SETTINGS_MANAGED_NOTE = "Managed by your IT admin.";
+/** Reuses the existing `stateWords()` "needs sign-in" phrase — task brief, verbatim intent. */
+export const SETTINGS_NEEDS_SIGN_IN = "Needs sign-in";
+export const SETTINGS_SAVE_LABEL = "Save changes";
+export const SETTINGS_SAVED_ANNOUNCEMENT = "Settings saved.";
+export const SETTINGS_NOT_SET_UP = "Not set up yet.";
+export const SETTINGS_ROW_PLACEHOLDER = "git@github.com:org/repo.git";
+export const SETTINGS_EMPTY_STATE =
+  "No layers configured yet. Paste a repository URL below to get started.";
+export const SETTINGS_BACK_LABEL = "Back";
+
+export function settingsErrorsAnnouncement(count: number): string {
+  return `${count} problem${count === 1 ? "" : "s"} found. Fix the highlighted fields and save again.`;
+}
+
+/** Display name per product slug — same "{Product} Copilot" convention the dev-fixtures already use. */
+export const PRODUCT_LABEL: Record<string, string> = {
+  knowledge: "Knowledge Copilot",
+  cli: "CLI Copilot",
+  claude: "Claude Copilot",
+  codex: "Codex Copilot",
+};
+
+/** VoiceOver / visible label for one Settings row, per its current honest state. */
+export function settingsRowLabel(opts: {
+  product: string;
+  tier: Layer;
+  editable: boolean;
+  managed: boolean;
+  hasValue: boolean;
+  needsSignIn: boolean;
+  errorMessage: string | null;
+}): string {
+  const productName = PRODUCT_LABEL[opts.product] ?? opts.product;
+  const base = `${productName} — ${LAYER_LABEL[opts.tier]} repository URL`;
+  if (opts.errorMessage) return `${base}. ${opts.errorMessage}`;
+  if (!opts.editable && opts.managed) return `${base}, ${SETTINGS_MANAGED_NOTE.toLowerCase()}`;
+  if (opts.needsSignIn) return `${base}, ${SETTINGS_NEEDS_SIGN_IN.toLowerCase()}.`;
+  if (!opts.hasValue) return `${base}, ${SETTINGS_NOT_SET_UP.toLowerCase()}`;
+  return `${base}.`;
+}

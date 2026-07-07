@@ -1,0 +1,11 @@
+{
+  "managed": false,
+  "layers": [],
+  "errors": [
+    {
+      "layer_id": null,
+      "field": "manifest",
+      "message": "Couldn't read your settings file — it may be damaged or in an unexpected format. Nothing was changed."
+    }
+  ]
+}

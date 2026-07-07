@@ -14,12 +14,21 @@ fn main() {
     // entries the actual, enforced allow-list, instead of the commands being
     // reachable unconditionally regardless of what capabilities.json says.
     // `hide_popover` (T9 D2 follow-up): the Esc/click-outside popover
-    // dismiss command — see `src-tauri/src/commands.rs`.
+    // dismiss command — see `src-tauri/src/commands.rs`. `get_settings`/
+    // `save_settings`/`open_settings_window` (M2/S6): the Settings IPC seam
+    // — same ACL-enforcement reasoning applies, and each has its own
+    // `allow-*` entry scoped to only the window that legitimately calls it
+    // (`capabilities/default.json` for `open_settings_window`, called from
+    // the popover's footer; `capabilities/settings.json` for
+    // `get_settings`/`save_settings`, called from the Settings window).
     let attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "get_state",
             "refresh_now",
             "hide_popover",
+            "get_settings",
+            "save_settings",
+            "open_settings_window",
         ]));
     tauri_build::try_build(attributes).expect("tauri_build::try_build failed");
 

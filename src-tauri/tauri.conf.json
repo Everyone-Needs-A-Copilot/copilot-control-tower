@@ -25,6 +25,21 @@
         "focus": false,
         "skipTaskbar": true,
         "shadow": true
+      },
+      {
+        "label": "settings",
+        "title": "Copilot Control Tower — Settings",
+        "url": "settings.html",
+        "width": 480,
+        "height": 640,
+        "minWidth": 360,
+        "minHeight": 420,
+        "resizable": true,
+        "maximizable": false,
+        "decorations": true,
+        "visible": false,
+        "skipTaskbar": false,
+        "center": true
       }
     ],
     "security": {

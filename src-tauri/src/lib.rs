@@ -15,8 +15,15 @@
 //! - `timer` — T5: the doctor poll loop (Tokio task inside *this* process).
 //! - `tray` — T6: builds/updates the tray icon (template image + badge) and
 //!   owns the one place the popover window is ever shown/hidden.
-//! - `commands` — T5/T8/D2: the `get_state`/`refresh_now`/`hide_popover`
-//!   Tauri commands + `state-changed` event, the whole Rust<->web-UI seam.
+//! - `commands` — T5/T8/D2/M2-S6: the `get_state`/`refresh_now`/
+//!   `hide_popover` Tauri commands + `state-changed` event (the doctor
+//!   seam), plus `get_settings`/`save_settings`/`open_settings_window` (the
+//!   Settings seam) — the whole Rust<->web-UI IPC surface lives here.
+//! - `settings` — M2: the layer-manifest model + validator + never-destroy
+//!   writer + secret/security guard + authoring policy + managed gate
+//!   (`copilot.layers.yml`) — everything `commands::get_settings`/
+//!   `save_settings` wire together (see that module's doc for the full S1-S5
+//!   split).
 //!
 //! Nothing in this file computes ecosystem state. If a change here starts
 //! looking like resolution/sync/signature/merge/health-scoring logic, it
@@ -26,13 +33,15 @@
 // `timer.rs`.
 mod cli;
 mod commands;
-// `pub` (T3): `model`/`render` are reached from `tests/` and
+// `pub` (T3): `model`/`render`/`settings` are reached from `tests/` and
 // `examples/gen_dev_fixtures.rs` (separate crates linked against
-// `copilot_control_tower_lib`), which need `model::state::parse_doctor_body`
-// and `render::derive::derive_render_state`. `cli`/`commands`/`timer`/`tray`
-// stay private — nothing outside this crate needs them.
+// `copilot_control_tower_lib`), which need `model::state::parse_doctor_body`,
+// `render::derive::derive_render_state`, and (from M2 on) the settings
+// model/validator/DTOs. `cli`/`commands`/`timer`/`tray` stay private —
+// nothing outside this crate needs them.
 pub mod model;
 pub mod render;
+pub mod settings;
 mod timer;
 mod tray;
 
@@ -53,7 +62,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::refresh_now,
-            commands::hide_popover
+            commands::hide_popover,
+            commands::get_settings,
+            commands::save_settings,
+            commands::open_settings_window
         ])
         .setup(|app| {
             // macOS: menu-bar app, no Dock icon, no Cmd-Tab entry. Must be set

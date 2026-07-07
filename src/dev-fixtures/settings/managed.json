@@ -1,0 +1,60 @@
+{
+  "managed": true,
+  "layers": [
+    {
+      "id": "org-knowledge",
+      "product": "knowledge",
+      "tier": "org",
+      "repo_url": "git@github.com:acme/knowledge-org.git",
+      "auth_ref": "ssh-work",
+      "rank": 30,
+      "editable": false
+    },
+    {
+      "id": "dept-knowledge",
+      "product": "knowledge",
+      "tier": "dept",
+      "repo_url": "git@github.com:acme/knowledge-dept-engineering.git",
+      "auth_ref": "ssh-work",
+      "rank": 20,
+      "editable": false
+    },
+    {
+      "id": "personal-knowledge",
+      "product": "knowledge",
+      "tier": "personal",
+      "repo_url": "",
+      "auth_ref": "",
+      "rank": 10,
+      "editable": true
+    },
+    {
+      "id": "org-cli",
+      "product": "cli",
+      "tier": "org",
+      "repo_url": "git@github.com:acme/cli-org.git",
+      "auth_ref": "ssh-work",
+      "rank": 30,
+      "editable": false
+    },
+    {
+      "id": "org-claude",
+      "product": "claude",
+      "tier": "org",
+      "repo_url": "git@github.com:acme/claude-org.git",
+      "auth_ref": "gh-device",
+      "rank": 30,
+      "editable": false
+    },
+    {
+      "id": "org-codex",
+      "product": "codex",
+      "tier": "org",
+      "repo_url": "git@github.com:acme/codex-org.git",
+      "auth_ref": "ssh-work",
+      "rank": 30,
+      "editable": false
+    }
+  ],
+  "errors": []
+}

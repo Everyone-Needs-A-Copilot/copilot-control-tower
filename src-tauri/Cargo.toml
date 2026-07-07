@@ -26,9 +26,29 @@ serde_json = "1"
 # Enforces "no second process spawns" (invariant #2): a second launch hands its
 # args to the running instance and exits, instead of starting a competing tray.
 tauri-plugin-single-instance = "2"
+# Settings (M2, S1): typed model of `copilot.layers.yml`. Published as
+# "deprecated" (no active maintainer) but remains the de facto standard
+# serde<->YAML bridge; `serde_yaml::Value`/`Mapping` are what let the
+# manifest model round-trip fields it doesn't know about yet (never-destroy
+# groundwork for S2). Revisit if a maintained successor emerges.
+serde_yaml = "0.9"
 
 [dev-dependencies]
 syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+
+# Settings (M2, S5): the managed/unmanaged gate reads the macOS forced/managed
+# preferences domain (`CFPreferencesAppValueIsForced`) — invariant #4,
+# "security-sensitive config is honored only from the forced/managed domain".
+# macOS-only by construction (a future Windows re-skin, M9/WS-I, gets its own
+# boundary shim here per CLAUDE.md's "design every OS-integration edge so
+# Windows is a re-skin" — this dependency stays scoped to `cfg(target_os =
+# "macos")` so it never becomes a silent cross-platform assumption).
+# `core-foundation-sys` has the raw `CFPreferencesAppValueIsForced` FFI this
+# module calls; `core-foundation`'s `CFString` is used only for the ergonomic
+# key/application-id string construction around that call.
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10.1"
+core-foundation-sys = "0.8.7"
 
 # NOTE: no health-scoring, sync, signature, merge, or wipe crates belong here —
 # ever. That logic lives in the `copilot`/`cc` CLI (invariant #1, "parse never

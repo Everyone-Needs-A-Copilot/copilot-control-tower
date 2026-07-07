@@ -18,21 +18,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { renderBadge } from "./badges";
 import * as copy from "./copy";
 import { announce, attachProductListKeyboard } from "./a11y";
+import { h } from "./dom";
 import { isTauriHost } from "../tauri-host";
 import type { DeptProjectView, LayerView, ProductView, RenderState } from "../types";
-
-function h<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  opts: { className?: string; text?: string; attrs?: Record<string, string> } = {},
-): HTMLElementTagNameMap[K] {
-  const el = document.createElement(tag);
-  if (opts.className) el.className = opts.className;
-  if (opts.text !== undefined) el.textContent = opts.text;
-  if (opts.attrs) {
-    for (const [k, v] of Object.entries(opts.attrs)) el.setAttribute(k, v);
-  }
-  return el;
-}
 
 function divider(): HTMLElement {
   return h("hr", { className: "ct-sep" });
@@ -216,10 +204,29 @@ function buildSecondaryRows(): HTMLElement {
   return nav;
 }
 
+/**
+ * M2 S7/S8: "Preferences…" is the one footer row wired to a real effect —
+ * opening Settings (the unmanaged/solo/author repo-URL surface,
+ * `.copilot/wp/5.md` ADR-M2-004), reached from the popover's footer per the
+ * task brief ("wire a way to open it — e.g. from the popover's secondary/
+ * footer area"). In a Tauri host this invokes the real Rust-side
+ * `open_settings_window` command (S6, landed) to show/focus the dedicated
+ * Settings *window*; outside a Tauri host (plain `vite dev`, this repo's
+ * headless-verification path) it navigates to `settings.html` directly,
+ * since that's the only host this session can drive. "Quit" stays inert —
+ * out of this task's scope.
+ */
 function buildFooter(): HTMLElement {
   const nav = h("nav", { className: "ct-footer", attrs: { "aria-label": "Application" } });
   const prefs = h("button", { className: "ct-row", text: copy.PREFERENCES_LABEL });
   prefs.type = "button";
+  prefs.addEventListener("click", () => {
+    if (isTauriHost()) {
+      void invoke("open_settings_window");
+    } else {
+      window.location.href = "./settings.html";
+    }
+  });
   const quit = h("button", { className: "ct-row ct-row--destructive", text: copy.QUIT_LABEL });
   quit.type = "button";
   nav.append(prefs, quit);

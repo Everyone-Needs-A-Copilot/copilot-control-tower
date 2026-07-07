@@ -126,3 +126,70 @@ export type TrayStateDto = RenderState;
 
 /** Event name Rust emits on `state-changed` (see src-tauri/src/commands.rs). */
 export const STATE_CHANGED_EVENT = "state-changed" as const;
+
+/**
+ * Settings (M2, S1) — the layer-manifest IPC DTOs. Mirrors
+ * `src-tauri/src/settings/dto.rs` field-for-field (plain snake_case on both
+ * sides, same convention as `RenderState` above — no camelCase translation
+ * layer).
+ *
+ * S1 froze this shape; `get_settings()` / `save_settings()` (S6) now cross
+ * this seam for real, and S8 folded S7's standalone `src/settings-types.ts`
+ * copy in here as the single authoritative source once the two could safely
+ * be merged (that file's own header explains why it existed separately in
+ * the meantime — a deliberate anti-merge-conflict measure, not drift).
+ * `repo_url`/`auth_ref` are non-null `string` — Rust always projects a
+ * missing value to `""` (`commands::project_row`'s `unwrap_or_default()`),
+ * never `null`, so the UI's own "not set up" / "needs sign-in" checks read
+ * an empty string, not an absent field.
+ */
+
+/**
+ * The three tiers Settings can author (D-1-M2). Foundation is the base tier
+ * and is never user-authored via Settings, so it has no member here.
+ */
+export type Tier = "org" | "dept" | "personal";
+
+export interface FieldError {
+  /** `null` for a manifest-wide problem not attributable to one layer. */
+  layer_id: string | null;
+  field: string;
+  /**
+   * Plain language always — never raw yaml/git/serde text (SOUL "a Git
+   * error to a non-technical person").
+   */
+  message: string;
+}
+
+export interface LayerRow {
+  id: string;
+  product: string;
+  tier: Tier;
+  repo_url: string;
+  /** A REFERENCE only (e.g. "ssh-personal", "anon") — never a credential value (D-4). */
+  auth_ref: string;
+  rank: number;
+  /** `false` on a managed machine for a locked org/dept row (S5's managed gate). */
+  editable: boolean;
+}
+
+/** The full Settings surface `get_settings()` returns (S6). */
+export interface SettingsState {
+  /** `true` when a forced/managed-domain ecosystem is present (S5). */
+  managed: boolean;
+  layers: LayerRow[];
+  /** Every current validation problem, plain language. Empty means valid. */
+  errors: FieldError[];
+}
+
+/**
+ * What the UI submits on save (S7 -> S6 -> S4). `rank`/`id`/`auth_ref` are
+ * NOT here — they're derived Rust-side (decision-gated on D-1-M2), never
+ * sent from the UI, and the assembly step never probes the repo (invariant
+ * #1: no network I/O in authoring).
+ */
+export interface LayerInput {
+  product: string;
+  tier: Tier;
+  repo_url: string;
+}
