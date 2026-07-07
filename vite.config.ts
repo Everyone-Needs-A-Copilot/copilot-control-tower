@@ -14,15 +14,17 @@ export default defineConfig(async () => ({
   build: {
     outDir: "../dist",
     emptyOutDir: true,
-    // Two HTML entry points: the popover (index.html, M1) and Settings
-    // (settings.html, M2 S7 — the unmanaged/solo/author repo-URL screen).
-    // Vite only bundles `index.html` by default; without this, `settings.html`
-    // would build clean but silently not ship in `dist/`, leaving S8 with no
-    // page to point a real Settings window at.
+    // Three HTML entry points: the popover (index.html, M1), Settings
+    // (settings.html, M2 S7 — the unmanaged/solo/author repo-URL screen), and
+    // the first-run wizard (wizard.html, M3 S7). Vite only bundles
+    // `index.html` by default; without this, the other two would build clean
+    // but silently not ship in `dist/`, leaving S6/S8 with no page to point a
+    // real window at.
     rollupOptions: {
       input: {
         popover: fileURLToPath(new URL("src/index.html", import.meta.url)),
         settings: fileURLToPath(new URL("src/settings.html", import.meta.url)),
+        wizard: fileURLToPath(new URL("src/wizard.html", import.meta.url)),
       },
     },
   },
