@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- First-run wizard surface (M3 S7, `.copilot/wp/15.md`). A real window
+         (`--wizard-window`, ~520x420pt, centered on the active display —
+         S6/S8 register the Tauri window + `open_wizard_window` command;
+         this page is what it points at, same pattern `settings.html`
+         established for the Settings window). Under plain `vite dev` (no
+         Tauri host — this repo's headless-verification path) this page is
+         opened directly, driven by the dev-fixture harness (wizard-main.ts). -->
+    <title>Copilot Control Tower — Setup</title>
+    <link rel="stylesheet" href="./styles/tokens.css" />
+    <link rel="stylesheet" href="./styles/wizard.css" />
+  </head>
+  <body>
+    <!-- Dev-only fixture switcher (see wizard-main.ts) — dead code in a
+         release build, same convention as index.html's/settings.html's
+         #ct-dev-harness. -->
+    <div id="ct-dev-harness"></div>
+    <div id="app" aria-label="Copilot Control Tower Setup"></div>
+    <script type="module" src="./wizard-main.ts"></script>
+  </body>
+</html>

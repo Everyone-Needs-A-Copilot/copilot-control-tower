@@ -3,6 +3,13 @@
 Drives Control Tower through every `doctor --json` state without a real fleet or a real
 CLI. Referenced by the M1 architecture WP (`.copilot/wp/1.md` §4) and consumed by T3/T4/T8/T9.
 
+**M3 addition:** `mock-cc` now also implements an `auth` verb — the first-run wizard's
+device-flow sign-in seam (`cc auth --json` / `cc auth login --json`, ceremony + poll,
+scenarios `authorized|denied|expired|timeout|pending`). See
+[`wizard/README.md`](wizard/README.md) for the auth seam docs and the wizard scenario
+corpus (`wizard/scenarios/*.json`); this file continues to document the `doctor`-only
+corpus below.
+
 Conforms to [`docs/01-architecture/schemas/doctor.schema.json`](../../docs/01-architecture/schemas/doctor.schema.json)
 (Draft 2020-12) and [`_envelope.schema.json`](../../docs/01-architecture/schemas/_envelope.schema.json).
 
@@ -70,7 +77,9 @@ referencing`). Validates every `corpus/*.json` against `doctor.schema.json`
 ## Mock `cc` (`mock-cc`)
 
 An executable bash script that stands in for the real `cc`/`copilot` CLI's `doctor
---json` verb, driven entirely by the fixture corpus above.
+--json` verb, driven entirely by the fixture corpus above. As of M3 it also stands in
+for `cc auth --json` (the wizard's device-flow sign-in seam) — see
+[`wizard/README.md`](wizard/README.md) for that half; everything below is `doctor`-only.
 
 ```bash
 # select by env var (matches the M1 architecture WP's documented convention)

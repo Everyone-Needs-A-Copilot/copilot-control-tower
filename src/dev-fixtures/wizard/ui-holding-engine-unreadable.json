@@ -1,0 +1,10 @@
+{
+  "mode": "managed",
+  "phase": "holding",
+  "phase_label": "I couldn't start the engine to check how setup went. Click to reinstall \u2014 it's a fix, not a reset.",
+  "steps": [],
+  "signin": null,
+  "signin_interval_secs": null,
+  "complete": false,
+  "error": "The setup result couldn't be checked because the engine couldn't be read."
+}

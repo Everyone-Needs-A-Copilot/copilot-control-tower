@@ -40,6 +40,21 @@
         "visible": false,
         "skipTaskbar": false,
         "center": true
+      },
+      {
+        "label": "wizard",
+        "title": "Copilot Control Tower — Setup",
+        "url": "wizard.html",
+        "width": 560,
+        "height": 680,
+        "minWidth": 420,
+        "minHeight": 480,
+        "resizable": true,
+        "maximizable": false,
+        "decorations": true,
+        "visible": false,
+        "skipTaskbar": false,
+        "center": true
       }
     ],
     "security": {

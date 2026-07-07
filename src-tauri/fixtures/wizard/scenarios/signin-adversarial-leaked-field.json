@@ -1,0 +1,25 @@
+{
+  "fixture_version": "1",
+  "scenario_id": "signin-adversarial-leaked-field",
+  "title": "NEGATIVE TEST ONLY: poll response carries an unexpected token-shaped field -- prove the parser drops it",
+  "path": "unmanaged",
+  "adversarial": true,
+  "env": {
+    "CT_MANAGED_OVERRIDE": "0",
+    "CT_CLI_PATH": "src-tauri/fixtures/mock-cc",
+    "CT_AUTH_SCENARIO": "authorized-leaked-field-adversarial"
+  },
+  "managed_profile_fixture": null,
+  "wizard_auth_scenario": "authorized-leaked-field-adversarial",
+  "raw_poll_body_emitted": {
+    "status": "authorized",
+    "access_token": "FAKE-SYNTHETIC-NOT-A-REAL-TOKEN-0000000000"
+  },
+  "expected": {
+    "wizard_state_dto_has_token_field": false,
+    "wizard_state_dto_has_access_token_value_anywhere": false,
+    "auth_terminal_status": "authorized",
+    "reaches_done": true
+  },
+  "notes": "The REAL cc auth verb never emits a token to the app (invariant #6) -- this fixture does not model a real CLI response, it is a deliberately poisoned NEGATIVE-TEST input for fitness fn 2 (no-secret-on-wizard-DTO, .copilot/wp/15.md §4). Feed this scenario's poll body through the Rust parser (S3 sec-owned) and assert the resulting WizardState/DTO contains no 'access_token' field and the literal string 'FAKE-SYNTHETIC-NOT-A-REAL-TOKEN-0000000000' does not appear anywhere the app could render or log it. The field name (access_token) and value are both obviously synthetic and never reused by any non-adversarial scenario in this corpus."
+}

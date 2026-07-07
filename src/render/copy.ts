@@ -294,3 +294,90 @@ export function settingsRowLabel(opts: {
   if (!opts.hasValue) return `${base}, ${SETTINGS_NOT_SET_UP.toLowerCase()}`;
   return `${base}.`;
 }
+
+/**
+ * M3 S7 — First-run wizard copy, sourced verbatim from
+ * `docs/product-design/04-experience-design/70-copy-voice.md` § B (the setup
+ * wizard) wherever a row exists there. A few strings are genuinely net-new —
+ * the wizard's product-first host step, the per-outcome device-flow failure
+ * lines, and generic step-navigation chrome ("Continue") have no row in
+ * 70-copy-voice.md yet (ADR-M3-005 retired the host-framed Q1 copy the doc
+ * still shows; the sign-in failure copy was never authored beyond the
+ * dropdown's generic Signed-out line). Each is marked **PLACEHOLDER** below —
+ * flagged for a copywriter pass, exactly like `SETTINGS_*`'s precedent above,
+ * never silently invented as if it were an approved string.
+ */
+
+/** B1/B2 header chrome — the product name shown in the wizard window (70-copy-voice.md "Product name — RESOLVED"). */
+export const WIZARD_WINDOW_TITLE = APP_NAME;
+
+/** B2 Welcome (unmanaged only — managed skips straight to the silent progress spectator, Flow 1). */
+export const WELCOME_TITLE = "Welcome to Copilot Control Tower. Let's set up your copilot.";
+export const WELCOME_BODY = "A few quick questions, then it runs itself. No terminal, no setup files.";
+/** PLACEHOLDER — 70-copy-voice.md doesn't give an explicit Welcome CTA label. */
+export const WELCOME_CONTINUE_LABEL = "Continue";
+
+/** B1 — the silent managed spectator's subhead; B2 reuses these same phase lines for the unmanaged progress view. */
+export const PROGRESS_SUBHEAD_MANAGED = "Setting up your copilot. This is automatic — you don't need to do anything.";
+export const PROGRESS_RESUME_AFTER_QUIT = "Picking up where we left off.";
+
+/** B3 — teach panel (shown once after first success, US-B06). */
+export const TEACH_TITLE = "You're set up.";
+export const TEACH_BODY = "Your copilot is ready and will keep itself up to date. Here's the one-page cheat-sheet to get started.";
+export const TEACH_ACTION_CHEATSHEET = "Open cheat-sheet";
+export const TEACH_ACTION_ADD_SKILL = "Add your first skill";
+export const TEACH_ACTION_BACKUP = "Turn on backup";
+export const TEACH_BACKUP_BODY = "Want a backup of your setup? It's optional and takes one click.";
+export const TEACH_DISMISS = "Done";
+
+/** B4 — honest holding screens inside the wizard. Rendered generically (WizardPhaseTag's "holding" carries no reason sub-tag; `WizardState.error` IS the honest sentence) — titles below are picked ONLY as a display heading over Rust's own plain-language `error` text, never a computed substitute for it. */
+export const HOLDING_TITLE_IT_CONFIG = "We're waiting on IT";
+export const HOLDING_BODY_IT_CONFIG_FALLBACK =
+  "Your setup isn't finished because IT hasn't sent one piece yet. There's nothing for you to do — IT has been told automatically.";
+export const HOLDING_TITLE_NETWORK = "You're offline";
+export const HOLDING_BODY_NETWORK_FALLBACK =
+  "I've set up as far as your network allows. I'll finish your company setup on its own when you reconnect.";
+/** Generic fallback heading when neither IT-config nor network keywords are present in `error` (still just a heading over Rust's own honest sentence). */
+export const HOLDING_TITLE_GENERIC = "Not finished yet";
+
+/** B2 Q2 — device-flow sign-in step. */
+export const SIGNIN_TITLE = "Sign in to continue.";
+export const SIGNIN_BODY = "We opened your browser. Enter this code there:";
+export const SIGNIN_WAITING = "Waiting for you to finish in the browser…";
+export const SIGNIN_HELPER = "This is the sign-in for your AI host — the same account your company uses.";
+export const SIGNIN_COPY_LABEL = "Copy";
+export const SIGNIN_COPIED_ANNOUNCEMENT = "Code copied.";
+/** PLACEHOLDER — an explicit "open browser" affordance beyond the automatic open the copy already narrates. */
+export const SIGNIN_OPEN_BROWSER_LABEL = "Open browser";
+export const SIGNIN_START_LABEL = "Sign in…";
+/** Adapted from 70-copy-voice.md § D's "Signed in." opener — PLACEHOLDER (D's full sentence names a specific product/layer; the wizard's host sign-in is generic). */
+export const SIGNIN_SUCCESS = "Signed in.";
+/** PLACEHOLDER — no row in 70-copy-voice.md covers the wizard's own denied/expired/timeout copy (only the steady-state dropdown's generic Signed-out line exists); flagged for a cw pass. */
+export const SIGNIN_RETRY_LABEL = "Try again";
+export const SIGNIN_FAILURE: Record<"denied" | "expired" | "timeout", string> = {
+  denied: "You didn't finish signing in.",
+  expired: "That code expired before you finished. Let's get you a new one.",
+  timeout: "That took longer than expected. Let's try again.",
+};
+
+/**
+ * B2 Q3 ("company" + "department pick-list") — CONFIRMED OUT OF SCOPE this
+ * milestone: reading the real `UnmanagedFlow::set_layers` (`src-tauri/src/
+ * wizard/unmanaged_flow.rs`) during this session shows it accepts only a
+ * repo-URL map, nothing else — no company/department field exists anywhere
+ * in the landed S5 flow. No copy is defined for it here; `types.ts`'s
+ * `WizardStep` doc explains the finding in full and flags it for the
+ * design/cw track rather than this UI inventing a submission the real
+ * command can't accept.
+ */
+
+/** PLACEHOLDER — ADR-M3-005 retires 70-copy-voice.md's host-framed Q1 title ("Which one do you want to set up?"); no product-first replacement title has been authored yet. Only ever shown as a fallback — the real `WizardStep.prompt` ("Which copilots do you want set up?", confirmed against `unmanaged_flow.rs`) is used preferentially. */
+export const PRODUCTS_TITLE = "Choose your copilots";
+/** B2 "Products step (narrow-only)" — the one line that DOES already exist and still applies verbatim. */
+export const PRODUCTS_BODY = "These come with your team's setup. Uncheck anything you don't want.";
+/** PLACEHOLDER — fallback only; the real `WizardStep.prompt` ("Where should we sync your personal layer from?", confirmed against `unmanaged_flow.rs`) is used preferentially. */
+export const LAYER_SETUP_TITLE = "Set up your team";
+/** PLACEHOLDER — a fieldset legend for the repo-URL rows, kept distinct from `SETTINGS_TITLE` (the unrelated Settings *window*'s title) so the two surfaces don't read as the same screen. */
+export const LAYER_SETUP_REPOS_LEGEND = "Repositories";
+/** PLACEHOLDER — generic step-navigation chrome the design docs don't give an explicit label for. */
+export const CONTINUE_LABEL = "Continue";

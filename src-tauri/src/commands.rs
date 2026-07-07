@@ -44,6 +44,10 @@ use crate::render::derive::{derive_render_state, ClientState, HeaderView, Render
 use crate::settings;
 use crate::settings::dto::{FieldError, LayerInput, LayerRow, SettingsState, Tier};
 use crate::settings::manifest::{Layer, LayerManifest};
+use crate::wizard;
+use crate::wizard::state::{WizardMode, WizardPhase};
+use crate::wizard::unmanaged_flow::{self, UnmanagedFlow};
+use std::collections::BTreeMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
@@ -909,5 +913,811 @@ layers:
             None,
             "the manifest spells it \"department\", not \"dept\""
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Wizard IPC (M3/S6, `.copilot/wp/15.md`)
+// ---------------------------------------------------------------------------
+//
+// Combines S4 (managed silent orchestration), S5 (unmanaged guided
+// orchestration), and S6 (this IPC surface + window) into the one seam a
+// wizard window (S7) drives. Same DTO discipline as `get_state`/
+// `get_settings` above: the web UI only ever sees `wizard::dto::WizardState`
+// (S1's frozen shape), never a raw internal enum, never a secret (S3's own
+// discipline, unchanged by this seam).
+//
+// **Done-only-from-doctor (ADR-M3-002), enforced structurally, not by this
+// file's care:** neither `managed_flow::run` nor `unmanaged_flow::
+// materialize_and_verify` can produce `WizardPhase::Done` except via
+// `support::drive_verify`'s `Verified(Healthy)` guard (see those modules'
+// own tests) — this file only ever relays whatever phase they legally
+// reached, and only calls `wizard::persistence::mark_complete` when that
+// phase is genuinely `Done`.
+
+/// The wizard window's label, per `tauri.conf.json`'s `app.windows` (mirrors
+/// `SETTINGS_WINDOW_LABEL`'s convention).
+const WIZARD_WINDOW_LABEL: &str = "wizard";
+
+/// The wizard's own internal orchestration state — mirrors `DoctorState`'s
+/// "one instance, `.manage()`d once" discipline (invariant #2). Unlike
+/// `DoctorState` (a periodic background poll), the wizard only ever advances
+/// on an explicit IPC call, so a plain `std::sync::Mutex` with short,
+/// synchronous critical sections is enough here too — the occasionally slow,
+/// process-spawning flow work (`managed_flow::run`, `materialize_and_verify`,
+/// the sign-in seam) always happens OUTSIDE the lock, on a `spawn_blocking`
+/// thread, exactly like `timer::poll_once` does for the doctor seam.
+#[derive(Debug, Clone)]
+enum WizardRuntime {
+    /// Nothing has run yet. `mode` is already known — `settings::managed::
+    /// is_managed()` is a cheap, synchronous forced-domain check, not real
+    /// I/O — but neither the silent managed run nor the guided flow's first
+    /// step has started.
+    NotStarted { mode: WizardMode },
+    /// The managed silent flow's terminal phase, once `managed_flow::run`
+    /// has executed — that function itself runs Detect through
+    /// Verify/Teach/Done in one blocking call, so there is nothing
+    /// "in progress" to represent between IPC calls.
+    Managed(WizardPhase),
+    /// The guided flow's own live, incrementally-driven state machine (S5).
+    /// Boxed: `UnmanagedFlow` is far larger than `WizardRuntime`'s other two
+    /// variants (it carries the product catalog, selected products, the
+    /// manifest path, and an in-flight sign-in session), and clippy's
+    /// `large_enum_variant` is right that leaving it unboxed would make
+    /// every `WizardRuntime` — including the common `NotStarted`/`Managed`
+    /// cases — pay that size on the stack.
+    Unmanaged(Box<UnmanagedFlow>),
+}
+
+impl WizardRuntime {
+    fn phase(&self) -> Option<&WizardPhase> {
+        match self {
+            WizardRuntime::NotStarted { .. } => None,
+            WizardRuntime::Managed(phase) => Some(phase),
+            WizardRuntime::Unmanaged(flow) => Some(flow.phase()),
+        }
+    }
+}
+
+pub struct WizardIpcState {
+    inner: Mutex<WizardRuntime>,
+}
+
+impl WizardIpcState {
+    pub fn new() -> Self {
+        let mode = if settings::managed::is_managed() {
+            WizardMode::Managed
+        } else {
+            WizardMode::Unmanaged
+        };
+        Self {
+            inner: Mutex::new(Self::initial_runtime(mode)),
+        }
+    }
+
+    /// The `WizardRuntime` a fresh `WizardIpcState` starts from — `NotStarted`
+    /// unless an interrupted UNMANAGED first run left a resumable checkpoint
+    /// behind (S2/ADR-M3-004, M3 QA follow-up D2). `is_first_run()` gates
+    /// this the same honest-degrade way it gates `lib.rs`'s auto-open: a
+    /// checkpoint is only ever consulted while the wizard genuinely hasn't
+    /// reached `Done` yet.
+    ///
+    /// **Managed mode always starts `NotStarted`, regardless of any
+    /// checkpoint.** `managed_flow::run` re-derives Detect through
+    /// Verify/Done in one idempotent call with zero Bob-facing questions to
+    /// lose — restarting it fresh on relaunch produces the IDENTICAL outcome
+    /// a "resume" would, since there is nothing to reconstruct. (Managed
+    /// still SAVES a checkpoint at the same two moments, for parity and
+    /// forward-compatibility — see `managed_flow`'s own doc — it just never
+    /// loads one here; loading one WOULD be wrong today, since
+    /// `advance_wizard_runtime`'s managed arm treats any already-`Managed`
+    /// runtime as a finished terminal, never re-driving it.)
+    ///
+    /// A checkpoint whose OWN recorded `mode` doesn't match the machine's
+    /// CURRENT `is_managed()` read (e.g. the MDM domain changed since the
+    /// checkpoint was saved) is never trusted — this always re-derives mode
+    /// fresh, never from stale persisted state.
+    fn initial_runtime(mode: WizardMode) -> WizardRuntime {
+        if mode == WizardMode::Unmanaged && wizard::persistence::is_first_run() {
+            if let Some(checkpoint) = wizard::persistence::load_checkpoint() {
+                if checkpoint.mode == WizardMode::Unmanaged {
+                    let catalog = unmanaged_flow::default_product_catalog();
+                    let flow = UnmanagedFlow::resume(&checkpoint, catalog, wizard_manifest_path());
+                    return WizardRuntime::Unmanaged(Box::new(flow));
+                }
+            }
+        }
+        WizardRuntime::NotStarted { mode }
+    }
+
+    fn snapshot(&self) -> WizardRuntime {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    fn replace(&self, fresh: WizardRuntime) {
+        *self.inner.lock().unwrap_or_else(|e| e.into_inner()) = fresh;
+    }
+}
+
+impl Default for WizardIpcState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Where the managed profile / the guided flow's authored layers live —
+/// reuses the SAME default path Settings itself writes to
+/// (`settings::writer::default_manifest_path`), never a second, drifting
+/// notion of "the manifest". `None` only when `$HOME` isn't set at all
+/// (vanishingly rare); falls back to a relative path rather than panicking,
+/// matching `get_settings_at`'s own honest-degrade discipline elsewhere in
+/// this file.
+fn wizard_manifest_path() -> std::path::PathBuf {
+    settings::writer::default_manifest_path()
+        .unwrap_or_else(|| std::path::PathBuf::from("copilot.layers.yml"))
+}
+
+/// `WizardRuntime` -> the wire DTO (S1's `dto::to_wizard_state`, the ONE
+/// place a phase becomes display text) — a presentation-only projection,
+/// never a second decision about mode/phase.
+fn project_wizard_runtime(rt: &WizardRuntime) -> wizard::dto::WizardState {
+    match rt {
+        WizardRuntime::NotStarted { mode } => {
+            wizard::dto::to_wizard_state(*mode, &WizardPhase::Welcome, Vec::new(), None, None)
+        }
+        WizardRuntime::Managed(phase) => {
+            wizard::dto::to_wizard_state(WizardMode::Managed, phase, Vec::new(), None, None)
+        }
+        WizardRuntime::Unmanaged(flow) => wizard::dto::to_wizard_state(
+            WizardMode::Unmanaged,
+            flow.phase(),
+            flow.steps(),
+            flow.signin_state(),
+            flow.signin_interval_secs(),
+        ),
+    }
+}
+
+/// The product-first catalog (ADR-M3-005) the `choose-products` step offers
+/// — a thin passthrough to `unmanaged_flow::default_product_catalog()`
+/// (S5), never a second, client-duplicated copy. Reconciles the gap
+/// `wizard-main.ts` previously bridged with its own hardcoded
+/// `PRODUCT_CATALOG` mirror (`.copilot/wp/15.md` S8): that hardcoded list
+/// could silently drift from the real Rust catalog; this command makes the
+/// UI fetch the actual one instead. Synchronous, no I/O (S5's catalog is a
+/// static in-memory `Vec`, not a real `ecosystem.yml` read yet — see that
+/// function's own doc), so this stays a plain (non-async, non-blocking)
+/// command, same discipline as `get_wizard_state`.
+#[tauri::command]
+pub fn get_wizard_product_catalog() -> Vec<unmanaged_flow::ProductOption> {
+    unmanaged_flow::default_product_catalog()
+}
+
+/// Snapshot pull — the wizard window calls this once on open (and again
+/// after any step-driver command, though each of those already returns the
+/// fresh state itself). Never mutates; always reflects whatever the last
+/// `wizard_advance`/step-driver call produced.
+#[tauri::command]
+pub fn get_wizard_state(state: State<'_, WizardIpcState>) -> wizard::dto::WizardState {
+    project_wizard_runtime(&state.snapshot())
+}
+
+/// First-run gating (S6): whether the wizard has ever reached `Done` —
+/// `lib.rs`'s `.setup()` uses this to decide whether to auto-open the
+/// wizard window on launch. A thin passthrough to `wizard::persistence::
+/// is_first_run` (S2) — this command invents no completion logic of its
+/// own.
+#[tauri::command]
+pub fn is_first_run() -> bool {
+    wizard::persistence::is_first_run()
+}
+
+/// The one-call "move the backend forward" trigger: from `NotStarted`, kicks
+/// off the managed silent run (S4) or begins the guided flow (S5); from
+/// `Unmanaged` with all 3 questions answered, runs the materialize+verify
+/// tail; otherwise a no-op (there's nothing further to do without another
+/// step-driver call first). Always does its process-spawning/blocking work
+/// OFF the async runtime's worker threads (`spawn_blocking`, mirroring
+/// `timer::poll_once`'s own discipline) and — on `Done` — marks first-run
+/// complete and triggers the SAME `timer::poll_once` re-poll path
+/// `save_settings` uses, never a second poll implementation.
+///
+/// **Live managed progress (M3 QA follow-up D3).** The managed silent run
+/// (`NotStarted { mode: Managed }`) is the one case this command doesn't just
+/// hand off to [`advance_wizard_runtime`] and await: it calls
+/// [`run_managed_flow_with_live_progress`] instead, which pushes each
+/// intermediate phase `managed_flow::run` reaches straight into THIS SAME
+/// `WizardIpcState` while the blocking call is still in flight — a
+/// poll-based push, not a Tauri event. `wizard-main.ts` starts polling
+/// `get_wizard_state` on a fixed cadence the moment it kicks off a managed
+/// advance, so those concurrent polls observe the live phase name instead of
+/// only the final one. This deliberately does NOT widen
+/// `capabilities/wizard.json` with `core:event:allow-listen` (a real,
+/// considered choice, not an oversight — see that file's own doc, which
+/// still correctly says "no live push event"): reusing the ALREADY-granted
+/// `get_wizard_state` poll and the existing `WizardIpcState` Mutex is the
+/// lower-risk mechanism given this window's current no-event-capability
+/// architecture, at the cost of a fixed poll cadence rather than a push.
+#[tauri::command]
+pub async fn wizard_advance(
+    app: AppHandle,
+    state: State<'_, WizardIpcState>,
+) -> Result<wizard::dto::WizardState, String> {
+    let before = state.snapshot();
+
+    let advanced = if matches!(
+        before,
+        WizardRuntime::NotStarted {
+            mode: WizardMode::Managed
+        }
+    ) {
+        run_managed_flow_with_live_progress(app.clone())
+            .await
+            .unwrap_or(before)
+    } else {
+        let moved = before.clone();
+        match tauri::async_runtime::spawn_blocking(move || advance_wizard_runtime(moved)).await {
+            Ok(rt) => rt,
+            // The blocking task itself panicked — not a flow failure, but still
+            // "nothing new to report this round". Falls back to the UNCHANGED
+            // prior snapshot rather than guessing at progress (never a
+            // fabricated advance, mirroring `timer::poll_once`'s own "the poll
+            // task itself failed to run" precedent).
+            Err(_) => before,
+        }
+    };
+    state.replace(advanced.clone());
+    finish_if_done(&app, &advanced).await;
+    Ok(project_wizard_runtime(&advanced))
+}
+
+/// Runs `managed_flow::run` off the async runtime's worker threads
+/// (`spawn_blocking`, same discipline as [`advance_wizard_runtime`]'s own
+/// call), pushing every intermediate phase into `app`'s managed
+/// `WizardIpcState` AS IT ARRIVES — not just the final one — so a concurrent
+/// `get_wizard_state` poll from the UI observes live progress (see
+/// `wizard_advance`'s own doc for the mechanism/risk tradeoff). `None` only
+/// if the blocking task itself panicked (caller falls back to the unchanged
+/// prior snapshot, same as `wizard_advance`'s other branch).
+async fn run_managed_flow_with_live_progress(app: AppHandle) -> Option<WizardRuntime> {
+    let config = crate::wizard::managed_flow::ManagedFlowConfig::production(wizard_manifest_path());
+    tauri::async_runtime::spawn_blocking(move || {
+        let final_phase = crate::wizard::managed_flow::run(&config, |phase| {
+            if let Some(wizard_state) = app.try_state::<WizardIpcState>() {
+                wizard_state.replace(WizardRuntime::Managed(phase.clone()));
+            }
+        });
+        WizardRuntime::Managed(final_phase)
+    })
+    .await
+    .ok()
+}
+
+/// The actual blocking logic behind [`wizard_advance`], factored out so it's
+/// directly unit-testable without a Tauri runtime — never called with a live
+/// `AppHandle` itself (the `#[tauri::command]` wrapper above is the only
+/// caller wired to a real app).
+fn advance_wizard_runtime(rt: WizardRuntime) -> WizardRuntime {
+    match rt {
+        WizardRuntime::NotStarted {
+            mode: WizardMode::Managed,
+        } => {
+            let config =
+                crate::wizard::managed_flow::ManagedFlowConfig::production(wizard_manifest_path());
+            // `|_| {}`: this pure/test-facing path has no live `WizardIpcState`
+            // to push progress into — `wizard_advance` (the real command) uses
+            // `run_managed_flow_with_live_progress` instead, which supplies a
+            // real callback. See that function's own doc.
+            WizardRuntime::Managed(crate::wizard::managed_flow::run(&config, |_| {}))
+        }
+        WizardRuntime::NotStarted {
+            mode: WizardMode::Unmanaged,
+        } => {
+            let catalog = unmanaged_flow::default_product_catalog();
+            WizardRuntime::Unmanaged(Box::new(UnmanagedFlow::begin(
+                catalog,
+                wizard_manifest_path(),
+            )))
+        }
+        // The managed flow already ran start-to-finish in one call — a
+        // second `wizard_advance` is an idempotent no-op, never a re-run
+        // (never-destroy: nothing left to redo).
+        managed @ WizardRuntime::Managed(_) => managed,
+        WizardRuntime::Unmanaged(mut flow) => {
+            // A no-op unless all 3 questions are answered AND the phase
+            // machine has already moved on to `Materialize` (see
+            // `UnmanagedFlow::ready_to_materialize`'s own doc).
+            flow.materialize_and_verify();
+            WizardRuntime::Unmanaged(flow)
+        }
+    }
+}
+
+/// Marks first-run complete + triggers the standard doctor re-poll — ONLY
+/// when `rt`'s phase is genuinely `WizardPhase::Done` (which, per
+/// `support::drive_verify`'s guard, is only ever reachable via a fresh
+/// `Verified(Healthy)` — see `managed_flow`'s and `unmanaged_flow`'s own
+/// tests). `mark_complete`'s own `NotDone` refusal (S2) is a second,
+/// independent backstop against ever persisting "complete" for anything
+/// else, so this check is defense in depth, not the only guard.
+async fn finish_if_done(app: &AppHandle, rt: &WizardRuntime) {
+    if let Some(WizardPhase::Done) = rt.phase() {
+        let _ = wizard::persistence::mark_complete(&WizardPhase::Done);
+        crate::timer::poll_once(app).await;
+    }
+}
+
+/// Q1 (ChooseProducts, S5, ADR-M3-005) — a no-op-fast `Mutex` round-trip, no
+/// blocking process work, so this stays a plain (non-`spawn_blocking`)
+/// `async fn`, matching `save_settings`'s own precedent for synchronous,
+/// fast Rust-side work.
+#[tauri::command]
+pub async fn wizard_choose_products(
+    state: State<'_, WizardIpcState>,
+    products: Vec<String>,
+) -> Result<wizard::dto::WizardState, String> {
+    let mut current = state.snapshot();
+    let result = match &mut current {
+        WizardRuntime::Unmanaged(flow) => flow.choose_products(products),
+        _ => Err(unmanaged_flow::FlowError::OutOfOrder),
+    };
+    state.replace(current.clone());
+    result.map_err(|e| e.to_string())?;
+    Ok(project_wizard_runtime(&current))
+}
+
+/// Q2 (LayerSetup, S5) — reuses `settings::authoring`/`settings::writer`
+/// (guard-gated, never-destroy) via `UnmanagedFlow::set_layers`; fast local
+/// filesystem I/O only (no process spawn), so — like `save_settings` — this
+/// stays a plain `async fn` rather than `spawn_blocking`.
+#[tauri::command]
+pub async fn wizard_set_layers(
+    state: State<'_, WizardIpcState>,
+    inputs: BTreeMap<String, String>,
+) -> Result<wizard::dto::WizardState, String> {
+    let mut current = state.snapshot();
+    let result = match &mut current {
+        WizardRuntime::Unmanaged(flow) => flow.set_layers(inputs),
+        _ => Err(unmanaged_flow::FlowError::OutOfOrder),
+    };
+    state.replace(current.clone());
+    result.map_err(|e| e.to_string())?;
+    Ok(project_wizard_runtime(&current))
+}
+
+/// Q3 (SignIn, S5) — initiate. Spawns `cc auth --json` (S3), which can block
+/// briefly on the CLI's own hard timeout — always off the async runtime's
+/// worker threads (`spawn_blocking`), same discipline as `wizard_advance`.
+#[tauri::command]
+pub async fn wizard_begin_signin(
+    state: State<'_, WizardIpcState>,
+) -> Result<wizard::dto::WizardState, String> {
+    let before = state.snapshot();
+    let moved = before.clone();
+    let (result, advanced) = match tauri::async_runtime::spawn_blocking(move || {
+        let mut rt = moved;
+        let result = match &mut rt {
+            WizardRuntime::Unmanaged(flow) => flow.begin_signin().map(|_| ()),
+            _ => Err(unmanaged_flow::FlowError::OutOfOrder),
+        };
+        (result, rt)
+    })
+    .await
+    {
+        Ok(pair) => pair,
+        Err(_) => (Err(unmanaged_flow::FlowError::OutOfOrder), before),
+    };
+    state.replace(advanced.clone());
+    result.map_err(|e| e.to_string())?;
+    Ok(project_wizard_runtime(&advanced))
+}
+
+/// Q3 (SignIn, S5) — poll to terminal. Can block for a while (the ceremony's
+/// own `expires_in` window) — always off the async runtime's worker threads,
+/// same discipline as [`wizard_begin_signin`]. Any terminal status
+/// (Authorized/Denied/Expired/Timeout) completes the step and advances the
+/// flow — sign-in's own outcome never gates the wizard phase machine (see
+/// `UnmanagedFlow::poll_signin`'s own doc).
+#[tauri::command]
+pub async fn wizard_poll_signin(
+    state: State<'_, WizardIpcState>,
+) -> Result<wizard::dto::WizardState, String> {
+    let before = state.snapshot();
+    let moved = before.clone();
+    let (result, advanced) = match tauri::async_runtime::spawn_blocking(move || {
+        let mut rt = moved;
+        let result = match &mut rt {
+            WizardRuntime::Unmanaged(flow) => flow.poll_signin().map(|_| ()),
+            _ => Err(unmanaged_flow::FlowError::OutOfOrder),
+        };
+        (result, rt)
+    })
+    .await
+    {
+        Ok(pair) => pair,
+        Err(_) => (Err(unmanaged_flow::FlowError::OutOfOrder), before),
+    };
+    state.replace(advanced.clone());
+    result.map_err(|e| e.to_string())?;
+    Ok(project_wizard_runtime(&advanced))
+}
+
+/// Opens (or re-focuses) the wizard window — same "defensive no-op if the
+/// window is somehow absent" discipline as `open_settings_window`. Switches
+/// the app to `Regular` activation policy (Dock icon + Cmd-Tab entry) for
+/// the duration of setup — a first-run wizard is a foreground task, unlike
+/// the Accessory-only tray/popover — `lib.rs`'s window-event listener flips
+/// it back to `Accessory` when this window closes (B-L1/C5).
+#[tauri::command]
+pub fn open_wizard_window(app: AppHandle) {
+    if let Some(window) = app.get_webview_window(WIZARD_WINDOW_LABEL) {
+        #[cfg(target_os = "macos")]
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+#[cfg(test)]
+mod wizard_ipc_tests {
+    use super::*;
+    use crate::cli::path::DEV_OVERRIDE_ENV;
+    use crate::cli::test_env::ENV_LOCK;
+    use crate::wizard::state::HoldingReason;
+    use std::io::Write as _;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn temp_dir() -> PathBuf {
+        let n = DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "ct-wizard-ipc-test-{}-{:?}-{n}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp test dir");
+        dir
+    }
+
+    fn fixture_path(rel: &str) -> String {
+        format!("{}/fixtures/{rel}", env!("CARGO_MANIFEST_DIR"))
+    }
+
+    fn write_mock_cc(dir: &Path) -> PathBuf {
+        let script = dir.join("mock-cc-wizard-ipc");
+        let mut f = std::fs::File::create(&script).unwrap();
+        writeln!(f, "#!/bin/sh").unwrap();
+        writeln!(f, "verb=\"$1\"").unwrap();
+        writeln!(f, "case \"$verb\" in").unwrap();
+        writeln!(f, "  update)").unwrap();
+        writeln!(f, "    echo '{{\"phase\": \"Setting up Claude…\"}}'").unwrap();
+        writeln!(f, "    echo '{{\"done\": true}}'").unwrap();
+        writeln!(f, "    exit 0").unwrap();
+        writeln!(f, "    ;;").unwrap();
+        writeln!(f, "  doctor)").unwrap();
+        writeln!(f, "    cat \"$MOCK_DOCTOR_BODY_PATH\"").unwrap();
+        writeln!(f, "    exit 0").unwrap();
+        writeln!(f, "    ;;").unwrap();
+        writeln!(f, "  *)").unwrap();
+        writeln!(f, "    exit 2").unwrap();
+        writeln!(f, "    ;;").unwrap();
+        writeln!(f, "esac").unwrap();
+        drop(f);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&script).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&script, perms).unwrap();
+        }
+        script
+    }
+
+    /// A mock `cc` implementing JUST `config set/get --json` (persistence's
+    /// own dotted JSON store) — same shape `wizard::persistence`'s and
+    /// `wizard::managed_flow`'s own checkpoint tests use, needed here to
+    /// drive `WizardIpcState::initial_runtime`'s resume path end to end
+    /// through the real `persistence::is_first_run`/`load_checkpoint` calls.
+    fn write_mock_cc_config(dir: &Path) -> PathBuf {
+        let script = dir.join("mock-cc-wizard-ipc-config");
+        let mut f = std::fs::File::create(&script).unwrap();
+        writeln!(f, "#!/usr/bin/env python3").unwrap();
+        writeln!(f, "import json, os, sys").unwrap();
+        writeln!(f, "config_path = os.environ['MOCK_CC_CONFIG_PATH']").unwrap();
+        writeln!(f, "try:").unwrap();
+        writeln!(f, "    data = json.load(open(config_path))").unwrap();
+        writeln!(f, "except Exception:").unwrap();
+        writeln!(f, "    data = {{}}").unwrap();
+        writeln!(f, "action, key = sys.argv[2], sys.argv[3]").unwrap();
+        writeln!(f, "if action == 'set':").unwrap();
+        writeln!(f, "    data[key] = sys.argv[4]").unwrap();
+        writeln!(f, "    json.dump(data, open(config_path, 'w'))").unwrap();
+        writeln!(f, "elif action == 'get':").unwrap();
+        writeln!(
+            f,
+            "    print(json.dumps({{'key': key, 'value': data.get(key)}}))"
+        )
+        .unwrap();
+        writeln!(f, "sys.exit(0)").unwrap();
+        drop(f);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&script).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&script, perms).unwrap();
+        }
+        script
+    }
+
+    fn with_env<R>(cli_path: Option<&Path>, doctor_body: Option<&str>, f: impl FnOnce() -> R) -> R {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe {
+            match cli_path {
+                Some(p) => std::env::set_var(DEV_OVERRIDE_ENV, p),
+                None => std::env::remove_var(DEV_OVERRIDE_ENV),
+            }
+            match doctor_body {
+                Some(p) => std::env::set_var("MOCK_DOCTOR_BODY_PATH", p),
+                None => std::env::remove_var("MOCK_DOCTOR_BODY_PATH"),
+            }
+        }
+        let result = f();
+        unsafe {
+            std::env::remove_var(DEV_OVERRIDE_ENV);
+            std::env::remove_var("MOCK_DOCTOR_BODY_PATH");
+        }
+        result
+    }
+
+    #[test]
+    fn not_started_projects_to_welcome_never_fabricating_progress() {
+        let rt = WizardRuntime::NotStarted {
+            mode: WizardMode::Unmanaged,
+        };
+        let dto = project_wizard_runtime(&rt);
+        assert_eq!(dto.phase, "welcome");
+        assert!(!dto.complete);
+        assert_eq!(dto.mode, WizardMode::Unmanaged);
+    }
+
+    #[test]
+    fn advance_from_not_started_managed_runs_the_managed_flow_to_a_terminal_phase() {
+        let dir = temp_dir();
+        let profile_path = dir.join("copilot.layers.yml");
+        std::fs::copy(
+            fixture_path("settings/valid-multi-layer.yml"),
+            &profile_path,
+        )
+        .unwrap();
+        let mock_cc = write_mock_cc(&dir);
+        let healthy = fixture_path("corpus/healthy-clean-fleet.json");
+
+        // `advance_wizard_runtime` reads the manifest path from
+        // `wizard_manifest_path()` (HOME-derived), not a test-injected path —
+        // this test only exercises `managed_flow::run` directly through the
+        // SAME dispatcher `wizard_advance` uses, confirming the dispatch
+        // itself (not a second copy of managed_flow's own already-tested
+        // profile/materialize/verify logic).
+        let config =
+            crate::wizard::managed_flow::ManagedFlowConfig::production(profile_path.clone());
+        let phase = with_env(Some(&mock_cc), Some(&healthy), || {
+            crate::wizard::managed_flow::run(&config, |_| {})
+        });
+        let advanced = advance_wizard_runtime(WizardRuntime::Managed(phase));
+        assert!(matches!(
+            advanced,
+            WizardRuntime::Managed(WizardPhase::Done)
+        ));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn advance_from_not_started_unmanaged_begins_the_guided_flow_at_question() {
+        let advanced = advance_wizard_runtime(WizardRuntime::NotStarted {
+            mode: WizardMode::Unmanaged,
+        });
+        match advanced {
+            WizardRuntime::Unmanaged(flow) => {
+                assert_eq!(flow.phase(), &WizardPhase::Question);
+                assert!(flow.questions_remaining() <= 3);
+            }
+            other => panic!("expected Unmanaged, got a variant that isn't it: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn advance_is_a_no_op_on_an_already_terminal_managed_run() {
+        let terminal =
+            WizardRuntime::Managed(WizardPhase::Holding(HoldingReason::WaitingForNetwork));
+        let advanced = advance_wizard_runtime(terminal.clone());
+        assert!(matches!(
+            advanced,
+            WizardRuntime::Managed(WizardPhase::Holding(HoldingReason::WaitingForNetwork))
+        ));
+    }
+
+    #[test]
+    fn choose_products_out_of_order_before_the_guided_flow_exists_is_refused() {
+        let state = WizardIpcState::new();
+        // Force unmanaged so the assertion is deterministic regardless of
+        // this dev machine's real forced-domain state.
+        state.replace(WizardRuntime::NotStarted {
+            mode: WizardMode::Unmanaged,
+        });
+        let mut current = state.snapshot();
+        let result = match &mut current {
+            WizardRuntime::Unmanaged(flow) => flow.choose_products(vec!["claude".to_string()]),
+            _ => Err(unmanaged_flow::FlowError::OutOfOrder),
+        };
+        assert_eq!(result, Err(unmanaged_flow::FlowError::OutOfOrder));
+    }
+
+    #[test]
+    fn wizard_ipc_state_round_trips_through_replace_and_snapshot() {
+        let state = WizardIpcState::new();
+        state.replace(WizardRuntime::Managed(WizardPhase::Done));
+        let dto = project_wizard_runtime(&state.snapshot());
+        assert_eq!(dto.phase, "done");
+        assert!(dto.complete);
+    }
+
+    #[test]
+    fn get_wizard_product_catalog_returns_the_real_unmanaged_flow_catalog() {
+        // A thin passthrough — proves this command doesn't invent a second,
+        // client-facing catalog that could drift from `unmanaged_flow::
+        // default_product_catalog()` (the same catalog `UnmanagedFlow::begin`
+        // itself is seeded with in `advance_wizard_runtime`).
+        let catalog = get_wizard_product_catalog();
+        assert_eq!(catalog, unmanaged_flow::default_product_catalog());
+    }
+
+    // -- M3 QA follow-up D2: WizardIpcState::initial_runtime resume ---------
+
+    #[test]
+    fn initial_runtime_resumes_an_unmanaged_materialize_checkpoint_never_restarting_at_choose_products(
+    ) {
+        let dir = temp_dir();
+        let mock_cc = write_mock_cc_config(&dir);
+        let config_path = dir.join("cc-config.json");
+
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe {
+            std::env::set_var(DEV_OVERRIDE_ENV, &mock_cc);
+            std::env::set_var("MOCK_CC_CONFIG_PATH", &config_path);
+        }
+
+        // Simulate a prior, interrupted session that had already answered
+        // all 3 questions and checkpointed right at Materialize's first
+        // entry.
+        let mut answers = std::collections::BTreeMap::new();
+        answers.insert("products".to_string(), "claude,codex".to_string());
+        let checkpoint = crate::wizard::persistence::WizardCheckpoint::for_phase(
+            WizardMode::Unmanaged,
+            &crate::wizard::state::WizardPhase::Materialize {
+                phase_name: String::new(),
+            },
+            answers,
+        )
+        .expect("Materialize's first entry must be checkpointable");
+        crate::wizard::persistence::save_checkpoint(&checkpoint).expect("save should succeed");
+
+        let runtime = WizardIpcState::initial_runtime(WizardMode::Unmanaged);
+
+        unsafe {
+            std::env::remove_var(DEV_OVERRIDE_ENV);
+            std::env::remove_var("MOCK_CC_CONFIG_PATH");
+        }
+        drop(_guard);
+
+        match runtime {
+            WizardRuntime::Unmanaged(flow) => {
+                assert!(
+                    flow.ready_to_materialize(),
+                    "a resumed session must land ready to materialize, never back at \
+                     ChooseProducts/NotStarted"
+                );
+                assert!(flow.steps().iter().all(|s| s.done));
+            }
+            other => panic!("expected a resumed Unmanaged runtime, got {other:?}"),
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn initial_runtime_ignores_a_checkpoint_for_managed_mode_always_starting_not_started() {
+        let dir = temp_dir();
+        let mock_cc = write_mock_cc_config(&dir);
+        let config_path = dir.join("cc-config.json");
+
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe {
+            std::env::set_var(DEV_OVERRIDE_ENV, &mock_cc);
+            std::env::set_var("MOCK_CC_CONFIG_PATH", &config_path);
+        }
+
+        // Even a checkpoint recorded as Managed must never seed a resumed
+        // Managed runtime — see `initial_runtime`'s own doc for why.
+        let checkpoint = crate::wizard::persistence::WizardCheckpoint::for_phase(
+            WizardMode::Managed,
+            &crate::wizard::state::WizardPhase::Holding(HoldingReason::WaitingForNetwork),
+            std::collections::BTreeMap::new(),
+        )
+        .expect("Holding must be checkpointable");
+        crate::wizard::persistence::save_checkpoint(&checkpoint).expect("save should succeed");
+
+        let runtime = WizardIpcState::initial_runtime(WizardMode::Managed);
+
+        unsafe {
+            std::env::remove_var(DEV_OVERRIDE_ENV);
+            std::env::remove_var("MOCK_CC_CONFIG_PATH");
+        }
+        drop(_guard);
+
+        assert!(
+            matches!(
+                runtime,
+                WizardRuntime::NotStarted {
+                    mode: WizardMode::Managed
+                }
+            ),
+            "managed mode must always start NotStarted, regardless of any checkpoint"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn initial_runtime_ignores_a_stale_mode_mismatched_checkpoint() {
+        let dir = temp_dir();
+        let mock_cc = write_mock_cc_config(&dir);
+        let config_path = dir.join("cc-config.json");
+
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe {
+            std::env::set_var(DEV_OVERRIDE_ENV, &mock_cc);
+            std::env::set_var("MOCK_CC_CONFIG_PATH", &config_path);
+        }
+
+        // A checkpoint saved while the machine WAS managed, now read back on
+        // a machine that currently reads unmanaged — never trusted over the
+        // fresh mode.
+        let checkpoint = crate::wizard::persistence::WizardCheckpoint::for_phase(
+            WizardMode::Managed,
+            &crate::wizard::state::WizardPhase::Materialize {
+                phase_name: String::new(),
+            },
+            std::collections::BTreeMap::new(),
+        )
+        .expect("Materialize must be checkpointable");
+        crate::wizard::persistence::save_checkpoint(&checkpoint).expect("save should succeed");
+
+        let runtime = WizardIpcState::initial_runtime(WizardMode::Unmanaged);
+
+        unsafe {
+            std::env::remove_var(DEV_OVERRIDE_ENV);
+            std::env::remove_var("MOCK_CC_CONFIG_PATH");
+        }
+        drop(_guard);
+
+        assert!(
+            matches!(
+                runtime,
+                WizardRuntime::NotStarted {
+                    mode: WizardMode::Unmanaged
+                }
+            ),
+            "a checkpoint recorded under a different mode must never be trusted"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1,0 +1,10 @@
+{
+  "mode": "managed",
+  "phase": "holding",
+  "phase_label": "I've set up as far as your network allows. I'll finish the rest when you're back online.",
+  "steps": [],
+  "signin": null,
+  "signin_interval_secs": null,
+  "complete": false,
+  "error": "Waiting for a network connection to finish setup."
+}

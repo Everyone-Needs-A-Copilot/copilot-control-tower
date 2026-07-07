@@ -24,6 +24,12 @@
 //!   (`copilot.layers.yml`) — everything `commands::get_settings`/
 //!   `save_settings` wire together (see that module's doc for the full S1-S5
 //!   split).
+//! - `wizard` — M3: the first-run wizard's pure phase/transition state
+//!   machine + IPC DTOs (S1), first-run persistence (S2), the sign-in
+//!   device-flow seam (S3), and the managed-silent (S4) / unmanaged-guided
+//!   (S5) orchestration flows (`.copilot/wp/15.md`). The IPC commands +
+//!   window that wire it all together (S6) live in `commands.rs` alongside
+//!   the M1/M2 surface, and are registered/managed below.
 //!
 //! Nothing in this file computes ecosystem state. If a change here starts
 //! looking like resolution/sync/signature/merge/health-scoring logic, it
@@ -44,6 +50,7 @@ pub mod render;
 pub mod settings;
 mod timer;
 mod tray;
+pub mod wizard;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -65,7 +72,16 @@ pub fn run() {
             commands::hide_popover,
             commands::get_settings,
             commands::save_settings,
-            commands::open_settings_window
+            commands::open_settings_window,
+            commands::get_wizard_state,
+            commands::get_wizard_product_catalog,
+            commands::is_first_run,
+            commands::wizard_advance,
+            commands::wizard_choose_products,
+            commands::wizard_set_layers,
+            commands::wizard_begin_signin,
+            commands::wizard_poll_signin,
+            commands::open_wizard_window
         ])
         .setup(|app| {
             // macOS: menu-bar app, no Dock icon, no Cmd-Tab entry. Must be set
@@ -89,6 +105,15 @@ pub fn run() {
             // once, here, alongside `DoctorState`, before the tray is built.
             app.manage(tray::AutoHideGuard::new());
 
+            // M3/S6: the wizard's own orchestration state — managed once,
+            // here, alongside `DoctorState` (invariant #2's "exactly one
+            // instance of state" discipline applies here too). Decides
+            // managed-vs-unmanaged immediately (a cheap, synchronous
+            // `settings::managed::is_managed()` check — see
+            // `commands::WizardIpcState::new`'s own doc), but runs neither
+            // flow until the wizard window's first `wizard_advance` call.
+            app.manage(commands::WizardIpcState::new());
+
             // T6: the real aviator template-mask glyph + per-state badge
             // compositing, rendered from the bootstrap state above.
             tray::build(app.handle(), &initial)?;
@@ -109,6 +134,38 @@ pub fn run() {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
+            }
+
+            // M3/S6: the wizard window switches the app to `Regular`
+            // activation policy while open (`commands::open_wizard_window`)
+            // — a first-run setup wizard is a foreground task, unlike the
+            // Accessory-only tray/popover. Flip back to `Accessory` the
+            // moment it closes, here (registered once, at setup) rather than
+            // scattered across every place the window might close
+            // (B-L1/C5). Defensive no-op if the window is somehow absent.
+            if let Some(wizard_window) = app.get_webview_window("wizard") {
+                let app_handle = app.handle().clone();
+                wizard_window.on_window_event(move |event| {
+                    if matches!(
+                        event,
+                        tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
+                    ) {
+                        #[cfg(target_os = "macos")]
+                        let _ =
+                            app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                    }
+                });
+            }
+
+            // First-run gating (S6): auto-open the wizard on launch only
+            // when the first run has genuinely never reached `Done`
+            // (`wizard::persistence::is_first_run`, S2 — honest-degrade:
+            // treats an unreadable CLI as "still first run", never as
+            // "already set up"). Mirrors the `CT_SHOW_POPOVER_ON_LAUNCH` test
+            // hook's show+focus shape, but driven by real persisted state
+            // instead of an env var.
+            if crate::wizard::persistence::is_first_run() {
+                commands::open_wizard_window(app.handle().clone());
             }
 
             Ok(())

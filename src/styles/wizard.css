@@ -1,0 +1,320 @@
+/*
+ * Component styles for the first-run wizard (M3 S7, `.copilot/wp/15.md` §2
+ * S7). Consumes only the custom properties in tokens.css (including this
+ * session's additions: `--type-wizard-title-*`, `--type-section-*`,
+ * `--type-code-lg-*`) — no raw colour/space/type literal belongs here, same
+ * discipline as popover.css/settings.css. Air-Traffic Instrument tokens: a
+ * brand-indigo header band, calm cross-fades, no decorative motion beyond
+ * the same ring/pulse the tray glyph already uses.
+ */
+
+html,
+body {
+  height: 100%;
+}
+
+#app {
+  min-height: 100%;
+  background: var(--surface-raised);
+}
+
+.ct-wizard {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.ct-wizard__header {
+  padding: var(--space-lg) var(--space-xl);
+  background: var(--brand-indigo);
+}
+
+.ct-wizard__brand {
+  margin: 0;
+  color: var(--brand-indigo-text);
+  font-size: var(--type-section-size);
+  line-height: var(--type-section-line);
+  font-weight: 600;
+}
+
+.ct-wizard__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-xl) var(--space-lg);
+}
+
+.ct-wizard__title {
+  margin: 0;
+  font-size: var(--type-wizard-title-size);
+  line-height: var(--type-wizard-title-line);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ct-wizard__subhead {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--text-secondary);
+}
+
+.ct-wizard__note {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+
+/* --- Progress spectator (managed silent path + reused for unmanaged progress) --- */
+
+.ct-wizard__progress {
+  align-items: center;
+  text-align: center;
+}
+
+.ct-wizard__progress-track {
+  width: 100%;
+  max-width: 320px;
+  height: 4px;
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.ct-wizard__progress-fill {
+  width: 40%;
+  height: 100%;
+  border-radius: var(--radius-control);
+  background: var(--brand-indigo);
+  animation: ct-wizard-indeterminate var(--motion-ring) linear infinite;
+}
+
+@keyframes ct-wizard-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-wizard__progress-fill {
+    animation: none;
+    width: 60%;
+    transform: none;
+  }
+}
+
+.ct-wizard__badge-lg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  color: var(--status-syncing);
+}
+
+.ct-wizard__badge-lg svg {
+  width: 32px;
+  height: 32px;
+}
+
+/* --- Fieldsets (choose-products / department pick-list / repo-URL rows) --- */
+
+.ct-wizard__fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-md);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-card);
+}
+
+.ct-wizard__legend {
+  padding: 0 var(--space-xs);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.ct-wizard__checkbox-row,
+.ct-wizard__radio-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--menu-row-height);
+  font-size: var(--type-body-size);
+  color: var(--text-primary);
+}
+
+.ct-wizard__checkbox-row--disabled {
+  color: var(--text-tertiary);
+}
+
+.ct-wizard__checkbox-row input:focus-visible,
+.ct-wizard__radio-row input:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: var(--space-hair);
+}
+
+.ct-wizard__checkbox-note {
+  font-size: var(--type-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* --- Repo-URL / company rows (reuses the Settings row visual pattern, S7 task brief) --- */
+
+.ct-wizard__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+}
+
+.ct-wizard__row-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.ct-wizard__row-label {
+  flex: 0 0 auto;
+  min-width: 96px;
+  font-size: var(--type-body-size);
+  color: var(--text-primary);
+}
+
+.ct-wizard__row-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--menu-row-height);
+  padding: 0 var(--space-sm);
+  background: var(--surface-sunken);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-control);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-code-sm-size);
+}
+
+.ct-wizard__row-input:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: -1px;
+}
+
+.ct-wizard__row-input[readonly] {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+/* --- Sign-in device-flow code (the one hero moment, 60-ui-design.md § 4) --- */
+
+.ct-wizard__code-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.ct-wizard__code {
+  flex: 1 1 auto;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-card);
+  color: var(--text-primary);
+  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-size: var(--type-code-lg-size);
+  line-height: var(--type-code-lg-line);
+  letter-spacing: var(--type-code-lg-tracking);
+  text-align: center;
+}
+
+.ct-wizard__code:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: 1px;
+}
+
+/* --- Buttons --- */
+
+.ct-primary-action {
+  align-self: flex-start;
+  padding: var(--space-sm) var(--space-xl);
+  background: var(--brand-indigo);
+  color: var(--brand-indigo-text);
+  border: none;
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ct-primary-action:hover {
+  filter: brightness(1.08);
+}
+
+.ct-primary-action:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: 2px;
+}
+
+.ct-wizard__secondary-action {
+  align-self: flex-start;
+  padding: var(--space-xs) var(--space-md);
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: var(--type-body-size);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ct-wizard__secondary-action:hover {
+  background: var(--surface-sunken);
+}
+
+.ct-wizard__secondary-action:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: 2px;
+}
+
+.ct-wizard__teach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.ct-wizard__teach-backup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-card);
+}
+
+/* --- Dev fixture harness (dev-only; never present in a production build) --- */
+
+.ct-dev-harness {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--separator);
+  font-size: var(--type-caption-size);
+}
+
+.ct-dev-harness select {
+  flex: 1 1 auto;
+  font: inherit;
+}

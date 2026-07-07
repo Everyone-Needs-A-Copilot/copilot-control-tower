@@ -21,6 +21,12 @@ fn main() {
     // (`capabilities/default.json` for `open_settings_window`, called from
     // the popover's footer; `capabilities/settings.json` for
     // `get_settings`/`save_settings`, called from the Settings window).
+    // `get_wizard_state`/`get_wizard_product_catalog`/`is_first_run`/
+    // `wizard_advance`/`wizard_choose_products`/`wizard_set_layers`/
+    // `wizard_begin_signin`/`wizard_poll_signin`/`open_wizard_window`
+    // (M3/S6, `get_wizard_product_catalog` added S8): the first-run wizard's
+    // IPC seam — same ACL-enforcement reasoning, scoped to only the wizard
+    // window (`capabilities/wizard.json`).
     let attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "get_state",
@@ -29,6 +35,15 @@ fn main() {
             "get_settings",
             "save_settings",
             "open_settings_window",
+            "get_wizard_state",
+            "get_wizard_product_catalog",
+            "is_first_run",
+            "wizard_advance",
+            "wizard_choose_products",
+            "wizard_set_layers",
+            "wizard_begin_signin",
+            "wizard_poll_signin",
+            "open_wizard_window",
         ]));
     tauri_build::try_build(attributes).expect("tauri_build::try_build failed");
 

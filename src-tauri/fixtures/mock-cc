@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # mock-cc — a stand-in for the real `cc`/`copilot` CLI, driven entirely by the fixture
 # corpus in this directory. Lets Control Tower be driven through every doctor state
-# without a real fleet or a real CLI. See README.md for the full corpus map.
+# (and, as of M3, the wizard's device-flow sign-in seam) without a real fleet, a real
+# CLI, or real OAuth. See README.md for the doctor corpus map and
+# fixtures/wizard/README.md for the auth seam + wizard scenario corpus.
 #
 # Usage (mirrors the real CLI's invocation shape):
 #   mock-cc doctor --json
+#   mock-cc auth --json              # initiate: emit the device-flow ceremony
+#   mock-cc auth --json --poll       # poll: emit the terminal (or pending) status
+#   mock-cc auth login --json        # alias verb form (D-3-M3 reconciliation: the
+#                                     #   wizard's host/GitHub sign-in step is one more
+#                                     #   `cc auth` integration, never a `gh auth status`
+#                                     #   screen-scrape) — identical behavior to `auth`.
+#   mock-cc auth login --json --poll
 #
-# Fixture selection (checked in this order):
+# Fixture selection for `doctor` (checked in this order):
 #   1. --fixture=<name> or --fixture <name> on the command line
 #   2. $CT_FIXTURE           (the name documented in the M1 architecture WP — this is
 #                              what src-tauri/cli/path.rs's dev override is expected to set
@@ -16,8 +25,7 @@
 #   4. "healthy-clean-fleet" (default, so an unconfigured run is still deterministic)
 #
 # <name> resolves to corpus/<name>.json first, then invalid/<name>.json, then is tried
-# as a literal path (relative to this script or absolute). Two special names bypass the
-# corpus entirely:
+# as a literal path. Two special names bypass the corpus entirely:
 #   CT_FIXTURE=list      -> print the names of every available fixture and exit 0
 #                            (no doctor/--json args required)
 #   CT_FIXTURE=exit-2    -> simulate the contract's env-error path: nothing usable on
@@ -25,7 +33,7 @@
 #                            exercise "do NOT trust the body" independent of any fixture
 #                            file's content.
 #
-# Exit code (contractually correct per cli-contract.md's doctor row):
+# Exit code for `doctor` (contractually correct per cli-contract.md's doctor row):
 #   0  when the emitted JSON parses and no checker has severity:"fail"
 #   1  when the emitted JSON parses and at least one checker has severity:"fail"
 #   2  for CT_FIXTURE=exit-2, or if the requested fixture can't be found
@@ -37,6 +45,40 @@
 # harder, more honest adversarial case — the app must fail closed on the BODY, not rely
 # on the exit code to save it. Only CT_FIXTURE=exit-2 exercises the "trust nothing,
 # exit code 2" path.
+#
+# --- auth (device-flow sign-in seam, M3, D-3-M3 mock-first) ---------------------------
+# Scenario selection for `auth` (checked in this order):
+#   1. --scenario=<name> or --scenario <name> on the command line
+#   2. $CT_AUTH_SCENARIO     (mirrors the $CT_FIXTURE convention)
+#   3. $CC_AUTH_SCENARIO     (alias, mirrors $CC_FIXTURE)
+#   4. "authorized"          (default happy path, so an unconfigured run is deterministic)
+#
+# Scenarios: authorized | denied | expired | timeout | pending | exit-2 |
+#            authorized-leaked-field-adversarial
+#
+# The INITIATE call (no --poll) always emits the same canned ceremony regardless of
+# scenario — the ceremony is the render data shown to the user BEFORE any outcome is
+# known, so it cannot vary by an outcome that hasn't happened yet:
+#   {"user_code":"WDJB-MJHT","verification_uri":"https://example.com/device","expires_in":900,"interval":5}
+#
+# The POLL call (--poll) emits a single JSON object carrying only `status`:
+#   {"status":"authorized"}   (or "denied" / "expired" / "timeout" / "pending")
+#
+# NEVER emits a real or realistic-looking token — the app must hold nothing (invariant
+# #6; ADR-M3-001; fitness fn 2 no-secret-on-wizard-DTO). The one exception,
+# `authorized-leaked-field-adversarial`, exists ONLY as a negative-test fixture: it adds
+# an obviously-synthetic, obviously-fake extra field to an otherwise-`authorized` poll
+# response, so the Rust seam's parser can be proven to drop/ignore any unexpected
+# token-shaped field rather than forward it into the WizardState DTO. The fake value is
+# clearly labeled (`FAKE-SYNTHETIC-NOT-A-REAL-TOKEN...`) and is never emitted by any
+# other scenario.
+#
+# Exit code for `auth` (consistent with the existing contract's two non-doctor-specific
+# codes — there is no per-body "severity" concept for auth, so only two codes apply):
+#   0  normal — the JSON parses and describes a real ceremony/poll outcome, INCLUDING
+#      the honest-failure outcomes (denied/expired/timeout/pending are normal, expected
+#      terminal/interim states, not env errors)
+#   2  env error — CT_AUTH_SCENARIO=exit-2, or an unrecognized scenario name
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,10 +86,14 @@ CORPUS_DIR="$HERE/corpus"
 INVALID_DIR="$HERE/invalid"
 
 fixture="${CT_FIXTURE:-${CC_FIXTURE:-healthy-clean-fleet}}"
+auth_scenario="${CT_AUTH_SCENARIO:-${CC_AUTH_SCENARIO:-authorized}}"
 
-# --fixture=<name> / --fixture <name> on the command line wins over env vars.
+# --fixture=<name> / --fixture <name>, --scenario=<name> / --scenario <name>, and
+# --poll on the command line win over env vars / defaults.
 args=("$@")
 verb=""
+subverb=""
+poll=0
 i=0
 while [ $i -lt ${#args[@]} ]; do
   arg="${args[$i]}"
@@ -59,11 +105,23 @@ while [ $i -lt ${#args[@]} ]; do
       i=$((i + 1))
       fixture="${args[$i]:-$fixture}"
       ;;
+    --scenario=*)
+      auth_scenario="${arg#--scenario=}"
+      ;;
+    --scenario)
+      i=$((i + 1))
+      auth_scenario="${args[$i]:-$auth_scenario}"
+      ;;
+    --poll)
+      poll=1
+      ;;
     --json) ;; # accepted, no-op marker
     -*) ;;      # ignore unknown flags
     *)
       if [ -z "$verb" ]; then
         verb="$arg"
+      elif [ -z "$subverb" ]; then
+        subverb="$arg"
       fi
       ;;
   esac
@@ -71,7 +129,7 @@ while [ $i -lt ${#args[@]} ]; do
 done
 
 list_fixtures() {
-  echo "corpus (valid, schema-passing):"
+  echo "corpus (valid, schema-passing, for 'doctor'):"
   for f in "$CORPUS_DIR"/*.json; do
     [ -e "$f" ] || continue
     printf '  %s\n' "$(basename "${f%.json}")"
@@ -81,6 +139,8 @@ list_fixtures() {
     [ -e "$f" ] || continue
     printf '  %s\n' "$(basename "${f%.json}")"
   done
+  echo "auth scenarios (for 'auth' / 'auth login'):"
+  echo "  authorized denied expired timeout pending authorized-leaked-field-adversarial"
   echo "special: list, exit-2"
 }
 
@@ -89,49 +149,46 @@ if [ "$fixture" = "list" ]; then
   exit 0
 fi
 
-if [ "$fixture" = "exit-2" ]; then
-  echo "mock-cc: simulated env error (e.g. credential store unreachable) — no trustworthy body emitted" >&2
-  exit 2
-fi
-
 if [ -z "$verb" ]; then
-  echo "mock-cc: usage: mock-cc doctor --json   (or CT_FIXTURE=list mock-cc doctor --json)" >&2
+  echo "mock-cc: usage: mock-cc doctor --json | mock-cc auth --json [--poll]   (or CT_FIXTURE=list mock-cc doctor --json)" >&2
   exit 2
 fi
 
-if [ "$verb" != "doctor" ]; then
-  echo "mock-cc: verb '$verb' is not implemented — this M1 stub only emits 'doctor --json'" >&2
-  exit 2
-fi
+case "$verb" in
+  doctor)
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable) — no trustworthy body emitted" >&2
+      exit 2
+    fi
 
-resolve_fixture_path() {
-  local name="$1"
-  if [ -f "$CORPUS_DIR/$name.json" ]; then
-    echo "$CORPUS_DIR/$name.json"
-  elif [ -f "$INVALID_DIR/$name.json" ]; then
-    echo "$INVALID_DIR/$name.json"
-  elif [ -f "$name" ]; then
-    echo "$name"
-  else
-    echo ""
-  fi
-}
+    resolve_fixture_path() {
+      local name="$1"
+      if [ -f "$CORPUS_DIR/$name.json" ]; then
+        echo "$CORPUS_DIR/$name.json"
+      elif [ -f "$INVALID_DIR/$name.json" ]; then
+        echo "$INVALID_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
 
-path="$(resolve_fixture_path "$fixture")"
-if [ -z "$path" ]; then
-  echo "mock-cc: unknown fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
-  exit 2
-fi
+    path="$(resolve_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
 
-body="$(cat "$path")"
-printf '%s\n' "$body"
+    body="$(cat "$path")"
+    printf '%s\n' "$body"
 
-# Compute the contractually-correct exit code from the body itself (not from which
-# directory it lives in): 1 iff the JSON parses AND contains a checker with
-# severity:"fail"; 0 otherwise (covers both a genuinely clean fixture and a poisoned
-# one that isn't a checker-severity-fail case — e.g. unparseable JSON or a missing
-# required field — those rely on the app's OWN fail-closed parsing, not the exit code).
-exit_code="$(python3 - "$path" <<'PY'
+    # Compute the contractually-correct exit code from the body itself (not from which
+    # directory it lives in): 1 iff the JSON parses AND contains a checker with
+    # severity:"fail"; 0 otherwise (covers both a genuinely clean fixture and a poisoned
+    # one that isn't a checker-severity-fail case — e.g. unparseable JSON or a missing
+    # required field — those rely on the app's OWN fail-closed parsing, not the exit code).
+    exit_code="$(python3 - "$path" <<'PY'
 import json, sys
 path = sys.argv[1]
 try:
@@ -147,6 +204,60 @@ try:
 except Exception:
     print(0)
 PY
-)"
+    )"
 
-exit "$exit_code"
+    exit "$exit_code"
+    ;;
+
+  auth)
+    # `mock-cc auth login --json ...` is accepted as an alias for `mock-cc auth --json
+    # ...` (D-3-M3 recommendation #2: the wizard's host/GitHub sign-in step is one more
+    # `cc auth` integration, never a `gh auth status` screen-scrape). `login` is the
+    # only recognized subverb; anything else is ignored (forward-compatible with a
+    # future `cc auth <integration> --json` naming a real per-integration verb).
+
+    if [ "$auth_scenario" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable) — no ceremony/poll body emitted" >&2
+      exit 2
+    fi
+
+    case "$auth_scenario" in
+      authorized|denied|expired|timeout|pending|authorized-leaked-field-adversarial) ;;
+      *)
+        echo "mock-cc: unknown auth scenario '$auth_scenario'. Valid: authorized, denied, expired, timeout, pending, authorized-leaked-field-adversarial, exit-2." >&2
+        exit 2
+        ;;
+    esac
+
+    if [ "$poll" -eq 0 ]; then
+      # INITIATE — the ceremony is identical regardless of scenario; the outcome
+      # hasn't happened yet. Canned per the frozen SHAPE (no schema exists upstream
+      # yet — D-3-M3 batches the real freeze to WS-A). Never a token.
+      printf '%s\n' '{"user_code":"WDJB-MJHT","verification_uri":"https://example.com/device","expires_in":900,"interval":5}'
+      exit 0
+    fi
+
+    # POLL — a single terminal-or-pending status object. Never a token, except the
+    # one deliberately-obvious adversarial fixture below (negative-test only).
+    case "$auth_scenario" in
+      authorized-leaked-field-adversarial)
+        # Deliberately poisoned NEGATIVE-TEST fixture: an authorized outcome plus an
+        # extra, unexpected, obviously-synthetic token-shaped field. The real CLI
+        # NEVER emits this; it exists solely so the Rust seam's parser (S3) can be
+        # proven to drop/ignore unknown fields rather than forward them into the
+        # WizardState DTO (fitness fn 2: no-secret-on-wizard-DTO). See
+        # fixtures/wizard/README.md.
+        printf '%s\n' '{"status":"authorized","access_token":"FAKE-SYNTHETIC-NOT-A-REAL-TOKEN-0000000000"}'
+        ;;
+      *)
+        printf '{"status":"%s"}\n' "$auth_scenario"
+        ;;
+    esac
+    exit 0
+    ;;
+
+  *)
+    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json' and 'auth --json [--poll]'" >&2
+    exit 2
+    ;;
+esac

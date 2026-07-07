@@ -128,7 +128,7 @@ impl std::fmt::Display for PathError {
 /// result is an already-`canonicalize()`d absolute path to an existing,
 /// executable file. See the module doc for the two-branch resolution order.
 pub fn resolve() -> Result<PathBuf, PathError> {
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, test))]
     {
         if let Some(dev_result) = dev_override() {
             return dev_result;
@@ -137,13 +137,29 @@ pub fn resolve() -> Result<PathBuf, PathError> {
     production_path()
 }
 
-/// The dev-only override branch. `#[cfg(debug_assertions)]`, not a runtime
-/// check — see the module doc's "release-build safety" section. Returns
-/// `None` when the env var isn't set at all (falls through to the production
-/// branch even in a debug build), `Some(Err(..))` when it's set but doesn't
-/// resolve to something usable (a misconfigured dev env should fail closed,
-/// not silently fall back to a production path that also won't exist).
-#[cfg(debug_assertions)]
+/// The dev-only override branch. `#[cfg(any(debug_assertions, test))]`, not a
+/// runtime check — see the module doc's "release-build safety" section.
+/// Returns `None` when the env var isn't set at all (falls through to the
+/// production branch even in a debug build), `Some(Err(..))` when it's set
+/// but doesn't resolve to something usable (a misconfigured dev env should
+/// fail closed, not silently fall back to a production path that also won't
+/// exist).
+///
+/// QA (M3 acceptance): gated identically to `DEV_OVERRIDE_ENV` above, and for
+/// the same reason — a bare `#[cfg(debug_assertions)]` compiles this function
+/// (and every test anywhere in the crate that sets `CT_CLI_PATH` to reach it)
+/// out of a `cargo test --release` binary, since `debug_assertions` is false
+/// under the release profile regardless of `cfg(test)`. That silently broke
+/// ~35 tests crate-wide under `cargo test --release` specifically (every test
+/// depending on the dev override — `cli::path`'s own + every wizard/settings/
+/// commands test using `CT_CLI_PATH`/`with_mock_cc`) even though `cargo build
+/// --release`/`cargo clippy --release` stayed green, because neither of those
+/// compiles test code. Widening to `cfg(any(debug_assertions, test))` fixes
+/// the test-only gap without reintroducing the override into a genuine
+/// shipped `cargo build --release` artifact — that build has no `cfg(test)`
+/// either, and the release `strings` scan (re-verified after this fix) still
+/// shows zero occurrences of `CT_CLI_PATH`/`dev_override`.
+#[cfg(any(debug_assertions, test))]
 fn dev_override() -> Option<Result<PathBuf, PathError>> {
     let raw = env::var_os(DEV_OVERRIDE_ENV)?;
     Some(canonicalize_executable(PathBuf::from(raw)))

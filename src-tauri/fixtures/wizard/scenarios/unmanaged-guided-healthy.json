@@ -1,0 +1,40 @@
+{
+  "fixture_version": "1",
+  "scenario_id": "unmanaged-guided-healthy",
+  "title": "Unmanaged guided first-run: product selection -> layer setup -> sign-in -> Healthy",
+  "path": "unmanaged",
+  "env": {
+    "CT_MANAGED_OVERRIDE": "0",
+    "CT_CLI_PATH": "src-tauri/fixtures/mock-cc",
+    "CT_FIXTURE": "healthy-clean-fleet",
+    "CT_AUTH_SCENARIO": "authorized"
+  },
+  "managed_profile_fixture": null,
+  "managed_profile_state": "not-applicable-unmanaged",
+  "wizard_auth_scenario": "authorized",
+  "wizard_answers": {
+    "q1_products": {
+      "note": "ADR-M3-005 product-first host step -- renders products, not hosts. Config-driven from ecosystem.yml; see products.sample.json alongside this file. Only asked when the product set is ambiguous (narrow-not-widen); a single-product ecosystem asks 0 questions here.",
+      "selected": ["claude", "codex"]
+    },
+    "q2_signin": {
+      "note": "Handled by the mock-cc auth ceremony below, not a free-text answer.",
+      "user_code_shown": "WDJB-MJHT",
+      "verification_uri_shown": "https://example.com/device"
+    },
+    "q3_company_department": {
+      "company_suggested_from_email_domain": "acme.com",
+      "company": "Acme Corp",
+      "department_picklist": ["Engineering", "Sales", "Support", "Other"],
+      "department_selected": "Engineering"
+    }
+  },
+  "questions_expected": 3,
+  "expected": {
+    "wizard_terminal": "Done",
+    "doctor_status": "healthy",
+    "doctor_fixture": "healthy-clean-fleet",
+    "auth_terminal_status": "authorized"
+  },
+  "notes": "S5's <=3-question bound: Q1 product-first (only if ambiguous), Q2 sign-in (drives mock-cc auth -- initiate then poll until a terminal status), Q3 company (suggested)+department (numbered pick-list, never free-text). Repo-URL/tier setup reuses M2 settings::authoring (out of scope for this fixture -- see settings/ corpus). Healthy is reached only via the fresh doctor status:healthy poll after materialize (ADR-M3-002), reusing corpus/healthy-clean-fleet.json."
+}

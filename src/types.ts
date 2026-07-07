@@ -193,3 +193,199 @@ export interface LayerInput {
   tier: Tier;
   repo_url: string;
 }
+
+/**
+ * First-run wizard (M3, `.copilot/wp/15.md`) — the IPC DTOs `src-tauri/src/
+ * wizard/dto.rs` defines (S1). Mirrors that file field-for-field (plain
+ * snake_case both sides, same convention as `RenderState`/`SettingsState`
+ * above). **S1 defines this shape only** — the real `get_wizard_state()`/
+ * `answer_question()`/`start_signin()` commands and the `wizard-phase` event
+ * are S6; the managed/unmanaged orchestration that drives the underlying
+ * Rust state machine is S4/S5; the real device-flow seam is S3.
+ */
+
+/** Managed (MDM-delivered, ~0-question silent first run) vs unmanaged (solo/guided, <=3 questions). */
+export type WizardMode = "managed" | "unmanaged";
+
+/**
+ * The wire-safe phase tag (`src-tauri/src/wizard/dto.rs`'s `phase_tag`).
+ * `"holding"` covers every named holding terminal (IT-config-incomplete /
+ * waiting-for-network / a non-Healthy verify result) — `WizardState.error`
+ * carries the plain-language reason; there is no separate tag per reason.
+ */
+export type WizardPhaseTag =
+  | "welcome"
+  | "detect"
+  | "question"
+  | "materialize"
+  | "verify"
+  | "teach"
+  | "done"
+  | "holding";
+
+/** Product-first (ADR-M3-005): `choose-products` renders the N-product model, never a host-framed step. */
+export type WizardStepKind = "choose-products" | "layer-setup" | "sign-in";
+
+/**
+ * One checkbox option on the `choose-products` step (ADR-M3-005 product-
+ * first). Mirrors the REAL Rust `unmanaged_flow::ProductOption` struct
+ * field-for-field (`{id, label, pre_checked}` — confirmed by reading
+ * `src-tauri/src/wizard/unmanaged_flow.rs`'s `default_product_catalog()`
+ * during this session, after Stream-A's S1/S4/S5/S6 landed mid-session).
+ * `pre_checked` is BOTH the initial checked state and the narrow-not-widen
+ * ceiling — Bob may uncheck a `pre_checked: true` option, never check a
+ * `pre_checked: false` one (an id the ecosystem doesn't grant at all), so an
+ * ungranted option renders visible but disabled, never simply absent (the
+ * same "show the honest slot, don't hide it" convention `settings.ts` uses
+ * for un-editable rows).
+ *
+ * **Gap closed (S8):** `unmanaged_flow.rs`'s own doc comment on
+ * `ProductOption` called for this catalog to be "round-tripped by a
+ * dedicated wizard command... alongside" the DTO — `get_wizard_product_catalog`
+ * (`GET_WIZARD_PRODUCT_CATALOG_CMD` below) is that command, a thin
+ * passthrough to the real `unmanaged_flow::default_product_catalog()`.
+ * `wizard-main.ts` fetches this catalog once and populates it onto the
+ * `choose-products` step via the `WizardStep.products` extension below —
+ * never a second, client-duplicated copy that could drift from the real
+ * Rust catalog (the prior hardcoded `PRODUCT_CATALOG` mirror this replaced).
+ */
+export interface WizardProductOption {
+  id: string;
+  label: string;
+  pre_checked: boolean;
+}
+
+/**
+ * One repo-URL row on the `layer-setup` step. Confirmed against the real
+ * `UnmanagedFlow::set_layers(repo_urls: BTreeMap<String, String>)` — a flat
+ * product-id -> repo-URL map, ALWAYS authored at `Tier::Personal` (an
+ * unmanaged/solo first run has no org/dept tier to author into, unlike
+ * Settings' 3-tier form) — so, unlike `LayerRow`, there is no `tier`/
+ * `editable` field here at all: every row in this flow is personal-tier and
+ * always editable.
+ */
+export interface WizardLayerSlot {
+  product: string;
+  repo_url: string;
+}
+
+/**
+ * One of the unmanaged flow's <=3 questions. Confirmed against the real
+ * `UnmanagedFlow::steps()` (`src-tauri/src/wizard/unmanaged_flow.rs`): the
+ * wire shape is EXACTLY `{id, kind, prompt, done}`, fixed order
+ * `[choose-products, layer-setup, sign-in]`, with these exact `prompt`
+ * strings: "Which copilots do you want set up?" / "Where should we sync
+ * your personal layer from?" / "Sign in to keep everything in sync." —
+ * `WizardStep.prompt` is always populated in the real flow, so this UI's
+ * copy fallbacks (`copy.ts`'s `PRODUCTS_TITLE`/`LAYER_SETUP_TITLE`) are only
+ * ever exercised by a dev fixture that leaves `prompt` empty.
+ *
+ * **Genuine milestone-scope finding (not a UI gap — confirmed by reading the
+ * real flow):** Flow 2 Q3 ("company" + "department pick-list",
+ * `50-ux-design.md`) is NOT implemented anywhere in the landed S5 Rust flow
+ * — `set_layers` takes only a repo-URL map, no company/department. This
+ * UI accordingly renders `layer-setup` as repo-URL rows ONLY, matching the
+ * real command's argument shape; company/department render nothing because
+ * the real flow has nothing there to submit. Flagged for the design/cw
+ * track to either descope Q3 from the docs or for a future stream to add it
+ * — this UI must not invent a submission the real `wizard_set_layers`
+ * command doesn't accept.
+ *
+ * `products`/`layers` below are an ADDITIVE, optional UI-side extension for
+ * the ONE confirmed real gap (the product catalog — see
+ * `WizardProductOption`'s doc). `layers` is populated by the UI itself once
+ * Q1 answers are known (the real DTO has no server-side notion of "which
+ * products need a repo-URL row" either — the client must remember its own
+ * Q1 selection and synthesize this list locally before rendering Q2; see
+ * `wizard-main.ts`).
+ */
+export interface WizardStep {
+  id: string;
+  kind: WizardStepKind;
+  prompt: string;
+  done: boolean;
+  /** `choose-products` only (S7 extension, see above — the confirmed real catalog gap). */
+  products?: WizardProductOption[];
+  /** `layer-setup` only (S7 extension, see above — client-synthesized from the Q1 answer, not server-supplied). */
+  layers?: WizardLayerSlot[];
+}
+
+/**
+ * The sign-in device-flow terminal states (ADR-M3-001's frozen SHAPE; S3
+ * wires the real `cc auth <integration> --json` seam this mirrors).
+ */
+export type SigninStatus = "idle" | "pending" | "authorized" | "denied" | "expired" | "timeout";
+
+/**
+ * The device-flow RENDER data only (invariant #6) — never a token/secret/
+ * credential field. `src-tauri/tests/fitness_no_secret_on_wizard_dto.rs`
+ * enforces this on the Rust side; there is no code path for a real token to
+ * reach this shape at all.
+ */
+export interface SigninState {
+  status: SigninStatus;
+  user_code: string | null;
+  verification_uri: string | null;
+}
+
+/**
+ * The full wizard IPC surface (S6's `get_wizard_state()` return type).
+ * `complete` is `true` if and only if `phase === "done"` — and `"done"` is
+ * reachable, Rust-side, ONLY via a parsed `Healthy` `CliStatus` (ADR-M3-002,
+ * the same "icon can't lie" guarantee `RenderState.status` already carries).
+ */
+export interface WizardState {
+  mode: WizardMode;
+  phase: WizardPhaseTag;
+  /** A NAME, never an ETA/countdown/percentage (ADR-M3-003, Case Law OUT). */
+  phase_label: string;
+  steps: WizardStep[];
+  signin: SigninState | null;
+  /**
+   * The sign-in ceremony's own poll cadence, in seconds (S8) — how often the
+   * UI should call `wizard_poll_signin` while `signin.status === "pending"`.
+   * `null` whenever `signin` is `null` or already terminal (nothing left to
+   * poll). Deliberately kept off the frozen `SigninState` shape (mirrors
+   * `src-tauri/src/wizard/dto.rs`'s `WizardState.signin_interval_secs` doc) —
+   * this is polling bookkeeping, **not an ETA**: it must only ever be used as
+   * a `setInterval` argument, never rendered as a countdown/"X seconds left"
+   * string (`fitness_no_eta_in_wizard.rs`).
+   */
+  signin_interval_secs: number | null;
+  complete: boolean;
+  /** Plain language only — never raw yaml/serde/CLI error text. `null` unless `phase === "holding"`. */
+  error: string | null;
+}
+
+/**
+ * The REAL S6 IPC command surface — confirmed by reading the landed
+ * `src-tauri/src/commands.rs` during this session (Stream-A's S1/S4/S5/S6
+ * landed mid-session; these names replace this file's earlier speculative
+ * `answer_question`/`start_signin`/`wizard-phase`-event guess). There is NO
+ * event stream — every command is a plain async request/response that
+ * returns the fresh `WizardState` directly; the UI re-renders from each
+ * command's own return value rather than a `listen()` subscription.
+ *
+ * - `get_wizard_state` — sync, no args; a snapshot pull.
+ * - `get_wizard_product_catalog` — sync, no args; the real `choose-products`
+ *   catalog (S8 — a thin passthrough to `unmanaged_flow::
+ *   default_product_catalog()`, never a client-duplicated mirror).
+ * - `wizard_advance` — async, no args; the one "move the backend forward"
+ *   trigger (kicks off the managed silent run OR begins the guided flow;
+ *   later, runs the materialize+verify tail once all 3 questions are
+ *   answered). Idempotent once the managed flow has already finished.
+ * - `wizard_choose_products` — async, `{ products: string[] }` (selected ids).
+ * - `wizard_set_layers` — async, `{ inputs: Record<string, string> }`
+ *   (product id -> repo URL; always personal-tier, see `WizardLayerSlot`).
+ * - `wizard_begin_signin` / `wizard_poll_signin` — async, no args; the UI
+ *   polls the latter at the CLI-specified cadence (S8 —
+ *   `WizardState.signin_interval_secs`) until the returned `signin.status`
+ *   is a terminal value.
+ */
+export const GET_WIZARD_STATE_CMD = "get_wizard_state" as const;
+export const GET_WIZARD_PRODUCT_CATALOG_CMD = "get_wizard_product_catalog" as const;
+export const WIZARD_ADVANCE_CMD = "wizard_advance" as const;
+export const WIZARD_CHOOSE_PRODUCTS_CMD = "wizard_choose_products" as const;
+export const WIZARD_SET_LAYERS_CMD = "wizard_set_layers" as const;
+export const WIZARD_BEGIN_SIGNIN_CMD = "wizard_begin_signin" as const;
+export const WIZARD_POLL_SIGNIN_CMD = "wizard_poll_signin" as const;

@@ -53,6 +53,17 @@
   --type-caption-size: 11pt;
   --type-caption-line: 14pt;
   --type-code-sm-size: 11pt;
+  /* M3 S7 additions — the wizard needed these three tokens (60-ui-design.md
+     § Typography) and none of M1/M2's popover/settings surfaces had defined
+     them yet; added here rather than as a wizard-local literal so they stay
+     a single shared source, same discipline as every other token above. */
+  --type-wizard-title-size: 20pt;
+  --type-wizard-title-line: 24pt;
+  --type-section-size: 15pt;
+  --type-section-line: 20pt;
+  --type-code-lg-size: 17pt;
+  --type-code-lg-line: 22pt;
+  --type-code-lg-tracking: 0.02em;
 
   /* --- Spacing — base unit 4px --- */
   --space-hair: 2px;

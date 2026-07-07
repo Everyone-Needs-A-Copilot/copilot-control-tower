@@ -1,0 +1,10 @@
+{
+  "mode": "managed",
+  "phase": "materialize",
+  "phase_label": "Setting up Claude\u2026",
+  "steps": [],
+  "signin": null,
+  "signin_interval_secs": null,
+  "complete": false,
+  "error": null
+}

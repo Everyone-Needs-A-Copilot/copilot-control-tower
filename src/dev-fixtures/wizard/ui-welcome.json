@@ -1,0 +1,29 @@
+{
+  "mode": "unmanaged",
+  "phase": "welcome",
+  "phase_label": "Welcome",
+  "steps": [
+    {
+      "id": "choose-products",
+      "kind": "choose-products",
+      "prompt": "Which copilots do you want set up?",
+      "done": false
+    },
+    {
+      "id": "layer-setup",
+      "kind": "layer-setup",
+      "prompt": "Where should we sync your personal layer from?",
+      "done": false
+    },
+    {
+      "id": "sign-in",
+      "kind": "sign-in",
+      "prompt": "Sign in to keep everything in sync.",
+      "done": false
+    }
+  ],
+  "signin": null,
+  "signin_interval_secs": null,
+  "complete": false,
+  "error": null
+}
