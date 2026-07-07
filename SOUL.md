@@ -17,14 +17,21 @@
 > *is*) and the five invariants in `CLAUDE.md` (its spine). This file decides
 > *what is allowed to exist in it.*
 
-> **STATUS: RATIFIED v1.1** — drafted 2026-07-06, ratified with the owner (Pablo)
+> **STATUS: RATIFIED v1.2** — drafted 2026-07-06, ratified with the owner (Pablo)
 > 2026-07-06 after the design challenge (Phases 1–5 complete, design brief approved).
 > **Revised to v1.1 (2026-07-06)** after a primary-evidence owner interview
 > (`scratchpad/interview-ground-truth.md`) reframed the essence to **democratization**
 > and surfaced the writable-inheritance / author tier, the Leak and Git-error anti-
-> patterns, and three open foundational problems. Supersedes the earlier stub at
-> `docs/00-overview/soul.md`; the canonical soul is now this root file. Changes only
-> on durable evidence, logged in Section 10.
+> patterns, and three open foundational problems.
+> **Revised to v1.2 (2026-07-07):** the owner ratified the two architecture/security
+> designs that resolve those problems — `docs/01-architecture/inheritance-and-publish.md`
+> (writable-tier vs. never-destroy; non-technical conflict resolution) and
+> `docs/05-security/credentials-and-boundary.md` (credentials carrier + leakage wall).
+> Three of the open foundational problems are now **RESOLVED**; four inheritance-safety
+> rules are added as founding decisions and **elevated to `CLAUDE.md` invariants**; one
+> credential seam (author git-push provisioning) remains the sole open foundational item.
+> Supersedes the earlier stub at `docs/00-overview/soul.md`; the canonical soul is now
+> this root file. Changes only on durable evidence, logged in Section 10.
 
 <!--
   Essentialism lens (Rams / Ive): this product's essence is DEMOCRATIZATION — a
@@ -406,6 +413,11 @@ person.
 | Real-time / per-minute refresh of inherited content | **OUT** | 2 | Cadence is correct — "I can rarely imagine a moment where someone updates something that someone needs *right now*." A manual "sync now" escape hatch covers the rare urgent case; constant refresh burns battery/attention for no essential gain. |
 | Surfacing a raw Git/VCS conflict or error to Bob (`<<<<<<< HEAD` markers, "resolve the merge") | **OUT** | 4 | *The Git Error To A Non-Technical Person* — Bob has no Git literacy; a raw VCS failure reads as "the tool broke my work." Resolve invisibly or hold-and-escalate; never dump Git on a non-technical person. |
 | Any design that makes *consuming* the ecosystem require technical skill (a terminal step, a config edit, YAML the consumer must touch) | **OUT** | 2 | Violates the essence — democratization means a non-technical person wields it without understanding the layers underneath. If consuming needs technical skill, the product has failed its reason to exist. |
+| OS keychain + per-integration OAuth/device-flow as the secrets carrier; inheritance content references a secret's **name + acquisition method**, never its value | **IN** | 1, 4 | The ratified answer to the credentials-carrier problem (`docs/05-security/credentials-and-boundary.md`). Secret material lives per-user in the OS keychain via the CLI's own auth flow; the app renders the browser/code wrapper and holds nothing. References-not-secrets keeps *The Leak* impossible on the inheritance path. |
+| Pull-only / downward sync — `copilot update` has read-only, downward credentials and **no push capability** to any shared remote; personal content structurally cannot flow up | **IN** | 2, 4 | Ratified write-direction rule (`docs/01-architecture/inheritance-and-publish.md`, `docs/05-security/credentials-and-boundary.md`). The unattended scheduler has no upward credential, so the worst leakage path (silent bidirectional sync) is closed by construction, not by discipline. |
+| **Keep-both** as the always-available floor on a genuine merge overlap (both versions land side-by-side, no data loss, no Git literacy) | **IN** | 2, 4 | The no-data-loss floor of the ratified layered `copilot publish` (auto-merge → keep-yours/theirs/both → park-and-escalate). CLI computes and applies; the app only renders the plain-language choice. Answers *The Git Error To A Non-Technical Person* without ever showing Git. |
+| Secrets (API keys, integration tokens) committed to **any tier's git repo**, public or private — even a private dept/org repo | **OUT** | 4 | The ratified credentials rule (DREAD ≈ 9.2/10): git is a distribution/history mechanism, not a trust boundary; a committed secret is irreversibly exposed the moment it lands. No git host is a secrets carrier at any tier. Elevated to a `CLAUDE.md` invariant. |
+| Background / automated sync that can push **personal content upward** to a shared tier (a defect or design flaw making the cadence sync bidirectional) | **OUT** | 4 | *The Leak*, its worst form — DREAD ≈ 9.4/10 because it needs **zero human error**, only a code defect, and fires on every machine every cadence tick. Closed by construction: no personal-holding path has an upward push credential. Elevated to a `CLAUDE.md` invariant. |
 
 ---
 
@@ -512,8 +524,12 @@ language of a second brain that *decides* or *knows*.
 *The settled calls this instrument rests on, all locked by Pablo and dated as founding.
 At v1.0 ratification (2026-07-06) the design-challenge tensions converted to definite
 calls. The v1.1 owner interview then **re-opened three genuinely foundational problems**
-(logged below) — these are un-settled by evidence, not by neglect, and the Soul must
-not over-commit design on top of them.*
+(logged below) — these were un-settled by evidence, not by neglect. At v1.2 (2026-07-07)
+the owner **ratified the two designs that resolve them** — `inheritance-and-publish.md`
+and `credentials-and-boundary.md` — so those three problems are now marked **RESOLVED**
+below, four inheritance-safety rules are added as Founding Decision #10 and elevated to
+`CLAUDE.md` invariants, and a **single** foundational seam (author git-push-credential
+provisioning) remains open.*
 
 Founding calls, ratified with the owner **2026-07-06**:
 
@@ -571,30 +587,81 @@ Added at v1.1 (2026-07-06 owner interview):
    still governs — the change-averse consumer is the product; the author tier and
    Admin mode are its subordinate enablers.
 
-**Three OPEN foundational problems (v1.1 — UNRESOLVED, not roadmap-deferrable):**
-These are genuine foundational decisions the interview surfaced. They are flagged
-here — not buried in engineering TODOs — because each can move what the product *is*.
+Added at v1.2 (2026-07-07 owner ratification of the two foundational designs):
 
-- [ ] **TODO — The credentials-carrier problem.** What carries secrets through a
-  *pull-based* inheritance model when a company has **no cloud secret store**? GitHub,
-  somehow, safely? Unsolved. This gates the whole write/publish path that makes the
-  writable tiers work at all. Route to security / threat-model.
-- [ ] **TODO — Personal-layer content scope.** Writing styles are plural and
-  context-dependent (email voice ≠ documentation voice ≠ thought-leadership voice);
-  Knowledge Copilot is the natural home. What *else* belongs in the personal layer?
-  Its exact scope defines **where the leak wall stands** — so this is not cosmetic.
-- [ ] **TODO — Writable-tier vs. never-destroy / read-only-mirrors tension.** The
-  interview introduced **writable, collaborative tiers**, which *directly strains*
-  invariant #3's "may freely re-materialize / re-clone read-only mirrors" safety
-  assumption. Trained-few-writers-first shrinks the blast radius but does **not**
-  remove it. This is a **genuine architectural conflict at the foundation** — a
-  writable tier is not a read-only mirror — and must be resolved before write access
-  opens to a second author. **Flagged prominently as an unresolved foundational
-  decision**, route to architecture / security.
+10. **The four inheritance-safety rules (ratified — being elevated to `CLAUDE.md`
+    invariants).** Ratified with the owner **2026-07-07** alongside
+    `docs/01-architecture/inheritance-and-publish.md` and
+    `docs/05-security/credentials-and-boundary.md`. These are the concrete, enforceable
+    mechanism for the prose already in the *The Leak* and *The Git Error To A
+    Non-Technical Person* anti-patterns (Section 4) — they make those lines-in-the-sand
+    true **by construction**, not by discipline. They are being promoted from Soul
+    decisions into `CLAUDE.md` invariants so every workstream inherits them:
+    1. **Secrets never enter inheritance content or any git repo.** API keys, tokens,
+       and integration credentials MUST NEVER be committed to, stored in, or transmitted
+       via any tier's git repository, public or private. Inheritance content may
+       reference a secret's *name and acquisition method*; never its value. No git host
+       is a secrets carrier at any tier. *(Carrier is the OS keychain + per-integration
+       OAuth — Case Law IN; reinforces **The Leak**.)*
+    2. **No cross-tier write capability from a personal-holding path.** No working tree,
+       credential, or automated code path that holds personal-tier content is ever
+       configured with write access to a department/org/foundation remote. Reaching a
+       broader tier is always a separate, explicitly-credentialed, human-invoked action.
+       *(Reinforces **The Leak** — separate trees, separate remotes, tier-scoped.)*
+    3. **Sync is pull-only / downward — personal never flows up automatically.** The
+       cadence-sync/materialize path (`copilot update`) holds read-only downward
+       credentials only and has **no** push capability to any shared remote. All upward
+       movement is a distinct, explicitly-invoked action (an author's own push, or
+       `copilot promote`), never the background scheduler. *(Closes the worst leakage
+       path — silent bidirectional sync — by construction; reinforces **The Leak**.)*
+    4. **Fail-closed leak-scan on every writable push.** Every writable-tier push and the
+       promotion pipeline is fail-closed gated by a leak-scan (secrets/tokens,
+       personal-tier markers, PII) before the remote accepts the change. A tripped scan
+       blocks the push with a plain-language, non-technical explanation — **never a raw
+       git/VCS error**. *(Defense-in-depth behind rules 2–3; reinforces both **The Leak**
+       and **The Git Error To A Non-Technical Person**.)*
+
+**Three RESOLVED foundational problems (v1.2 — 2026-07-07, ratified with the owner):**
+The three genuinely-foundational problems the v1.1 interview surfaced are now settled by
+evidence and ratified design. Recorded here (not merely deleted) so the resolution and
+its canonical doc are traceable:
+
+- [x] **RESOLVED — Writable-tier vs. never-destroy / read-only-mirrors tension.** The
+  tension was **apparent, not real**: never-destroy governs the *pull/materialize* side;
+  collaborative conflict lives entirely on a separate *push/publish* side it never
+  covered. The **consumer-read-only / author-writable split** — a disposable read-only
+  mirror distinct from the author's tier-scoped authoring checkout (itself already a
+  "dirty personal working tree" invariant #3 forbids touching) — keeps invariant #3
+  **intact, no wording change required**. Ref `docs/01-architecture/inheritance-and-publish.md`.
+- [x] **RESOLVED — Non-technical merge conflict.** A **layered `copilot publish`**:
+  auto-merge non-overlapping edits → plain-language keep-yours / keep-theirs / **keep-both**
+  chooser on a true overlap → park-and-escalate to a competent author for sensitive or
+  declined cases. **Keep-both is the no-data-loss floor; escalate is the never-cornered
+  exit.** Merge logic is CLI-side; the app renders the choice only (invariant #1 intact).
+  Raw Git is never shown to Bob. Ref `docs/01-architecture/inheritance-and-publish.md`.
+- [x] **RESOLVED — Credentials-carrier.** Secrets ride the **OS keychain** (per-user)
+  established via **per-integration OAuth/device-flow** — requiring no cloud secret store;
+  inheritance content carries **references, not secrets**; **never git**. A narrow
+  MDM-provisioned machine-credential covers unattended kiosk machines. Ref
+  `docs/05-security/credentials-and-boundary.md`. *(One provisioning seam remains open —
+  see below.)*
+
+**One OPEN foundational problem remaining (v1.2):**
+
+- [ ] **TODO — Author git-push-credential provisioning.** The credentials design settles
+  *where secrets live* and *how consumers pull*, but the **author's write credential** —
+  what safely delivers a tier-write/push credential to a trained author's machine in a
+  pull-based model with no cloud secret store — is specified **in principle, not fully
+  worked**. This gates opening write access to a **second** author and must land before
+  the multi-writer authoring loop ships. Route to security / architecture. *(The single
+  remaining foundational seam; everything else the writable tiers need is ratified.)*
 
 *Engineering-roadmap open items (not Soul-blocking, tracked in architecture/user-story
-TODOs): urgent-revocation propagation (freshness floor vs. publish webhook), signing
-custody (who holds the second key), kiosk/multi-user a11y depth, and Codex/host parity.*
+TODOs): **personal-layer content scope** (what beyond writing-voice belongs in the
+personal layer — bounds where the leak wall stands, now that the wall's mechanism is
+ratified), urgent-revocation propagation (freshness floor vs. publish webhook), sync
+cadence values, signing custody (who holds the second key), kiosk/multi-user a11y depth,
+and Codex/host parity.*
 
 ---
 
@@ -611,6 +678,7 @@ When updated, add the rationale to the changelog below.
 
 | Date | Version | Change & rationale |
 |------|---------|--------------------|
+| 2026-07-07 | **v1.2 RATIFIED** | Ratified with the owner (Pablo) alongside the two foundational designs, now canonical at `docs/01-architecture/inheritance-and-publish.md` and `docs/05-security/credentials-and-boundary.md`. **Three of the open foundational problems are RESOLVED** (§9, recorded with resolution + canonical ref, not deleted): (1) **writable-tier vs. never-destroy** — the consumer-read-only / author-writable split keeps invariant #3 intact with no wording change; (2) **non-technical merge conflict** — layered `copilot publish` (auto-merge → keep-yours/theirs/**both** → park-and-escalate), keep-both = no-data-loss floor, merge logic CLI-side; (3) **credentials-carrier** — OS keychain + per-integration OAuth, references-not-secrets in inheritance content, never git. Added **Founding Decision #10 — the four inheritance-safety rules** (secrets never in inheritance content/git; no cross-tier write from a personal-holding path; sync pull-only/downward; fail-closed leak-scan on every writable push), cross-referencing and hardening *The Leak* and *The Git Error To A Non-Technical Person* — **being elevated to `CLAUDE.md` invariants**. Extended Case Law with **5 new verdicts** (3 IN / 2 OUT): OS-keychain+OAuth carrier → IN, pull-only downward sync → IN, keep-both floor → IN; secrets in any git repo → OUT, background sync pushing personal content upward → OUT. New totals **12 IN / 20 OUT (32)**. §9 now shows **3 RESOLVED + 1 remaining** open foundational item — the **author git-push-credential provisioning** seam (specified in principle, not fully worked) — with **personal-layer content scope** demoted to the engineering-roadmap TODOs. |
 | 2026-07-06 | **v1.1 RATIFIED** | Revised after a primary-evidence owner interview (`scratchpad/interview-ground-truth.md`). **Essence reframed to democratization** — "give a non-technical person the AI superpowers of a deeply technical one, safely enough to run unattended"; *parse-never-compute / the icon that cannot lie* is reframed from the point to *how it earns the right to run unattended*, and "keeps your environment Copilot-ready" is woven in (Sections 1, 2). Added the **writable inheritance model** (foundation→org→dept→personal, cadence-not-realtime, without clobbering personal work) and the **trained early-adopter author** as a second consumer psychographic to IS/IS-NOT and Who-this-serves. Added two anti-patterns — **The Leak** (personal content crossing into a shared tier by accident — impossible-by-construction) and **The Git Error To A Non-Technical Person** (a raw VCS conflict must resolve invisibly or hold-and-escalate, never dump Git on Bob). Extended Case Law with **5 new verdicts** (1 IN / 4 OUT): invisible non-technical merge-conflict resolution → IN; accidental personal→shared path, real-time refresh, raw Git errors to Bob, and any technical-skill-to-consume path → OUT. New totals **9 IN / 18 OUT (27)**. Added **evidence-honesty** (Founding Decision #9): Admin/IT-operator and multi-writer authoring are HYPOTHESES held as assumptions, not proven ground. **Logged three open foundational problems** as prominent TODOs: the credentials-carrier, personal-layer content scope, and the writable-tier vs. never-destroy/read-only-mirrors architectural tension. Kept the ratified priority order and the pure-OSS / Bob-first founding decisions. |
 | 2026-07-06 | **v1.0 RATIFIED** | Ratified with the owner after the design challenge (Phases 1–5 complete, brief approved). Populated the Feature Filter Case Law with 22 real Phase 3–5 verdicts (8 IN / 14 OUT), including the visual Case Law from experience design (no computed fleet-health score, no celebratory green, no color-only status, no wizard time estimates). Confirmed the definitive principle priority order (parse-never-compute/honesty > route-by-competence > as-little-app, under the inviolable security constraint) and removed its TODO. Locked **Bob-first** and resolved the Admin-vs-Bob-primacy TODO (Admin is the enabler, not co-primary). Added the founding **name & identity** decision — the product is "Copilot Control Tower," shown to the end user; the tray mark is the aviator-sunglasses glyph; "Aviator" is a dead codename banned from every user surface. Left urgent-revocation, signing custody, kiosk a11y, and Codex parity as engineering-roadmap open items. |
 | 2026-07-06 | v0.1 | Drafted as root-level decision instrument through an essentialism (Rams/Ive) lens: trust earned by subtraction. Synthesized from the vision, scope & non-goals, success metrics, JTBD, and moments-that-matter; spine from the five invariants in `CLAUDE.md`. Records the three founding decisions (pure OSS, Bob-first, trust/adoption/reliability). Supersedes the stub at `docs/00-overview/soul.md`. |

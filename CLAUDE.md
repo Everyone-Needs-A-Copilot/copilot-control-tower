@@ -8,11 +8,17 @@ An open-source macOS menu-bar app (Tauri v2) that is the always-on, self-healing
 
 ## The invariants (do not violate)
 
-1. **Parse, never compute.** Control Tower calls CLI verbs (`copilot doctor/update/repair/resolve/deprovision/freshness`) via a **versioned `--json` contract** and renders the result. It contains **no** resolution, sync, signature, or wipe logic of its own. If a decision requires computing ecosystem state, it belongs in the CLI, not here. See [`docs/01-architecture/cli-contract.md`](docs/01-architecture/cli-contract.md).
+1. **Parse, never compute.** Control Tower calls CLI verbs (`copilot doctor/update/repair/resolve/deprovision/freshness/publish`) via a **versioned `--json` contract** and renders the result. It contains **no** resolution, sync, signature, merge, or wipe logic of its own. If a decision requires computing ecosystem state, it belongs in the CLI, not here. (Even the merge-conflict chooser is CLI-computed — the app renders the options and passes the choice back.) See [`docs/01-architecture/cli-contract.md`](docs/01-architecture/cli-contract.md).
 2. **Single process.** One signed binary = tray + supervisor + scheduler. **No** separate daemon, **no** in-app fallback loop. `launchd` is a **crash-only watchdog** (`KeepAlive={SuccessfulExit:false}`, never `true`). The **CLI self-serializes** via `flock` on `copilot.lock` — the app is not the lock.
-3. **Never-destroy.** May freely re-materialize `.claude/` and re-clone read-only mirrors; **never** touches a dirty personal working tree.
+3. **Never-destroy.** May freely re-materialize `.claude/` and re-clone read-only mirrors; **never** touches a dirty personal working tree. This holds under writable inheritance: **consumers only ever *pull*** (mirrors stay disposable), an **author's writable authoring checkout is a personal working tree and is protected as one**, and the `copilot publish` push path is **additive** and never governed by re-materialization. See [`docs/01-architecture/inheritance-and-publish.md`](docs/01-architecture/inheritance-and-publish.md).
 4. **Security posture is inherited and enforced, never weakened.** No `--skip-verify`, no `--force`. Security-sensitive config is honored **only** from the forced/managed MDM domain. Trust roots are compiled-in code, not config.
 5. **Route by actor-competence × reversibility, not event-class.** Auto-act on reversible things the user can't judge; escalate to IT what they can't action; ask the user only for non-deferrable decisions about their own data. See architecture §9.
+6. **One-way inheritance; secrets never travel in it.** The inheritance model (foundation → org → dept → personal) is enforced **structurally, not by care**:
+   - **Secrets never enter inheritance content or any git repo.** Credentials live in the per-user **OS keychain**, provisioned by each integration's own OAuth/device-code flow; inheritance content carries only `requires_secret: <NAME>` **references**. GitHub is **never** a secret carrier.
+   - **No cross-tier write capability.** No working tree, credential, or sync path that holds **personal** content may have write access to a **shared** (dept/org/foundation) remote.
+   - **Sync is pull-only and downward.** Personal content **never** flows up automatically; publishing to a broader tier is always a **separate, human-invoked, distinctly-credentialed** action.
+   - **Fail-closed leak-scan on every writable push** — a defense-in-depth **backstop only**; the real guarantee is the structural separation above.
+   See [`docs/05-security/credentials-and-boundary.md`](docs/05-security/credentials-and-boundary.md) and [`docs/01-architecture/inheritance-and-publish.md`](docs/01-architecture/inheritance-and-publish.md).
 
 ## Tech
 

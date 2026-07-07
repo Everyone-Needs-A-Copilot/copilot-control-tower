@@ -15,6 +15,27 @@ Every consumed verb grows a **versioned `--json`** mode. All schemas carry a top
 | `copilot resolve --explain --json` | per-item `{item,dimension,winning_layer,winning_sha,shadowed[],signer_of_introducing_commit,live_hash_matches}` | `live_hash_matches:false` ⇒ "MODIFIED", never stale "signed ✓". |
 | `copilot deprovision <org> --json` | `{result, removed:{materialized,clones[]}, retained_dirty[], secrets_touched}` | `secrets_touched` MUST be `0` (no secret ever lived in a layer). |
 | `copilot freshness --json` | `{latest_lock_sha, current_lock_sha, stale, checked_at}` | The **cheap poll target** (single SHA) — not full `update`. |
+| `copilot publish --json` **(WS-A addition, 2026-07-07)** | `{schema_version, tier, result, conflict?, resolutions[], parked_ref?, escalated_to?, leak_scan}` | Author-side push of a writable org/dept tier. **CLI computes the merge**; the app only renders the chooser and passes back the choice. Conflict states: `auto-merged` / `needs-choice` / `parked-escalated`. See the subsection below. |
+
+## `copilot publish --json` (WS-A addition — 2026-07-07)
+
+Added when the [writable-inheritance & publish-path design](inheritance-and-publish.md) was ratified (2026-07-07, owner). `publish` is the **author-side push** of a writable org/department tier to its remote — the one governed path on which cross-author conflicts can arise. Consumers never call it (they only `update`/pull). **All merge/rebase/conflict computation is CLI-side; Control Tower only RENDERS the plain-language chooser and passes the human's pick back as `--resolve <choice>`** (invariant #1 — parse, never compute; no merge logic in the app).
+
+**Purpose.** Fetch the tier remote, rebase the author's local tier commits onto the new tip, auto-merge non-overlapping hunks, and — on a true overlap — surface a content-level (never Git-marker) choice or park-and-escalate a sensitive/declined change. Tier-scoped leak-scan runs fail-closed before any push (SOUL *The Leak*).
+
+**Result / conflict states** (`result`, and `conflict.state` when `conflict` is present):
+
+| State | Meaning | `--json` shape |
+|---|---|---|
+| `auto-merged` | Rebased + non-overlapping hunks merged silently; push completed. | `{result:"auto-merged", tier, pushed_sha}` |
+| `needs-choice` | True overlap on the same lines. CLI emits **rendered content versions** (never Git markers) and the non-destructive options. App renders the chooser; the pick returns via `copilot publish --resolve <choice>`, which the CLI applies and pushes. | `{result:"needs-choice", conflict:{tier, file, section, yours:{author,ts,rendered}, theirs:{author,ts,rendered}, base:{ts,rendered}}, resolutions:["keep-yours","keep-theirs","keep-both","escalate"]}` |
+| `parked-escalated` | Sensitive path/class, or author declined to choose. The change is parked on a durable held ref (**never lost**) and escalated in plain language to a competent author via the §9 Bob-agency routing. | `{result:"parked-escalated", parked_ref, escalated_to, reason}` |
+
+`keep-both` is the always-available **lossless floor** (both versions land side-by-side for content-level reconciliation, never a Git operation); `escalate` is the always-available exit so no non-technical author is cornered by a Git decision.
+
+**Exit codes.** `0` = published (`auto-merged`, or `needs-choice`/`parked-escalated` cleanly reported for the app to render — a surfaced conflict is a normal outcome, not an error); `1` = publish refused (leak-scan tripped, non-fast-forward that could not be auto-handled, or a `--resolve` that no longer applies); `2` = env/credential error (e.g. the author write credential is absent — see the carried-forward seam in [`inheritance-and-publish.md`](inheritance-and-publish.md) §7).
+
+**Fail-closed fields.** `leak_scan` and `tier` are **security-relevant**: a missing or malformed `leak_scan`/`tier` ⇒ **refuse to publish**, matching this contract's global fail-closed rule (a missing security field is never treated as safe). A CI contract test asserts this schema on every release, exactly like every other verb.
 
 ## Concurrency (the double-write fix)
 

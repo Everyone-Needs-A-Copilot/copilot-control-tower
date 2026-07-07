@@ -6,16 +6,23 @@
 
 ---
 
-## Open foundational decisions (carried forward — not lost, not resolved)
+## Foundational decisions
 
-These surfaced during Phases 1–5 and remain open going into the build phase:
+### ✅ RESOLVED & RATIFIED (owner, 2026-07-07)
 
-1. **Credentials-carrier for pull-based inheritance** — no cloud secret store; mechanism undecided.
+1. **Writable org/dept tiers vs. never-destroy** → RESOLVED. Consumer-read-only / author-writable split preserves invariant #3 intact. See [`../01-architecture/inheritance-and-publish.md`](../01-architecture/inheritance-and-publish.md).
+2. **Non-technical merge-conflict resolution** → RESOLVED. Layered `copilot publish` (auto-merge → keep-yours/theirs/**both** chooser → park-and-escalate); "keep both" is the no-data-loss floor. Same doc; new `copilot publish --json` verb added to WS-A.
+3. **Credentials-carrier for pull-based inheritance** → RESOLVED. OS keychain + per-integration OAuth; `requires_secret:` references-not-secrets; never git. See [`../05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md).
+
+These four safety rules were **elevated to CLAUDE.md invariants** (new invariant #6): secrets-never-in-git · no cross-tier write · sync pull-only/downward · fail-closed leak-scan.
+
+### ⏳ STILL OPEN
+
+1. **Author git-push-credential provisioning** — the SSH-alias *model* is settled; the *provisioning mechanism* (key generation/distribution/rotation to a trained author's machine) is not. The one remaining foundational seam. See credentials doc §6.
 2. **Personal-layer content scope** — what belongs in the personal layer (writing styles, etc.) is unsettled.
-3. **Writable org/dept tiers vs. never-destroy invariant** — a genuine architectural conflict between writable shared tiers and the "never touch a dirty working tree / read-only mirrors" rule. Needs resolution before those tiers are built.
-4. **Admin/IT operator experience** — unvalidated hypothesis; needs real IT operators to confirm.
-5. **Multi-writer authoring flow** — unvalidated hypothesis; needs real writers to confirm.
-6. **Pre-existing engineering TODOs** — cadence values, urgent-revocation propagation, signing custody, kiosk depth, Codex parity.
+3. **Admin/IT operator experience** — unvalidated hypothesis; needs real IT operators to confirm.
+4. **Multi-writer authoring flow** — unvalidated hypothesis; needs real writers to confirm.
+5. **Pre-existing engineering TODOs** — cadence values, urgent-revocation propagation, signing custody, kiosk depth, Codex parity.
 
 ---
 

@@ -14,6 +14,8 @@
 - **The never-destroy invariant** — the hard line: Control Tower may re-materialize `.claude/` and re-clone read-only mirrors freely, but never touches a dirty personal tree.
 - **Deprovision & DLP** — the MDM-native, app-independent deprovision path; the soft-then-hard two-phase wipe; the honest boundary ("no secret ever materialized," not "exfiltration undone").
 - **The `--json` contract as the safety boundary** — why every consumed CLI verb requires a versioned, schema-gated `--json` mode, and why screen-scraping human output is treated as the single highest integration risk.
+- **Credentials carrier (integration secrets) — DONE.** See [`credentials-and-boundary.md`](credentials-and-boundary.md) §1 — ratified 2026-07-07. OS-keychain + per-integration OAuth/device-code model; `requires_secret: <NAME>` references-not-secrets; GitHub rejected as a secrets carrier (DREAD ≈ 9.2/10); no-MDM/no-cloud-secret-store fallback specified. **Open seam carried forward, not yet designed:** author git-push-credential provisioning (`ssh-personal`/`ssh-work` key generation/distribution/rotation) — see that doc's §6.
+- **Personal↔shared data-boundary (leakage wall) — DONE.** See [`credentials-and-boundary.md`](credentials-and-boundary.md) §2 — ratified 2026-07-07. STRIDE analysis of the four leakage paths; structural guarantees (separate repos/remotes per tier, pull-only sync, no cross-tier credential scope, fail-closed leak-scan as defense-in-depth backstop). The four owner-ratified rules in that doc's §4 are being elevated to `CLAUDE.md` invariants.
 
 ## Source material already validated
 
