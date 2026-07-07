@@ -18,7 +18,7 @@
 
 **The ecosystem is one resolver, one manifest, one command — parameterized three ways (product × tier × dimension).** Everything else is derivation and governance around that spine.
 
-- **Three products** are just **bundles of dimensions**: Claude/Codex Copilot owns agents/skills/commands/protocol/memory/tasks; Knowledge Copilot owns knowledge; CLI Copilot owns integrations. The resolver resolves *dimensions*, not products, so adding a product is additive by construction.
+- **Four products** (Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot — config-driven, not a hardcoded count) are **bundles of dimensions**: Claude/Codex Copilot own agents/skills/commands/protocol/memory/tasks; Knowledge Copilot owns knowledge; CLI Copilot owns integrations. The resolver still folds *per dimension* internally, so adding a product is additive by construction — but every layer and every resolved item carries a first-class `product` attribution, so output is groupable by product (invariant: a layer belongs to exactly one product × tier).
 - **Four tiers** (personal › department › org › foundation) are an **ordered list**; precedence is list order, so 4 (or N) tiers cost almost nothing over 3.
 - **One published fact per enterprise** — an `ecosystem.yml` seed — lets an installer **derive every repo URL** from just a company name + a department. Nobody types a URL.
 - **One command** (`copilot`, invoked by absolute path) is install, repair, and update. A dependency-free bootstrap installs a capable foundation that then drives a self-healing, idempotent, guided setup.
@@ -55,7 +55,7 @@ The layered picture is in the companion **diagram artifact** (see §10); this se
 
 ## 3. Part A — The resolver & dimension semantics (the spine)
 
-There is **one** resolution engine (from `02-four-tier-and-github-topology.md` §4 *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*): load the manifest, sort layers by `rank`, and per **dimension** apply that dimension's semantics, then **materialize** the winning set into the discovery paths the host actually scans (copy, not read-time merge — the host is layer-unaware). A **product is a set of dimension-subtrees**; the resolver has no concept of "product."
+There is **one** resolution engine (from `02-four-tier-and-github-topology.md` §4 *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*): load the manifest, sort layers by `rank`, and per **dimension** apply that dimension's semantics, then **materialize** the winning set into the discovery paths the host actually scans (copy, not read-time merge — the host is layer-unaware). A **product is a set of dimension-subtrees**, and the fold itself is still computed per-dimension internally — but product is not merely implied by repo naming: every layer declares a `product` field, and the resolver carries it through onto every resolved item as a first-class attribution, so `resolve`/`doctor` output is groupable by product (which is what the UI renders) without recomputing it from repo names.
 
 ### 3.1 The authoritative resolution-semantics matrix
 

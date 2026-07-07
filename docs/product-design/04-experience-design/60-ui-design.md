@@ -148,7 +148,7 @@ status dot.
 
 **Weight is hierarchy, not decoration.** The status sentence is the *only* Semibold in the popover body
 — it is the one thing Bob must read, so it is the one thing that is heavier. Everything else (actions,
-detail) is Regular. This is P4 made typographic: the sentence that names the failing host outranks the
+detail) is Regular. This is P4 made typographic: the sentence that names the failing product and layer outranks the
 action offered.
 
 ### Spacing & Layout
@@ -262,40 +262,84 @@ built from three layers so colour is never alone (P4, a11y §1):
 
 **The governing visual rule (from the UX matrix):** *the brightest, most-saturated pixel in the menu bar
 is never Healthy.* Healthy is the quietest mark. A failure or holding state is what carries a badge and a
-tint — so the eye is drawn **only** when there is something true to say. Worst-wins: the glyph shows the
-worse of the two hosts; the *sentence* and **Hosts ▸** submenu attribute per host.
+tint — so the eye is drawn **only** when there is something true to say. **Worst-wins is UNCHANGED and
+nested:** the single glyph shows the worst state across **all products × all layers**; the *sentence*
+names the worst **product and layer**; the **product list** carries a per-product badge (worst of that
+product's four layers); expanding a product attributes down to the individual tier.
 
-**VoiceOver (a11y §2):** the tray item's accessibility label is the **current status sentence** ("Codex
-needs sign-in; Claude is fine"), never "app icon"; each badge is described, never left as decoration.
+**VoiceOver (a11y §2):** the tray item's accessibility label is the **current status sentence** ("CLI
+Copilot — department layer needs sign-in. Everything else is up to date."), never "app icon"; each
+product row and each expanded layer also carry their own labels; each badge is described, never left as
+decoration.
 
-### 2. The Dropdown Popover
+### 2. The Dropdown Popover — PRODUCT-FIRST
 
 Fixed 320pt, system material, arrow anchored to the glyph. Structure top→bottom (Fitts's Law — the
-primary action is the largest target, high in the body):
+primary action is the largest target, high in the body). The body is organized **by product**, not by
+host — the instrument reads out one product per row, worst-wins glyph above:
 
 ```
-┌─ (system popover, --radius-popover, AppKit shadow) ────────┐
-│  Codex needs sign-in; Claude is fine.        ← --type-status (Semibold 13pt, --text-primary)  │
-│                                                            │
-│  [  Sign in…  ]                              ← Primary action button (contextual, --radius-control) │
-│                                                            │
-│  What changed…                               ← secondary rows, --type-body, Regular            │
-│  Add a skill…                                              │
-│  ───────────────────────────                 ← --separator hairline (0.5pt)                    │
-│  Hosts ▸                                      ← the only submenu (≤5 rows)                       │
-│  Preferences…                                             │
-│  ───────────────────────────                              │
-│  Quit                                                      │
-└────────────────────────────────────────────────────────────┘
+┌─ (system popover, --radius-popover, AppKit shadow) ─────────────────┐
+│  CLI Copilot — department layer needs sign-in.   ← --type-status (Semibold 13pt) │
+│  Everything else is up to date.                  ← 2nd clause, --type-caption     │
+│                                                                     │
+│  [  Sign in…  ]                                  ← Primary action (contextual)    │
+│  ─────────────────────────────────              ← --separator hairline (0.5pt)    │
+│  PRODUCTS                                        ← --type-caption, --text-secondary (section label) │
+│  ● Knowledge Copilot   up to date            ▸  ← green dot + text; collapsed      │
+│  ● CLI Copilot         department: sign-in   ▾  ← key badge + text; EXPANDED below  │
+│      ○ Foundation      up to date               ← layer rows, --type-caption, indented │
+│      ○ Org             up to date                                                    │
+│      ⚿ Department      needs sign-in  [Sign in…]  ← the off layer; inline layer action │
+│          · Q3-campaign (project)  up to date    ← temp dept PROJECT, nested under Dept │
+│      ○ Personal        up to date                                                    │
+│  ◐ Claude Copilot      org: updating…        ▸  ← ring badge + text; collapsed      │
+│  ● Codex Copilot       repairing personal…   ▸  ← ring badge + text; collapsed      │
+│  ─────────────────────────────────                                                  │
+│  What changed…                                   ← secondary rows, --type-body       │
+│  Add a skill…                                                                        │
+│  ─────────────────────────────────                                                  │
+│  Preferences…                                                                        │
+│  Quit                                                                                │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Top line** is always present, always the status sentence, always the heaviest text. When Healthy it
-  reads "Everything's in sync." — flat, no green, no icon celebrating it.
-- **Primary action is contextual and singular** (Healthy → "Sync now"; Signed-out → "Sign in…";
-  Needs-attention → "Repair…"; Setup-needed → "Finish setup…"). Filled with `--brand-indigo`; it is the
-  one filled control. All other rows are plain menu rows.
-- **No approve/unblock control ever renders for Bob** (US-B15, Soul: OUT) — a held update shows the
-  *sentence* "An update is waiting on IT" and offers only "What changed?", never a button that acts.
+- **Top line** is always present, always the status sentence, always the heaviest text — it now names
+  the worst **product and layer**. When everything is Healthy it reads "Everything's in sync across all
+  your copilots." — flat, no green, no icon celebrating it.
+- **Product list** is a chunked section under a quiet `PRODUCTS` label. **Data-driven — one row per
+  declared product, N not 4.** Each row carries: a **status dot/badge** (the same shape family as the
+  glyph, worst of that product's four layers), the product **name**, a **short state phrase** (which
+  layer + what), and a **disclosure chevron ▸/▾**. Row height `--menu-row-height` (28pt); layer rows are
+  indented one step and use `--type-caption`.
+- **Expansion is inline** (progressive disclosure, `--motion-calm` 180ms), not a submenu — the four
+  tiers **foundation / org / department / personal** unfold beneath the product, each with its own badge
+  + state text. **Temporary department projects** render as further-indented entries under the
+  **Department** tier (marked "(project)"). Opening a second product may collapse the first, so the open
+  set stays small (Miller's Law).
+- **Worst-wins for the single glyph is unchanged** — only the *attribution* is now nested product→layer.
+- **Primary action is contextual and singular** at the top (Healthy → "Sync now"; Signed-out →
+  "Sign in…"; Needs-attention → "Repair…"; Setup-needed → "Finish setup…"), targeting the worst item.
+  Filled with `--brand-indigo`; it is the one filled control. A layer that needs its own action may also
+  surface a compact **inline layer action** (e.g. "Sign in…" on the Department row) — a plain, not
+  filled, control so the top primary stays the single hero target.
+- **No approve/unblock control ever renders for Bob** (US-B15, Soul: OUT) — a held update on any product
+  layer shows the *sentence* "waiting on IT" and offers only "What changed?", never a button that acts.
+
+#### 2a. Product row & four-layer expansion — visual spec
+
+| Element | Treatment | Notes |
+|---|---|---|
+| **Product row (collapsed)** | dot/badge (`--radius-badge`) + `--type-body` name + `--type-caption` state phrase (right-aligned or trailing) + chevron | Badge = worst of the product's 4 layers (worst-wins, one level down). Green dot only if **all four** parsed current+fresh+authed (never fabricated) |
+| **Chevron** | ▸ collapsed / ▾ expanded, `--text-tertiary`, `--motion-fast` rotate | Redundant with the `aria-expanded` state; never the sole expand signal |
+| **Layer row (expanded)** | indented `--space-lg`; small badge (same shape family) + `--type-caption` layer name + state | foundation / org / department / personal, fixed order. Badge+text per layer — **never colour alone**, a11y §1 applies per layer |
+| **Dept-project entry** | further indented; `·` leader + `--type-caption` + "(project)" tag | A temporary department project, scoped under the Department tier |
+| **Inline layer action** | plain (unfilled) `--radius-control` control at row-trailing | Only when that layer is the actionable one; the top primary action remains the single filled hero |
+| **Layer badge palette** | reuses the status-glyph family tints (§ Design Tokens → Status semantics) | up-to-date = green dot · updating/repairing = brand ring · needs sign-in = key/indigo-blue · behind = info-blue dot · needs-attention = amber triangle |
+
+**Air-Traffic Instrument continuity:** the product list reads like a departures board — one line per
+product, a calm status per line, detail on request. No product row is ever emphasized by size or colour
+when it is Healthy; the eye is drawn only to the product+layer that has something true to say.
 
 ### 3. Menu Row
 
@@ -337,8 +381,11 @@ tone is identical — **still no gamification, still shape+colour+text, still no
 
 - **Fleet table** — rows = machines, `--dashboard-row-height` 32pt, zebra on `--surface-sunken`.
   Sortable by health family. The status cell renders the **same badge family** as the tray glyph plus a
-  **status dot** + a **plain-language cell** ("Codex signed-out") — never colour alone, never a bare dot
-  (a11y §1 applies to Raj too). Healthy rows are the quietest: a plain green dot + "In sync," no emphasis.
+  **status dot** + a **plain-language cell** naming the worst **product and layer** ("Codex Copilot —
+  personal layer signed-out") — never colour alone, never a bare dot (a11y §1 applies to Raj too). A
+  machine detail row expands to the same product × four-layer breakdown Bob's dropdown uses (Raj sees
+  which product-layer on which machine). Healthy rows are the quietest: a plain green dot + "In sync
+  across all products," no emphasis.
 - **Red/green preflight** — a vertical checklist; each item is **✓ pass / ✕ fail** *shape* + green/red
   *tint* + a sentence. **Any red blocks deploy** and deep-links to the offending item. The shape (✓/✕)
   carries the verdict so it survives grayscale/colour-blindness.
@@ -381,7 +428,7 @@ signal*).
 | Anti-direction (no consumer-AI gradient, no gamified dashboard, no alarm-red) | `SOUL.md` anti-patterns (*Alert Machine*, *Second Pilot*, *Copilot of the Copilot*) |
 | Status-glyph family (shape+badge+tint, template image, grayscale-legible) | UX STATE MATRIX; a11y §1/§6; US-B07/B08/B09; P4 |
 | Status palette (Healthy = only green; red = only error) | UX matrix "colour never sole encoder"; a11y §1 |
-| Dropdown popover (contextual singular action, no approve control) | Flow 6; US-B12/B15; Fitts's Law |
+| Dropdown popover — product-first list + inline four-layer expansion (contextual singular action, no approve control) | Owner's model (products × layers); Flow 6; US-B12/B15; Fitts's Law |
 | Wizard (silent spectator + device-flow code + pick-list) | Flows 1–4; US-B01/B02; a11y §4 |
 | Notification pattern (rare, past-tense/singular tone) | UX notification pattern; US-B13/B16/B17; `SOUL.md` §7 |
 | Admin dashboard (dense but shape+colour+text, no score) | Flows 9–10; US-A05/A07; UX Admin patterns; *The Second Pilot* |

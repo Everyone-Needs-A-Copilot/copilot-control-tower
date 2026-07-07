@@ -12,14 +12,32 @@ defined differently in an older doc, **this page wins**; fix the drift there, no
 
 ## Core architecture
 
-**Layer vs. tier** — these are related but distinct, and the docs use them precisely:
+**Layer vs. tier vs. product vs. dimension** — four distinct axes; the docs use them precisely and
+none of them substitute for another:
 - **Tier** is the conceptual precedence rank in the inheritance stack: **PERSONAL (10) › DEPARTMENT
   (20) › ORG (30) › FOUNDATION (40)**. A tier is a *position*, not a file.
-- **Layer** is a concrete, self-describing manifest entry (`id`/`role`/`rank`/`source`/`auth`) that
-  *occupies* a tier. One tier can hold more than one layer — e.g. a user in two departments declares
-  two `department`-role layers at distinct ranks (`20`, `21`). `role` is an open string, so a 5th
-  tier (`squad`, `region`) is a data edit, not a schema change.
+- **Layer** is a concrete, self-describing manifest entry (`id`/`role`/`rank`/`source`/`auth`/
+  `product`) that *occupies* a tier. One tier can hold more than one layer — e.g. a user in two
+  departments declares two `department`-role layers at distinct ranks (`20`, `21`). `role` is an
+  open string, so a 5th tier (`squad`, `region`) is a data edit, not a schema change.
   Ref: [`four-tier-topology.md`](four-tier-topology.md) §§2–4.
+- **Product** — an independently four-tier-layered bundle of dimensions; the initial products are
+  **Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot**. Product is **config-driven** —
+  these four are the initial set declared in `ecosystem.yml`/`copilot.layers.yml`, not a hardcoded
+  count — and a new product is additive by adding layers, not a schema change. **Invariant: a layer
+  belongs to exactly one product × tier.** Product is a first-class **attribution + grouping axis**
+  carried on every layer and every resolved item (a `product` field), distinct from the *tier* it
+  occupies and the *dimension(s)* it resolves. Ref: [`four-tier-topology.md`](four-tier-topology.md)
+  §4; [`ecosystem-architecture.md`](ecosystem-architecture.md) §§1, 3.
+- **Dimension** — a content-*kind* the resolver resolves: **agents, skills, commands, protocol,
+  knowledge, memory, tasks, cli-integrations**. Each dimension has its own fold semantics (override,
+  accumulate, personal-write, project-local — see `ecosystem-architecture.md` §3.1) applied
+  per-layer, independent of which product or tier the layer belongs to.
+  Ref: [`ecosystem-architecture.md`](ecosystem-architecture.md) §3.1.
+- **The crisp distinction:** *tier* is **where** in precedence a layer sits; *product* is **which
+  bundle** a layer belongs to (an attribution/grouping label carried alongside); *dimension* is
+  **what kind of content** the resolver is folding when it walks that layer. A layer has exactly one
+  tier and exactly one product; it may contribute to one or more dimensions.
 
 **Materialize** — the act of copying the *resolved* (winning, per-name) set of agents/skills/
 commands/knowledge out of local layer clones into the paths a host actually scans (e.g. `.claude/`).

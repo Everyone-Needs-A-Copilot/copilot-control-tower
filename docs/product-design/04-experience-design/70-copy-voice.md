@@ -20,7 +20,7 @@ character) is constant; the register modulates.
 
 | Register | Who | Rule |
 |---|---|---|
-| **Bob-facing** | The non-technical primary persona. No terminal, denies permission prompts, may run Focus/DND. | Plain language. **Zero jargon.** Names the failing host and the one thing to do. Reassuring only as far as the CLI can prove it. |
+| **Bob-facing** | The non-technical primary persona. No terminal, denies permission prompts, may run Focus/DND. | Plain language. **Zero jargon.** Names the failing **product and layer** and the one thing to do. Reassuring only as far as the CLI can prove it. |
 | **IT/Admin-facing** | Raj and the org security team, in the Admin window. Competent, technical. | Precise and technical-OK: key names, host names, finding IDs, counts, SHAs. Still calm, still never alarmist. |
 
 Where a string below shows both, the event reaches both surfaces at once (e.g. IT-config-incomplete,
@@ -53,8 +53,8 @@ The single promise every string must keep: **the icon that cannot lie.** Copy is
 
 | Rule | Do | Don't |
 |---|---|---|
-| **Short.** One idea per sentence; a status line is one sentence. | "Codex needs sign-in. Claude is fine." | "There are one or more issues that may require your attention across your configured hosts." |
-| **Name the specific thing.** Never a blended verdict. | "Your backup hasn't run in a while." | "Something needs your attention." |
+| **Short.** One idea per sentence; a status line is one sentence. | "CLI Copilot — department layer needs sign-in." | "There are one or more issues that may require your attention across your configured products." |
+| **Name the specific thing — product AND layer.** Never a blended verdict, never just a product. | "Claude Copilot — org layer updating…" | "Something needs your attention." |
 | **Second person, present or past — never future-promise what isn't done.** | "I'll finish setup when you're back online." | "Your setup is complete!" (when it isn't) |
 | **The system speaks in the language of supervision** — watch, hold, sync, sign in, waiting on — never *decide, know, resolve, score*. | "An update is waiting on IT." | "The AI decided to defer this update." |
 | **Past-tense for anything already handled.** Auto-acted things are reported, not asked. | "Kept you safe — a security fix replaced a component you'd overridden." | "A security issue needs your approval." |
@@ -85,12 +85,12 @@ line ever claims more than the CLI proved.
 
 | State (family) | Bob top line | Primary action label | Secondary / note | IT/Admin-facing line |
 |---|---|---|---|---|
-| **Healthy** (Healthy) | *(no notification; dropdown top line if opened:)* "Everything's in sync." | "Sync now" (optional) | "What changed" · "Add a skill" · "Open cheat-sheet" | "Healthy — on the current version, signed in." |
-| **Syncing** (Working) | "Syncing… (setting up Claude)" — phase name streams in | *(none — in progress)* | "This won't interrupt what you're doing." | "Sync in progress — <verb>/<phase>." |
-| **Signed-out** (Auth-needed) | "Codex needs sign-in. Claude is fine." | "Sign in…" | *(names only the host that needs it)* | "Codex auth expired for <user> — awaiting device-flow sign-in." |
-| **Needs-attention** (Needs-you) | "Codex needs a repair. Claude is fine." *(names the finding + host)* | "Repair…" | "This fixes it for you — no terminal needed." | "Codex: <finding-id> failed auto-repair — <one-line finding>." |
-| **Update-available** (Holding) | "An update is available." | "What changed?" | *(never an approve button)* | "Update available — <n> machines eligible." |
-| **Update-available / held** (Blocked) | "An update is waiting on IT." | "What changed?" *(informational only)* | "Nothing you need to do." | "Held for approval — major bump <old>→<new>; <n> machines waiting." |
+| **Healthy** (Healthy) | *(no notification; dropdown top line if opened:)* "Everything's in sync across all your copilots." | "Sync now" (optional) | "What changed" · "Add a skill" · "Open cheat-sheet" | "Healthy — every product on the current version across all 4 layers, signed in." |
+| **Syncing** (Working) | "Claude Copilot — org layer updating…" — product + layer + phase streams in | *(none — in progress)* | "This won't interrupt what you're doing." | "Sync in progress — <product>/<layer> <verb>/<phase>." |
+| **Signed-out** (Auth-needed) | "CLI Copilot — department layer needs sign-in. Everything else is up to date." | "Sign in…" | *(names the product + layer that needs it)* | "CLI Copilot department-layer auth expired for <user> — awaiting device-flow sign-in." |
+| **Needs-attention** (Needs-you) | "Codex Copilot — foundation layer needs a repair. Everything else is up to date." *(names the finding + product + layer)* | "Repair…" | "This fixes it for you — no terminal needed." | "Codex Copilot/<layer>: <finding-id> failed auto-repair — <one-line finding>." |
+| **Update-available** (Holding) | "Knowledge Copilot — an update is available for the org layer." | "What changed?" | *(never an approve button; names product + layer)* | "Update available — <product>/<layer>; <n> machines eligible." |
+| **Update-available / held** (Blocked) | "Claude Copilot — an org-layer update is waiting on IT." | "What changed?" *(informational only)* | "Nothing you need to do." | "Held for approval — <product>/<layer> major bump <old>→<new>; <n> machines waiting." |
 | **IT-config-incomplete** (Holding) | "Your IT setup isn't finished yet. Nothing for you to do — IT has been told." | *(none)* | *(never Healthy, never a hang)* | "Config incomplete: required key `<key>` absent/malformed. Escalated to AdminContact." |
 | **Waiting-for-network** (Holding) | "I've set up as far as your network allows. I'll finish your company setup when you're back online." | *(none)* | *(no scary error, no false-Healthy)* | "Foundation-only complete; company layers pending network (seed: <url|solo>)." |
 | **Offline** (Holding) | "You're offline — showing your last synced setup." | *(none)* | "This restores on its own when you reconnect." | "Offline — rendering cached state; last good sync <ts>." |
@@ -98,17 +98,28 @@ line ever claims more than the CLI proved.
 | **CLI-unreadable / Error** (Error) | "Versions don't match — click to update." | "Update now" *(or "Reinstall")* | "I can't read this safely, so I won't guess. Updating fixes it." | "Schema out of range / `cli-spawnable` fail — paired self-update offered. Never rendered Healthy." |
 | **Updating-app** (Working) | "Updating Control Tower…" | *(none)* | *(if a bad update rolls back, see rollback copy)* | "Self-update staging; watchdog gating on liveness heartbeat." |
 
-**Per-host attribution is mandatory (E21, US-B08).** The single glyph shows the worst host, but the
-sentence always names *which* host and states the other host is fine. Templates:
+**Per-product × per-layer attribution is mandatory (E21, US-B08).** The single glyph shows the worst
+state across all products × all layers (worst-wins, **unchanged**), but the sentence always names *which
+product* and *which layer*, and reassures that everything else is up to date. Product is **data** —
+these templates take a `{Product}` and a `{Layer}` variable and work for **any** declared product
+(Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot are the initial set, not a hardcoded
+list). `{Layer}` ∈ {foundation, org, department, personal}; a temporary department project reads as
+`"{Product} — {ProjectName} (a department project) needs …"`.
 
-- One host affected: `"{Host} needs {sign-in|a repair}. {OtherHost} is fine."`
-- Both affected: `"Both Claude and Codex need sign-in."`
-- Shared/foundation affected: `"A shared component needs a repair."` (never a host name Bob doesn't
-  recognize; "shared" is Bob's word for the foundation layer).
+- One product+layer affected: `"{Product} — {Layer} layer needs {sign-in|a repair}. Everything else is up to date."`
+- Whole product up to date: `"{Product} — up to date across all 4 layers."`
+- A layer updating/repairing in the background: `"{Product} — {Layer} layer updating…"` / `"{Product} — repairing {Layer} layer in the background."`
+- Multiple products affected: `"{ProductA} and {ProductB} both need sign-in."` (name each; never blend into "some products")
+- Dept project affected: `"{Product} — {ProjectName} (a department project) needs a repair."`
+
+*(Replaces the retired host templates. "Foundation" is now a named per-product layer, so the old
+"shared component" phrasing is gone — say `"{Product} — foundation layer needs a repair."`)*
 
 **VoiceOver / accessibility label** on the tray glyph reads the *current status sentence*, never "app
-icon" (a11y rule 2, `50-ux-design.md`). Example spoken label: *"Control Tower: Codex needs sign-in,
-Claude is fine. Press to open."*
+icon" (a11y rule 2, `50-ux-design.md`). Example spoken label: *"Control Tower: CLI Copilot, department
+layer needs sign-in, everything else is up to date. Press to open."* Each **product row** reads its own
+label (*"Knowledge Copilot — up to date across all 4 layers"*), and each **expanded layer** reads its
+own (*"Org layer — updating in the background"*).
 
 ### B. The setup wizard
 
@@ -120,7 +131,7 @@ Bob is asked nothing; he watches a progress view with the current phase named.
 |---|---|
 | Window title (header chrome — the product name Bob sees) | "Copilot Control Tower" |
 | Subhead | "Setting up your copilot. This is automatic — you don't need to do anything." |
-| Phase line (streams) | "Checking your Mac…" → "Setting up Claude…" → "Setting up Codex…" → "Getting your team's setup…" → "Almost there…" |
+| Phase line (streams — one per product, generalized `"Setting up {Product}…"`) | "Checking your Mac…" → "Setting up Knowledge Copilot…" → "Setting up CLI Copilot…" → "Setting up Claude Copilot…" → "Setting up Codex Copilot…" → "Getting your team's setup…" → "Almost there…" *(products are data — the list is whatever the ecosystem declares, not a fixed four)* |
 | No-time promise | *(no time estimate, ever — never "about 2 minutes")* |
 | Resume-after-quit (E4) | "Picking up where we left off." *(headless; shown only if the window is open)* |
 | Completion → teach panel | see **B3** |
@@ -177,13 +188,13 @@ The **one** kind of thing Bob is asked about, because it's his own data and only
 
 | Surface | Copy |
 |---|---|
-| Status line | "Codex needs sign-in. Claude is fine." |
-| Notification (only if his to act) | "Codex needs you to sign in again — it's a quick browser step." |
-| Sign-in sheet title | "Sign in to Codex" |
+| Status line | "CLI Copilot — department layer needs sign-in. Everything else is up to date." |
+| Notification (only if his to act) | "CLI Copilot needs you to sign in again for its department layer — it's a quick browser step." |
+| Sign-in sheet title | "Sign in for CLI Copilot" |
 | Sign-in sheet body | "We opened your browser. Enter this code there:" `[ AB12-CD34 ]` `[Copy]` |
 | Waiting | "Waiting for you to finish in the browser…" |
-| Success | "Signed in. Codex is back to normal." |
-| If it's a *machine* credential (not his) | *(no Bob prompt — routes to IT: "A machine credential on <machine> needs renewing.")* |
+| Success | "Signed in. CLI Copilot's department layer is back to normal." |
+| If it's a *machine* credential (not his) | *(no Bob prompt — routes to IT: "A machine credential on <machine> needs renewing (<product>/<layer>).")* |
 
 ### E. The commit-your-work interruption (the only confirmation Bob ever sees — Flow 8 / E22)
 
@@ -218,7 +229,7 @@ limit ("I can't read this safely"), not the user's fault.
 | Vendored engine won't start (E5) | "I couldn't start the engine. Click to reinstall — it's a fix, not a reset." | "`cli-spawnable` fail (likely Gatekeeper quarantine). De-quarantine on reinstall." |
 | Bad self-update (E14) | "Kept your working version — an update didn't start cleanly, so I rolled it back. Nothing broke." | "Staged bundle failed liveness gate; discarded and poisoned. Working version retained." |
 | Config incomplete (E1) | "Your IT setup isn't finished yet. Nothing for you to do — IT has been told." | "Required key `<key>` absent/malformed → *IT-config-incomplete* + AdminContact." |
-| Sign-in expired (E22) | "Codex needs sign-in. Claude is fine." | "Auth expired for required layer — device-flow re-sign-in pending." |
+| Sign-in expired (E22) | "CLI Copilot — department layer needs sign-in. Everything else is up to date." | "Auth expired for <product>/<layer> — device-flow re-sign-in pending." |
 | A used tool was pruned (E11) | "A tool you'd been using was removed in the latest update." | "Prune of recently-used item surfaced to user; zero-usage prunes stay silent." |
 | Offline (E2) | "You're offline — showing your last synced setup. This fixes itself when you reconnect." | "Offline; cached render; auto-recovers on reconnect." |
 
@@ -234,9 +245,9 @@ a confirmation is genuinely useful, it's a plain past-tense sentence — never a
 | Moment | Copy |
 |---|---|
 | Steady-state healthy | *(nothing — no toast, no "all good", no green cheer)* |
-| A sync finished | *(nothing; glyph simply returns to solid)* · if the dropdown is open: "Up to date." |
+| A sync finished | *(nothing; glyph simply returns to solid)* · if the dropdown is open: "{Product} — up to date across all 4 layers." |
 | First setup done | "You're set up." *(teach panel — B3)* |
-| Sign-in worked | "Signed in. Codex is back to normal." |
+| Sign-in worked | "Signed in. CLI Copilot's department layer is back to normal." |
 | Rollback protected them | "Kept your working version. Nothing broke." |
 | Security fix auto-applied | "Kept you safe — a security fix replaced a component you'd overridden." |
 
@@ -249,8 +260,8 @@ a confirmation is genuinely useful, it's a plain past-tense sentence — never a
 
 | Moment | Copy |
 |---|---|
-| Wizard phases | "Checking your Mac…" · "Setting up Claude…" · "Getting your team's setup…" · "Almost there…" |
-| Steady-state sync | "Syncing…" (+ phase name if useful: "Syncing… (updating Claude)") |
+| Wizard phases | "Checking your Mac…" · "Setting up {Product}…" (per declared product) · "Getting your team's setup…" · "Almost there…" |
+| Steady-state sync | "{Product} — {Layer} layer updating…" (e.g. "Claude Copilot — org layer updating…") |
 | App self-update | "Updating Control Tower…" |
 | Resuming after a quit (E4) | "Picking up where we left off." |
 | Reduced-motion fallback | *(the spinning ring becomes a static state + the word "Syncing…" — motion is never the only signal, a11y rule 7)* |
@@ -290,7 +301,7 @@ IT-allowed nuance.
 | "The AI decided / determined / knows / thinks / figured out" | Everywhere | The app *parses*, never computes a verdict. It renders the CLI's truth; it never claims judgment. |
 | "Auto-resolved", "second brain", "smart health check", "it detected a problem and fixed it itself" (as the app's own act) | Everywhere | Same — implies the app computed. Say "synced", "updated", "kept you safe" (past-tense of a CLI action). |
 | "Review and approve — or wait for IT" (to Bob) | **Bob only** | *The Alert Machine / MTM-4.* Bob has no basis to judge a held-major. His view is "waiting on IT"; no approve control exists. |
-| "Something needs your attention" / "One or more issues" / any blended verdict | Everywhere | Must name the *specific* failing host and thing. A blur is a design failure (Quality Bar). |
+| "Something needs your attention" / "One or more issues" / any blended verdict | Everywhere | Must name the *specific* failing **product and layer**. A blur is a design failure (Quality Bar). |
 | "Error", "Failed", "Warning" as a bare label | Everywhere | Always pair with what's true and the next step; never a naked scary word. |
 | "Contact support", "call IT", "run doctor in a terminal", "open Terminal" | **Bob only** | Bob has no terminal. In-app recovery ("click to update / reinstall") replaces every terminal instruction. |
 | "You entered the wrong…", "Invalid input", any blame | Everywhere | Never blame the user. State the condition and the fix. |
@@ -305,26 +316,33 @@ IT-allowed nuance.
 - **Register enforcement.** Strings are keyed by surface; the Bob register and IT register are
   *separate keys for the same event*, never one string down-leveled at runtime. A build-time lint
   should reject any Banned-Bob term appearing in a Bob-register key.
-- **Dynamic content.** `{Host}` ∈ {Claude, Codex}; the "other host is fine" clause is emitted only
-  when that host actually parsed Healthy (never asserted). `<key>`, `<machine>`, `<n>`, `<old>→<new>`
-  are IT-register only and never leak into a Bob string. Personal item names are **un-emittable** in
-  any escalation by construction (E20) — no template accepts one.
-- **VoiceOver.** Every status has an accessibility label = its Bob top line; every action row names
-  its action + plain-language effect ("Repair — fixes the thing IT can see"). Status transitions post
-  an announcement (a11y rules 2–3).
+- **Dynamic content.** `{Product}` is **data** — any declared product (initial set: Knowledge Copilot,
+  CLI Copilot, Claude Copilot, Codex Copilot), never a hardcoded enum; `{Layer}` ∈ {foundation, org,
+  department, personal}; `{ProjectName}` is a temporary department project scoped under the department
+  layer. The "everything else is up to date" clause is emitted **only** when every *other* product ×
+  layer actually parsed Healthy (never asserted — worst-wins honesty, P2). `<key>`, `<machine>`, `<n>`,
+  `<old>→<new>` are IT-register only and never leak into a Bob string. Personal item names are
+  **un-emittable** in any escalation by construction (E20) — no template accepts one.
+- **VoiceOver.** Every status has an accessibility label = its Bob top line (naming product + layer);
+  **every product row** carries its own label ("Knowledge Copilot — up to date across all 4 layers");
+  **every expanded layer row** carries its own ("Org layer — updating in the background"), and the
+  product row exposes its expanded/collapsed state. Every action row names its action + plain-language
+  effect ("Repair — fixes the thing IT can see"). Status transitions post an announcement (a11y rules
+  2–3).
 - **Character limits.** Status top line targets ≤ ~60 characters (one glanceable sentence, ~320pt
   popover width). Notification title/body follow macOS limits. <!-- TODO: confirm exact truncation
   width against the shipped popover + notch layout. -->
-- **Localization.** English strings are the source. The per-host attribution template and the
-  "{Host} needs X. {OtherHost} is fine." pattern must survive translation without re-blending into a
-  single vague verdict — flag for translators that *naming the host is load-bearing*, not stylistic.
-  <!-- TODO: confirm target locales for v1. -->
+- **Localization.** English strings are the source. The per-product × per-layer attribution template —
+  "{Product} — {Layer} layer needs X. Everything else is up to date." — must survive translation
+  without re-blending into a single vague verdict, and must keep `{Product}` and `{Layer}` as
+  independent, ordered variables (product then layer). Flag for translators that *naming both the
+  product and the layer is load-bearing*, not stylistic. <!-- TODO: confirm target locales for v1. -->
 - **Product name — RESOLVED.** The product name is **"Copilot Control Tower"** (short: **"Control
   Tower"**), per `00-overview/00-vision.md`, and it **is shown to the end user**. Bob sees the full
   name in the **setup-wizard header**, the **dropdown/popover header**, and **About**; IT/Admin copy
   uses "Control Tower". The name is **not** hidden from Bob — but it lives in the **chrome**
   (wizard/header/About), **not** jammed into every status line. Status *sentences* stay about Bob's
-  work — calm and honest ("Codex needs sign-in. Claude is fine.") — never a brand line. The
+  work — calm and honest ("CLI Copilot — department layer needs sign-in.") — never a brand line. The
   **aviator-sunglasses mark** is the menu-bar glyph Bob sees; **"Aviator"** is a dead engineering-only
   codename that must never appear as a product name on any user surface (see **Banned Language**).
 
