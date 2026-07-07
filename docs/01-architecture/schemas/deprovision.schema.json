@@ -10,9 +10,9 @@
     "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
     "result": {
       "type": "string",
-      "minLength": 1,
+      "enum": ["wiped", "partial", "noop"],
       "description": "Overall deprovision outcome.",
-      "$comment": "Value set unspecified in the contract; left as a non-empty string."
+      "$comment": "CORRECTED 2026-07-07: the upstream design gives an explicit enum (design-control-tower-integration.md §1.4): `{ result: \"wiped\"|\"partial\"|\"noop\", ... }`. The prior draft left this as an unconstrained non-empty string."
     },
     "removed": {
       "type": "object",
@@ -20,9 +20,10 @@
       "required": ["materialized", "clones"],
       "properties": {
         "materialized": {
-          "type": "boolean",
-          "description": "Whether the materialized tree was removed.",
-          "$comment": "Prose shows `removed:{materialized, clones[]}` without a type for `materialized`. Encoded as a boolean (was the materialized tree removed); it could instead be a path or a count. Owner to confirm."
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of materialized items removed.",
+          "$comment": "CORRECTED 2026-07-07: the upstream design's example (design-control-tower-integration.md §1.4) is `removed: { materialized: N, clones: [layer…] }` -- `N` is a count, not a boolean. The prior draft encoded this as a boolean ('was the tree removed'); changed to a non-negative integer to match. `deprovision.removed.materialized`'s exact semantics (count of what -- files? dimensions?) remain genuinely unspecified even in the upstream design; this is an open field to be defined at freeze, per the CLI owner."
         },
         "clones": {
           "type": "array",

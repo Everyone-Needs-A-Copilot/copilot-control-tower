@@ -35,7 +35,33 @@ schemas mark them `required`.
 `cli-contract.md` (prose) and these schemas describe the same contract. When they disagree,
 **the schemas win for machines** — they are what the CI contract test enforces. Any change to one
 must update the other in the same change. Where the prose is ambiguous, the schema encodes the most
-defensible interpretation and carries a `"$comment"` flagging the assumption for the owner to tighten
-(notably: `doctor.status` value set, `checker.repair` type, `deprovision.removed.materialized` type,
-`publish.conflict.state`, and the entire `repair.schema.json`, whose `--json` shape is *not* specified
-in `cli-contract.md` and is reconstructed from `architecture.md` §5.2).
+defensible interpretation and carries a `"$comment"` flagging the assumption for the owner to tighten.
+
+**Freeze status (2026-07-07 reconciliation).** These schemas encode the *design*, not an implemented
+CLI — WS-A is unstarted (see `cli-contract.md` "Freeze status & source of truth"). The authoritative
+source is the upstream `claude-copilot` design docs (05-control-tower.md, 06-control-tower-prd.md,
+research/design-control-tower-integration.md). Previously-open ambiguities now resolved against that
+source:
+- `doctor.status` — corrected from a draft `healthy|degraded|failed` (which wrongly conflated it with
+  per-checker `severity`) to the authoritative ~10-state machine: `setup-needed`, `it-config-incomplete`,
+  `healthy`, `syncing`, `update-available`, `needs-attention`, `signed-out`, `offline`,
+  `waiting-for-network`, `updating-app`.
+- `checker.repair` — confirmed nullable repair-token string (not a boolean).
+- `doctor.auth[]` element — tightened to `{identity, scope, state: expired|revoked, expires_at}` per
+  the upstream `doctor --json` example. (A `{layer, state, days_to_expiry}` shape exists upstream too,
+  but belongs to the *telemetry* payload, §6.2 of the integration design — a different verb/schema, not
+  `doctor`.)
+- `update.result` — enumerated `applied|up-to-date|held|blocked|offline` per the upstream example.
+- `update.held_for_approval[]` — tightened to `{dimension, from, to, reason}`.
+- `deprovision.result` — enumerated `wiped|partial|noop` per the upstream example.
+- `deprovision.removed.materialized` — corrected from boolean to a non-negative integer count (`N` in
+  the upstream example); its exact semantics remain genuinely unspecified even upstream — open field,
+  to be defined at freeze.
+- `repair.schema.json` — NOT an upstream WS-A verb task (06-control-tower-prd.md §3 has no `repair`
+  task); marked SPECULATIVE / control-tower's assumed shape pending upstream definition. `repair` is
+  invoked, but driven by the `repair` token on each `doctor` checker, not a standalone frozen schema.
+- `publish.schema.json` — NOT in upstream WS-A scope at all; marked as a control-tower-originated
+  proposed addition (from this repo's ratified writable-inheritance & publish-path design) that must
+  still be added upstream at freeze.
+- `resolve.schema.json` — confirmed already aligned with the upstream per-item shape; no changes
+  needed beyond a confirmation note.
