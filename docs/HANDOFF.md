@@ -1,12 +1,12 @@
-# HANDOFF — Copilot Control Tower
+# HANDOFF — Copilot Control Tower (App Build)
 
-A self-contained brief to **start a fresh conversation in this repo** and continue building. Everything a new session needs to pick up with zero prior context.
+A self-contained brief to **start a fresh conversation and build the app**. Everything a new session needs with zero prior context. Supersedes the earlier "freeze WS-A" handoff — the spec is done, the CLI engine is underway, and **the next job is building the actual macOS app.**
 
 ---
 
 ## Paste this to begin a new session
 
-> Read `docs/HANDOFF.md`, then `docs/START-HERE.md`, `docs/01-architecture/architecture.md`, and `docs/02-prd/prd.md`. We're building **Copilot Control Tower**. Confirm you understand the one invariant (*the app parses CLI output; it never computes*) and the state below. The immediate task is to **freeze the WS-A CLI contract** (`docs/01-architecture/cli-contract.md`) — note it lives in the **`claude-copilot` repo's `copilot`/`cc` CLI, not this repo**. Before writing any code, propose the WS-A implementation plan (the exact `--json` schema files, the verbs to add, `flock`, `COPILOT_MANAGED_BY`, and the CI contract test).
+> Read `docs/HANDOFF.md`, then `SOUL.md`, `CLAUDE.md`, and the experience-design docs (`docs/product-design/04-experience-design/50-ux-design.md`, `60-ui-design.md`, `70-copy-voice.md`) and the schemas (`docs/01-architecture/schemas/`). We are building **Copilot Control Tower**, a Tauri v2 macOS **menu-bar app**. Confirm you understand the invariants (esp. #1 *the app parses `cc --json` output; it never computes*) and the state below. The task is **milestone 1: scaffold the Tauri app and get a real tray icon on the menu bar, wired to `cc doctor --json` on a timer, rendering the honest status + the product-first dropdown**. Before coding, propose the plan (Tauri project layout, the Rust core that spawns `cc` by absolute translocation-safe path, the JSON→state parse, the web-UI dropdown, and the mock-CLI fixtures for UI dev). Route via `/protocol`.
 
 ---
 
@@ -14,91 +14,122 @@ A self-contained brief to **start a fresh conversation in this repo** and contin
 
 | | |
 |---|---|
-| **Repo** | `Everyone-Needs-A-Copilot/copilot-control-tower` (private; goes **public at launch**) |
-| **Local path** | `/Volumes/Dev/Sites/COPILOT/copilot-control-tower` |
-| **Hosts wired** | **Both** Claude Copilot (framework agents/commands/cc/tc; fitness 111/111) **and** Codex Copilot (`AGENTS.md` + Codex skills over shared `cc`/`tc`) |
-| **Spec** | **Complete and validated** — architecture + parallel PRD + 3 design streams + 2 red-team reports (25 Critical/High findings, all mapped to fixes in `architecture.md` §10) |
-| **Build** | **Not started.** No app code exists. This repo holds the spec + docs + framework scaffold only. |
-| **Commits** | `09d1707` (docs scaffold) → `dc662a8` (both hosts) → `5a19b0e` (slug normalize + Codex trim) on `main` |
-
-**What has NOT been done yet:** the WS-A CLI contract is not implemented; no Tauri app; the UI/UX is not designed; `05-security/`, `06-deployment/`, `07-contributing/` are stubs.
+| **Repo (app + spec)** | `/Volumes/Dev/Sites/COPILOT/copilot-control-tower` — private, **public at launch** |
+| **Spec / design** | ✅ **Complete.** Full PCC product-creation front-end (Phases 1–5) + `SOUL.md` **RATIFIED v1.3** + hardened architecture + parallel PRD + 2 red-teams + versioned `--json` schemas + threat model + test plan + observability/release/OSS/incident/Windows docs. |
+| **CLI engine (WS-A)** | 🟡 **5 core verbs built & tested**, on an **unpushed branch** in the *other* repo — see "The engine" below. |
+| **The app itself** | ❌ **Not started.** No Tauri code exists yet. **← this is the job.** |
+| **Model** | ✅ Corrected & reconciled: **4 products × 4 layers**, product-first (see below). |
 
 ---
 
 ## What Control Tower is (30 seconds)
 
-An open-source macOS **menu-bar app** (Tauri v2, single process) that is a **face + supervisor over the `copilot`/`cc` CLI** — it keeps every machine synced and self-healed and gives a non-technical user ("Bob") a working Copilot partner from one double-click. **Two faces, one binary:** Operator mode (end-user client) + Admin mode (open-source IT setup/deploy tool + docs). The name is the model: a control tower doesn't fly the plane — it monitors, coordinates, clears, and alarms.
+An open-source macOS **menu-bar app** (Tauri v2, single process) that is the **face + supervisor over the `copilot`/`cc` CLI** — it keeps every machine synced and self-healed and gives a non-technical user ("Bob") a working Copilot partner from one double-click. **Two faces, one binary:** Operator mode (end-user client) + Admin mode (IT setup/deploy). A control tower doesn't fly the plane — it monitors, coordinates, clears, and alarms.
 
-**The one invariant (never violate):** Control Tower **parses; it never computes.** Every health verdict, resolution, signature check, prune, and wipe is done by the CLI. If the app vanished, the CLI would still be correct. If you find yourself re-implementing resolution/sync logic in Rust, stop — it belongs in the CLI.
-
----
-
-## Locked decisions (do not relitigate)
-
-| Decision | Value |
-|---|---|
-| Name / repo | Copilot Control Tower · `copilot-control-tower` |
-| Stack | Tauri v2 (Rust core + minimal web UI), macOS-first (Windows = later re-skin) |
-| Process model | **Single process** + a `launchd` **crash-only watchdog**; the CLI self-serializes via `flock` on `copilot.lock` |
-| Role | Face + supervisor over the CLI — never a second brain |
-| Host model | Host-aware (Claude + Codex) via detection + `copilot derive` column selection |
-| Distribution | Developer ID signed + notarized; MDM-deployable (Jamf/Kandji/Intune) |
-| Escalation | Route by **actor-competence × reversibility** (auto-act / escalate-IT / ask-Bob), not event-class |
-| Open source | A requirement (auditable always-on agent), public at launch |
-| `/cli` write-gate | confirm on writes to systems of record, reads unprompted |
+**The soul (from `SOUL.md` v1.3):** give a non-technical person the AI superpowers of a deeply technical one — **safely enough to run unattended** — and keep their environment *Copilot-ready*. Trust is earned by **subtraction**; nearly every "obvious" feature (in-app chat, an offline health score, letting Bob self-unblock, `KeepAlive=true`) is a **trust regression**. Read `SOUL.md` before proposing any feature — its Feature Filter rules many out on purpose.
 
 ---
 
-## Read in this order
+## The invariants (never violate — `CLAUDE.md`)
 
-1. `docs/START-HERE.md` — orientation + build order
-2. `docs/01-architecture/architecture.md` — the hardened design (§10 = the 25 red-team fixes)
-3. `docs/01-architecture/cli-contract.md` — **WS-A**, the prerequisite that gates everything
-4. `docs/02-prd/prd.md` — the parallel, multi-phase PRD (workstreams, acceptance, phase gates)
-5. `docs/03-design/` — the three design streams; `ui-ux/README.md` = the Product Creation Copilot track
-6. `docs/04-validation/` — the two red-team reports
-7. `docs/reference/` + `docs/assets/*.html` — self-contained ecosystem context + the two diagrams
+1. **Parse, never compute.** The app calls `cc doctor/update/repair/resolve/deprovision/freshness/publish --json` and **renders** the result. No resolution/sync/signature/merge/wipe logic in the app. Even the merge-conflict chooser is CLI-computed; the app shows options and passes the choice back.
+2. **Single process.** One signed binary = tray + supervisor + scheduler. `launchd` is a **crash-only** watchdog (`KeepAlive={SuccessfulExit:false}`, never `true`). The **CLI** self-serializes via `flock` on `copilot.lock`; the app is *not* the lock.
+3. **Never-destroy.** Freely re-materialize `.claude/` and re-clone read-only mirrors; **never** touch a dirty personal working tree. (Consumers only pull; an author's authoring checkout is a protected personal tree; `publish` is additive.)
+4. **Security inherited, never weakened.** No `--skip-verify`/`--force`. Security-sensitive config honored **only** from the forced/managed MDM domain. Trust roots are compiled-in code.
+5. **Route by actor-competence × reversibility** — auto-act on reversible things the user can't judge; escalate to IT what they can't action; ask the user only non-deferrable decisions about their own data.
+6. **One-way inheritance; secrets never travel in it.** Secrets live in the OS keychain and/or a tier-scoped managed secret store (MDM-delivered endpoint), never in git; no cross-tier write from a personal-holding path; sync is pull-only/downward; fail-closed leak-scan on writable pushes; git push credentials are always per-user.
 
----
-
-## The immediate next step: freeze WS-A
-
-**What it is:** implement + publish + version-lock the machine-readable interface the app reads — `--json` for `doctor`/`update`/`resolve --explain`/`deprovision`/`freshness`, plus `flock` on `copilot.lock` and `COPILOT_MANAGED_BY=controltower`, guarded by a **CI contract test**. Full spec: `docs/01-architecture/cli-contract.md`.
-
-**Why first:** the app is "parse, never compute," so it can only be built against a *stable, versioned* interface. Freezing it (a) unblocks the 8 app workstreams to run in parallel, (b) contains the #1 red-team risk (schema drift → the app shows green over a red pipeline), and (c) decouples CLI and app release cadences.
-
-**⚠ Where it lives:** **the `claude-copilot` repo** (the `copilot`/`cc` CLI), **not this repo.** Control Tower consumes it as a vendored, version-pinned dependency. So WS-A is a change to the ecosystem CLI; the app build (WS-B onward) starts only after it's frozen.
+**Invoke the CLI by absolute, translocation-safe path — never bare `copilot`** (avoids the `gh copilot` collision).
 
 ---
 
-## Build order after WS-A
+## The model the app renders: 4 products × 4 layers (product-first)
 
-1. **`/orchestrate`** the PRD (`docs/02-prd/prd.md`) to scaffold the parallel worktrees (WS-B…WS-I). Critical path: WS-A → WS-B shell → WS-D signing → WS-E MDM.
-2. **Product Creation Copilot** for the UI/UX track (`docs/03-design/ui-ux/README.md`) — design-only (we skip its discovery); it produces Figma/Storybook for the menu-bar dropdown, wizard, Admin-mode UI, and fleet dashboard. PCC is at `/Volumes/Dev/Sites/COPILOT/product-creation-copilot` (run `claude` there, say "Read quickstart.md and let's begin").
-3. **`@agent-sec`** for `docs/05-security/security-and-trust.md` (the enterprise security-review enablement).
+There are **four products** — **Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot** — and **each independently has all four layers**: **foundation → org → department → personal** (foundation is the base; org builds on it; department on org; personal on department). Product is a **config-driven** attribute (the four are the initial set; the UI renders however many exist).
 
----
+- **The dropdown is product-first:** worst-wins tray glyph → one honest state sentence → a **product list** (Knowledge / CLI / Claude / Codex), each expandable to its **four-layer health** (which tier is current / behind / repairing). Temporary department *projects* appear as a layer under Department.
+- **Overrides** resolve nearest-to-you-wins (personal > dept > org > foundation); additive dimensions (e.g. knowledge) **accumulate** across all four.
+- The engine already carries `product` on every resolved item and doctor check, so the app **groups by `product`**, then tier — it does not re-derive anything.
 
-## Cross-repo dependencies (important)
-
-- **WS-A** implementation is in `claude-copilot` (`copilot`/`cc` CLI).
-- **Cross-repo binary contract (WS-D2):** `claude-copilot` CI must publish `copilot`/`cc` as already-signed/notarized, universal, pinned-SHA artifacts that Control Tower vendors and *verifies* (never re-signs).
-- The `claude-copilot` **`ecosystem-extensions` branch** holds all the ecosystem design (docs `00`–`06` of `docs/80-initiatives/01-ecosystem-extensions/`) and is **committed but NOT pushed** (latest `1b5cfa9`). The Control Tower docs here are copies of `05`/`06` + the design/redteam appendices.
+Design is in `docs/product-design/04-experience-design/50-ux-design.md` (IA + status-state matrix + a11y), `60-ui-design.md` (the "Air-Traffic Instrument" visual language, tokens, the **aviator-sunglasses tray glyph**, the product-row + four-layer expansion), `70-copy-voice.md` (actual strings, e.g. *"Knowledge Copilot — up to date across all 4 layers"*).
 
 ---
 
-## Open items / loose ends
+## The engine (`cc`) — what the app talks to
 
-- **`AGENTS.md` dangling refs** — Codex's `AGENTS.md` still references the two files we trimmed (`SOUL.md`, `docs/01-architecture/12-architecture-guiding-principles.md`). Decide: strip the two refs from `AGENTS.md` (clean), or regenerate the instruments (PCC produces the real `soul.md`). Low-impact but unresolved.
-- **`docs/00-overview/soul.md`** is a DRAFT stub — the real product essence comes from Product Creation Copilot.
-- **License** — deferred to launch (README notes it).
-- **Stub docs** — `05-security/`, `06-deployment/`, `07-contributing/` are index stubs with owners assigned.
+**Location:** the **`claude-copilot` repo**, `cc` binary (`tools/cc/src/cc/`). WS-A lives here, NOT in this repo (invariant #1 — the app consumes it). Branch **`ws-a-doctor-slice`** — **committed, UNPUSHED, not merged.**
+
+Built & tested (pure resolver + thin verbs; `cc/core/ecosystem/{manifest,resolver,dimensions,mirror,materialize,freshness,policy,lockfile,deprovision}.py`):
+
+| Verb | Kind | Notes |
+|---|---|---|
+| `cc doctor --json` | read | health/status; **false-Healthy is impossible**; checkers carry `product` |
+| `cc resolve --explain --json` | read | the pure resolver; items carry `product`, shadow chains, override-stale; security fields **fail-closed** (`null`/`false`) until the verifier lands |
+| `cc freshness --json` | read | published `refs/copilot/lock` pointer, one `git ls-remote`; honest `offline` |
+| `cc update --json` | **mutating** | reconciling materialize + prune; never-destroy proven; `--dry-run`; fail-closed policy |
+| `cc deprovision --json` | **mutating** | wipe disposable trees, retain dirty; `secrets_touched=0`; soft/hard; `--dry-run` |
+
+**To run it:**
+```bash
+cd /Volumes/Dev/Sites/COPILOT/claude-copilot && git checkout ws-a-doctor-slice
+cd tools/cc && uv run pytest        # full suite green
+uv run cc doctor --json             # read verbs are SAFE to run live
+uv run cc resolve --explain --json
+uv run cc freshness --json
+```
+**Do NOT run `cc update`/`cc deprovision` against your real `~/.claude`** — they mutate; they're only ever exercised in tmp sandboxes. For UI dev, drive the app off **mock `cc --json` fixtures** (the test-plan corpus approach) so you can render every state/product/layer without a real fleet.
+
+**Not built (deliberate):** `repair` (schema is speculative — driven by doctor's repair token, not a real WS-A verb) and `publish` (a separate writable-tier subsystem, not in upstream WS-A scope).
 
 ---
 
-## Practical notes for the new session
+## Milestone 1 — the app build (the immediate job)
 
-- **Framework is set up.** Run `/protocol` to start disciplined work; the framework agents (ta, me, qa, do, doc, sec, sd, uxd, uids, uid, …) are available; `cc memory search "<topic>"` recalls decisions; `tc` tracks tasks/PRDs.
-- **Both hosts work.** In Claude Code use `/protocol` etc.; in Codex read `AGENTS.md` and use `$protocol`.
-- **Don't start app code before WS-A is frozen.** Keep the app a thin skin.
-- **The diagrams** (`docs/assets/ecosystem-diagram.html`, `ecosystem-walkthrough.html`) render the layer model and the operator walkthrough — open them in a browser for the big picture.
+Put the visible thing on the menu bar:
+
+1. **Scaffold Tauri v2** in this repo (Rust core + tiny web UI — no heavy framework; keep the UI small).
+2. **Tray icon** (the aviator glyph, worst-wins) that spawns `cc doctor --json` on a timer (by absolute translocation-safe path), parses it in Rust, and renders the honest state. **Never render Healthy unless the JSON says so.**
+3. **Product-first dropdown** — the four products, each expandable to four-layer health — driven by real `cc` output, with mock fixtures to populate it during dev.
+
+Then, in order: **Settings** (paste org/dept/personal repo URLs → written into the layer manifest the engine reads), the **first-run wizard** (managed = ~0 questions; unmanaged path — note its "Claude/Codex/Both" step is still host-framed and should be re-framed product-first), Admin/fleet mode.
+
+Architecture/PRD context: `docs/01-architecture/architecture.md`, `docs/02-prd/prd.md` (app workstreams WS-B…WS-I), `docs/01-architecture/cli-contract.md` + `docs/01-architecture/error-taxonomy.md` (the contract + exit codes the app parses), `docs/04-validation/test-plan.md` (how to test a parse-never-compute app).
+
+---
+
+## Open decisions & follow-ups (nothing lost)
+
+**WS-A / engine (in `claude-copilot`, branch `ws-a-doctor-slice`):**
+- The branch is **unpushed / unmerged** — decide: review locally, then push / open a PR (a cross-repo push — get owner go-ahead).
+- Persist `product/tier/role` in the lock **write path** (`lockfile.py` has the capability; `update.py`/`materialize.py` don't call it yet).
+- Freeze-time confirmations: policy-gate production default (block-all-unverified vs. provisional-trusted-mirror once the signature verifier lands); deprovision soft/hard default + whether it deletes `copilot.lock.json`; per-verb exit-code tables for `update`/`deprovision` (not in `cli-contract.md` yet); `repair` shape (speculative — confirm or drop); `publish` scope (build the separate subsystem or defer).
+- **Binary name:** built as `cc`; the contract prose says `copilot` — alias/confirm at freeze.
+- **Upstream reconciliation:** the authoritative WS-A contract also lives in `claude-copilot/docs/80-initiatives/01-ecosystem-extensions/{05-control-tower.md,06-control-tower-prd.md}`; `publish` must be added to that PRD; reconcile the schemas into one source of truth at freeze.
+
+**Design / product:**
+- The unmanaged wizard's "Claude / Codex / Both" step is still host-framed — re-frame product-first.
+- Shared-vs-per-user credential policy (in `docs/05-security/credentials-and-boundary.md` §5) is a sensible default awaiting owner sign-off.
+- `SECURITY.md` needs a real reporting contact (`<!-- TODO -->`).
+
+**Unvalidated (need real users, not code):** the Admin/IT operator experience and the multi-writer authoring flow are **hypotheses** (stamped in the design docs); enterprise scale is aspirational.
+
+**Still-stub docs:** `docs/06-deployment/` (per-MDM guides — build-time).
+
+---
+
+## Commits this session
+
+**`copilot-control-tower` (`main`, pushed to local main):**
+`03da786` PCC front-end + soul reframe → `c44cf65` 3 foundational problems + invariant #6 → `a07e389` shared secret store + push-cred seam → `da65370` engineering-doc gaps (schemas/threat-model/test-plan/glossary) → `c1f7c1a` launch docs + AdminContact fix → `bb7e73c` WS-A schema reconciliation → `1ce2401` / `6fe708a` schema honesty fixes → `fa27ed6` **product-first**.
+
+**`claude-copilot` (branch `ws-a-doctor-slice`, UNPUSHED):**
+`5dcbdaa` doctor → `6696926` resolve → `211e572` freshness → `ab77cb9` update → `b12840b` deprovision → `ff7d61a` carry `product`.
+
+---
+
+## Practical notes
+
+- **Framework is installed.** Use `/protocol` for disciplined work; framework agents (ta, me, qa, do, doc, sec, sd, uxd, uids, uid, cw, ind, cco) are available; `cc memory search "<topic>"` recalls decisions.
+- **Keep the app a thin skin.** If you're writing resolution/sync/merge logic in Rust, stop — it belongs in `cc`.
+- **Design is done — don't re-invent it.** The UX/UI/copy for the tray, dropdown, wizard, and Admin mode are specified in `docs/product-design/04-experience-design/`. Build to them.
+- **Two follow-up threads live in the other repo** (the `cc` engine) — keep the app decoupled: it depends only on the frozen `--json` **contract** (`docs/01-architecture/schemas/`), not the engine's internals.
