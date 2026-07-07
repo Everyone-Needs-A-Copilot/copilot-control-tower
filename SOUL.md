@@ -17,7 +17,7 @@
 > *is*) and the five invariants in `CLAUDE.md` (its spine). This file decides
 > *what is allowed to exist in it.*
 
-> **STATUS: RATIFIED v1.2** — drafted 2026-07-06, ratified with the owner (Pablo)
+> **STATUS: RATIFIED v1.3** — drafted 2026-07-06, ratified with the owner (Pablo)
 > 2026-07-06 after the design challenge (Phases 1–5 complete, design brief approved).
 > **Revised to v1.1 (2026-07-06)** after a primary-evidence owner interview
 > (`scratchpad/interview-ground-truth.md`) reframed the essence to **democratization**
@@ -30,6 +30,12 @@
 > Three of the open foundational problems are now **RESOLVED**; four inheritance-safety
 > rules are added as founding decisions and **elevated to `CLAUDE.md` invariants**; one
 > credential seam (author git-push provisioning) remains the sole open foundational item.
+> **Revised to v1.3 (2026-07-07, same-day owner-requested amendment):** the author
+> git-push-credential seam is now **RESOLVED** (on-device key + GitHub Team ACL); a
+> shared, IT-managed secret store (Infisical, self-hosted; or OpenBao) is adopted as the
+> recommended path for sharing identity-less integration credentials at tier scope, and
+> invariant #6 is broadened from "keychain" to "keychain and/or managed secret store" —
+> git remains permanently excluded. Ref `docs/05-security/credentials-and-boundary.md` §6.
 > Supersedes the earlier stub at `docs/00-overview/soul.md`; the canonical soul is now
 > this root file. Changes only on durable evidence, logged in Section 10.
 
@@ -418,6 +424,8 @@ person.
 | **Keep-both** as the always-available floor on a genuine merge overlap (both versions land side-by-side, no data loss, no Git literacy) | **IN** | 2, 4 | The no-data-loss floor of the ratified layered `copilot publish` (auto-merge → keep-yours/theirs/both → park-and-escalate). CLI computes and applies; the app only renders the plain-language choice. Answers *The Git Error To A Non-Technical Person* without ever showing Git. |
 | Secrets (API keys, integration tokens) committed to **any tier's git repo**, public or private — even a private dept/org repo | **OUT** | 4 | The ratified credentials rule (DREAD ≈ 9.2/10): git is a distribution/history mechanism, not a trust boundary; a committed secret is irreversibly exposed the moment it lands. No git host is a secrets carrier at any tier. Elevated to a `CLAUDE.md` invariant. |
 | Background / automated sync that can push **personal content upward** to a shared tier (a defect or design flaw making the cadence sync bidirectional) | **OUT** | 4 | *The Leak*, its worst form — DREAD ≈ 9.4/10 because it needs **zero human error**, only a code defect, and fires on every machine every cadence tick. Closed by construction: no personal-holding path has an upward push credential. Elevated to a `CLAUDE.md` invariant. |
+| A tier-scoped, IT-managed shared secret store (e.g. Infisical/OpenBao) for identity-less integration credentials, endpoint delivered only via the MDM-managed domain | **IN** | 1, 4 | v1.3 amendment (`docs/05-security/credentials-and-boundary.md` §1.6) — additive, higher-precedence rung on the existing keychain ladder; still references-not-secrets in inheritance content; falls through to the keychain floor if absent. |
+| A git push credential (author's own SSH key) placed in any shared/managed secret store, at any tier | **OUT** | 4 | Recreates the shared-credential attribution/blast-radius trade-off for exactly the class of credential that must stay per-user. Git-push credentials are always per-user, never shared-store material (`docs/05-security/credentials-and-boundary.md` §6.4). |
 
 ---
 
@@ -528,8 +536,10 @@ calls. The v1.1 owner interview then **re-opened three genuinely foundational pr
 the owner **ratified the two designs that resolve them** — `inheritance-and-publish.md`
 and `credentials-and-boundary.md` — so those three problems are now marked **RESOLVED**
 below, four inheritance-safety rules are added as Founding Decision #10 and elevated to
-`CLAUDE.md` invariants, and a **single** foundational seam (author git-push-credential
-provisioning) remains open.*
+`CLAUDE.md` invariants. At v1.3 (2026-07-07, same-day amendment) the owner closed the
+**single** remaining seam (author git-push-credential provisioning) and adopted a shared,
+IT-managed secret store as the recommended path for sharing integration credentials —
+**no foundational problem remains open.***
 
 Founding calls, ratified with the owner **2026-07-06**:
 
@@ -601,8 +611,10 @@ Added at v1.2 (2026-07-07 owner ratification of the two foundational designs):
        and integration credentials MUST NEVER be committed to, stored in, or transmitted
        via any tier's git repository, public or private. Inheritance content may
        reference a secret's *name and acquisition method*; never its value. No git host
-       is a secrets carrier at any tier. *(Carrier is the OS keychain + per-integration
-       OAuth — Case Law IN; reinforces **The Leak**.)*
+       is a secrets carrier at any tier. *(Carrier — broadened v1.3 — is the per-user OS
+       keychain **and/or** a tier-scoped, IT-managed shared secret store delivered only
+       via the MDM-managed domain; git remains permanently excluded either way — Case
+       Law IN; reinforces **The Leak**.)*
     2. **No cross-tier write capability from a personal-holding path.** No working tree,
        credential, or automated code path that holds personal-tier content is ever
        configured with write access to a department/org/foundation remote. Reaching a
@@ -621,10 +633,11 @@ Added at v1.2 (2026-07-07 owner ratification of the two foundational designs):
        git/VCS error**. *(Defense-in-depth behind rules 2–3; reinforces both **The Leak**
        and **The Git Error To A Non-Technical Person**.)*
 
-**Three RESOLVED foundational problems (v1.2 — 2026-07-07, ratified with the owner):**
-The three genuinely-foundational problems the v1.1 interview surfaced are now settled by
-evidence and ratified design. Recorded here (not merely deleted) so the resolution and
-its canonical doc are traceable:
+**Four RESOLVED foundational problems (v1.2–v1.3, 2026-07-07, ratified with the owner):**
+The three genuinely-foundational problems the v1.1 interview surfaced, plus the one
+carried-forward seam closed by the same-day v1.3 amendment, are now settled by evidence
+and ratified design. Recorded here (not merely deleted) so the resolution and its
+canonical doc are traceable:
 
 - [x] **RESOLVED — Writable-tier vs. never-destroy / read-only-mirrors tension.** The
   tension was **apparent, not real**: never-destroy governs the *pull/materialize* side;
@@ -643,18 +656,22 @@ its canonical doc are traceable:
   established via **per-integration OAuth/device-flow** — requiring no cloud secret store;
   inheritance content carries **references, not secrets**; **never git**. A narrow
   MDM-provisioned machine-credential covers unattended kiosk machines. Ref
-  `docs/05-security/credentials-and-boundary.md`. *(One provisioning seam remains open —
-  see below.)*
+  `docs/05-security/credentials-and-boundary.md`.
+- [x] **RESOLVED (v1.3, 2026-07-07) — Author git-push-credential provisioning.** Per-user,
+  on-device ed25519 keypair (private key keychain/`ssh-agent`-resident, never in git),
+  public key registered to the author's **own** GitHub account, authorization via GitHub
+  Team membership (reusing GitHub's own least-privilege, rotation, and revocation
+  primitives). This was the single remaining foundational seam; write access to a second
+  author is no longer gated on it. Ref `docs/05-security/credentials-and-boundary.md` §6.
 
-**One OPEN foundational problem remaining (v1.2):**
-
-- [ ] **TODO — Author git-push-credential provisioning.** The credentials design settles
-  *where secrets live* and *how consumers pull*, but the **author's write credential** —
-  what safely delivers a tier-write/push credential to a trained author's machine in a
-  pull-based model with no cloud secret store — is specified **in principle, not fully
-  worked**. This gates opening write access to a **second** author and must land before
-  the multi-writer authoring loop ships. Route to security / architecture. *(The single
-  remaining foundational seam; everything else the writable tiers need is ratified.)*
+**No foundational problems remain open (v1.3).** A shared, IT-managed secret store
+(recommended: **Infisical**, self-hosted via Coolify; alternative: **OpenBao**) is now the
+**recommended** — not required — mechanism for a department/org to share identity-less
+integration credentials at tier scope, endpoint delivered only via the MDM-managed domain.
+It still carries only `requires_secret: <NAME>` references in inheritance content, never
+values; git-push credentials are explicitly excluded from this store — they are always
+per-user (see the resolved item above). Ref `docs/05-security/credentials-and-boundary.md`
+§1.6.
 
 *Engineering-roadmap open items (not Soul-blocking, tracked in architecture/user-story
 TODOs): **personal-layer content scope** (what beyond writing-voice belongs in the
@@ -678,6 +695,7 @@ When updated, add the rationale to the changelog below.
 
 | Date | Version | Change & rationale |
 |------|---------|--------------------|
+| 2026-07-07 | **v1.3 RATIFIED** | Same-day owner-requested amendment to `docs/05-security/credentials-and-boundary.md`, closing the one seam v1.2 left open. **Author git-push-credential provisioning is now RESOLVED** (§9): per-user, on-device ed25519 keypair (private key keychain/`ssh-agent`-resident, never in git), public key registered to the author's own GitHub account, authorization via GitHub Team membership — no foundational problem remains open. **Adopted a shared, IT-managed secret store** (recommended: Infisical, self-hosted via Coolify; alternative: OpenBao) as the recommended — not required — path for sharing identity-less integration credentials at tier scope; still references-not-secrets, endpoint delivered only via the MDM-managed domain. **Invariant #6 broadened**: the secrets carrier is now "per-user OS keychain **and/or** a tier-scoped managed secret store," never git either way. Extended Case Law with **2 new verdicts** (1 IN / 1 OUT): tier-scoped managed secret store for integration creds → IN; git push credential in a shared store → OUT. New totals **13 IN / 21 OUT (34)**. |
 | 2026-07-07 | **v1.2 RATIFIED** | Ratified with the owner (Pablo) alongside the two foundational designs, now canonical at `docs/01-architecture/inheritance-and-publish.md` and `docs/05-security/credentials-and-boundary.md`. **Three of the open foundational problems are RESOLVED** (§9, recorded with resolution + canonical ref, not deleted): (1) **writable-tier vs. never-destroy** — the consumer-read-only / author-writable split keeps invariant #3 intact with no wording change; (2) **non-technical merge conflict** — layered `copilot publish` (auto-merge → keep-yours/theirs/**both** → park-and-escalate), keep-both = no-data-loss floor, merge logic CLI-side; (3) **credentials-carrier** — OS keychain + per-integration OAuth, references-not-secrets in inheritance content, never git. Added **Founding Decision #10 — the four inheritance-safety rules** (secrets never in inheritance content/git; no cross-tier write from a personal-holding path; sync pull-only/downward; fail-closed leak-scan on every writable push), cross-referencing and hardening *The Leak* and *The Git Error To A Non-Technical Person* — **being elevated to `CLAUDE.md` invariants**. Extended Case Law with **5 new verdicts** (3 IN / 2 OUT): OS-keychain+OAuth carrier → IN, pull-only downward sync → IN, keep-both floor → IN; secrets in any git repo → OUT, background sync pushing personal content upward → OUT. New totals **12 IN / 20 OUT (32)**. §9 now shows **3 RESOLVED + 1 remaining** open foundational item — the **author git-push-credential provisioning** seam (specified in principle, not fully worked) — with **personal-layer content scope** demoted to the engineering-roadmap TODOs. |
 | 2026-07-06 | **v1.1 RATIFIED** | Revised after a primary-evidence owner interview (`scratchpad/interview-ground-truth.md`). **Essence reframed to democratization** — "give a non-technical person the AI superpowers of a deeply technical one, safely enough to run unattended"; *parse-never-compute / the icon that cannot lie* is reframed from the point to *how it earns the right to run unattended*, and "keeps your environment Copilot-ready" is woven in (Sections 1, 2). Added the **writable inheritance model** (foundation→org→dept→personal, cadence-not-realtime, without clobbering personal work) and the **trained early-adopter author** as a second consumer psychographic to IS/IS-NOT and Who-this-serves. Added two anti-patterns — **The Leak** (personal content crossing into a shared tier by accident — impossible-by-construction) and **The Git Error To A Non-Technical Person** (a raw VCS conflict must resolve invisibly or hold-and-escalate, never dump Git on Bob). Extended Case Law with **5 new verdicts** (1 IN / 4 OUT): invisible non-technical merge-conflict resolution → IN; accidental personal→shared path, real-time refresh, raw Git errors to Bob, and any technical-skill-to-consume path → OUT. New totals **9 IN / 18 OUT (27)**. Added **evidence-honesty** (Founding Decision #9): Admin/IT-operator and multi-writer authoring are HYPOTHESES held as assumptions, not proven ground. **Logged three open foundational problems** as prominent TODOs: the credentials-carrier, personal-layer content scope, and the writable-tier vs. never-destroy/read-only-mirrors architectural tension. Kept the ratified priority order and the pure-OSS / Bob-first founding decisions. |
 | 2026-07-06 | **v1.0 RATIFIED** | Ratified with the owner after the design challenge (Phases 1–5 complete, brief approved). Populated the Feature Filter Case Law with 22 real Phase 3–5 verdicts (8 IN / 14 OUT), including the visual Case Law from experience design (no computed fleet-health score, no celebratory green, no color-only status, no wizard time estimates). Confirmed the definitive principle priority order (parse-never-compute/honesty > route-by-competence > as-little-app, under the inviolable security constraint) and removed its TODO. Locked **Bob-first** and resolved the Admin-vs-Bob-primacy TODO (Admin is the enabler, not co-primary). Added the founding **name & identity** decision — the product is "Copilot Control Tower," shown to the end user; the tray mark is the aviator-sunglasses glyph; "Aviator" is a dead codename banned from every user surface. Left urgent-revocation, signing custody, kiosk a11y, and Codex parity as engineering-roadmap open items. |

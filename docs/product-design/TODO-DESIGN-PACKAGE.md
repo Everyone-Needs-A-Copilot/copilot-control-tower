@@ -13,16 +13,18 @@
 1. **Writable org/dept tiers vs. never-destroy** → RESOLVED. Consumer-read-only / author-writable split preserves invariant #3 intact. See [`../01-architecture/inheritance-and-publish.md`](../01-architecture/inheritance-and-publish.md).
 2. **Non-technical merge-conflict resolution** → RESOLVED. Layered `copilot publish` (auto-merge → keep-yours/theirs/**both** chooser → park-and-escalate); "keep both" is the no-data-loss floor. Same doc; new `copilot publish --json` verb added to WS-A.
 3. **Credentials-carrier for pull-based inheritance** → RESOLVED. OS keychain + per-integration OAuth; `requires_secret:` references-not-secrets; never git. See [`../05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md).
+4. **Author git-push-credential provisioning** → RESOLVED (2026-07-07 amendment). On-device ed25519 keypair + GitHub Team-membership ACL. See credentials doc §6.
 
 These four safety rules were **elevated to CLAUDE.md invariants** (new invariant #6): secrets-never-in-git · no cross-tier write · sync pull-only/downward · fail-closed leak-scan.
 
+A shared, IT-managed secret store (recommended: Infisical, self-hosted via Coolify; alternative: OpenBao) is now the recommended path for sharing integration credentials at tier scope — still references-not-secrets. See credentials doc §1.6.
+
 ### ⏳ STILL OPEN
 
-1. **Author git-push-credential provisioning** — the SSH-alias *model* is settled; the *provisioning mechanism* (key generation/distribution/rotation to a trained author's machine) is not. The one remaining foundational seam. See credentials doc §6.
-2. **Personal-layer content scope** — what belongs in the personal layer (writing styles, etc.) is unsettled.
-3. **Admin/IT operator experience** — unvalidated hypothesis; needs real IT operators to confirm.
-4. **Multi-writer authoring flow** — unvalidated hypothesis; needs real writers to confirm.
-5. **Pre-existing engineering TODOs** — cadence values, urgent-revocation propagation, signing custody, kiosk depth, Codex parity.
+1. **Personal-layer content scope** — what belongs in the personal layer (writing styles, etc.) is unsettled.
+2. **Admin/IT operator experience** — unvalidated hypothesis; needs real IT operators to confirm.
+3. **Multi-writer authoring flow** — unvalidated hypothesis; needs real writers to confirm.
+4. **Pre-existing engineering TODOs** — cadence values, urgent-revocation propagation, signing custody, kiosk depth, Codex parity.
 
 ---
 
@@ -72,7 +74,7 @@ Both checkpoints have **PASSED**: Design Foundation and Design Complete. Phases 
 
 ---
 
-## SOUL.md — RATIFIED v1.1
+## SOUL.md — RATIFIED v1.3
 
 | # | Document | Status | Notes |
 |---|----------|--------|-------|

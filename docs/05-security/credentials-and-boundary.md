@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| **STATUS** | **RATIFIED 2026-07-07 (owner).** Promoted from `docs/01-architecture/proposals/credentials-and-boundary.md` (DRAFT PROPOSAL). This is now the canonical security design for the two open foundational problems logged in [`SOUL.md`](../../SOUL.md) §9 ("credentials-carrier problem," "writable-tier vs never-destroy tension" as it bears on leakage) and `interview-ground-truth.md` §10. |
+| **STATUS** | **RATIFIED 2026-07-07 (owner).** Promoted from `docs/01-architecture/proposals/credentials-and-boundary.md` (DRAFT PROPOSAL). This is now the canonical security design for the two open foundational problems logged in [`SOUL.md`](../../SOUL.md) §9 ("credentials-carrier problem," "writable-tier vs never-destroy tension" as it bears on leakage) and `interview-ground-truth.md` §10. **Amended 2026-07-07 (owner-requested: shared secret store; author push-credential mechanism).** The amendment is additive — it introduces one new, optional, higher-precedence rung on the existing credential-resolution ladder (§1.6) and closes the one previously-open seam (§6, author push-credential provisioning, now RESOLVED). Nothing previously ratified is weakened or reopened. |
 | **Author** | Security engineering pass (STRIDE + DREAD) |
-| **Scope** | Problem 3 (credentials carrier) and Problem 4 (personal↔shared leakage wall) only. Does **not** resolve the third open problem (writable-tier vs never-destroy tension) or the merge-conflict UX — those remain separate, unresolved. |
+| **Scope** | Problem 3 (credentials carrier) and Problem 4 (personal↔shared leakage wall), **plus the 2026-07-07 amendment**: Enhancement A (shared secret store, §1.6) and Enhancement B (author push-credential provisioning, §6 — resolves the previously carried-forward seam). Does **not** resolve the third open problem (writable-tier vs never-destroy tension) or the merge-conflict UX — those remain separate, unresolved (see `inheritance-and-publish.md`). |
 | **Reads on** | `CLAUDE.md` invariants (esp. #4), `architecture.md` §6–§9, `cli-contract.md`, `four-tier-topology.md` §6, §8–9, this doc's sibling `security-and-trust.md` (stub — updated to point here). |
 | **Governing rule for this whole document** | Invariant #1 (parse, never compute) applies to security architecture exactly as it applies to health status: **Control Tower renders and invokes; it never holds a secret, a credential decision, or a trust root.** Every mechanism below is placed in the CLI/ecosystem layer, the MDM-managed domain, or (rarely) a third-party authoring tool — never in the app. |
-| **Carried-forward open seam** | The **author git-push-credential provisioning** mechanism (how `ssh-personal`/`ssh-work` SSH keys are actually generated, distributed to, and rotated on an author's machine) is specified only **in principle** — it leans on the four-tier SSH-alias *model* (`four-tier-topology.md` §6.1) without a fully worked provisioning mechanism. This is distinct from Problem 3 (integration secrets, fully specified below) and is flagged as an **explicit open follow-up requiring a worked design before implementation.** See §6. |
+| **Carried-forward seam — RESOLVED 2026-07-07** | The **author git-push-credential provisioning** mechanism (how `ssh-personal`/`ssh-work` SSH keys are actually generated, distributed to, and rotated on an author's machine) was specified only **in principle** at ratification. It is now fully worked in §6 — per-user, on-device SSH keypair + GitHub's own team-membership ACL, reusing existing primitives from `four-tier-topology.md` §6.1/§6.3 and the §1.4 OAuth-device-flow mechanism. No code should have implemented author-side git push credentials before this section existed; it now exists. |
 
 ---
 
@@ -78,6 +78,71 @@ Trust roots for *which* OAuth issuer/endpoint is trusted per integration remain 
 
 `architecture.md` §8.3 already anticipates unattended, auto-login lab machines with **"a machine credential (`AuthMode=gh-app` token in the system keychain)."** This RFC extends the same shape to integration secrets: a kiosk machine may be issued a **least-privileged, IT-provisioned service-account token**, delivered by an MDM-triggered *bootstrap exchange* (the managed profile carries a one-time enrollment reference or short-lived bootstrap code — never the long-lived secret itself — which the CLI exchanges, once, for the real token via the integration's own token endpoint). This preserves "secrets never travel as content" even in the one case where no interactive human is present to complete a device flow. This path is narrow, opt-in per machine class, and does not change the default per-user mechanism above. (Depth of kiosk support remains an **open decision**, per `architecture.md` §11 item 3 / red-team B-H7 — this RFC does not resolve that, only ensures whatever ships there doesn't reopen the secrets-in-git anti-pattern.)
 
+### 1.6 Enhancement A — Shared secret store (recommended, owner-requested 2026-07-07)
+
+**The request:** the current mechanism (§1.4) is purely per-user. A department/org that already runs, or is willing to stand up, a **self-hosted, IT-managed secret store** wants members of that tier to share integration credentials, so onboarding a department with many integrations doesn't mean re-authenticating every person against every integration. The owner already runs a cloud secret store on a **Coolify** server and believes any IT org could stand one up securely. This is designed below as an **additive, optional, higher-precedence rung** on the existing ladder (§1.6.3) — it changes nothing about §1.4's mechanism, which remains the unconditional floor (§1.6.6).
+
+#### 1.6.1 Tool research and recommendation
+
+Evaluated 2026-07-07 against: OSS license (self-hostable with no commercial gate), realistic Coolify-deployability, access-control granularity, TLS, secret versioning, rotation tooling, audit log, and a machine-readable API (for `copilot`'s non-interactive resolution).
+
+| Store | License | Coolify-deployable | Access control | Versioning / rotation | Audit log | Verdict |
+|---|---|---|---|---|---|---|
+| **Infisical** | MIT (fully OSS) | **Official Coolify service template** — one-click | Project → environment RBAC; **machine identities** (Universal Auth / OIDC / cloud-native auth) issue short-lived access tokens scoped per environment — the right shape for a tier-scoped read | Native point-in-time secret versioning; native scheduled rotation (Postgres/MySQL/Mongo, AWS IAM, custom webhook rotation) | Built-in, queryable by user/secret/environment/time, streamable to a SIEM | **Primary recommendation** |
+| **OpenBao** (Linux Foundation fork of Vault, MPL 2.0) | MPL 2.0 — true OSS, no BSL competitive-use restriction (unlike Vault OSS's BSL 1.1) | No official one-click Coolify template, but deploys cleanly via Coolify's generic Docker-Compose import — it is the same single-binary/Docker-image shape as upstream Vault | Full policy-as-code ACL (paths/capabilities); namespaces (multi-tenancy) free — Enterprise-only on Vault OSS | KV v2 versioning; mature dynamic-secrets engines (DB, PKI, SSH) with leases | Full audit device (file/syslog/socket) | **Alternative** — pick when the org already runs Vault-family tooling/Terraform, or wants free namespace multi-tenancy |
+| Doppler | Proprietary; on-prem edition only announced June 2026, Enterprise-tier licensed appliance | Not a self-hostable OSS artifact — no community Coolify template; on-prem is a paid license, not a Docker image an IT admin freely deploys | — | — | — | **Rejected** — fails the "self-hostable OSS" bar this enhancement requires |
+| Vaultwarden (unofficial Bitwarden server) | GPLv3, self-hostable, official Coolify service | Deploys on Coolify easily | — | Bitwarden never released **Secrets Manager** (the machine-read/audit/rotation product) under GPLv3 — Vaultwarden has no native machine API, secret versioning, or audit trail for this use; only an unofficial bridge (`Vaultwarden-API`) approximates one | — | **Rejected for this use** — a good self-hosted password vault for humans, not built for the machine-read/audit/rotation contract this enhancement needs |
+
+**Primary: Infisical.** **Alternative: OpenBao.** Both are genuinely self-hostable OSS and both deploy on the owner's own Coolify posture — Infisical via Coolify's official template (`coolify.io/docs/services/infisical`), OpenBao via Coolify's generic Docker-Compose deploy path.
+
+#### 1.6.2 IT setup path (recommended, concise)
+
+1. **Deploy** the chosen store on IT-managed infrastructure via Coolify's one-click template (Infisical) or Docker-Compose import (OpenBao) — the same posture the owner already runs.
+2. **Enforce TLS** at the Coolify proxy (Traefik/Caddy + Let's Encrypt); the store's API is never exposed over plaintext, including on an internal network.
+3. **Scope access by tier membership, not by a parallel individual grant list.** Map the store's RBAC unit (an Infisical project/environment, or an OpenBao namespace/policy) 1:1 to a tier — one per department, one for org. Grant access using the **same GitHub-team-membership fact** `four-tier-topology.md` §6.3 already established for repo ACLs; where the store supports SSO/OIDC (both do), point it at the same IdP already gating GitHub SSO, so tier membership has one source of truth, not two to keep in sync.
+4. **Enable rotation** natively (Infisical scheduled rotation; OpenBao dynamic secrets/leases) on a per-secret cadence appropriate to the integration — never disabled "for convenience."
+5. **Enable the audit log**, shipped to wherever IT already centralizes logs — this is the repudiation half of STRIDE for shared credentials (§1.6.5).
+6. **Deliver the store's URL/config via the MDM-managed domain only** (invariant #4) — a managed preference (e.g. `SharedSecretStoreURL`, `SharedSecretStoreTier`), never a value in git, never a user-editable config file. If no managed key is present, the CLI treats the shared-store rung as **absent**, never misconfigured, and falls through the ladder (§1.6.3) without guessing a URL from convention or environment.
+
+#### 1.6.3 Tier mapping and the full credential-resolution ladder
+
+Extends §1.4's fallback chain with one new, higher-precedence rung. **The full ladder, in order, fail-closed at every rung:**
+
+1. **Managed shared secret store** — if `SharedSecretStoreURL` is present in the forced MDM domain **and** the CLI's machine identity/service-token resolves the member as authorized for that tier's project/namespace, the CLI performs a scoped, authenticated API read (never a static bearer baked into a config file) and caches nothing to disk beyond the invoking process's lifetime.
+2. **Per-user OS keychain cache** (§1.4) — used when the store is absent, unreachable, or the member isn't authorized for that tier's store.
+3. **Interactive OAuth/device-code flow** (§1.4) — used when no keychain entry exists yet; result is written to keychain for next time.
+4. **One-time secure paste** (§1.4's manual floor) — for legacy key-only integrations with no OAuth support.
+
+A miss at any rung falls through to the next; a miss at **all four** surfaces the existing `Signed-out` finding (§1.4) — never a silent no-op, never a stale value used past its TTL. **Tier resolution for rung 1 follows the same nearest-wins precedence as inheritance content itself:** a personal-tier `requires_secret` reference never checks a shared store (personal has no tier-scoped store by definition); a department-tier reference checks the department store, then the org store, never the reverse.
+
+#### 1.6.4 Invariant intact — the store is not the inheritance channel
+
+The shared store changes **where** an authorized member resolves a `requires_secret: <NAME>` reference at runtime; it changes **nothing** about what inheritance content carries. Skill/MCP manifests still declare only the name and acquisition method (§1.4) — never a value, never a connection string, never store credentials. The store is a **resolution-time API the CLI calls**, not a channel content flows through — git remains, unconditionally, not a secrets carrier at any tier, exactly as ratified rule 1 (§4) states.
+
+#### 1.6.5 Security analysis — shared vs. per-user (the trade-off, stated honestly)
+
+Shared credentials genuinely reduce per-user attribution and enlarge blast radius; this must not be minimized:
+
+| Factor | Per-user credential | Shared credential |
+|---|---|---|
+| Attribution / audit | Every use traces to one person's own OAuth grant | The store's audit log traces which authorized *member's service-token* fetched the secret, not which action that person then took with it downstream — a real, residual repudiation gap |
+| Blast radius on compromise | One person's access | Every current tier member's access to that one integration, simultaneously |
+| Onboarding cost | Re-authenticate per person, per integration | One-time IT setup, then automatic for every tier member |
+
+**Recommended policy — flagged for owner confirmation, this is a judgment call, not a mechanical derivation:**
+
+- **Appropriate to share:** credentials for a **shared-service integration used identically by every member of a tier**, where the integration has no per-user identity concept — a department's shared DB read-replica credential, a shared CRM API key used by an automation, a shared LLM-provider key billed to the department, a shared Slack **app** bot token (not a personal OAuth grant).
+- **Must stay per-user:** any credential that **acts as an individual's identity** (a personal OAuth grant that posts *as* that person), anything where **least-privilege or per-action attribution matters** (financial transactions, PII, or anything an audit must later attribute to a named person), and anything a vendor's own ToS scopes to a named individual (most per-seat SaaS OAuth grants). **Author git-push credentials are never shared-store material, regardless of tier** — see §6.4.
+
+**Rotation, revocation, leaver flow:**
+- Rotation uses the store's native mechanism (§1.6.2 step 4); the CLI's rung-1 read is process-lifetime-only (never disk-cached), so a rotated value takes effect on the next invocation, not on next full re-auth.
+- **Revocation ties to deprovision** (`architecture.md` §8.3, "the real backstop is server-side token revocation"): removing a person from the tier's GitHub team — the same membership fact gating store access (§1.6.2 step 3) — simultaneously revokes their store authorization. One action, not two systems to remember.
+- **When a member leaves the tier:** access is revoked by that same team-membership removal. The shared secret **value itself** is rotated only if the leaver's access pattern created genuine exposure risk (they could exfiltrate the raw value, not merely call an API through it) — an IT judgment call, defaulting to rotate-on-leave for anything in the "must stay per-user" class that was mistakenly shared, and an audit-log review for the "appropriate to share" class.
+
+#### 1.6.6 The graceful floor — no shared store, no MDM
+
+Stated explicitly, per the owner's original worry: a company with **neither** a shared secret store **nor** MDM is not blocked. The existing §1.4 mechanism — per-integration OAuth/device-code, keychain-resident, one-time secure paste as the manual floor — **is** the floor, unconditionally, and requires nothing purchased or deployed. Enhancement A is additive precedence, never a requirement; the ladder in §1.6.3 degrades gracefully to exactly the RATIFIED §1.4 mechanism whenever rung 1 is absent.
+
 ---
 
 ## 2. Problem 4 — the personal↔shared leakage wall
@@ -123,7 +188,7 @@ Each boundary crossing (personal→dept, dept→org, org→foundation, and the E
 | **B — Hard tier-selection at the authoring surface** | The Obsidian (or any markdown-editor) workspace the trained author opens is bound to **one** tier's working tree per vault — a "Personal Vault" and a "Department Vault" are two distinct vaults pointed at two distinct directories, never folders inside one vault. The author never faces a "which remote" choice at save/push time; the tool they're in only knows one remote. This is a setup-time (CLI/wizard) concern, not a runtime dropdown that could be misclicked. | 1, 2 |
 | **C — Write-direction enforcement: sync only flows DOWN** | The automated cadence-sync/materialize code path (`copilot update`) is **pull-only** against org→dept→foundation and has **no push capability at all** against any shared-tier remote — not "disabled by default," structurally absent from that code path. The *only* way content moves to a broader tier is the existing, separate, human-invoked, explicitly-credentialed action: the author's own `save → push` (ground-truth §3) for personal-tier authors who have no dept/org credential at all, or the one-way `copilot promote` valve (`four-tier-topology.md` §8.2) for private→public. Personal-tier credentials (`ssh-personal`) are never provisioned with write access to any dept/org/foundation remote — so even a defective sync process has no credential with which to push upward. | **3 — the primary fix for the worst path.** Also reinforces 1 and 4 (the credential half). |
 | **D — A pre-publish boundary guard (leak-scan) on every writable-tier push** | Generalize the **existing** hard-fail leak scan already specified for the ENAC promotion pipeline (`four-tier-topology.md` §8.2: deny-list for client names, `.env`, tokens, `mcp.json` secrets, internal-knowledge globs) to run on **every** writable-tier push, not only the promotion path — extended with personal-tier markers (a per-user front-matter tag, a personal-only path prefix, PII patterns). A tripped scan **fails the push closed** with a plain-language, non-technical explanation of what to move back to the personal vault — never a raw git/VCS error, per the *Git Error To A Non-Technical Person* anti-pattern. This is **defense-in-depth**, not the primary control — the primary controls are A/B/C (physical separation + no push path); the scan exists for the residual case a determined author manually copy-pastes prose across vaults, which is a content operation no git-topology guarantee can prevent by itself. | 1, 2 (residual human-copy-paste case) |
-| **E — No cross-tier credential scope** | Each auth identity is registered against exactly one GitHub account/org and cannot authenticate against the others — `ssh-personal`'s key exists only on the individual's personal GitHub account (no relationship to the enterprise org at all); `ssh-work` exists only against the enterprise org. This is a fact about GitHub account membership, not a policy notice that could be misconfigured — the SSH alias mechanism `four-tier-topology.md` §6.1 already chose for multi-account auth is reused here as the credential half of the leakage wall. **Note the open seam:** this guarantee assumes the two SSH keys/aliases already exist, correctly scoped, on the author's machine — *how they get there* (generation, distribution, rotation) is the open follow-up in §6, not resolved by this guarantee. | 4 |
+| **E — No cross-tier credential scope** | Each auth identity is registered against exactly one GitHub account/org and cannot authenticate against the others — `ssh-personal`'s key exists only on the individual's personal GitHub account (no relationship to the enterprise org at all); `ssh-work` exists only against the enterprise org. This is a fact about GitHub account membership, not a policy notice that could be misconfigured — the SSH alias mechanism `four-tier-topology.md` §6.1 already chose for multi-account auth is reused here as the credential half of the leakage wall. **Provisioning resolved 2026-07-07:** this guarantee assumes the two SSH keys/aliases already exist, correctly scoped, on the author's machine — *how they get there* (generation, distribution, rotation) is now fully worked in §6 (per-user on-device key + GitHub team-membership ACL). | 4 |
 
 ### 2.4 The one rule that makes personal→shared leakage impossible by construction
 
@@ -146,6 +211,8 @@ Everything in §2.3 (A–E) is an implementation of this one rule. If this rule 
 | Leak-scan / pre-publish guard (Problem 4) | **Owns it** — a CLI-side pre-push/pre-PR check, fail-closed | May supply an org-specific deny-list addendum via the seed generator (Admin mode, §8.1 of `architecture.md`) — still authored through the CLI's guided tool, not hand-edited | Surfaces the plain-language refusal if a push is attempted through any app-visible action; never runs the scan itself |
 | `copilot promote` (private→public valve) | **Owns it entirely** — cherry-pick, leak-scan, PR | GitHub Environment approval gate (existing) | No role |
 | Trust roots (which OAuth issuer, which minisign key, which update feed) | Compiled-in code | Cannot override security-sensitive keys except from the forced domain, and only within the compiled-in trust set | Renders `IT-config-incomplete` if a required key is absent — never accepts a substitute trust root from anywhere |
+| Shared secret store connection (Enhancement A, §1.6) | **Owns it** — performs the scoped, authenticated API read at `requires_secret` resolution time; caches nothing beyond process lifetime | **Owns delivery of the store URL/config** — the only channel by which a store endpoint may reach a machine; absent key ⇒ CLI treats rung as absent, never guesses | No role — renders `Signed-out`/store-unreachable exactly like any other resolution miss, holds no store credential itself |
+| Author git-push credential generation, registration, rotation, revocation (Enhancement B, §6) | **Owns it entirely** — generates the on-device keypair, registers/rotates the public key via GitHub's API (itself authenticated via the §1.4 OAuth device-flow), never handles the private key beyond the local keychain-backed `ssh-agent` write | No role — authorization is GitHub Team membership, a fact about the enterprise's own GitHub org, not an MDM-managed value | No role — Control Tower never touches the private key or the registration call |
 
 Consistent with invariant #1: **if Control Tower vanished, both of these mechanisms would still hold.** Secrets would still live in the keychain via the CLI's own device-flow (headless `copilot auth <integration>` works with no GUI); the leakage wall would still hold because it is a git-topology and credential-scoping fact, not an app-enforced rule.
 
@@ -171,6 +238,16 @@ This design **strengthens** invariant #4; it does not weaken or bend it. Specifi
 
 These four rules are ratified as of 2026-07-07 and are being elevated into `CLAUDE.md`'s invariant set (extending invariant #4's scope). None contradict any existing invariant, red-team finding, or SOUL.md anti-pattern; #2–#4 are the concrete mechanism for prose that already exists (SOUL.md's *The Leak* line in the sand, `four-tier-topology.md` §8.2's leak-scan and one-way promotion valve).
 
+### 4.1 Proposed wording broadening — REQUIRES OWNER RATIFICATION (2026-07-07 amendment)
+
+Enhancement A (§1.6) introduces a second, optional carrier for secret material (a managed shared secret store), alongside the per-user OS keychain that §1.4/§1.2's bullet 1 and the invariant text above currently name as the sole honored carrier. The current wording (this section, and the equivalent invariant being elevated to `CLAUDE.md`) says secrets are honored **only from per-user OS keychain entries** — this is no longer literally true once Enhancement A ships, and the wording should be broadened, not silently left stale. Proposed change (mechanical broadening only — no new carrier is introduced beyond what §1.6 already specifies, and git remains permanently excluded):
+
+> **Current:** *"secrets are honored only from per-user OS keychain entries established via interactive auth, never from any config domain (user, managed, or otherwise) and never from repo content at any tier."*
+>
+> **Proposed:** *"secrets are honored only from a per-user OS keychain entry established via interactive auth, **or from a tier-scoped managed secret store whose connection endpoint is delivered exclusively via the MDM-managed/forced config domain** — never from any user-editable config domain and never from repo content at any tier."*
+
+This is the same broadening the task description frames as "keychain → keychain and/or a managed secret store, never git." **This wording change is flagged, not applied** — the owner will make the corresponding `CLAUDE.md` edit. Until ratified, treat this document's §1.4 mechanism as the sole normative baseline and §1.6 as an owner-requested, not-yet-invariant-elevated enhancement layered on top of it.
+
 ---
 
 ## 5. Residual unknowns / open questions
@@ -181,18 +258,52 @@ These four rules are ratified as of 2026-07-07 and are being elevated into `CLAU
 4. **No-IdP, no-OAuth micro-company edge case** — a 3-person team with literally no identity provider and integrations that support neither OAuth nor a keychain-friendly device flow degrades to manual one-time keychain paste; not fully stress-tested for how many real target integrations actually lack OAuth support.
 5. **Interaction with the (separately unresolved) merge-conflict/multi-writer problem** — if a future invisible-merge-conflict resolver ever needs to reach across a personal↔shared boundary to resolve a collision (e.g., pulling in a personal draft to auto-merge a dept file), it must remain tier-scoped and never cross the wall this RFC establishes. Flagged for whoever designs that resolver; not designed here.
 6. **Revocation SLA for legacy static-key integrations** — an integration with no OAuth/device-flow (key-only) has no fast, centralized revocation path beyond asking the vendor to rotate the key; this is a real residual gap the no-cloud-secret-store fallback does not fully close.
+7. **Shared-store outage UX (Enhancement A, §1.6)** — the ladder (§1.6.3) specifies fail-through-to-keychain on an unreachable store, but the non-technical-facing wording for "the department store is unreachable, falling back to your own sign-in" has not been drafted or tested with a Bob-class user; needs its own pass before Enhancement A ships broadly.
+8. **Shared-vs-per-user classification list (§1.6.5)** — the *policy* (which integration classes are shareable) is recommended here but not yet ratified per-integration; a concrete allow/deny list per common integration (Slack, Notion, LLM providers, CRMs, DBs) should be authored and owner-confirmed before IT orgs start classifying their own integrations.
+9. **Shared secret store never validated with a real multi-department rollout** — like the broader authoring loop (§9 of `interview-ground-truth.md`), Enhancement A is a **design, not yet dogfooded**; recommend prototyping with the owner's own Coolify-hosted store before generalizing the IT setup path (§1.6.2) as prescriptive guidance for external IT orgs.
 
 ---
 
-## 6. Open follow-up carried forward from ratification — author git-push-credential provisioning (NOT YET DESIGNED)
+## 6. Author git-push-credential provisioning — RESOLVED 2026-07-07 (Enhancement B)
 
-**This is the one piece of this document that is a principle, not a mechanism, and it must not be mistaken for a closed item.**
+**Status change:** at ratification this section was a placeholder — "a principle, not a mechanism." Per owner request the same amendment date, it is now a **fully worked mechanism**. Nothing in §2.3's structural guarantees (A, C, E) changes as a result of resolving this — those guarantees already assumed `ssh-personal`/`ssh-work` exist, correctly scoped, on the author's machine; this section specifies **how they get there.**
 
-Section 2.3's guarantees (A, C, E) all depend on `ssh-personal` and `ssh-work` existing as distinct, correctly-scoped SSH keys/aliases on the author's machine *before* any of the structural guarantees can hold. This RFC reuses the four-tier SSH-alias **model** (`four-tier-topology.md` §6.1) as the credential-scoping mechanism, but that source document specifies the *selector shape* (host aliases mapped to identities), not:
+### 6.1 Recommended mechanism: per-user, on-device SSH key + GitHub's own team-membership ACL
 
-- how `ssh-personal` and `ssh-work` keys are **generated** (locally, at wizard time? centrally, by IT, then delivered?),
-- how they are **distributed** to a new machine without ever transiting a channel this document would itself classify as a secrets carrier (i.e., the private key itself is exactly the kind of secret material §1 forbids from git — so the provisioning path cannot reuse the inheritance-content mechanism at all),
-- how a **compromised or rotated** key is revoked and re-issued across every machine an author uses, and
-- how this reconciles with the **existing, separately-specified integration-secret keychain mechanism** (§1.4) — is the git SSH key itself keychain-resident too, or does it use `ssh-agent`/`.ssh/` convention, and if the latter, does that constitute an exception to "never touches disk as a plaintext file" that needs its own justification?
+**Generation.** At the moment an author is promoted (`inheritance-and-publish.md` §2.4 — "a provisioning event: add a writable authoring checkout + a write credential"), the CLI generates an ed25519 keypair **on the author's own machine**. The **private key never leaves the machine**: it is written to the OS keychain-backed `ssh-agent` (macOS: a Keychain item unlocked by the user's login session, e.g. `ssh-add --apple-use-keychain`; the Windows Phase-4 re-skin uses the platform `ssh-agent` service + Credential Manager), never to a bare plaintext file a git working tree or backup tool could pick up as content, and never logged.
 
-**Disposition:** flagged as an **explicit open follow-up requiring a fully worked design before implementation** — not resolved by this document, and not to be treated as solved by reference to `four-tier-topology.md` §6.1 alone. Whoever picks this up should produce a WS-A-style spec (mirroring residual unknown §5.1's treatment) before any code implements author-side git push credentials.
+**Registration.** The **public** key — not secret material; this is the entire point of asymmetric auth, and is why registering it does not reopen the "secrets never travel as content" rule in §1 — is registered as a personal SSH key on the author's **own** GitHub account (the same account already SSO'd into the enterprise org for the `ssh-work` alias, `four-tier-topology.md` §6.1). This is a deliberate choice over a shared deploy key or a machine-user account, for one reason: **GitHub's real access-control primitive for "which repos can this identity push to" is org Team membership on a personal account** (`four-tier-topology.md` §6.3 — "map access with GitHub's real primitives"), not the SSH key itself. The key only proves *who*; GitHub's server-side ACL decides *where*. Reusing this existing primitive means least privilege is enforced by GitHub, server-side — not by a Control-Tower-side scoping rule that could be misconfigured or bypassed.
+
+**Authorization (least privilege).** The promotion event grants the author's GitHub identity membership in **exactly** the team(s) owning the tier repo(s) they are trained/authorized for (e.g., `acme-corp/engineering` → write on `copilot-dept-engineering` only). No broader grant is made. An author trained for one department has no path to push to another department's repo, or to org: GitHub returns a 403 at the transport layer, because the restriction lives in team membership — authoritative and server-side — not in anything the key or the CLI encodes.
+
+**A non-author cannot obtain a shared-tier push credential**, by construction: there is no shared credential object to leak, copy, or hand out. Every author's push credential is that individual's own personal SSH key, authenticated as their own GitHub identity, gated by their own team membership. Compromising one author's key yields exactly that author's existing scope — never more, and never a scope other authors also hold.
+
+### 6.2 Rotation
+
+Author-initiated (`copilot auth rotate-key --tier work`, or a periodic CLI-surfaced reminder): the CLI regenerates the keypair on-device and replaces the registered public key via the GitHub API. That API call is itself authenticated via the **same per-user OAuth device-flow already specified in §1.4** for integration secrets — GitHub becomes one more integration the CLI can drive a device flow for (scope: manage the author's own SSH keys), so no raw personal-access-token is ever pasted. This reuses existing machinery rather than inventing a second secret-acquisition path.
+
+### 6.3 Revocation on deprovision
+
+Two independent, composable levers, both reusing already-ratified patterns:
+
+1. **Team-membership removal** — the fast, centralized lever (`architecture.md` §8.3, "the real backstop is server-side token revocation"). Removing the author from the tier's GitHub Team instantly removes their push capability, regardless of the local key's state. This is what IT/deprovision should reach for by default.
+2. **Key-level removal** — for a suspected-compromise case (not routine deprovision), IT or the author additionally deletes the specific public key from the author's GitHub account via the API, invalidating that one key without touching team membership (useful when the same person keeps authoring from a different, trusted machine).
+
+Both are ordinary GitHub API calls against existing primitives — no new revocation engine, consistent with how integration-secret revocation already works in §1.4.
+
+### 6.4 Where the shared secret store (Enhancement A) does — and does not — help
+
+**Does not help** for the primary path: an author's own git push credential is, by design, personal and non-shared (§6.1) — placing it in the shared store would recreate exactly the shared-credential attribution/blast-radius trade-off §1.6.5 says must *not* apply to this class of credential. The shared store is the wrong home for a per-person identity credential, full stop.
+
+**Does help**, narrowly, for a genuinely different object: `four-tier-topology.md` §6.1's `gh-app:<slug>` path for **CI/shared runners with no per-developer identity** already requires a long-lived **GitHub App private key** held centrally and exchanged for short-lived installation tokens at clone time. That private key *is* exactly the kind of secret material the shared store (§1.6) is built for — IT should hold the GitHub App private key in the department/org store (rotated, audited, versioned) rather than on any individual's machine or in a CI runner's plaintext config. This is additive and does not change anything in §6.1–§6.3.
+
+### 6.5 Reconciling with the integration-secret keychain mechanism (§1.4)
+
+Answering the four questions this section originally left open, resolved same-day as ratification:
+
+- **Generated on-device**, at promotion time — never centrally, never delivered pre-made.
+- **Distributed** without ever transiting a secrets-carrier channel: only the **public** half is registered anywhere; public keys are not secret material.
+- **Rotation/revocation** — §6.2/§6.3, both GitHub-API-native, no bespoke machinery.
+- **Relationship to §1.4's keychain mechanism** — this is an intentional, justified variant, not an exception: the private key lives in the OS keychain-backed `ssh-agent`, the platform-native storage for SSH identities (Keychain access-control-gated — the same security property `Security.framework` provides for integration tokens), never a bare `~/.ssh/id_ed25519` plaintext file. This does not weaken "never touches disk as plaintext" — the keychain-backed agent is the SSH-specific instance of the same OS secure-storage guarantee §1.4 already relies on.
+
+**Disposition: RESOLVED.** The carried-forward seam from ratification (top-of-doc table; `inheritance-and-publish.md` §7) is closed by this mechanism. Guarantee E in §2.3 is now fully satisfied, not merely assumed.

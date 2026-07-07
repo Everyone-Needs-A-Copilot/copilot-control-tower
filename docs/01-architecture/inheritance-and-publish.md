@@ -192,15 +192,14 @@ The invariant **holds as written**; the recommendation needs no change. However,
 5. **Where publish is rendered (UX primacy).** Control Tower Operator surface vs a dedicated authoring affordance vs Obsidian tooling (§4 note). Bob-first says the consumer client leads; the author lane is a subordinate enabler and unvalidated (SOUL §9, HYPOTHESIS) — do not over-commit UI.
 6. **Multi-writer validation.** The whole authoring loop is **MODEL-IN-HEAD — never run with >1 writer** (`interview-ground-truth.md` §9). §3 should be prototyped with two real authors before ratification.
 
-## 7. Carried-forward seam — author git-push-credential provisioning (open follow-up)
+## 7. Carried-forward seam — author git-push-credential provisioning — RESOLVED 2026-07-07
 
-The publish path in §3 is **specified in principle but not fully worked** on exactly one point: **how an author's git-push credential is provisioned to her machine.** Everything downstream of "the author holds a write credential for the tier remote" is designed here (rebase, auto-merge, the content-level chooser, park-and-escalate, the `copilot publish --json` contract). The step *upstream* of it is not:
+**Status change:** this seam is no longer open. The mechanism is per-user, on-device ed25519 key generation (private key keychain/`ssh-agent`-resident, never in git) with the public key registered to the author's **own** GitHub account, authorized via GitHub Team membership — reusing the existing SSH-alias model (`reference/four-tier-topology.md` §6.1) and its own primitives for rotation and revocation. Fully worked in [`docs/05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md) §6, which this section now defers to entirely.
 
-- **Where it leans.** The intended mechanism is the **four-tier SSH-alias model** — the `ssh-personal` / `ssh-work` / `anon` / `gh-app:<slug>` aliases that `reference/four-tier-topology.md` §6.1 already chose for multi-account git auth. An author's dept/org write credential is meant to be the `ssh-work` (or a tier-scoped `gh-app:<slug>`) identity, provisioned once at promotion (§2.4). This reuses existing machinery rather than inventing a new carrier.
-- **Why it is not closed here.** Provisioning that credential **safely, in a pull-based model with no cloud secret store**, is the credentials-carrier problem (F16 / SOUL §9 open #1) — a *security-architecture* question, not a publish-path question. It gates whether any of §3 can ship to a second author, but its resolution is out of scope for this doc.
-- **Where it is worked.** The security-side design (STRIDE/DREAD, the personal↔shared leakage wall, and how a forced/managed-domain carrier satisfies invariant #4) lives in [`proposals/credentials-and-boundary.md`](proposals/credentials-and-boundary.md) — **still a draft RFC, not yet ratified.** This doc's ratification does **not** ratify that one; the seam stays explicitly open until the credentials carrier is resolved and write access opens to a second author.
+- **Where it leans.** The intended mechanism was the **four-tier SSH-alias model** — the `ssh-personal` / `ssh-work` / `anon` / `gh-app:<slug>` aliases that `reference/four-tier-topology.md` §6.1 already chose for multi-account git auth. An author's dept/org write credential is the `ssh-work` identity, provisioned once at promotion (§2.4). This reuses existing machinery rather than inventing a new carrier.
+- **Where it is worked.** The security-side design (generation, GitHub-Team-based authorization, rotation, revocation) lives in `docs/05-security/credentials-and-boundary.md` §6 — now **RATIFIED**, not a draft.
 
-**Net:** the publish contract is ratified and can be frozen (WS-A) independently; the author-credential provisioning that feeds it is the single carried-forward dependency, tracked against the credentials RFC.
+**Net:** the publish contract (§3–§4) and the author-credential provisioning that feeds it are both ratified; write access to a second author is no longer gated on this seam.
 
 ---
 
