@@ -1,0 +1,37 @@
+[package]
+name = "copilot-control-tower"
+version = "0.1.0"
+description = "Copilot Control Tower — always-on menu-bar face + supervisor over the copilot/cc CLI"
+authors = ["Everyone Needs a Copilot"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "copilot_control_tower_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+resvg = { version = "0.47.0", default-features = false }
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Single process: tray + (future) doctor timer + scheduler, no daemon (invariant #2).
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Enforces "no second process spawns" (invariant #2): a second launch hands its
+# args to the running instance and exits, instead of starting a competing tray.
+tauri-plugin-single-instance = "2"
+
+[dev-dependencies]
+syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+
+# NOTE: no health-scoring, sync, signature, merge, or wipe crates belong here —
+# ever. That logic lives in the `copilot`/`cc` CLI (invariant #1, "parse never
+# compute"). A lint denying such imports is one of the M1 fitness functions
+# (see the architecture WP, "Fitness functions" — CI enforcement is a later
+# task; this comment is the standing reminder at the dependency boundary).

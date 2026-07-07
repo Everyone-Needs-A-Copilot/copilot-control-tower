@@ -1,0 +1,387 @@
+/*
+ * Component styles for the product-first popover (T7). Consumes only the
+ * custom properties defined in tokens.css — no raw colour/space/type literal
+ * belongs in this file. See docs/product-design/04-experience-design/
+ * 60-ui-design.md § Component Patterns → 1 (glyph family) and § 2/2a
+ * (dropdown popover, product row & four-layer expansion).
+ */
+
+#app {
+  width: var(--popover-width);
+  background: var(--surface-popover);
+  font-family: inherit;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.ct-sep {
+  border: none;
+  border-top: 0.5px solid var(--separator);
+  margin: 0;
+}
+
+/* --- Header: worst-wins glyph + the one honest status sentence --- */
+
+.ct-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.ct-header__glyph {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: var(--space-hair);
+}
+
+.ct-header__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ct-header__sentence {
+  margin: 0;
+  font-size: var(--type-status-size);
+  font-weight: var(--type-status-weight);
+  line-height: var(--type-status-line);
+  color: var(--text-primary);
+}
+
+.ct-header__note {
+  margin: var(--space-hair) 0 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+
+/* --- Primary / layer / row actions --- */
+
+.ct-primary-action {
+  display: block;
+  width: calc(100% - 2 * var(--space-md));
+  margin: 0 var(--space-md) var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--brand-indigo);
+  color: var(--brand-indigo-text);
+  border: none;
+  border-radius: var(--radius-control);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ct-primary-action:hover {
+  filter: brightness(1.08);
+}
+
+.ct-layer-action {
+  margin-left: auto;
+  padding: var(--space-hair) var(--space-sm);
+  background: transparent;
+  color: var(--brand-indigo);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-control);
+  font-size: var(--type-caption-size);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* --- Product list (tree/disclosure) --- */
+
+.ct-section-label {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md) var(--space-xs);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.ct-tree {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.ct-product-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  height: var(--menu-row-height);
+  padding: 0 var(--space-md);
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ct-product-row:hover {
+  background: var(--surface-raised);
+}
+
+.ct-product-row:focus-visible,
+.ct-layer-row:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: -2px;
+}
+
+.ct-product-name {
+  font-size: var(--type-body-size);
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ct-product-phrase {
+  margin-left: auto;
+  flex: 0 1 auto;
+  max-width: 45%;
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ct-chevron {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  transition: transform var(--motion-fast) var(--motion-ease-out);
+}
+
+.ct-product-row[aria-expanded="true"] .ct-chevron {
+  transform: rotate(0deg);
+}
+
+.ct-layers {
+  padding-left: var(--space-lg);
+}
+
+.ct-layer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--menu-row-height);
+  padding: var(--space-hair) var(--space-md) var(--space-hair) 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.ct-layer-label {
+  flex: 0 0 auto;
+  color: var(--text-primary);
+}
+
+.ct-layer-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ct-projects {
+  padding-left: var(--space-lg);
+  width: 100%;
+}
+
+.ct-project-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--menu-row-height);
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+
+.ct-project-label {
+  flex: 0 0 auto;
+}
+
+.ct-project-label::before {
+  content: "· ";
+}
+
+.ct-project-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Secondary rows / footer --- */
+
+.ct-secondary,
+.ct-footer {
+  display: flex;
+  flex-direction: column;
+}
+
+.ct-row {
+  display: block;
+  width: 100%;
+  height: var(--menu-row-height);
+  padding: 0 var(--space-md);
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ct-row:hover {
+  background: var(--surface-raised);
+}
+
+.ct-row:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: -2px;
+}
+
+.ct-row--destructive {
+  color: var(--text-primary); /* destructive = "Quit" only; no red flourish, per Menu Row spec */
+}
+
+/* --- CLI-unreadable / Error — the honest client-side fallback --- */
+
+.ct-unreadable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-lg);
+  text-align: center;
+}
+
+.ct-unreadable__badge {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ct-unreadable__badge .badge {
+  width: 32px;
+  height: 32px;
+}
+
+.ct-unreadable .ct-primary-action {
+  width: auto;
+  margin: var(--space-sm) 0 0;
+  padding-left: var(--space-lg);
+  padding-right: var(--space-lg);
+}
+
+/* --- Badges: shape is the primary encoder, colour (--badge-color) is secondary --- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--badge-color, var(--text-tertiary));
+}
+
+.badge[data-badge="pass"] {
+  --badge-color: var(--status-healthy);
+}
+.badge[data-badge="wrench"] {
+  --badge-color: var(--status-it-config);
+}
+.badge[data-badge="key"] {
+  --badge-color: var(--status-signed-out);
+}
+.badge[data-badge="triangle"] {
+  --badge-color: var(--status-needs-attention);
+}
+.badge[data-badge="clock"] {
+  --badge-color: var(--status-waiting-network);
+}
+.badge[data-badge="cloud-slash"] {
+  --badge-color: var(--status-offline);
+}
+.badge[data-badge="ring"] {
+  --badge-color: var(--status-syncing);
+}
+.badge[data-badge="update"] {
+  --badge-color: var(--status-update-available);
+}
+.badge[data-badge="bang"] {
+  --badge-color: var(--status-error);
+}
+.badge[data-badge="spinner"] {
+  --badge-color: var(--status-updating-app);
+}
+.badge[data-badge="hollow"] {
+  --badge-color: var(--status-setup-needed);
+}
+.badge[data-badge="none"] {
+  visibility: hidden;
+}
+
+.badge-motion {
+  animation: ct-spin var(--motion-ring) linear infinite;
+}
+
+.badge-pulse {
+  animation: ct-pulse var(--motion-pulse) ease-in-out infinite;
+}
+
+@keyframes ct-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ct-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-motion,
+  .badge-pulse {
+    animation: none;
+  }
+}
+
+/* --- Dev fixture harness (dev-only; never present in a production build) --- */
+
+.ct-dev-harness {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--separator);
+  font-size: var(--type-caption-size);
+}
+
+.ct-dev-harness select {
+  flex: 1 1 auto;
+  font: inherit;
+}

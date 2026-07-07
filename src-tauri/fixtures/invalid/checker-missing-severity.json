@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "score": 95,
+  "generated_at": "2026-07-07T14:32:00Z",
+  "status": "healthy",
+  "offline": false,
+  "checkers": [
+    { "id": "knowledge-org-sync", "severity": "pass", "destructive": false, "layer": "org", "product": "knowledge", "detail": "org tip matches remote" },
+    { "id": "claude-dept-agents", "destructive": false, "layer": "dept", "product": "claude", "detail": "dept-finance agent overrides applied" }
+  ],
+  "auth": []
+}

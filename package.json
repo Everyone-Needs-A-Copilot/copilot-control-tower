@@ -1,0 +1,21 @@
+{
+  "name": "copilot-control-tower",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Copilot Control Tower — always-on menu-bar face + supervisor over the copilot/cc CLI. Thin skin: no UI framework.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "vite": "^6.0.3",
+    "typescript": "~5.6.2"
+  }
+}

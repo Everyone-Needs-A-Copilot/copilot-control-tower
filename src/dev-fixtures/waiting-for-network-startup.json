@@ -1,0 +1,134 @@
+{
+  "client_state": "ok",
+  "cli_unreadable_reason": null,
+  "host": "bobs-mbp.local",
+  "status": "waiting-for-network",
+  "offline": true,
+  "header": {
+    "glyph_state": "clock",
+    "sentence": "I've set up as far as your network allows. I'll finish your company setup when you're back online."
+  },
+  "products": [
+    {
+      "product": "Knowledge Copilot",
+      "worst_severity": "pass",
+      "layers": [
+        {
+          "layer": "foundation",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "org",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "dept",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "personal",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        }
+      ]
+    },
+    {
+      "product": "CLI Copilot",
+      "worst_severity": "pass",
+      "layers": [
+        {
+          "layer": "foundation",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "org",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "dept",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "personal",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        }
+      ]
+    },
+    {
+      "product": "Claude Copilot",
+      "worst_severity": "pass",
+      "layers": [
+        {
+          "layer": "foundation",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "org",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "dept",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "personal",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        }
+      ]
+    },
+    {
+      "product": "Codex Copilot",
+      "worst_severity": "pass",
+      "layers": [
+        {
+          "layer": "foundation",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "org",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "dept",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        },
+        {
+          "layer": "personal",
+          "severity": "none",
+          "badge_state": "none",
+          "detail": null
+        }
+      ]
+    }
+  ],
+  "auth_issues": []
+}

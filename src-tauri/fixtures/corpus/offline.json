@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "score": 40,
+  "generated_at": "2026-07-07T09:15:00Z",
+  "status": "offline",
+  "offline": true,
+  "checkers": [
+    { "id": "knowledge-org-sync", "severity": "warn", "destructive": false, "layer": "org", "product": "knowledge", "detail": "no network; showing cached state from 2026-07-06T09:00:00Z" },
+    { "id": "claude-foundation-agents", "severity": "pass", "destructive": false, "layer": "foundation", "product": "claude", "detail": "15 agents materialized (local, unverified against remote)" },
+    { "id": "cli-personal-config", "severity": "pass", "destructive": false, "layer": "personal", "product": "cli", "detail": "personal cc config valid (local check only)" }
+  ],
+  "auth": []
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "score": 0,
+  "generated_at": "2026-07-07T14:32:00Z",
+  "status": "setup-needed",
+  "offline": false,
+  "checkers": [
+    { "id": "cli-foundation-version", "severity": "warn", "destructive": false, "layer": "foundation", "product": "cli", "detail": "cc not yet configured — run first-run setup" },
+    { "id": "knowledge-foundation-sync", "severity": "warn", "destructive": false, "layer": "foundation", "product": "knowledge", "detail": "no foundation tier materialized yet" }
+  ],
+  "auth": []
+}

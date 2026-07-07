@@ -1,0 +1,13 @@
+{
+  "client_state": "cli_unreadable",
+  "cli_unreadable_reason": "parse_error",
+  "host": null,
+  "status": null,
+  "offline": false,
+  "header": {
+    "glyph_state": "bang",
+    "sentence": "Versions don't match — click to update. I won't guess when I can't read this safely."
+  },
+  "products": [],
+  "auth_issues": []
+}

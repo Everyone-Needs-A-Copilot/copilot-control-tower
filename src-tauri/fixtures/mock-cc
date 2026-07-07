@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# mock-cc — a stand-in for the real `cc`/`copilot` CLI, driven entirely by the fixture
+# corpus in this directory. Lets Control Tower be driven through every doctor state
+# without a real fleet or a real CLI. See README.md for the full corpus map.
+#
+# Usage (mirrors the real CLI's invocation shape):
+#   mock-cc doctor --json
+#
+# Fixture selection (checked in this order):
+#   1. --fixture=<name> or --fixture <name> on the command line
+#   2. $CT_FIXTURE           (the name documented in the M1 architecture WP — this is
+#                              what src-tauri/cli/path.rs's dev override is expected to set
+#                              alongside CT_CLI_PATH=/path/to/mock-cc)
+#   3. $CC_FIXTURE           (alias, same meaning, for callers that prefer the CLI's own
+#                              env-var naming convention)
+#   4. "healthy-clean-fleet" (default, so an unconfigured run is still deterministic)
+#
+# <name> resolves to corpus/<name>.json first, then invalid/<name>.json, then is tried
+# as a literal path (relative to this script or absolute). Two special names bypass the
+# corpus entirely:
+#   CT_FIXTURE=list      -> print the names of every available fixture and exit 0
+#                            (no doctor/--json args required)
+#   CT_FIXTURE=exit-2    -> simulate the contract's env-error path: nothing usable on
+#                            stdout, a diagnostic on stderr, exit 2. This is how T3/T9
+#                            exercise "do NOT trust the body" independent of any fixture
+#                            file's content.
+#
+# Exit code (contractually correct per cli-contract.md's doctor row):
+#   0  when the emitted JSON parses and no checker has severity:"fail"
+#   1  when the emitted JSON parses and at least one checker has severity:"fail"
+#   2  for CT_FIXTURE=exit-2, or if the requested fixture can't be found
+#
+# NOTE on the invalid/ corpus: every fixture in invalid/ *except* CT_FIXTURE=exit-2 is
+# deliberately emitted with a "successful-looking" exit code (0 or 1, computed the same
+# way as any other fixture) even though its body is poisoned (missing required field,
+# unparseable JSON, or an out-of-range schema_version). This is intentional: it is the
+# harder, more honest adversarial case — the app must fail closed on the BODY, not rely
+# on the exit code to save it. Only CT_FIXTURE=exit-2 exercises the "trust nothing,
+# exit code 2" path.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORPUS_DIR="$HERE/corpus"
+INVALID_DIR="$HERE/invalid"
+
+fixture="${CT_FIXTURE:-${CC_FIXTURE:-healthy-clean-fleet}}"
+
+# --fixture=<name> / --fixture <name> on the command line wins over env vars.
+args=("$@")
+verb=""
+i=0
+while [ $i -lt ${#args[@]} ]; do
+  arg="${args[$i]}"
+  case "$arg" in
+    --fixture=*)
+      fixture="${arg#--fixture=}"
+      ;;
+    --fixture)
+      i=$((i + 1))
+      fixture="${args[$i]:-$fixture}"
+      ;;
+    --json) ;; # accepted, no-op marker
+    -*) ;;      # ignore unknown flags
+    *)
+      if [ -z "$verb" ]; then
+        verb="$arg"
+      fi
+      ;;
+  esac
+  i=$((i + 1))
+done
+
+list_fixtures() {
+  echo "corpus (valid, schema-passing):"
+  for f in "$CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "invalid (adversarial, intentionally NOT schema-valid — for CliUnreadable tests):"
+  for f in "$INVALID_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "special: list, exit-2"
+}
+
+if [ "$fixture" = "list" ]; then
+  list_fixtures
+  exit 0
+fi
+
+if [ "$fixture" = "exit-2" ]; then
+  echo "mock-cc: simulated env error (e.g. credential store unreachable) — no trustworthy body emitted" >&2
+  exit 2
+fi
+
+if [ -z "$verb" ]; then
+  echo "mock-cc: usage: mock-cc doctor --json   (or CT_FIXTURE=list mock-cc doctor --json)" >&2
+  exit 2
+fi
+
+if [ "$verb" != "doctor" ]; then
+  echo "mock-cc: verb '$verb' is not implemented — this M1 stub only emits 'doctor --json'" >&2
+  exit 2
+fi
+
+resolve_fixture_path() {
+  local name="$1"
+  if [ -f "$CORPUS_DIR/$name.json" ]; then
+    echo "$CORPUS_DIR/$name.json"
+  elif [ -f "$INVALID_DIR/$name.json" ]; then
+    echo "$INVALID_DIR/$name.json"
+  elif [ -f "$name" ]; then
+    echo "$name"
+  else
+    echo ""
+  fi
+}
+
+path="$(resolve_fixture_path "$fixture")"
+if [ -z "$path" ]; then
+  echo "mock-cc: unknown fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+  exit 2
+fi
+
+body="$(cat "$path")"
+printf '%s\n' "$body"
+
+# Compute the contractually-correct exit code from the body itself (not from which
+# directory it lives in): 1 iff the JSON parses AND contains a checker with
+# severity:"fail"; 0 otherwise (covers both a genuinely clean fixture and a poisoned
+# one that isn't a checker-severity-fail case — e.g. unparseable JSON or a missing
+# required field — those rely on the app's OWN fail-closed parsing, not the exit code).
+exit_code="$(python3 - "$path" <<'PY'
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        data = json.load(f)
+    checkers = data.get("checkers", [])
+    if isinstance(checkers, list) and any(
+        isinstance(c, dict) and c.get("severity") == "fail" for c in checkers
+    ):
+        print(1)
+    else:
+        print(0)
+except Exception:
+    print(0)
+PY
+)"
+
+exit "$exit_code"

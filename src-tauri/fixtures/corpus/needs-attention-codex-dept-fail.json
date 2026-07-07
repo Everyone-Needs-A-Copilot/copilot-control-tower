@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "score": 62,
+  "generated_at": "2026-07-07T14:32:00Z",
+  "status": "needs-attention",
+  "offline": false,
+  "checkers": [
+    { "id": "knowledge-org-sync", "severity": "pass", "destructive": false, "layer": "org", "product": "knowledge", "detail": "org tip matches remote" },
+    { "id": "cli-foundation-version", "severity": "pass", "destructive": false, "layer": "foundation", "product": "cli", "detail": "cc 1.3.0 up to date" },
+    { "id": "claude-dept-agents", "severity": "warn", "destructive": false, "layer": "dept", "product": "claude", "detail": "dept-finance agent override 3 versions behind org", "repair": "cc update --only claude/dept-finance" },
+    { "id": "codex-dept-config", "severity": "fail", "destructive": true, "layer": "dept", "product": "codex", "detail": "dept-finance AGENTS.md conflicts with org policy; materialization blocked", "repair": "cc repair --only codex-dept-config", "escalate": "user" },
+    { "id": "codex-personal-config", "severity": "pass", "destructive": false, "layer": "personal", "product": "codex", "detail": "personal AGENTS.md overrides applied" }
+  ],
+  "auth": []
+}
