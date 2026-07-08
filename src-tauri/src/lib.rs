@@ -45,13 +45,20 @@
 //!   — see that module's own doc. `settings::managed`/`updater::trust`
 //!   delegate their forced-domain reads here rather than each carrying an
 //!   independent FFI call.
-//! - `routing` — M5/S6: route-by-competence (invariant #5, architecture.md
-//!   §9). `Actor`/`ItSignal`/`route_credential_state` (auth `expired` ->
-//!   Bob's own re-auth, `revoked` -> a content-free IT offer) plus
-//!   `deprovision_trigger` (the forced `Deprovisioned` key -> `deprovision::
-//!   run_deprovision` -> an IT-routed render). Deliberately not wired to any
-//!   Tauri command, emitted event, or the popover — see that module's own
-//!   doc and `tests/fitness_m5_deprovision_is_it_routed.rs` (FF-M5-3).
+//! - `routing` — M5/S6 + M6/S2-S6: route-by-competence (invariant #5,
+//!   architecture.md §9). `Actor`/`ItSignal`/`route_credential_state` (auth
+//!   `expired` -> Bob's own re-auth, `revoked` -> a content-free IT offer)
+//!   plus `deprovision_trigger` (the forced `Deprovisioned` key ->
+//!   `deprovision::run_deprovision` -> an IT-routed render); M6 extends this
+//!   into the full router (`event`/`policy`/`emit`) and `wire` (M6/S6, task
+//!   57) — the live-flow integration glue `timer::poll_once` and
+//!   `render::bob_lane`/`commands::check_for_update` call. The module itself
+//!   still touches no Tauri primitive directly — see its own doc and
+//!   `tests/fitness_m5_deprovision_is_it_routed.rs` (FF-M5-3), which also
+//!   keeps `commands.rs`/`tray.rs`/this file's own handler-list free of a
+//!   direct `routing::` reference (`render::bob_lane`/`render::
+//!   security_banner` are the seam the Bob-facing IPC surface crosses
+//!   through instead — see those modules' own docs).
 //!
 //! Nothing in this file computes ecosystem state. If a change here starts
 //! looking like resolution/sync/signature/merge/health-scoring logic, it
@@ -153,7 +160,9 @@ pub fn run() {
             commands::wizard_poll_signin,
             commands::open_wizard_window,
             commands::check_for_update,
-            commands::apply_update
+            commands::apply_update,
+            commands::get_bob_lane,
+            commands::get_security_banner
         ])
         .setup(|app| {
             // ADR-M4-001 (QA gap-closure D1): the app-level launch-failure
@@ -210,6 +219,17 @@ pub fn run() {
             // verdict.
             let initial = commands::initial_render_state();
             app.manage(commands::DoctorState::new(initial.clone()));
+
+            // M6/S6 (task 57, `.copilot/wp/37.md`): the router's own managed
+            // state — the shared content-free IT-signal sink (`routing::
+            // emit::LocalSink`, M6/S3) every wiring call dispatches through,
+            // plus the Bob-lane/security-banner aggregations
+            // `commands::get_bob_lane`/`get_security_banner` read from and
+            // `timer::poll_once`/`commands::check_for_update` write to.
+            // Managed once, here, alongside `DoctorState` (invariant #2).
+            app.manage(routing::emit::LocalSink::new());
+            app.manage(render::bob_lane::BobLaneState::new());
+            app.manage(render::security_banner::SecurityBannerState::new());
 
             // D2 (T9 follow-up): the tray click-toggle / Esc-and-blur
             // `hide_popover` race guard (see `tray::AutoHideGuard`) — managed

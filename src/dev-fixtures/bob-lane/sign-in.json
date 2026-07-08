@@ -1,0 +1,10 @@
+{
+  "prompt": {
+    "kind": "sign-in",
+    "title": "CLI Copilot needs you to sign in again for its department layer — it's a quick browser step.",
+    "detail": "CLI Copilot — department layer needs sign-in. Everything else is up to date.",
+    "action_label": "Sign in…"
+  },
+  "notices": [],
+  "notifications_denied": false
+}

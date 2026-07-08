@@ -11,7 +11,19 @@
  * contextual primary-action label, and static chrome strings (section
  * label, action effects) — from the same templates, never paraphrased.
  */
-import type { BadgeState, CliStatus, DeptProjectView, Layer, LayerView, ProductView, UpdateState, UpdateStatus } from "../types";
+import type {
+  BadgeState,
+  BobLaneView,
+  BobNotice,
+  BobPrompt,
+  CliStatus,
+  DeptProjectView,
+  Layer,
+  LayerView,
+  ProductView,
+  UpdateState,
+  UpdateStatus,
+} from "../types";
 
 /**
  * The badge shown on a product's COLLAPSED row — "worst of that product's
@@ -90,6 +102,15 @@ export const ACTION_EFFECT: Record<string, string> = {
   "What changed?": "Shows what changed. This is informational only.",
   "Finish setup…": "Continues your one-time setup.",
   "Update now": "Updates Control Tower in place.",
+  // M6 S5 — Bob-lane prompt actions. "Sign in…" reuses the row above (the
+  // SAME action, `types.ts`'s `BobPrompt` doc); "Show me…" is the dirty-WIP
+  // prompt's disclosure-only action (see `copy.ts`'s `BOB_DIRTY_WIP_ACTION_LABEL` doc — non-destructive, never an auto-commit).
+  "Show me…": "Shows which files still need saving or committing.",
+  // M6 S4 — the un-dismissable security banner's ONE affordance
+  // (`render/security_banner.ts`, `types.ts`'s `SecurityBanner`). Never an
+  // "approve"/"clear" effect — re-affirming only ever re-asserts Bob's own
+  // prior override going forward, it never marks the auto-suspend "undone".
+  "Re-affirm your version": "Re-applies your overridden version going forward.",
 };
 
 /** 70-copy-voice.md § A — secondary note under the header, per state. */
@@ -453,4 +474,83 @@ export function updateSectionLabel(state: UpdateState): string {
   const detail = updateVersionDetail(state);
   const sentence = updateSentence(state);
   return detail ? `${sentence} ${detail}` : sentence;
+}
+
+/**
+ * M6 S5 — the Bob-lane notification surface (`render/bob_lane.ts`, `types.ts`'s
+ * `BobPrompt`/`BobNotice`/`BobLaneView`). Strings are sourced VERBATIM from
+ * 70-copy-voice.md § D (auth/re-login), § E (the commit-your-work
+ * interruption), § F (the "kept you safe" line) and the Errors/Success-States
+ * microcopy tables — no paraphrasing, per that document's own provenance
+ * rule. Net-new strings (nothing in the deck covers the notification-denied
+ * fallback affordance, or a Bob-facing CTA for the dirty-WIP prompt beyond
+ * the notification text itself) are marked PLACEHOLDER, same convention as
+ * `SETTINGS_*`/wizard's `PLACEHOLDER` strings above — flagged for a cw pass,
+ * never silently invented as if approved.
+ */
+
+/**
+ * § D — "Notification (only if his to act)": the literal text a real macOS
+ * notification would carry for the sign-in prompt. This Bob-lane surface
+ * reuses this EXACT string as the prompt's `title` because the fallback path
+ * (E12/US-B16) renders in the popover in place of that same notification —
+ * Bob should read the identical sentence either way, never a re-paraphrased
+ * "in-app version."
+ */
+export const BOB_SIGNIN_NOTIFICATION =
+  "CLI Copilot needs you to sign in again for its department layer — it's a quick browser step.";
+/** § A "Signed-out" row — reused as the prompt's calmer `detail` line, naming which layer and reassuring the rest is fine. */
+export const BOB_SIGNIN_DETAIL = "CLI Copilot — department layer needs sign-in. Everything else is up to date.";
+/** § A "Signed-out" row's Primary action label — reused verbatim; the SAME action, not a duplicate string. */
+export const BOB_SIGNIN_ACTION_LABEL = "Sign in…";
+
+/** § E — the ONLY confirmation Bob ever sees; used verbatim as the dirty-WIP prompt's `title`. */
+export const BOB_DIRTY_WIP_NOTIFICATION = "You have unsaved personal work. Save or commit it, then I'll sync.";
+/** § E "Why (helper)" — verbatim, reused as the prompt's `detail`. */
+export const BOB_DIRTY_WIP_DETAIL = "I never touch your own files without you.";
+/**
+ * PLACEHOLDER — no CTA button is designed anywhere in 70-copy-voice.md for
+ * this prompt (only the notification text + helper exist; the app never
+ * auto-resolves a dirty personal tree, invariant #3, so there is no
+ * "commit for me" action to offer). This is a pure, non-destructive
+ * disclosure affordance (reveal which files, so Bob can go handle it in his
+ * own tools) — left INERT in `render/bob_lane.ts`, same "no invented flow"
+ * convention `popover.ts` already uses for every unwired action label.
+ */
+export const BOB_DIRTY_WIP_ACTION_LABEL = "Show me…";
+
+/**
+ * § F — the security auto-suspend line, Bob's dropdown-only copy. Deliberately
+ * DROPS the source deck's trailing "Re-affirm your version ▸" affordance:
+ * `BobNotice` (this task's frozen data contract) has no action field by
+ * design — the closed-set principle (SOUL Principle 2) restricts Bob's only
+ * two ACTIONABLE prompts to his own sign-in and his own dirty WIP; a
+ * re-affirm control on an auto-acted security event would be exactly the
+ * "security-approval control" this task's Scope explicitly forbids adding.
+ * Flagged here (not silently trimmed) for design/cw reconciliation against
+ * the source deck's link.
+ */
+export const BOB_KEPT_YOU_SAFE = "Kept you safe — a security fix replaced a component you'd overridden.";
+/** Errors microcopy table, "Bad self-update (E14)" Bob row — verbatim. */
+export const BOB_KEPT_YOUR_WORKING_VERSION =
+  "Kept your working version — an update didn't start cleanly, so I rolled it back. Nothing broke.";
+
+/** PLACEHOLDER — the honest notification-denied-fallback affordance (E12/US-B16); no exact string exists in 70-copy-voice.md for this specific line. Short, factual, no alarm. */
+export const BOB_NOTIFICATIONS_DENIED_NOTE = "Notifications are off — showing this here instead.";
+
+/** VoiceOver label for the Bob-lane prompt — title + detail read as one announcement, same pattern `updateSectionLabel` uses. */
+export function bobPromptLabel(prompt: BobPrompt): string {
+  return `${prompt.title} ${prompt.detail}`.trim();
+}
+
+/** VoiceOver label for one quiet past-tense notice — informational, so the label is just its own message (no action to describe, a11y rule 2's "plain-language effect" clause doesn't apply when there is none). */
+export function bobNoticeLabel(notice: BobNotice): string {
+  return notice.message;
+}
+
+/** The one honest announcement for a `BobLaneView` snapshot, passed to the shared live region exactly like `announce(liveRegion, state.header.sentence)` elsewhere. `null` when there is nothing to say (silence-is-success). */
+export function bobLaneAnnouncement(state: BobLaneView): string | null {
+  if (state.prompt) return bobPromptLabel(state.prompt);
+  if (state.notices.length > 0) return state.notices.map(bobNoticeLabel).join(" ");
+  return null;
 }

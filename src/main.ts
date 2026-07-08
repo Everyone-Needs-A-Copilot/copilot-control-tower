@@ -22,7 +22,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { CHECK_FOR_UPDATE_CMD, STATE_CHANGED_EVENT, type RenderState, type UpdateState } from "./types";
+import {
+  CHECK_FOR_UPDATE_CMD,
+  GET_BOB_LANE_CMD,
+  GET_SECURITY_BANNER_CMD,
+  STATE_CHANGED_EVENT,
+  type BobLaneView,
+  type RenderState,
+  type SecurityBanner,
+  type UpdateState,
+} from "./types";
 import { renderPopover } from "./render/popover";
 import { ensureLiveRegion } from "./render/a11y";
 import { isTauriHost } from "./tauri-host";
@@ -46,6 +55,22 @@ const liveRegion = ensureLiveRegion(document.body);
 let latestUpdateState: UpdateState | null = null;
 
 /**
+ * M6 S5: the Bob-lane snapshot, held separately for the same reason
+ * `latestUpdateState` is — `state-changed` (the doctor timer's push) never
+ * carries it, so the last-fetched value is re-passed on every re-render
+ * rather than lost.
+ */
+let latestBobLaneState: BobLaneView | null = null;
+
+/**
+ * M6 S4: the un-dismissable security-banner snapshot, held separately for
+ * the same reason `latestBobLaneState` is — `state-changed` never carries
+ * it, so the last-fetched value is re-passed on every re-render rather than
+ * lost.
+ */
+let latestSecurityBanner: SecurityBanner | null = null;
+
+/**
  * Best-effort initial fetch of `check_for_update` (S4/S5, landing in
  * parallel — see `types.ts`'s `UpdateState` doc). Defensively wrapped: a
  * not-yet-landed command must never break the popover's real, already-
@@ -60,13 +85,48 @@ async function fetchInitialUpdateState(): Promise<UpdateState | null> {
   }
 }
 
+/**
+ * M6 S5: best-effort initial fetch of `get_bob_lane` — not yet landed on the
+ * Rust side (S7 wires the real router output; see `types.ts`'s
+ * `GET_BOB_LANE_CMD` doc). Same fail-closed-to-silence convention as
+ * `fetchInitialUpdateState` above: a missing command must never break the
+ * popover, and must never fabricate a prompt/notice that wasn't actually
+ * emitted — it just means the Bob lane stays silent (P1) until S7 lands.
+ */
+async function fetchInitialBobLaneState(): Promise<BobLaneView | null> {
+  try {
+    return await invoke<BobLaneView>(GET_BOB_LANE_CMD);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * M6 S4: best-effort initial fetch of `get_security_banner` — not yet
+ * landed on the Rust side (S6 wires the real router/update-parse output;
+ * see `types.ts`'s `GET_SECURITY_BANNER_CMD` doc). Same fail-closed-to-
+ * silence convention as `fetchInitialBobLaneState` above: a missing command
+ * must never break the popover, and must never fabricate a banner that
+ * wasn't actually emitted — it just means the security banner stays silent
+ * (P1) until S6 lands.
+ */
+async function fetchInitialSecurityBanner(): Promise<SecurityBanner | null> {
+  try {
+    return await invoke<SecurityBanner>(GET_SECURITY_BANNER_CMD);
+  } catch {
+    return null;
+  }
+}
+
 async function runTauri(): Promise<void> {
   const initial = await invoke<RenderState>("get_state");
   latestUpdateState = await fetchInitialUpdateState();
-  renderPopover(appEl, liveRegion, initial, latestUpdateState);
+  latestBobLaneState = await fetchInitialBobLaneState();
+  latestSecurityBanner = await fetchInitialSecurityBanner();
+  renderPopover(appEl, liveRegion, initial, latestUpdateState, latestBobLaneState, latestSecurityBanner);
 
   await listen<RenderState>(STATE_CHANGED_EVENT, (event) => {
-    renderPopover(appEl, liveRegion, event.payload, latestUpdateState);
+    renderPopover(appEl, liveRegion, event.payload, latestUpdateState, latestBobLaneState, latestSecurityBanner);
   });
 
   await wireDismissal();
@@ -142,6 +202,45 @@ async function runDevFixtureHarness(): Promise<void> {
       .sort((a, b) => a.name.localeCompare(b.name)),
   ];
 
+  // M6 S5: a THIRD, independent switcher for `BobLaneView` fixtures
+  // (`./dev-fixtures/bob-lane/*.json`) — same rationale as the update
+  // switcher above: every Bob-lane fixture must be reachable in ANY
+  // combination with a base `RenderState`/`UpdateState` fixture for headless
+  // verification. "(none)" maps to `null`, which `renderPopover` already
+  // treats as "render nothing extra" (silence-is-success).
+  const bobModules = import.meta.glob<BobLaneView>("./dev-fixtures/bob-lane/*.json", {
+    eager: true,
+    import: "default",
+  });
+  const bobFixtures: Array<{ name: string; state: BobLaneView | null }> = [
+    { name: "(none)", state: null },
+    ...Object.entries(bobModules)
+      .map(([path, state]) => ({
+        name: path.replace("./dev-fixtures/bob-lane/", "").replace(".json", ""),
+        state,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  ];
+
+  // M6 S4: a FOURTH, independent switcher for `SecurityBanner` fixtures
+  // (`./dev-fixtures/security-banner/*.json`) — same rationale as the
+  // update/Bob-lane switchers above. "(none)" maps to `null` — the
+  // silence-is-success empty state `renderPopover` already treats as
+  // "render nothing extra".
+  const securityBannerModules = import.meta.glob<SecurityBanner>("./dev-fixtures/security-banner/*.json", {
+    eager: true,
+    import: "default",
+  });
+  const securityBannerFixtures: Array<{ name: string; state: SecurityBanner | null }> = [
+    { name: "(none)", state: null },
+    ...Object.entries(securityBannerModules)
+      .map(([path, state]) => ({
+        name: path.replace("./dev-fixtures/security-banner/", "").replace(".json", ""),
+        state,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  ];
+
   const params = new URLSearchParams(window.location.search);
   let index = Math.max(
     0,
@@ -151,10 +250,20 @@ async function runDevFixtureHarness(): Promise<void> {
     0,
     updateFixtures.findIndex((f) => f.name === params.get("update")),
   );
+  let bobIndex = Math.max(
+    0,
+    bobFixtures.findIndex((f) => f.name === params.get("bob")),
+  );
+  let securityBannerIndex = Math.max(
+    0,
+    securityBannerFixtures.findIndex((f) => f.name === params.get("security-banner")),
+  );
 
   const harness = document.getElementById("ct-dev-harness");
   let select: HTMLSelectElement | null = null;
   let updateSelect: HTMLSelectElement | null = null;
+  let bobSelect: HTMLSelectElement | null = null;
+  let securityBannerSelect: HTMLSelectElement | null = null;
 
   if (harness) {
     harness.className = "ct-dev-harness";
@@ -184,12 +293,56 @@ async function runDevFixtureHarness(): Promise<void> {
     });
     updateSelect.addEventListener("change", () => showUpdate(Number(updateSelect?.value ?? 0)));
 
-    harness.append(label, select, updateLabel, updateSelect);
+    const bobLabel = document.createElement("label");
+    bobLabel.textContent = "Bob lane:";
+    bobLabel.htmlFor = "ct-bob-fixture-select";
+    bobSelect = document.createElement("select");
+    bobSelect.id = "ct-bob-fixture-select";
+    bobFixtures.forEach((f, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = f.name;
+      bobSelect?.appendChild(opt);
+    });
+    bobSelect.addEventListener("change", () => showBob(Number(bobSelect?.value ?? 0)));
+
+    const securityBannerLabel = document.createElement("label");
+    securityBannerLabel.textContent = "Security banner:";
+    securityBannerLabel.htmlFor = "ct-security-banner-fixture-select";
+    securityBannerSelect = document.createElement("select");
+    securityBannerSelect.id = "ct-security-banner-fixture-select";
+    securityBannerFixtures.forEach((f, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = f.name;
+      securityBannerSelect?.appendChild(opt);
+    });
+    securityBannerSelect.addEventListener("change", () =>
+      showSecurityBanner(Number(securityBannerSelect?.value ?? 0)),
+    );
+
+    harness.append(
+      label,
+      select,
+      updateLabel,
+      updateSelect,
+      bobLabel,
+      bobSelect,
+      securityBannerLabel,
+      securityBannerSelect,
+    );
   }
 
   function render(): void {
     const fixture = fixtures[index];
-    renderPopover(appEl, liveRegion, fixture.state, updateFixtures[updateIndex]?.state ?? null);
+    renderPopover(
+      appEl,
+      liveRegion,
+      fixture.state,
+      updateFixtures[updateIndex]?.state ?? null,
+      bobFixtures[bobIndex]?.state ?? null,
+      securityBannerFixtures[securityBannerIndex]?.state ?? null,
+    );
   }
 
   function show(i: number): void {
@@ -212,11 +365,36 @@ async function runDevFixtureHarness(): Promise<void> {
     render();
   }
 
+  function showBob(i: number): void {
+    bobIndex = ((i % bobFixtures.length) + bobFixtures.length) % bobFixtures.length;
+    const fixture = bobFixtures[bobIndex];
+    if (bobSelect) bobSelect.value = String(bobIndex);
+    const url = new URL(window.location.href);
+    url.searchParams.set("bob", fixture.name);
+    window.history.replaceState(null, "", url);
+    render();
+  }
+
+  function showSecurityBanner(i: number): void {
+    securityBannerIndex =
+      ((i % securityBannerFixtures.length) + securityBannerFixtures.length) % securityBannerFixtures.length;
+    const fixture = securityBannerFixtures[securityBannerIndex];
+    if (securityBannerSelect) securityBannerSelect.value = String(securityBannerIndex);
+    const url = new URL(window.location.href);
+    url.searchParams.set("security-banner", fixture.name);
+    window.history.replaceState(null, "", url);
+    render();
+  }
+
   window.addEventListener("keydown", (evt) => {
     if (evt.key === "]") show(index + 1);
     if (evt.key === "[") show(index - 1);
     if (evt.key === "}") showUpdate(updateIndex + 1);
     if (evt.key === "{") showUpdate(updateIndex - 1);
+    if (evt.key === ")") showBob(bobIndex + 1);
+    if (evt.key === "(") showBob(bobIndex - 1);
+    if (evt.key === ">") showSecurityBanner(securityBannerIndex + 1);
+    if (evt.key === "<") showSecurityBanner(securityBannerIndex - 1);
   });
 
   show(index);

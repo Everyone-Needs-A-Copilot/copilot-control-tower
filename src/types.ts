@@ -502,3 +502,177 @@ export interface DeprovisionView {
   secrets_alarm: boolean;
   sentence: string;
 }
+
+/**
+ * M6 S5 — the Bob-lane notification surface (`.copilot/wp/37.md` / task 56).
+ * Mirrors the shape the router (M6 S2, `routing`) emits for the Bob lane,
+ * per the task brief's frozen data contract — built to this shape directly
+ * (same "T7/T3 build-to-shape-before-the-real-DTO-lands" convention
+ * `RenderState`'s and `UpdateState`'s own header docs use above) ahead of
+ * S7's live wiring, which reconciles any drift once the real `routing`
+ * module's Rust type lands.
+ *
+ * **The closed set (SOUL Principle 2 / Alert Machine anti-pattern).** Bob is
+ * interrupted about exactly TWO things — his own sign-in and his own dirty
+ * working tree — because those are the only non-deferrable decisions only he
+ * can make about his own data (invariant #3, invariant #5). Every other
+ * event (held-major, policy denial, prune, security auto-suspend) is either
+ * auto-acted or IT-routed and structurally has NO prompt arm here — there is
+ * deliberately no `"held-major"` / `"policy-denied"` / `"security-approval"`
+ * member of `BobPromptKind`, and no `action`/`approve`/`unblock` field
+ * anywhere on `BobNotice`. If a future stream is tempted to add one, that is
+ * the Alert Machine and must be routed to IT instead, not added here.
+ */
+export type BobPromptKind = "sign-in" | "dirty-wip";
+
+/**
+ * A single, quiet, respectful interruption about Bob's OWN data — the
+ * closed set of two (see module doc above). `title` is the notification-
+ * register copy (what a real macOS notification would have said — see
+ * `render/bob_lane.ts`'s notification-denied-fallback doc); `detail` is the
+ * calmer status-line-register context shown once the fallback/popover is
+ * already open; `action_label` is the one respectful next step, never an
+ * approval of someone else's decision.
+ */
+export interface BobPrompt {
+  kind: BobPromptKind;
+  title: string;
+  detail: string;
+  action_label: string;
+}
+
+export type BobNoticeKind = "kept-you-safe" | "kept-your-working-version" | "waiting-on-it";
+
+/**
+ * A quiet, non-actionable line Bob has no basis to act on — informational
+ * only. Deliberately has no action/dismiss/approve field: per
+ * 70-copy-voice.md's Voice Role ("Past-tense for anything already handled.
+ * Auto-acted things are reported, not asked"), there is nothing here for Bob
+ * to do, and rendering one MUST NOT carry any alarm styling
+ * (`render/bob_lane.ts` renders it with the same neutral treatment
+ * `render/update.ts`'s rollback toast already established for "Kept your
+ * working version."). `"kept-you-safe"`/`"kept-your-working-version"` report
+ * something already AUTO-ACTED (past tense); `"waiting-on-it"` (M6/S6, task
+ * 57, `src-tauri/src/routing/mod.rs`'s `BobNoticeKind` doc) is the one
+ * exception — a held-major update hasn't been acted on at all, this is
+ * EscalateIt's own quiet Bob-facing companion render ("an update is waiting
+ * on IT — nothing for you to do"), never a prompt, never an approve control.
+ */
+export interface BobNotice {
+  kind: BobNoticeKind;
+  message: string;
+}
+
+/**
+ * The Bob lane's full render contract for one snapshot — the wrapper this UI
+ * defines around the router's `BobPrompt`/`BobNotice` shapes above (S2/S7
+ * reconcile the real collection shape once the router lands; this is a
+ * documented UI-side choice, not an assumption about Rust's wire format).
+ * `prompt` is singular by design (the closed set never has two live
+ * interruptions at once — 70-copy-voice.md "direct and singular"); `notices`
+ * may hold more than one quiet past-tense line. The DEFAULT/EMPTY state
+ * (`prompt: null, notices: []`) renders NOTHING — silence-is-success (P1),
+ * matching `UpdateState`'s `"idle"` -> `null` precedent in `render/update.ts`.
+ *
+ * `notifications_denied` is E12/US-B16's fallback signal: when macOS
+ * notification permission is denied/unavailable, a live `prompt` must still
+ * be reachable via this SAME popover render, with an honest affordance
+ * telling Bob why he's seeing it here instead of as a system notification
+ * (`render/bob_lane.ts`). It has no bearing on `notices` — those were
+ * already dropdown-only, never a live notification, regardless of OS
+ * permission state (Flow 7: "A Bob notification is never the sole control on
+ * a live exposure").
+ */
+export interface BobLaneView {
+  prompt: BobPrompt | null;
+  notices: BobNotice[];
+  notifications_denied: boolean;
+}
+
+/**
+ * `get_bob_lane` — the additive IPC command the M6 S5 task brief names
+ * (`.copilot/wp/37.md`: "a `get_bob_lane` / IPC command"). Not yet landed on
+ * the Rust side (out of scope for this stream, which owns only `src/` — see
+ * the task brief's "Don't touch Rust"); `main.ts` invokes this defensively,
+ * the exact same fail-closed-to-silence pattern `CHECK_FOR_UPDATE_CMD` uses
+ * in `render/update.ts` (a not-yet-landed command must never break the
+ * popover's already-working `RenderState` render, and must never fabricate a
+ * prompt/notice that wasn't actually emitted).
+ */
+export const GET_BOB_LANE_CMD = "get_bob_lane" as const;
+
+/**
+ * M6 S2 — the router's ESCALATE-TO-IT lane payload (`src-tauri/src/routing/
+ * mod.rs`'s `ItSignal`/`ItSignalKind`, task 53). Mirrors the Rust shape
+ * exactly, built to this shape ahead of a future wiring stream reconciling
+ * any drift once a live IT-facing surface consumes it (same "build-to-shape"
+ * convention `BobPrompt`/`BobNotice`/`RenderState` above already use).
+ *
+ * **Content-free by construction (invariant #5).** `ItSignalKind` names
+ * WHICH content-free safety fact fired — never a personal item name, file
+ * path, or ecosystem identifier. `ItSignal` carries exactly these two
+ * fields; there is no `identity`/`scope`/`org`/`item` field anywhere on this
+ * type, matching the Rust struct's own "content-free by construction, not by
+ * convention" doc. `admin_contact: null` means "no IT to escalate to" (an
+ * unmanaged/solo machine) — the signal still exists but there is nowhere to
+ * deliver it; this NEVER falls back to a Bob-actionable affordance.
+ */
+export type ItSignalKind =
+  | "deprovision_triggered"
+  | "deprovision_ambiguous"
+  | "auth_revoked_deprovision_offer"
+  | "held_major_awaiting_approval"
+  | "policy_denial"
+  | "security_shadow_auto_suspended"
+  | "signature_failure"
+  | "persistence_disabled"
+  | "notifications_disabled"
+  | "bob_item_timed_out"
+  | "prune_needs_review"
+  | "repair_needs_review"
+  | "unrecognized_event";
+
+export interface ItSignal {
+  kind: ItSignalKind;
+  admin_contact: string | null;
+}
+
+/**
+ * M6 S4 — the un-dismissable security-banner DTO (`.copilot/wp/37.md` / task
+ * 55). Mirrors `src-tauri/src/render/security_banner.rs`'s `SecurityBanner`
+ * exactly: two fields, no more, built to this shape ahead of a future live-
+ * wiring stream (S6) that reconciles any drift once a real IPC command
+ * produces one — the same "build-to-shape" convention `BobPrompt`/
+ * `BobNotice`/`ItSignal` above already use.
+ *
+ * **Re-affirm-only — structurally cannot be dismissed.** There is
+ * deliberately no `dismiss`/`clear`/`approve`/`resolved` field anywhere on
+ * this type — the ONLY Bob affordance is `reaffirm_label` ("Re-affirm your
+ * version"), preserving ownership without ever letting Bob (or this UI) mark
+ * the underlying security exposure "resolved" on its own say-so. This is
+ * DISTINCT from `BobNotice`'s `"kept-you-safe"` variant above: that quiet
+ * mention is deliberately action-free (see `render/copy.ts`'s
+ * `BOB_KEPT_YOU_SAFE` doc — it explicitly drops the "Re-affirm your version
+ * ▸" affordance because the Bob-lane's closed `BobPromptKind` set forbids a
+ * third, security-approval-shaped control there); `SecurityBanner` is the
+ * separate, persistent surface that DOES carry it.
+ *
+ * `null`/absent (never a `SecurityBanner` with `message: ""`) means "no live
+ * security-shadow to show" — silence-is-success (P1), the SAME convention
+ * `BobLaneView`'s empty state and `UpdateState`'s `"idle"` already establish;
+ * this UI never fabricates one as "clear" — only a future live-wiring
+ * stream's own parse of the CLI's `changed[]` entries ever produces one.
+ */
+export interface SecurityBanner {
+  message: string;
+  reaffirm_label: string;
+}
+
+/**
+ * `get_security_banner` — the additive IPC command name this stream reserves
+ * for S6's live wiring, mirroring `GET_BOB_LANE_CMD`'s identical "not yet
+ * landed on the Rust side, invoked defensively" convention (`main.ts`'s
+ * `fetchInitialBobLaneState` doc). A missing command must never break the
+ * popover's already-working render — it just means no banner shows yet.
+ */
+export const GET_SECURITY_BANNER_CMD = "get_security_banner" as const;

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "result": "applied",
+  "lock_before": "a1b2c3d",
+  "lock_after": "e4f5a6b",
+  "changed": [
+    { "dimension": "knowledge", "layer": "dept", "item": "deprecated-runbook.md", "op": "pruned", "from": "c3d4e5f", "to": null, "signed": true, "severity_trailer": null, "shadowed_by": null }
+  ],
+  "held_for_approval": [],
+  "blocked": []
+}

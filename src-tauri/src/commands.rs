@@ -171,6 +171,36 @@ pub fn hide_popover(app: AppHandle) {
     crate::tray::hide_popover_window(&app);
 }
 
+/// M6/S6 (task 57, `.copilot/wp/37.md`): the Bob-lane snapshot pull —
+/// backs uid's (S5) `get_bob_lane` IPC command (`GET_BOB_LANE_CMD` in
+/// `src/types.ts`). A thin passthrough to the managed
+/// [`crate::render::bob_lane::BobLaneState`] `timer::poll_once`/
+/// `check_for_update` write to — this command computes nothing; it only
+/// returns whatever the router's last live routing pass produced. Fails
+/// closed to the empty/default view (never a panic, never a fabricated
+/// prompt) on any internal recovery path — see `BobLaneState::snapshot`'s
+/// own doc.
+#[tauri::command]
+pub fn get_bob_lane(
+    state: State<'_, crate::render::bob_lane::BobLaneState>,
+) -> crate::render::bob_lane::BobLaneView {
+    state.snapshot()
+}
+
+/// M6/S6 (task 57): the un-dismissable security-banner snapshot pull —
+/// backs `GET_SECURITY_BANNER_CMD` in `src/types.ts`. A thin passthrough to
+/// the managed [`crate::render::security_banner::SecurityBannerState`];
+/// `None` (no live security-shadow entry to show) is the ordinary case in
+/// this milestone, since no live `cc update --json` poll feeds this state
+/// yet (fixture-tested only — see `routing::wire`'s own doc) — this command
+/// never fabricates a banner, it only reports what was actually parsed.
+#[tauri::command]
+pub fn get_security_banner(
+    state: State<'_, crate::render::security_banner::SecurityBannerState>,
+) -> Option<crate::render::security_banner::SecurityBanner> {
+    state.snapshot()
+}
+
 /// Shared by `timer.rs`'s exceptional "the poll task itself failed to run"
 /// path (e.g. `spawn_blocking` join error) — collapses to the same
 /// `CliUnreadableReason::IoError` a genuine spawn failure gets, via the SAME
@@ -499,6 +529,24 @@ mod tests {
         let got = ds.snapshot();
         assert_eq!(got.client_state, fresh.client_state);
         assert_eq!(got.cli_unreadable_reason, fresh.cli_unreadable_reason);
+    }
+
+    /// M6/S6 (task 57): `get_bob_lane`/`get_security_banner` are thin
+    /// passthroughs — a fresh managed state must fail closed to the
+    /// empty/silent shape, never a fabricated prompt/banner.
+    #[test]
+    fn get_bob_lane_on_a_fresh_state_is_the_silent_empty_view() {
+        let state = crate::render::bob_lane::BobLaneState::new();
+        let view = state.snapshot();
+        assert!(view.prompt.is_none());
+        assert!(view.notices.is_empty());
+        assert!(!view.notifications_denied);
+    }
+
+    #[test]
+    fn get_security_banner_on_a_fresh_state_is_none() {
+        let state = crate::render::security_banner::SecurityBannerState::new();
+        assert!(state.snapshot().is_none());
     }
 }
 
@@ -1403,11 +1451,50 @@ pub fn open_wizard_window(app: AppHandle) {
 /// the closure itself doesn't panic under any normal input) falls back to
 /// the same honest `Error` shape a genuine fetch failure produces, never a
 /// silently-stale snapshot.
-#[tauri::command]
-pub async fn check_for_update() -> crate::updater::dto::UpdateState {
-    tauri::async_runtime::spawn_blocking(crate::updater::check::check_for_update)
+/// The real logic behind [`check_for_update`], factored out so it's directly
+/// unit-testable without a live `AppHandle` — mirrors `save_settings_at`'s
+/// own `repoll: F` injection (this file's established pattern for testing a
+/// side-effecting Tauri command without a live app). `on_rolled_back` is
+/// called AT MOST once, only when this invocation observed
+/// `UpdateStatus::RolledBack` — the ONE seam M6/S6 (task 57) crosses into the
+/// routing module through (`render::bob_lane::record_rollback`); see that
+/// module's own doc for why this file never imports `routing::` directly.
+pub(crate) async fn check_for_update_at<F>(on_rolled_back: F) -> crate::updater::dto::UpdateState
+where
+    F: FnOnce(),
+{
+    let state = tauri::async_runtime::spawn_blocking(crate::updater::check::check_for_update)
         .await
-        .unwrap_or_else(|_| update_spawn_join_error_state())
+        .unwrap_or_else(|_| update_spawn_join_error_state());
+    if state.status == crate::updater::dto::UpdateStatus::RolledBack {
+        on_rolled_back();
+    }
+    state
+}
+
+/// Checks for a Control Tower self-update — a thin `spawn_blocking` wrapper
+/// around `updater::check::check_for_update()`, the pure (well, network/
+/// filesystem-touching but stateless) transport function. `spawn_blocking`
+/// (not a direct `await`) matters here: `check_for_update()`'s production
+/// `HttpFetcher` uses `reqwest::blocking`, which panics if invoked from
+/// inside an already-running async runtime — the SAME reason `cli::spawn`'s
+/// doctor invocation runs on its own thread rather than as a `tokio::
+/// process::Command`. A `spawn_blocking` join failure (extremely rare —
+/// the closure itself doesn't panic under any normal input) falls back to
+/// the same honest `Error` shape a genuine fetch failure produces, never a
+/// silently-stale snapshot.
+///
+/// M6/S6 (task 57): when this observes a REAL rollback (M4's watchdog
+/// already ran; `UpdateStatus::RolledBack` is a shown-once fact, never
+/// re-derived here), it folds the router's quiet "kept your working version"
+/// notice into the Bob lane — see [`check_for_update_at`]'s own doc.
+#[tauri::command]
+pub async fn check_for_update(app: AppHandle) -> crate::updater::dto::UpdateState {
+    check_for_update_at(|| {
+        let bob_lane = app.state::<crate::render::bob_lane::BobLaneState>();
+        crate::render::bob_lane::record_rollback(&bob_lane);
+    })
+    .await
 }
 
 /// Applies a Control Tower self-update — same `spawn_blocking` shape as
@@ -1487,10 +1574,14 @@ mod update_ipc_tests {
         .unwrap();
     }
 
-    /// The self-update IPC commands take no `State`/`AppHandle` — same
-    /// shape `save_settings_at`'s own test helper documents:
-    /// `tauri::async_runtime::block_on`'s lazily-initialized default
-    /// runtime is enough to drive them, no live Tauri app required.
+    /// The self-update IPC commands' TESTABLE CORES take no `State`/
+    /// `AppHandle` — same shape `save_settings_at`'s own test helper
+    /// documents: `tauri::async_runtime::block_on`'s lazily-initialized
+    /// default runtime is enough to drive them, no live Tauri app required.
+    /// `check_for_update` itself now takes an `AppHandle` (M6/S6, task 57 —
+    /// see [`check_for_update_at`]'s own doc); these tests exercise
+    /// `check_for_update_at` directly with a no-op rollback callback,
+    /// mirroring `save_settings`/`save_settings_at`'s identical split.
     #[test]
     fn check_for_update_command_reports_available_via_the_dev_feed_override() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -1499,7 +1590,7 @@ mod update_ipc_tests {
 
         // SAFETY: serialized by ENV_LOCK.
         unsafe { std::env::set_var(crate::updater::check::DEV_FEED_OVERRIDE_ENV, &feed_dir) };
-        let state = tauri::async_runtime::block_on(check_for_update());
+        let state = tauri::async_runtime::block_on(check_for_update_at(|| {}));
         // SAFETY: serialized by ENV_LOCK.
         unsafe { std::env::remove_var(crate::updater::check::DEV_FEED_OVERRIDE_ENV) };
 
@@ -1520,12 +1611,38 @@ mod update_ipc_tests {
                 "/nonexistent/definitely-not-a-real-feed-dir",
             )
         };
-        let state = tauri::async_runtime::block_on(check_for_update());
+        let state = tauri::async_runtime::block_on(check_for_update_at(|| {}));
         // SAFETY: serialized by ENV_LOCK.
         unsafe { std::env::remove_var(crate::updater::check::DEV_FEED_OVERRIDE_ENV) };
 
         assert_eq!(state.status, UpdateStatus::Error);
         assert!(state.message.is_some());
+    }
+
+    /// M6/S6 (task 57): a REAL rollback observation (`UpdateStatus::
+    /// RolledBack`) fires the `on_rolled_back` callback exactly once; any
+    /// other status never fires it.
+    #[test]
+    fn check_for_update_at_fires_on_rolled_back_only_when_the_status_is_rolled_back() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            std::env::set_var(
+                crate::updater::check::DEV_FEED_OVERRIDE_ENV,
+                "/nonexistent/definitely-not-a-real-feed-dir",
+            )
+        };
+        let fired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let fired_clone = std::sync::Arc::clone(&fired);
+        let state = tauri::async_runtime::block_on(check_for_update_at(move || {
+            fired_clone.store(true, std::sync::atomic::Ordering::SeqCst);
+        }));
+        unsafe { std::env::remove_var(crate::updater::check::DEV_FEED_OVERRIDE_ENV) };
+
+        assert_ne!(state.status, UpdateStatus::RolledBack);
+        assert!(
+            !fired.load(std::sync::atomic::Ordering::SeqCst),
+            "an Error status must never fire the rollback callback"
+        );
     }
 
     // NOTE: `apply_update()` (the bare, zero-argument production command) is

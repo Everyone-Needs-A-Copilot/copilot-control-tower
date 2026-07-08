@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "result": "applied",
+  "lock_before": "a1b2c3d",
+  "lock_after": "e4f5a6b",
+  "changed": [
+    { "dimension": "cli", "layer": "personal", "item": "agents/reviewer.md", "op": "added", "from": null, "to": "d4e5f6a", "signed": false, "severity_trailer": "unsigned content shadows a signed org-tier file", "shadowed_by": "org/agents/reviewer.md" }
+  ],
+  "held_for_approval": [],
+  "blocked": []
+}

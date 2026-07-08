@@ -18,10 +18,20 @@ import { invoke } from "@tauri-apps/api/core";
 import { renderBadge } from "./badges";
 import * as copy from "./copy";
 import { announce, attachProductListKeyboard } from "./a11y";
+import { buildBobLaneSection } from "./bob_lane";
 import { buildActionButton, h } from "./dom";
+import { buildSecurityBannerSection } from "./security_banner";
 import { buildUpdateSection } from "./update";
 import { isTauriHost } from "../tauri-host";
-import type { DeptProjectView, LayerView, ProductView, RenderState, UpdateState } from "../types";
+import type {
+  BobLaneView,
+  DeptProjectView,
+  LayerView,
+  ProductView,
+  RenderState,
+  SecurityBanner,
+  UpdateState,
+} from "../types";
 
 function divider(): HTMLElement {
   return h("hr", { className: "ct-sep" });
@@ -238,12 +248,31 @@ function buildFooter(): HTMLElement {
  * section, never changes how the rest of the popover renders, so every
  * existing call site (and every `RenderState`-only fixture) keeps working
  * unchanged.
+ *
+ * `bobLaneState` (M6 S5, optional/additive, same convention as
+ * `updateState`) is the Bob-lane surface — `types.ts`'s `BobLaneView`.
+ * Rendered FIRST, directly under the header and above the update section:
+ * a live `BobPrompt` is Bob's own singular, non-deferrable interruption
+ * (his sign-in / his dirty WIP) and outranks every other row in the
+ * popover, including the self-update section. `undefined`/`null`/empty
+ * render nothing extra — same silence-is-success precedent.
+ *
+ * `securityBanner` (M6 S4, optional/additive, same convention) is the
+ * un-dismissable security banner — `types.ts`'s `SecurityBanner`. Rendered
+ * directly below the Bob lane (a live, non-deferrable `BobPrompt` still
+ * outranks it) and above the self-update section: unlike a `BobNotice`, this
+ * is a PERSISTENT surface (re-affirm-only, never dismissed), so it earns a
+ * more prominent position than the Bob lane's quiet past-tense notices.
+ * `undefined`/`null` render nothing extra — same silence-is-success
+ * precedent.
  */
 export function renderPopover(
   container: HTMLElement,
   liveRegion: HTMLElement,
   state: RenderState,
   updateState?: UpdateState | null,
+  bobLaneState?: BobLaneView | null,
+  securityBanner?: SecurityBanner | null,
 ): void {
   container.replaceChildren();
 
@@ -254,6 +283,22 @@ export function renderPopover(
   }
 
   container.appendChild(buildHeader(state));
+
+  if (bobLaneState) {
+    const bobSection = buildBobLaneSection(bobLaneState);
+    if (bobSection) {
+      container.appendChild(bobSection);
+      container.appendChild(divider());
+    }
+  }
+
+  if (securityBanner) {
+    const bannerSection = buildSecurityBannerSection(securityBanner);
+    if (bannerSection) {
+      container.appendChild(bannerSection);
+      container.appendChild(divider());
+    }
+  }
 
   if (updateState && updateState.status !== "idle") {
     const section = buildUpdateSection(updateState, liveRegion);
@@ -277,5 +322,12 @@ export function renderPopover(
   container.appendChild(divider());
   container.appendChild(buildFooter());
 
-  announce(liveRegion, state.header.sentence);
+  // A live Bob prompt/notice outranks the general status sentence for the
+  // single initial announcement a screen reader gets on open (see
+  // `renderPopover`'s own doc above on why the Bob lane renders first),
+  // and the security banner outranks the plain status sentence too (it's
+  // the next-most-prominent persistent surface) — one announcement per
+  // render, never two (or three) competing ones in the same paint.
+  const bobAnnouncement = bobLaneState ? copy.bobLaneAnnouncement(bobLaneState) : null;
+  announce(liveRegion, bobAnnouncement ?? securityBanner?.message ?? state.header.sentence);
 }

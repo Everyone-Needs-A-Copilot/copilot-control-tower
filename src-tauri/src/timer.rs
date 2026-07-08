@@ -26,8 +26,24 @@
 //! This module computes nothing: `poll_once` never branches on the parsed
 //! content, it only stores and republishes whatever `cli::run_doctor` (T4/T3)
 //! already decided (invariant #1).
+//!
+//! **M6/S6 (task 57, `.copilot/wp/37.md`):** the SAME poll additionally
+//! drives the router — `cli::run_doctor_with_outcome`'s `ParseOutcome` (the
+//! per-checker/per-auth detail `RenderState` alone doesn't preserve) is fed
+//! through `routing::wire::wire_doctor`, and the forced `Deprovisioned`
+//! trigger (M5/S6) is evaluated on the SAME cadence via `routing::wire::
+//! wire_deprovision`. This module still computes no verdict of its own here
+//! either: `wire_doctor`/`wire_deprovision` only MAP an already-trusted
+//! verdict to a lane (`policy::route`) and dispatch the result — this file
+//! adds no new decision, only the live call site the router needed. Not
+//! governed by `tests/fitness_m5_deprovision_is_it_routed.rs` (that scan is
+//! scoped to `commands.rs`/`tray.rs`/`lib.rs`'s handler list + everything
+//! under `src/routing/`), so this file references `routing::` directly.
 
 use crate::commands::DoctorState;
+use crate::model::state::ParseOutcome;
+use crate::render::bob_lane::BobLaneState;
+use crate::routing::emit::LocalSink;
 use crate::tray;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -82,17 +98,23 @@ pub async fn poll_once(app: &AppHandle) {
     // here rather than ever running `cli::run_doctor` concurrently.
     let _in_flight = doctor_state.poll_lock.lock().await;
 
-    // `cli::run_doctor` blocks (spawns + waits on a child process, up to
-    // `cli::spawn::DOCTOR_TIMEOUT`) — run it off the async runtime's worker
-    // threads.
-    let fresh = match tauri::async_runtime::spawn_blocking(crate::cli::run_doctor).await {
-        Ok(render_state) => render_state,
-        // The poll task itself failed to run (e.g. panicked) — not a CLI
-        // failure, but still "I couldn't get a trustworthy verdict this
-        // round". Routes through the SAME derive pipeline every other
-        // outcome uses, never a hand-built RenderState.
-        Err(_) => crate::commands::unreadable_io_error(),
-    };
+    // `cli::run_doctor_with_outcome` blocks (spawns + waits on a child
+    // process, up to `cli::spawn::DOCTOR_TIMEOUT`) — run it off the async
+    // runtime's worker threads. M6/S6: the SAME call already resolves both
+    // the render DTO (T3/T5) and the `ParseOutcome` the router needs — never
+    // a second doctor spawn just to get the router its input.
+    let (parse_outcome, fresh) =
+        match tauri::async_runtime::spawn_blocking(crate::cli::run_doctor_with_outcome).await {
+            Ok(pair) => pair,
+            // The poll task itself failed to run (e.g. panicked) — not a CLI
+            // failure, but still "I couldn't get a trustworthy verdict this
+            // round". Routes through the SAME derive pipeline every other
+            // outcome uses, never a hand-built RenderState.
+            Err(_) => (
+                ParseOutcome::Unreadable(crate::model::state::CliUnreadableReason::IoError),
+                crate::commands::unreadable_io_error(),
+            ),
+        };
 
     doctor_state.replace(fresh.clone());
 
@@ -107,6 +129,27 @@ pub async fn poll_once(app: &AppHandle) {
     if let Some(icon) = app.tray_by_id(tray::TRAY_ID) {
         let _ = tray::update(&icon, &fresh);
     }
+
+    // M6/S6: route this poll's doctor-sourced facts (checker findings + auth
+    // states) through the router, dispatching every produced `ItSignal` to
+    // the shared `LocalSink` and folding any resulting `AskBob` prompt into
+    // the Bob lane (time-boxed — see `render::bob_lane`'s own doc). A
+    // `CliUnreadable` outcome carries no checkers/auth to route at all — the
+    // tray/popover already renders that state honestly via `fresh` above;
+    // this is not a second, silent channel for the same fact.
+    let sink = app.state::<LocalSink>();
+    if let ParseOutcome::Trusted(verdict) = &parse_outcome {
+        let prompt = crate::routing::wire::wire_doctor(verdict, &*sink);
+        let bob_lane = app.state::<BobLaneState>();
+        bob_lane.apply_doctor_prompt(prompt, &*sink);
+    }
+
+    // M6/S6: the forced `Deprovisioned` trigger (M5/S6), evaluated on the
+    // SAME cadence — `routing::deprovision_trigger`'s own doc names this
+    // stream as its intended live caller. A cheap forced-domain read on the
+    // ordinary case; only spawns `cc deprovision` on a genuinely forced
+    // `true` (never on a `cargo test`/dev box with no forced key set).
+    crate::routing::wire::wire_deprovision(&*sink);
 }
 
 #[cfg(test)]

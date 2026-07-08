@@ -29,3 +29,10 @@ pub mod doctor;
 pub mod envelope;
 pub mod failclosed;
 pub mod state;
+// M6/S1 (`.copilot/wp/37.md`, task 52): the same collapsed wire+domain+
+// parse-boundary split, for `copilot update --json` — the router's (M6/S2)
+// primary input. See its own module doc for the update-specific fail-closed
+// rules (`signed` defaults per-entry to unsigned; `op` never defaults to the
+// benign `unchanged`; `blocked[]` is an open shape, G-M6-4, retained rather
+// than dropped).
+pub mod update;

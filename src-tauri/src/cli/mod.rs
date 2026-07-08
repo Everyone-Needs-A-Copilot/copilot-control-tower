@@ -45,6 +45,21 @@ use crate::render::derive::{derive_render_state, RenderState};
 /// run" and "the CLI won't start" are the same fact ("I couldn't start the
 /// engine. Click to reinstall — it's a fix, not a reset.").
 pub fn run_doctor() -> RenderState {
+    run_doctor_with_outcome().1
+}
+
+/// M6/S6 (task 57): the SAME resolve -> spawn -> classify -> parse pipeline
+/// as [`run_doctor`], additionally returning the [`ParseOutcome`] the render
+/// step was derived from — `render::derive::derive_render_state` only ever
+/// GROUPS/MAPS a verdict, it never carries the per-checker/per-auth detail
+/// the router (`routing::wire`) needs (`RenderState` buckets checkers into
+/// `(product, layer)` severity groups; it does not preserve individual
+/// `Checker`/`AuthIssue` values at all). `run_doctor` above stays the single,
+/// unchanged entry point every OTHER existing caller (`wizard::managed_flow`,
+/// `wizard::unmanaged_flow`, and this module's own tests) already uses —
+/// this is a strict ADDITION, not a signature change, so none of those call
+/// sites move.
+pub fn run_doctor_with_outcome() -> (ParseOutcome, RenderState) {
     let outcome = match path::resolve() {
         Ok(cli_path) => spawn::doctor(&cli_path),
         Err(_) => spawn::DoctorRunOutcome::Unreadable(CliUnreadableReason::IoError),
@@ -55,7 +70,8 @@ pub fn run_doctor() -> RenderState {
         spawn::DoctorRunOutcome::Unreadable(reason) => ParseOutcome::Unreadable(reason),
     };
 
-    derive_render_state(&parse_outcome)
+    let render_state = derive_render_state(&parse_outcome);
+    (parse_outcome, render_state)
 }
 
 #[cfg(test)]

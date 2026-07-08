@@ -13,8 +13,14 @@
 //! no arithmetic on `score`, no severity->status synthesis anywhere in this
 //! module or `model/`.
 
+// M6/S6 (task 57, `.copilot/wp/37.md`): the Bob-lane DTO + its Tauri-managed
+// aggregation — backs uid's (S5) `get_bob_lane` IPC command. See that
+// module's own doc for why the router wiring lives here rather than in
+// `commands.rs`.
+pub mod bob_lane;
 pub mod derive;
 pub mod glyph;
+pub mod security_banner;
 
 /// THE canonical badge-SHAPE vocabulary (T8 — reconciling the T3/T7
 /// contract). Every string this crate can ever put in `RenderState.header

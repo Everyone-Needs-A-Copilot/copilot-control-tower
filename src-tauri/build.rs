@@ -31,6 +31,10 @@ fn main() {
     // same ACL-enforcement reasoning, scoped to the popover
     // (`capabilities/default.json`'s `allow-check-for-update`/
     // `allow-apply-update`), the only window that renders the update banner.
+    // `get_bob_lane`/`get_security_banner` (M6/S6, task 57): the router's
+    // live-flow IPC seam — same ACL-enforcement reasoning, scoped to the
+    // popover (`capabilities/default.json`'s `allow-get-bob-lane`/
+    // `allow-get-security-banner`), the only window that renders either.
     let attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "get_state",
@@ -48,6 +52,8 @@ fn main() {
             "wizard_begin_signin",
             "wizard_poll_signin",
             "open_wizard_window",
+            "get_bob_lane",
+            "get_security_banner",
             "check_for_update",
             "apply_update",
         ]));

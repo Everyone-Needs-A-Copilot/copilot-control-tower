@@ -115,6 +115,16 @@ pub struct Checker {
     pub detail: Option<String>,
     pub layer: Option<String>,
     pub product: Option<String>,
+    /// `true` only when the wire `repair` token (`model::doctor::
+    /// CheckerWire::repair`) was non-null — the boolean-only distillate M6/S2
+    /// (`routing::event::DoctorFindingEvent`'s own doc) names as the router's
+    /// input: "a future emission seam (S3+) threads `repair.is_some()`
+    /// through without ever passing the repair TOKEN TEXT itself into this
+    /// router." M6/S6 (`routing::wire`) is that seam. The repair token TEXT
+    /// itself is never carried past this parse boundary at all (M1 never
+    /// needed it, and the router must never see it — content-free by
+    /// construction, matching `ItSignal`'s own discipline).
+    pub repair_available: bool,
 }
 
 /// One credential finding, past the same fail-closed gate as `Checker`.
@@ -264,6 +274,10 @@ pub fn parse_doctor_body(raw: &[u8]) -> ParseOutcome {
             Some(v) => v,
             None => return ParseOutcome::Unreadable(CliUnreadableReason::MissingSecurityField),
         };
+        // M6/S6: presence-only — the repair token TEXT (`c.repair`'s String
+        // content) is deliberately dropped here, never carried past this
+        // struct; see `Checker::repair_available`'s own doc.
+        let repair_available = c.repair.is_some();
         checkers.push(Checker {
             id,
             severity,
@@ -271,6 +285,7 @@ pub fn parse_doctor_body(raw: &[u8]) -> ParseOutcome {
             detail: c.detail,
             layer: c.layer,
             product: c.product,
+            repair_available,
         });
     }
 

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "result": "blocked",
+  "lock_before": "a1b2c3d",
+  "lock_after": "a1b2c3d",
+  "changed": [],
+  "held_for_approval": [],
+  "blocked": [
+    { "dimension": "cli", "layer": "org", "item": "internal-tool", "reason": "capability-policy denial: org policy forbids this capability" }
+  ]
+}

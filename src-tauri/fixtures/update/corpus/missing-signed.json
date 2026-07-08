@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "result": "applied",
+  "lock_before": "a1b2c3d",
+  "lock_after": "e4f5a6b",
+  "changed": [
+    { "dimension": "cli", "layer": "org", "item": "missing-signed-item", "op": "updated", "from": "1.0.0", "to": "1.1.0" }
+  ],
+  "held_for_approval": [],
+  "blocked": []
+}

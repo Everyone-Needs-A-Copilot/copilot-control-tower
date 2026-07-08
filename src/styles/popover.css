@@ -91,6 +91,126 @@
   flex: 0 0 auto;
 }
 
+/* --- Bob-lane notification surface (M6 S5) — closed-set prompt + quiet
+   past-tense notices, no alarm styling anywhere in this block. --- */
+
+.ct-bob-lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+/* The one live, actionable prompt (his sign-in / his dirty WIP). A neutral
+   raised card — deliberately the SAME visual register `.ct-update__toast`
+   uses (never `--status-error`/`--status-needs-attention`): this is a
+   respectful request, not a warning. */
+.ct-bob-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-card);
+}
+
+.ct-bob-prompt__fallback-note {
+  margin: 0 0 var(--space-hair);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+
+.ct-bob-prompt__title {
+  margin: 0;
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ct-bob-prompt__detail {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+
+.ct-bob-prompt__action {
+  align-self: flex-start;
+  margin-top: var(--space-xs);
+  padding: var(--space-hair) var(--space-md);
+  background: var(--brand-indigo);
+  color: var(--brand-indigo-text);
+  border: none;
+  border-radius: var(--radius-control);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ct-bob-prompt__action:hover {
+  filter: brightness(1.08);
+}
+
+.ct-bob-prompt__action:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: 2px;
+}
+
+/* A quiet, past-tense, non-actionable line — plain text, no card, no
+   border, no button. Same neutral secondary-text treatment the layer detail
+   text already uses; understatement is the brand (70-copy-voice.md). */
+.ct-bob-notice {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+
+/* --- The un-dismissable security banner (M6 S4) --- */
+/* Deliberately the SAME neutral card treatment `.ct-bob-prompt`/
+   `.ct-update__toast` use (never `--status-error`/`--status-needs-
+   attention`) — this reports something already handled, honestly and
+   without alarm; the ONE button is re-affirm, never a dismiss/close. */
+.ct-security-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-card);
+}
+
+.ct-security-banner__message {
+  margin: 0;
+  font-size: var(--type-body-size);
+  color: var(--text-primary);
+}
+
+.ct-security-banner__reaffirm {
+  align-self: flex-start;
+  margin-top: var(--space-xs);
+  padding: var(--space-hair) var(--space-md);
+  background: var(--brand-indigo);
+  color: var(--brand-indigo-text);
+  border: none;
+  border-radius: var(--radius-control);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ct-security-banner__reaffirm:hover {
+  filter: brightness(1.08);
+}
+
+.ct-security-banner__reaffirm:focus-visible {
+  outline: 2px solid var(--brand-indigo);
+  outline-offset: 2px;
+}
+
 /* --- Control Tower's own self-update affordance (M4 S10) --- */
 
 .ct-update {

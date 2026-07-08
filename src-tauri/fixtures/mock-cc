@@ -18,6 +18,10 @@
 #   mock-cc deprovision <org> --json # M5/S2: emit a canned deprovision REPORT — this
 #                                     #   stub NEVER touches the filesystem; it only
 #                                     #   prints a fixture body, exactly like `doctor`.
+#   mock-cc update --json            # M6/S1: emit a canned `update --json` RESULT — this
+#                                     #   stub NEVER runs a real (mutating) reconciling
+#                                     #   sync; it only prints a fixture body, exactly
+#                                     #   like `doctor`/`deprovision`.
 #
 # Fixture selection for `doctor` (checked in this order):
 #   1. --fixture=<name> or --fixture <name> on the command line
@@ -106,6 +110,26 @@
 # NEVER wipes anything: this stub is pure text-in/text-out, exactly like `doctor` — it
 # holds no filesystem-deletion logic at all, matching the real invariant this whole
 # feature exists to prove (FF-M5-2, `tests/fitness_m5_no_wipe_logic.rs`).
+#
+# --- update (M6/S1, `.copilot/wp/37.md`, task 52) --------------------------------------
+# Fixture selection for `update` — the SAME $CT_FIXTURE/$CC_FIXTURE/--fixture
+# convention as `doctor`/`deprovision` (checked in the same order), resolved against
+# update/corpus/<name>.json first, then update/invalid/<name>.json, then tried as a
+# literal path. Default (when unset): "applied-clean". CT_FIXTURE=list and
+# CT_FIXTURE=exit-2 behave the same as they do for `doctor`/`deprovision` (list also
+# enumerates the update corpus; exit-2 simulates the env-error/flock-held path — no
+# trustworthy body, exit 2).
+#
+# Exit code for `update` — same simpler convention as `deprovision`: cli-contract.md's
+# `update` row names no per-body exit-code convention, so this stub always exits 0 once
+# a fixture body is found, EVERY fixture printed verbatim (including update/invalid/ —
+# those exist so the app's OWN fail-closed parsing, `model::update::parse_update_body`,
+# is what's under test, never the exit code):
+#   0  a fixture body was found and printed (corpus/ OR invalid/ — see above)
+#   2  CT_FIXTURE=exit-2, or the requested fixture can't be found
+#
+# NEVER applies a real reconciling sync: this stub is pure text-in/text-out, exactly
+# like `doctor`/`deprovision` — it holds no sync/merge/signature logic at all.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -116,6 +140,11 @@ INVALID_DIR="$HERE/invalid"
 # fixtures/deprovision/README.md.
 DEPROVISION_CORPUS_DIR="$HERE/deprovision/corpus"
 DEPROVISION_INVALID_DIR="$HERE/deprovision/invalid"
+# M6/S1: the `update` verb's own fixture corpus, deliberately separate from
+# doctor/deprovision (a different --json shape entirely) — see
+# fixtures/update/README.md.
+UPDATE_CORPUS_DIR="$HERE/update/corpus"
+UPDATE_INVALID_DIR="$HERE/update/invalid"
 
 # No hardcoded default here — `doctor` defaults to "healthy-clean-fleet" and
 # `deprovision` defaults to "wiped-clean", applied below once $verb is known
@@ -169,6 +198,7 @@ done
 if [ -z "$fixture" ]; then
   case "$verb" in
     deprovision) fixture="wiped-clean" ;;
+    update) fixture="applied-clean" ;;
     *) fixture="healthy-clean-fleet" ;;
   esac
 fi
@@ -191,6 +221,16 @@ list_fixtures() {
   done
   echo "deprovision invalid (adversarial, for the Unreadable path):"
   for f in "$DEPROVISION_INVALID_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "update corpus (valid, for 'update --json'):"
+  for f in "$UPDATE_CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "update invalid (adversarial, for the Unreadable path):"
+  for f in "$UPDATE_INVALID_DIR"/*.json; do
     [ -e "$f" ] || continue
     printf '  %s\n' "$(basename "${f%.json}")"
   done
@@ -304,6 +344,43 @@ PY
     exit 0
     ;;
 
+  update)
+    # `mock-cc update --json` — no positional org/target argument (unlike
+    # `deprovision <org>`); the real `copilot update --json` verb takes none
+    # per cli-contract.md's `update` row.
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable, flock held) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+
+    resolve_update_fixture_path() {
+      local name="$1"
+      if [ -f "$UPDATE_CORPUS_DIR/$name.json" ]; then
+        echo "$UPDATE_CORPUS_DIR/$name.json"
+      elif [ -f "$UPDATE_INVALID_DIR/$name.json" ]; then
+        echo "$UPDATE_INVALID_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
+
+    path="$(resolve_update_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown update fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
+
+    # Same simpler convention as `deprovision`: no documented per-body exit
+    # code for `update` (cli-contract.md names none), so every fixture
+    # (corpus/ or invalid/) is emitted verbatim on a clean exit 0 — the
+    # app's OWN fail-closed parsing (`model::update::parse_update_body`) is
+    # what's under test for the invalid/ corpus.
+    cat "$path"
+    exit 0
+    ;;
+
   auth)
     # `mock-cc auth login --json ...` is accepted as an alias for `mock-cc auth --json
     # ...` (D-3-M3 recommendation #2: the wizard's host/GitHub sign-in step is one more
@@ -352,7 +429,7 @@ PY
     ;;
 
   *)
-    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json' and 'auth --json [--poll]'" >&2
+    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json', 'auth --json [--poll]', 'deprovision <org> --json', and 'update --json'" >&2
     exit 2
     ;;
 esac
