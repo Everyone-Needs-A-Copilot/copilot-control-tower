@@ -91,9 +91,9 @@ question is answered — or betrayed.
 | **CV1** | The status-glyph state set — "the icon that cannot lie" | Component family (menu-bar) | Bob | MTM-2 (rank 1) |
 | **CV2** | The status dropdown / popover across its key states | Screen (popover) | Bob | MTM-2, MTM-3, MTM-4 |
 | **CV3** | The first-run setup wizard (silent managed + unmanaged) | Phase (windowed) | Bob | MTM-1 |
-| **CV4** | The Admin / fleet dashboard (hosts x status) | Screen (window) | Raj (IT) | MTM-4, MTM-5, closes the observability gap |
+| **CV4** | The Admin / fleet dashboard (hosts x status) | Screen (window) | Earl (IT) | MTM-4, MTM-5, closes the observability gap |
 
-Four critical views. Bob owns three of them (Founding Decision 2, Bob-first); Raj owns one, and it is
+Four critical views. Bob owns three of them (Founding Decision 2, Bob-first); Earl owns one, and it is
 first-class because it is the enabler that makes a silently-working Bob possible at fleet scale.
 
 ### 2.3 Critical View Definitions
@@ -145,10 +145,10 @@ first-class because it is the enabler that makes a silently-working Bob possible
 |-----------|--------|
 | Screens | The one dense surface — a resizable window (min 900x600pt): the **fleet table** (rows = machines, sortable by health family: healthy / stuck / behind / needs-auth), the **red/green preflight** checklist, the **version-skew bar** ("83% on current SHA"), and the **govern queue** (held-majors + time-boxed Bob items + content-free policy log). |
 | Phase | Admin steady state + standup (Flows 9-10). |
-| Primary user | Raj (IT), technical, opts into the density; never Bob. |
+| Primary user | Earl (IT), technical, opts into the density; never Bob. |
 | Why critical | Closes the ecosystem's named observability gap — "IT literally cannot tell a healthy Mac from a bricked one." It carries MTM-4 (held-major routes to the right desk) and rests entirely on honest CLI-parsed states, so **no false-Healthy can appear here either**. It is the surface most tempted toward *The Second Pilot* (a computed "health score"). |
-| Design imperative | Density is *earned* (Hick's/Miller's limits relax for Raj), but the tone is identical to Bob's: still shape+color+text, still no gamification, still no computed score. The status cell renders the **same badge family** as the tray glyph + a status dot + a plain-language cell. Preflight verdict carried by ✓/✕ *shape*, not color. |
-| Constraint | **No "fleet health 94/100" score, no trophy rings, no sparkline flourish** — a number that looks computed-by-us implies the app judges health (*The Second Pilot*). Any red preflight item blocks deploy and deep-links to the fix. No item shown here is ever also shown to Bob. a11y AA applies to Raj too — the ✓/✕ shape survives grayscale. |
+| Design imperative | Density is *earned* (Hick's/Miller's limits relax for Earl), but the tone is identical to Bob's: still shape+color+text, still no gamification, still no computed score. The status cell renders the **same badge family** as the tray glyph + a status dot + a plain-language cell. Preflight verdict carried by ✓/✕ *shape*, not color. |
+| Constraint | **No "fleet health 94/100" score, no trophy rings, no sparkline flourish** — a number that looks computed-by-us implies the app judges health (*The Second Pilot*). Any red preflight item blocks deploy and deep-links to the fix. No item shown here is ever also shown to Bob. a11y AA applies to Earl too — the ✓/✕ shape survives grayscale. |
 
 ---
 
@@ -310,7 +310,7 @@ badge treatment tip from "legible" toward "decorated"?
 Leans hardest on the air-traffic metaphor. Per-host attribution and the fleet become a controller's
 flight-strip register — aligned fact rows, worst-wins made spatial, monochrome with color as a scalpel.
 Most distinct on CV4 (the dashboard reads as a strip board) and on CV2's Hosts ▸ detail. The bet: Bob
-and Raj trust it because every fact is *present, aligned, and un-blended* — nothing is summarized into a
+and Earl trust it because every fact is *present, aligned, and un-blended* — nothing is summarized into a
 blur. Risk to test: does density fight the half-second-glance bar on CV1/CV2, where Bob wants one
 sentence, not a board?
 

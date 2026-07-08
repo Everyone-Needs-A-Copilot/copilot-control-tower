@@ -6,7 +6,7 @@
  *
  * Restraint check (60-ui-design.md § 6): zero sparkline/trophy/gauge
  * decoration anywhere below — this file draws a table, a badge, and plain
- * text, nothing else. Raj's surface is "the one dense surface", but density
+ * text, nothing else. Earl's surface is "the one dense surface", but density
  * here means row count, not visual ornamentation.
  */
 

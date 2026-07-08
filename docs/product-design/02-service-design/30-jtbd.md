@@ -48,7 +48,7 @@
   comfortable than Bob; wants **power**, not just safety. Not a Git user.
   `> **Evidence: MODEL-IN-HEAD** — the multi-writer authoring loop (Obsidian → save → push → sync) has
   **never been run with more than one writer.**`
-- **Raj (IT / Admin operator)** — stands up the ecosystem for the org and deploys it via
+- **Earl (IT / Admin operator)** — stands up the ecosystem for the org and deploys it via
   Jamf/Kandji/Intune; owns the fleet. The **primary Admin-mode persona.**
   `> **Evidence: HYPOTHESIS** — no real IT operator has touched Admin mode, a fleet dashboard, or a
   deprovision. This whole persona's journey is an untested behavioral bet.`
@@ -56,7 +56,7 @@
   *by hand today*, and needs the always-on agent to make the ecosystem *safer* to adopt, not riskier.
   The **trust-basis** persona and the *original author* (the foundation-tier case of Ada's job).
   `> **Evidence: OBSERVED** (his daily hand-sync pain).`
-- **Jane / Sam (developer-contributor)** — *secondary context only.* They keep using the CLI directly
+- **Rosa / Dwayne (developer-contributor)** — *secondary context only.* They keep using the CLI directly
   (`ecosystem-use-cases.md` UC1–UC12). Control Tower must **not break** their workflow, but the
   end-user experience is not designed for them (`10-scope-and-non-goals.md`, explicit non-goal).
 
@@ -102,7 +102,7 @@
      home. What ELSE belongs in the personal layer for Knowledge Copilot + the CLI Copilot integration
      layer? Shapes X1's boundary definition. -->
 
-## Raj — IT / Admin Operator (Primary Admin-mode Persona) Jobs
+## Earl — IT / Admin Operator (Primary Admin-mode Persona) Jobs
 
 > `> **Evidence: HYPOTHESIS**` — every job in this table is an untested behavioral bet; no real IT
 > operator has run any of it.
@@ -124,7 +124,7 @@
 | O3 | Integrity | **When** Control Tower renders any state, **I want** it to *parse* the CLI's verdict and never compute one, **so I can** guarantee there is never a second, wrong source of truth. | **P0** |
 | O4 | Privacy | **When** telemetry flows to an IT dashboard, **I want** a personal item name to be *un-emittable by construction*, **so I can** close the observability gap without creating a surveillance tool. | **P1** |
 
-## Jane / Sam — Developer-Contributor (Secondary Context) Jobs
+## Rosa / Dwayne — Developer-Contributor (Secondary Context) Jobs
 
 | # | Phase | Job Statement | Priority |
 |---|-------|---------------|----------|
@@ -162,7 +162,7 @@
 **P2 Jobs (nice to have, post-MLP):**
 - **B7** — clean, non-orphaning removal / uninstall.
 
-**Total: 22 jobs across 5 user types (Bob 8, Ada 3, cross-cutting 1, Raj 5, Pablo 4, Jane/Sam 1).**
+**Total: 22 jobs across 5 user types (Bob 8, Ada 3, cross-cutting 1, Earl 5, Pablo 4, Rosa/Dwayne 1).**
 
 > **Warning:** 22 jobs is a lot, and the temptation is to weight every persona equally. Don't — and
 > keep **Bob-first primacy** even now that the author tier exists. The P0 jobs cluster into two spines

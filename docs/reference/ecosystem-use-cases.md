@@ -13,13 +13,13 @@
 
 ## Cast (a running example)
 
-- **Jane** — a developer in the **Engineering** department at **acme-corp** (an enterprise). She has all four tiers.
-- **Raj** — acme-corp's **platform lead**; he authors the **org** layer everyone inherits.
+- **Rosa** — a developer in the **Engineering** department at **acme-corp** (an enterprise). She has all four tiers.
+- **Earl** — acme-corp's **platform lead**; he authors the **org** layer everyone inherits.
 - **Mira** — a **Finance** department lead at acme-corp; she authors the **Finance department** layer.
 - **Pablo** — an **ENAC maintainer**; he authors the **foundation** and runs promotions.
-- **Sam** — an **independent** solo user with no company; just **personal + foundation**.
+- **Dwayne** — an **independent** solo user with no company; just **personal + foundation**.
 
-Jane's resolved stack (nearest wins): `personal-jane › dept-engineering › org-acme › foundation`.
+Rosa's resolved stack (nearest wins): `personal-jane › dept-engineering › org-acme › foundation`.
 
 ---
 
@@ -40,11 +40,11 @@ Jane's resolved stack (nearest wins): `personal-jane › dept-engineering › or
 
 ### Use Case 1 — New employee onboarding (wire three tiers in one command)
 
-**Persona:** Jane, day one at acme-corp.
+**Persona:** Rosa, day one at acme-corp.
 **Goal:** get the company's agents, skills, commands, and knowledge without hand-assembling anything.
 
 ```bash
-# IT provides one bootstrap; Jane runs it once.
+# IT provides one bootstrap; Rosa runs it once.
 ./acme-onboard.sh
 #   → verifies her enterprise SSH key (Host github-work)
 #   → asks/confirms her department: "engineering" → cc config set layers.department engineering
@@ -58,13 +58,13 @@ cc config add paths.layer "$HOME/.copilot/layers/personal:ssh-personal"
 copilot update
 ```
 
-**Result:** Jane's `.claude/` now contains the merged set — foundation agents, org-wide skills, Engineering-specific skills, and (if added) her personal overrides — all from one command. She never manually copied a file.
+**Result:** Rosa's `.claude/` now contains the merged set — foundation agents, org-wide skills, Engineering-specific skills, and (if added) her personal overrides — all from one command. She never manually copied a file.
 
 ---
 
 ### Use Case 2 — Daily "pull latest everywhere" (`copilot update`)
 
-**Persona:** Jane, any morning.
+**Persona:** Rosa, any morning.
 **Goal:** stay current as the foundation, org, and her department evolve independently.
 
 ```bash
@@ -87,13 +87,13 @@ Re-materializing .claude/ …
 3 new, 1 updated, 0 conflicts. Lockfile updated.
 ```
 
-**Result:** one fan-out pulls every layer with the correct credential per URL (personal key, work key, anon), re-materializes `.claude/`, and prints a **provenance diff** so Jane sees exactly what changed and which layer won. Her personal `qa` override survives the org/foundation updates.
+**Result:** one fan-out pulls every layer with the correct credential per URL (personal key, work key, anon), re-materializes `.claude/`, and prints a **provenance diff** so Rosa sees exactly what changed and which layer won. Her personal `qa` override survives the org/foundation updates.
 
 ---
 
 ### Use Case 3 — "Why is this agent behaving this way?" (`resolve --explain`)
 
-**Persona:** Jane, debugging surprising behavior from the `qa` agent.
+**Persona:** Rosa, debugging surprising behavior from the `qa` agent.
 **Goal:** see which layer's version is active and what it shadows.
 
 ```bash
@@ -108,7 +108,7 @@ agents/qa.md
   shadows  foundation         (agents/qa.md @ 9c8d7e6)
 ```
 
-**Result:** the git-`--show-origin`-style trace answers "what's active and why" offline. Jane realizes *she* overrode `qa` months ago; she deletes her personal copy and re-runs `copilot update` to fall back to the org version.
+**Result:** the git-`--show-origin`-style trace answers "what's active and why" offline. Rosa realizes *she* overrode `qa` months ago; she deletes her personal copy and re-runs `copilot update` to fall back to the org version.
 
 ---
 
@@ -116,7 +116,7 @@ agents/qa.md
 
 ### Use Case 4 — Personal-only agent (the "accountant") — PERSONAL layer
 
-**Persona:** Sam, an independent user (personal + foundation only).
+**Persona:** Dwayne, an independent user (personal + foundation only).
 **Goal:** a personal accounting agent nobody else should ever get.
 
 ```bash
@@ -127,7 +127,7 @@ git commit -am "add personal accountant agent" && git push
 copilot update                     # materializes accountant into .claude/agents/
 ```
 
-**Result:** `@agent-accountant` is available in Sam's sessions. Because it lives in his private personal repo at the top of the stack, it is invisible to everyone else and overrides nothing (no lower layer has an `accountant`).
+**Result:** `@agent-accountant` is available in Dwayne's sessions. Because it lives in his private personal repo at the top of the stack, it is invisible to everyone else and overrides nothing (no lower layer has an `accountant`).
 
 ---
 
@@ -142,7 +142,7 @@ $EDITOR skills/tax-calc/SKILL.md
 git commit -am "add tax-calc skill" && git push
 ```
 
-Any Finance member (`layers.department = finance`) runs `copilot update` and inherits `tax-calc`. Jane in Engineering does **not** — her manifest resolves `dept-engineering`, which has no `tax-calc`, and the org/foundation layers don't either.
+Any Finance member (`layers.department = finance`) runs `copilot update` and inherits `tax-calc`. Rosa in Engineering does **not** — her manifest resolves `dept-engineering`, which has no `tax-calc`, and the org/foundation layers don't either.
 
 **Result:** department scoping is automatic — audience is defined by *which department layer a user resolves*, set once via `cc config set layers.department`.
 
@@ -150,7 +150,7 @@ Any Finance member (`layers.department = finance`) runs `copilot update` and inh
 
 ### Use Case 6 — Company-wide skill (Excel-to-JSON) — ORG layer
 
-**Persona:** Raj, platform lead.
+**Persona:** Earl, platform lead.
 **Goal:** the owner's canonical example — an `excel-to-json` skill *everyone* at acme-corp inherits.
 
 ```bash
@@ -159,7 +159,7 @@ $EDITOR skills/excel-to-json/SKILL.md
 git commit -am "add excel-to-json skill, company-wide" && git push
 ```
 
-**Result:** on their next `copilot update`, **every** acme-corp dev — every department — inherits `excel-to-json`, because the org layer sits below all departments and above only the foundation. Raj published once; the whole company pulled it. A department may still *shadow* it with its own version (Use Case 7); a personal layer may shadow it further.
+**Result:** on their next `copilot update`, **every** acme-corp dev — every department — inherits `excel-to-json`, because the org layer sits below all departments and above only the foundation. Earl published once; the whole company pulled it. A department may still *shadow* it with its own version (Use Case 7); a personal layer may shadow it further.
 
 ---
 
@@ -168,7 +168,7 @@ git commit -am "add excel-to-json skill, company-wide" && git push
 **Persona:** Pablo, ENAC maintainer.
 **Goal:** the owner's third example — add an industrial-designer stage to the protocol chain so *every Copilot user on earth* gets it.
 
-Because the foundation is public and PR-gated, Pablo doesn't push directly — he authors in ENAC's private staging layer and **promotes** (Use Case 9). The end state: the public `foundation` ships a new protocol stage; on the next `copilot update`, Jane, Sam, and every other user worldwide see the industrial-designer step appear in their protocol chain (as in Use Case 2's diff).
+Because the foundation is public and PR-gated, Pablo doesn't push directly — he authors in ENAC's private staging layer and **promotes** (Use Case 9). The end state: the public `foundation` ships a new protocol stage; on the next `copilot update`, Rosa, Dwayne, and every other user worldwide see the industrial-designer step appear in their protocol chain (as in Use Case 2's diff).
 
 **Result:** a single foundation change fans out globally through the one mechanism everyone already runs — `copilot update`.
 
@@ -178,7 +178,7 @@ Because the foundation is public and PR-gated, Pablo doesn't push directly — h
 
 ### Use Case 8 — Overriding a lower layer (reported shadowing)
 
-**Persona:** Jane wants a stricter `qa` than the org ships.
+**Persona:** Rosa wants a stricter `qa` than the org ships.
 **Goal:** replace the org `qa` agent for herself only, without forking anything.
 
 ```bash
@@ -193,7 +193,7 @@ copilot update
 agents/qa.md   personal-jane   (shadows org-acme › foundation)   [override: true — no warning]
 ```
 
-**Result:** whole-unit override — Jane's `qa` wins for her; everyone else still gets the org's. The shadow is **reported, not silent**. Adding `override: true` marks it intentional (suppresses the "you're shadowing" warning); omitting it still works but warns, so *accidental* same-name collisions get flagged.
+**Result:** whole-unit override — Rosa's `qa` wins for her; everyone else still gets the org's. The shadow is **reported, not silent**. Adding `override: true` marks it intentional (suppresses the "you're shadowing" warning); omitting it still works but warns, so *accidental* same-name collisions get flagged.
 
 ---
 
@@ -201,7 +201,7 @@ agents/qa.md   personal-jane   (shadows org-acme › foundation)   [override: tr
 
 Two flavors of the same idea — a capability proves useful to a wider audience and moves up a layer.
 
-**9a — Department → Org (internal promotion).** Mira's Finance `tax-calc` skill turns out useful company-wide. Because department repos are separate by default, promotion is a **cross-repo `copilot promote --to org`**: Raj reviews it, and the tool cherry-picks the flagged commit from `copilot-dept-finance` into `copilot-org`, preserving author and signature. Now every department inherits it; Finance deletes its now-redundant copy (or lets the identical org version shadow-match harmlessly). *(Narrow exception: under an explicit `subfolder`-topology opt-in for non-confidential departmental content, promotion collapses to a plain `git mv departments/finance/skills/tax-calc org/skills/` within the one repo — but this is the exception, not the headline path.)*
+**9a — Department → Org (internal promotion).** Mira's Finance `tax-calc` skill turns out useful company-wide. Because department repos are separate by default, promotion is a **cross-repo `copilot promote --to org`**: Earl reviews it, and the tool cherry-picks the flagged commit from `copilot-dept-finance` into `copilot-org`, preserving author and signature. Now every department inherits it; Finance deletes its now-redundant copy (or lets the identical org version shadow-match harmlessly). *(Narrow exception: under an explicit `subfolder`-topology opt-in for non-confidential departmental content, promotion collapses to a plain `git mv departments/finance/skills/tax-calc org/skills/` within the one repo — but this is the exception, not the headline path.)*
 
 **9b — ENAC Org → Foundation (public promotion, `copilot promote`).** Pablo's industrial-designer step (authored in ENAC's private staging) is generic and world-safe:
 
@@ -261,7 +261,7 @@ POLICY  dept-finance/agents/sec.md  DENIED (department.may_never) — not materi
 
 ### Use Case 12 — Pin, preview, and roll back (version safety)
 
-**Persona:** Jane, cautious before a big foundation bump.
+**Persona:** Rosa, cautious before a big foundation bump.
 **Goal:** see what an update would change before applying it, and freeze if needed.
 
 ```bash

@@ -26,7 +26,7 @@
   Git user.
   > **Evidence: MODEL-IN-HEAD** — the multi-writer authoring loop (Obsidian → save → push → sync) has
   > **never been run with more than one writer.** This entire journey is a model, not an observation.
-- **Raj (IT / Admin, primary Admin-mode)** — platform lead standing up + deploying the ecosystem;
+- **Earl (IT / Admin, primary Admin-mode)** — platform lead standing up + deploying the ecosystem;
   owns the fleet; arrives *wary of a token-holding always-on agent* his security team will question.
   > **Evidence: HYPOTHESIS** — no real IT operator has stood up the ecosystem, watched a fleet
   > dashboard, or run a deprovision. This entire journey is an untested behavioral bet.
@@ -34,7 +34,7 @@
   the *only* operator, keeping two machines in parity **by hand**; arrives *anxious that the always-on
   face makes the ecosystem riskier to adopt*, and needs the opposite to be provably true.
   > **Evidence: OBSERVED** (his daily hand-sync pain).
-- **Jane / Sam (secondary context)** — developers on the CLI; their journey is "nothing changed for me
+- **Rosa / Dwayne (secondary context)** — developers on the CLI; their journey is "nothing changed for me
   and my tree wasn't touched." Abbreviated below as a do-no-harm check.
 
 **Primary persona we design for first: Bob** (change-averse consumer). Ada (author) is the new
@@ -223,7 +223,7 @@ Earn access → Author in Obsidian → Save & Publish → It Lands Everywhere �
 
 ---
 
-## 3. Raj — IT / Admin Operator Journey (abbreviated)
+## 3. Earl — IT / Admin Operator Journey (abbreviated)
 
 ```
 Evaluate trust → Author seed → Generate MDM profile → Preflight → Deploy → Watch fleet → Govern & Offboard
@@ -254,7 +254,7 @@ Ship a security fix → Trust it propagates → Audit → Pass an enterprise rev
 - **Pass a review:** the always-on agent is demonstrably *safer than manual* — zero bypass flags,
   every pull visible/verified/policy-bounded/auditable; parse-never-compute holds (O2/O3).
 
-## 5. Jane / Sam — Developer (do-no-harm check)
+## 5. Rosa / Dwayne — Developer (do-no-harm check)
 
 ```
 Keep using the CLI → Tree untouched → No double-write
@@ -331,7 +331,7 @@ collapsing them.
 3. **The dropdown menu** (Sync now, Repair, What changed, Add a skill, Sign in, Hosts ▸, Preferences,
    Quit) — each action spawns a CLI verb; the menu never mutates state.
 4. **Notifications** — rare by design; fire only when Bob is the sole competent actor (invariant #5).
-5. **The Admin-mode window / fleet dashboard** (Raj) — the observability surface + generators.
+5. **The Admin-mode window / fleet dashboard** (Earl) — the observability surface + generators.
 6. **The Obsidian authoring surface + "publish" action** (Ada) — the write-lane touchpoint; a
    tier-scoped vault + a publish button that is *never* a Git terminal, with the leakage wall enforced
    at the point of push. `> **MODEL-IN-HEAD**`.
@@ -368,7 +368,7 @@ collapsing them.
 | Auto-suspend security-shadowing overrides | A security fix must never depend on a notification Bob never sees | 100% coverage — any miss is a Critical regression |
 | Single process + CLI-side `flock`; crash-only watchdog | Two schedulers tore `.claude/`; `KeepAlive=true` crash-loops | Exactly one binary; no torn tree under concurrent invocation |
 | Security keys honored only from the forced/managed domain | User-domain override → supply-chain RCE | No user-domain security key ever honored; tamper events logged |
-| Never touch a dirty personal tree | Trust + the do-no-harm guarantee for Jane/Sam | Zero incidents of Control Tower mutating a dirty working tree |
+| Never touch a dirty personal tree | Trust + the do-no-harm guarantee for Rosa/Dwayne | Zero incidents of Control Tower mutating a dirty working tree |
 | MDM-native, offline-honest deprovision | A user-deletable app must not be the sole wipe trigger | Access revoked on next online update even if the app is trashed |
 | Structural personal↔shared separation (the leakage wall) | Personal content in a shared/public repo is irreversible — Anxiety #2; prevent, don't detect | Zero personal-layer artifacts reachable by a shared remote; a cross-tier push fails closed (new P0) |
 | Non-technical merge-conflict resolution *(UNSOLVED)* | Two non-Git authors must never lose work or see a conflict marker | No data loss; no Git literacy required; escalate-to-author if unsafe. `> **MODEL-IN-HEAD**` — solve before opening write access to a 2nd author |

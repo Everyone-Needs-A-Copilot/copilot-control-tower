@@ -171,7 +171,7 @@ page. A tray popover that needed 96px rhythm would already be too big.)
 | `--popover-height` | grows to content; internal scroll **only** on the Needs-attention finding list | The menu never becomes a scrolling wall; only a finding list may exceed |
 | `--menu-row-height` | **28pt** | Native macOS menu density. *(See target-size note below.)* |
 | `--wizard-window` | ~**520 × 420pt**, centered on the **active** display | A real window, not a popover; must not open off-screen on an external monitor |
-| `--admin-window` | resizable, min **900 × 600pt** | The one dense surface — Raj is technical, density is earned (UX Admin patterns) |
+| `--admin-window` | resizable, min **900 × 600pt** | The one dense surface — Earl is technical, density is earned (UX Admin patterns) |
 | `--dashboard-row-height` | **32pt** | Slightly taller than a menu row for a scannable fleet table |
 
 > **Target-size — deliberate, native, and AA-compliant.** The design-system default of 44px touch
@@ -376,14 +376,14 @@ fallback (US-B16) — same content, no new visual language.
 
 ### 6. Admin / Fleet Dashboard — the one dense surface, same restrained language
 
-Raj is technical; Hick's/Miller's limits relax here (UX Admin patterns). Density is *earned*, but the
+Earl is technical; Hick's/Miller's limits relax here (UX Admin patterns). Density is *earned*, but the
 tone is identical — **still no gamification, still shape+colour+text, still no computed "score."**
 
 - **Fleet table** — rows = machines, `--dashboard-row-height` 32pt, zebra on `--surface-sunken`.
   Sortable by health family. The status cell renders the **same badge family** as the tray glyph plus a
   **status dot** + a **plain-language cell** naming the worst **product and layer** ("Codex Copilot —
-  personal layer signed-out") — never colour alone, never a bare dot (a11y §1 applies to Raj too). A
-  machine detail row expands to the same product × four-layer breakdown Bob's dropdown uses (Raj sees
+  personal layer signed-out") — never colour alone, never a bare dot (a11y §1 applies to Earl too). A
+  machine detail row expands to the same product × four-layer breakdown Bob's dropdown uses (Earl sees
   which product-layer on which machine). Healthy rows are the quietest: a plain green dot + "In sync
   across all products," no emphasis.
 - **Red/green preflight** — a vertical checklist; each item is **✓ pass / ✕ fail** *shape* + green/red

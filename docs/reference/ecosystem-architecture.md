@@ -206,7 +206,7 @@ The persona least likely to have backup hygiene was defaulted into the lose-ever
 
 ### 5.5 Teaching (P10) & progressive extension
 
-Install ends by teaching self-service: a printed/`~/.copilot/CHEATSHEET.md` cheat-sheet, plus a **guided authoring command** — `copilot add skill --personal` *asks* in plain English, *scaffolds* a valid trigger-rich SKILL.md, files it in the right layer, and materializes. `--department`/`--org` variants exist for Mira/Raj, gated on write permission. `copilot extend <product>` reuses the same idempotent runner, skipping every already-green phase.
+Install ends by teaching self-service: a printed/`~/.copilot/CHEATSHEET.md` cheat-sheet, plus a **guided authoring command** — `copilot add skill --personal` *asks* in plain English, *scaffolds* a valid trigger-rich SKILL.md, files it in the right layer, and materializes. `--department`/`--org` variants exist for Mira/Earl, gated on write permission. `copilot extend <product>` reuses the same idempotent runner, skipping every already-green phase.
 
 ### 5.6 Reliable product invocation — automatic routing, not a typed verb
 

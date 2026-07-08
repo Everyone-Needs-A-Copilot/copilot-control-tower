@@ -4,7 +4,7 @@
 > document in this directory (and [`../08-observability/operator-guide.md`](../08-observability/operator-guide.md))
 > describes **Admin mode** — the IT/fleet-operator surface. As of this writing,
 > **no real IT operator has touched Admin mode.** These docs are designed-to,
-> not validated-by-use. Raj (the IT/Admin persona) is a hypothesis the product
+> not validated-by-use. Earl (the IT/Admin persona) is a hypothesis the product
 > is built for, not a proven shape (`SOUL.md` §1 psychographic table, §9 item
 > 9). Treat every workflow below as "this is how it should work," not "this is
 > confirmed to work for a real IT team" — and do not let a confident tone in

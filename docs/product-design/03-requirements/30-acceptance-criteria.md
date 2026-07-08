@@ -132,7 +132,7 @@
   because its `Program` path is missing.
 
 ### FC-19 · Admin seed + scaffolding + preflight (US-A01, US-A02, US-A05)
-- **Given** the seed generator, **when** Raj completes the flow, **then** a **valid** `ecosystem.yml` is
+- **Given** the seed generator, **when** Earl completes the flow, **then** a **valid** `ecosystem.yml` is
   produced and a PR opened, with no hand-YAML.
 - **Given** a declared dept repo that does not exist, **when** preflight runs, **then** it reports **red**
   before rollout (a typo can't ship a 404).
@@ -140,12 +140,12 @@
   dept repos exist, policy signed, profile complete-for-silent, pin resolves, mirror reachable.
 
 ### FC-20 · MDM profile generator (US-A04)
-- **Given** the generator, **when** Raj completes it, **then** it emits one `.mobileconfig` for
+- **Given** the generator, **when** Earl completes it, **then** it emits one `.mobileconfig` for
   `dev.enac.controltower` **complete-for-silent** plus login-item + notifications payloads, and uploading
   it makes managed wizards run with zero questions.
 
 ### FC-21 · Fleet dashboard (US-A07, US-A08)
-- **Given** a deployed fleet, **when** Raj opens the dashboard, **then** he can distinguish
+- **Given** a deployed fleet, **when** Earl opens the dashboard, **then** he can distinguish
   healthy / stuck / behind / needs-auth **at a glance**, over honest CLI-parsed states.
 - **Given** a new locked SHA is published, **when** the version-skew panel updates, **then** it shows the
   fraction of the fleet on-current.

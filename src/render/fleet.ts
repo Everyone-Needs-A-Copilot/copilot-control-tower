@@ -22,8 +22,8 @@
  * judgment blended across them. Per-host status is worst-wins, the SAME
  * precedence the tray glyph already uses (`badges.ts`'s `BadgeState`
  * vocabulary, reused verbatim here — never a second badge vocabulary for
- * Raj). Status is carried by SHAPE + plain-language text, never colour
- * alone (a11y hard rule — applies to Raj exactly as it applies to Bob).
+ * Earl). Status is carried by SHAPE + plain-language text, never colour
+ * alone (a11y hard rule — applies to Earl exactly as it applies to Bob).
  *
  * **Actionable-items feed is content-free by construction.** Each
  * `FleetActionItem` carries only `kind` (M6's `ItSignalKind`) + `machine_id`

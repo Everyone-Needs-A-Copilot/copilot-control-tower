@@ -21,10 +21,10 @@ character) is constant; the register modulates.
 | Register | Who | Rule |
 |---|---|---|
 | **Bob-facing** | The non-technical primary persona. No terminal, denies permission prompts, may run Focus/DND. | Plain language. **Zero jargon.** Names the failing **product and layer** and the one thing to do. Reassuring only as far as the CLI can prove it. |
-| **IT/Admin-facing** | Raj and the org security team, in the Admin window. Competent, technical. | Precise and technical-OK: key names, host names, finding IDs, counts, SHAs. Still calm, still never alarmist. |
+| **IT/Admin-facing** | Earl and the org security team, in the Admin window. Competent, technical. | Precise and technical-OK: key names, host names, finding IDs, counts, SHAs. Still calm, still never alarmist. |
 
 Where a string below shows both, the event reaches both surfaces at once (e.g. IT-config-incomplete,
-the security auto-suspend, a persistence-disabled Mac). **A word that is fine for Raj is not
+the security auto-suspend, a persistence-disabled Mac). **A word that is fine for Earl is not
 automatically fine for Bob** — Bob never learns "profile", "schema", "key `EcosystemSeedURL`",
 "exit code", "CLI", "flock", "YAML", or "daemon". See **Banned Language**.
 
@@ -66,7 +66,7 @@ The single promise every string must keep: **the icon that cannot lie.** Copy is
 Control Tower is a **supervisor that reports to you**, not an assistant that performs for you and not
 a friend that cheers you on. To **Bob**, it is the quiet colleague who only ever speaks up about *his*
 things and handles the rest without a fuss — and who, crucially, tells him the truth even when the
-truth is "not yet." To **Raj**, it is a precise operations console: dense, factual, deep-linkable, and
+truth is "not yet." To **Earl**, it is a precise operations console: dense, factual, deep-linkable, and
 equally incapable of showing green over red.
 
 It is never the pilot. It renders the CLI's verdict in plain language; it never generates a verdict of

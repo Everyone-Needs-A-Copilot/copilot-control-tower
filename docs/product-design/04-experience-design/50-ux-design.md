@@ -90,7 +90,7 @@ Copilot Control Tower
 │   ├─ Honest holding screens        (IT-config-incomplete · Waiting-for-network)
 │   └─ Teach panel                    (cheat-sheet · add first skill · backup offer)
 │
-└─ SURFACE 3 — Admin / fleet window                ◀── Raj (IT), not Bob; opened rarely
+└─ SURFACE 3 — Admin / fleet window                ◀── Earl (IT), not Bob; opened rarely
     ├─ Setup flow                     (seed gen → scaffolding → policy → MDM profile → preflight)
     ├─ Fleet dashboard                (healthy / stuck / behind / needs-auth at a glance)
     ├─ Version-skew panel
@@ -105,7 +105,7 @@ the browser device-flow sign-in · the org telemetry endpoint.
 depth affordance is the **per-product expand ▾** (each product row discloses its four layers inline, in
 place). This is progressive disclosure, not navigation: nothing takes Bob to another screen; a layer
 list unfolds beneath the product and folds back. The wizard is linear and mostly auto-advancing. Only
-the Admin window has tabbed sections, because Raj is technical and does real work there. This asymmetry
+the Admin window has tabbed sections, because Earl is technical and does real work there. This asymmetry
 is the Bob-first decision made structural.
 
 > **Miller's-Law tension the product-grouping introduces (flagged).** With N products the list can grow
@@ -228,7 +228,7 @@ absence *is* the design.
 
 ### Flow 9 — Admin standup + fleet deploy · US-A01…A07 · S5 · CV-5
 
-1. Raj opens the Admin window → **Seed generator** authors `ecosystem.yml` + opens a PR (no hand-YAML).
+1. Earl opens the Admin window → **Seed generator** authors `ecosystem.yml` + opens a PR (no hand-YAML).
 2. **Repo & access scaffolding** creates/verifies org + per-dept repos; **declared-repo existence
    check** flags a typo *before* rollout (US-A02).
 3. **Capability-policy editor** signs with the security key (distinct from push).
@@ -237,8 +237,8 @@ absence *is* the design.
 5. **Red/green preflight** validates the whole path (seed parses · dept repos exist · policy signed ·
    profile complete-for-silent · pin resolves · mirror reachable). **Any red blocks deploy** and links
    to the offending item (E.g. a declared-repo 404 caught here, not as a field false-Healthy).
-6. All green → Raj uploads one app + one profile to the MDM → the fleet self-provisions (Flow 1 at
-   scale) → Raj watches the **fleet dashboard**.
+6. All green → Earl uploads one app + one profile to the MDM → the fleet self-provisions (Flow 1 at
+   scale) → Earl watches the **fleet dashboard**.
 
 ### Flow 10 — Watch, govern, offboard (Admin steady state) · US-A07…A14 · CV-4
 
@@ -333,9 +333,9 @@ is denied, high-severity events **fall back to opening the popover** and safety 
 and past-tense for auto-acted security ("kept you safe"), direct and singular for a Bob-owned action,
 reassuring understatement for a rollback ("kept your working version").
 
-### Admin-window patterns (Raj, technical)
+### Admin-window patterns (Earl, technical)
 
-The Admin window is the one surface allowed real density (Raj is competent; Hick's/Miller's limits
+The Admin window is the one surface allowed real density (Earl is competent; Hick's/Miller's limits
 relax). Patterns: a **red/green preflight** (binary, scannable, any red blocks deploy and deep-links to
 the fix); a **fleet table** sortable by health family (healthy / stuck / behind / needs-auth); a
 **skew bar** (fraction on current locked SHA); a **govern queue** (held-majors + time-boxed Bob items
@@ -411,7 +411,7 @@ guarantee for that user.*
 non-technical, may be colour-blind, may run VoiceOver, may never open the menu. The design answers each
 — shape+text not colour, spoken status not just visual, popover-fallback when notifications are denied,
 and near-zero required interaction. The Admin window targets the same AA bar; its density is acceptable
-because Raj opts into it, but its preflight red/green also carries shape/text, never colour alone.
+because Earl opts into it, but its preflight red/green also carries shape/text, never colour alone.
 
 <!-- TODO: confirm whether the org telemetry / Admin dashboard needs an explicit high-contrast theme
      beyond system light/dark, and whether kiosk/multi-user (arch §11 open decision 3) changes the

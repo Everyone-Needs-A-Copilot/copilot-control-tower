@@ -109,7 +109,7 @@ democratization run in the background.
 - **The IT / admin operator (Admin mode) — the enabler, not a co-equal product.**
   `> **Evidence: HYPOTHESIS**` — **no real IT operator has ever touched Admin mode, a fleet
   dashboard, or a deprovision.** Whether a real IT admin will trust a dashboard enough to *act* on it
-  (vs. wait for Bob to call) is an untested behavioral bet. Modeled as **Raj** (platform lead) and the
+  (vs. wait for Bob to call) is an untested behavioral bet. Modeled as **Earl** (platform lead) and the
   org security team from `reference/ecosystem-use-cases.md` (UC6, UC11), but those personas are
   inferred, not interviewed. Stands up the ecosystem and deploys it via Jamf/Kandji/Intune; wants a
   fleet they can see, trust, and provision without hand-editing YAML.
@@ -119,8 +119,8 @@ democratization run in the background.
   Needs the always-on agent to make the ecosystem *safer* to adopt, not riskier — the whole reason
   the app is open source with reproducible builds and two-of-N signing (`architecture.md` §1, §7).
 
-Secondary context personas from `reference/ecosystem-use-cases.md`: **Jane** (a developer with all
-four layers), **Mira** (Finance dept lead), **Sam** (independent solo user). Control Tower must not
+Secondary context personas from `reference/ecosystem-use-cases.md`: **Rosa** (a developer with all
+four layers), **Mira** (Finance dept lead), **Dwayne** (independent solo user). Control Tower must not
 break their existing CLI workflow — it supervises the same pipeline they run by hand.
 
 ## Core Capabilities

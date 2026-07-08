@@ -3,7 +3,7 @@
 > **UNVALIDATED HYPOTHESIS (Founding Decision #9).** This runbook describes
 > **Admin mode**, the IT/fleet-operator surface — no real IT operator has
 > touched it. It is written to the design (`architecture.md` §8.1, `SOUL.md`
-> §1's Raj row: *"To stand up and deploy the whole ecosystem from a guided
+> §1's Earl row: *"To stand up and deploy the whole ecosystem from a guided
 > tool + docs alone... — HYPOTHESIS, no real IT operator has touched it"*).
 > Follow it as the intended path, not as a confirmed-working procedure.
 
@@ -13,7 +13,7 @@
 > step says which, explicitly, so this runbook doesn't quietly imply more is
 > built than is.
 
-**Who this is for:** an IT/security admin (Raj) standing up Control Tower for
+**Who this is for:** an IT/security admin (Earl) standing up Control Tower for
 their org, end to end, from Admin mode + this doc alone — the SOUL success
 signal this runbook exists to satisfy is *"I stood up the whole fleet from
 Admin mode and the docs alone — I never hand-edited YAML."* Today, step 1

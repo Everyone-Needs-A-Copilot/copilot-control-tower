@@ -76,7 +76,7 @@
 ### Scenario 5 — Org standup + fleet deploy (Admin)
 *Covers US-A01–A07, US-A16; job A1/A2. The enabler flow.*
 
-**Trigger:** Raj opens Admin mode to stand up the ecosystem for his org.
+**Trigger:** Earl opens Admin mode to stand up the ecosystem for his org.
 
 **Steps:**
 1. **Seed generator** authors `ecosystem.yml` and opens a PR (no hand-YAML).
@@ -84,8 +84,8 @@
 3. **Capability-policy** editor signs with the security key (distinct from push).
 4. **MDM profile generator** emits one `.mobileconfig` (managed keys + login-item + notifications payloads), pre-filled.
 5. **Preflight** produces a red/green report: seed parses, dept repos exist, policy signed, profile complete-for-silent, pin resolves, mirror reachable. All green.
-6. Raj uploads one app + one profile to the MDM; the fleet self-provisions (Scenario 1 at scale).
-7. Raj watches the **fleet dashboard** — healthy / stuck / behind / needs-auth at a glance.
+6. Earl uploads one app + one profile to the MDM; the fleet self-provisions (Scenario 1 at scale).
+7. Earl watches the **fleet dashboard** — healthy / stuck / behind / needs-auth at a glance.
 
 **Outcome:** The org is stood up and deployed from Admin mode + docs alone; the observability gap is closed. Target ≥90% of setups complete unaided (PROVISIONAL).
 
@@ -94,7 +94,7 @@
 ### Scenario 6 — Offboarding a leaver
 *Covers US-A13, US-A14; job A4, MTM (clean exit).*
 
-**Trigger:** HR marks an employee as departed; Raj sets `Deprovisioned=true` in the managed profile.
+**Trigger:** HR marks an employee as departed; Earl sets `Deprovisioned=true` in the managed profile.
 
 **Steps:**
 1. Server-side token revocation fires (the real backstop).

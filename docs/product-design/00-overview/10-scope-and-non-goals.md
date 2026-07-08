@@ -96,7 +96,7 @@ parallelizes off these (`prd.md` §2, critical path).
   purpose is to drive trust and adoption of the broader `copilot`/`cc` ecosystem; success is adoption
   + trust + reliability, never revenue. No paid tier, no enterprise SKU, no hosted service.
 - **Designing for the reliable-power-user as the primary Operator-mode persona.** *Rationale:* Bob
-  is not a reliable actor; the developer (Jane/Sam) keeps using the CLI directly — Control Tower must
+  is not a reliable actor; the developer (Rosa/Dwayne) keeps using the CLI directly — Control Tower must
   not break that, but the end-user experience is designed for Bob, not for them
   (`redteam-use-cases.md`, Bob-agency recommendation).
 

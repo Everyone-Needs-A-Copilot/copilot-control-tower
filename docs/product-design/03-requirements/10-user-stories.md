@@ -21,9 +21,9 @@
 | Code | Persona | Mode | Role in the priority model |
 |------|---------|------|-----------------------------|
 | **B** | **Bob** — non-technical employee | Operator | **Primary.** The P0 spine. No terminal, denies OS prompts, ignores single nudges, may run Focus/DND. |
-| **A** | **Raj** — IT / Admin operator | Admin | The **enabler.** P0 where it makes a working Bob possible, else P1. |
+| **A** | **Earl** — IT / Admin operator | Admin | The **enabler.** P0 where it makes a working Bob possible, else P1. |
 | **O** | **Pablo** — ecosystem owner / ENAC maintainer | Trust basis | Mostly P1/P2; P0 for the parse-never-compute + security invariants. |
-| **D** | **Jane / Sam** — developer-contributor | CLI (secondary) | Do-no-harm only. Success = they never notice Control Tower. |
+| **D** | **Rosa / Dwayne** — developer-contributor | CLI (secondary) | Do-no-harm only. Success = they never notice Control Tower. |
 
 ---
 
@@ -209,11 +209,11 @@
 
 ---
 
-## Raj — IT / Admin Operator Stories
+## Earl — IT / Admin Operator Stories
 
 ### Setup — stand up the org (job A1, MTM enabler)
 
-**US-A01 (P1):** As Raj, when I stand up the ecosystem, I want a **guided seed generator** that authors `ecosystem.yml` and opens the PR, so that I never hand-write YAML.
+**US-A01 (P1):** As Earl, when I stand up the ecosystem, I want a **guided seed generator** that authors `ecosystem.yml` and opens the PR, so that I never hand-write YAML.
 
 **Acceptance Criteria:**
 - The generator produces a valid `ecosystem.yml` (products, departments, pins, `auth`/`host`/`mirror`, `policy_signers`, telemetry) and opens a PR. (H1)
@@ -221,7 +221,7 @@
 
 ---
 
-**US-A02 (P1):** As Raj, when I create org repos, I want **repo & access scaffolding** with a declared-repo existence check, so that a typo can't ship a 404 to the fleet.
+**US-A02 (P1):** As Earl, when I create org repos, I want **repo & access scaffolding** with a declared-repo existence check, so that a typo can't ship a 404 to the fleet.
 
 **Acceptance Criteria:**
 - Creates/verifies org + separate per-department repos; emits team/CODEOWNERS/branch-protection. (H2)
@@ -229,14 +229,14 @@
 
 ---
 
-**US-A03 (P1):** As Raj, when I set capability policy, I want a **guided policy editor that signs with a security key distinct from push authority**, so that policy integrity is enforced.
+**US-A03 (P1):** As Earl, when I set capability policy, I want a **guided policy editor that signs with a security key distinct from push authority**, so that policy integrity is enforced.
 
 **Acceptance Criteria:**
 - Policy is signed by an authorized signer; the signing key is distinct from push authority. (H3)
 
 ---
 
-**US-A04 (P0):** As Raj, when I prepare a fleet deploy, I want an **MDM profile generator** that emits a ready-to-upload `.mobileconfig` (managed keys + login-item + notifications payloads) pre-filled with my org's values, so that every employee's wizard runs silent. *(P0 — this is what enables Bob's Silent First Light.)*
+**US-A04 (P0):** As Earl, when I prepare a fleet deploy, I want an **MDM profile generator** that emits a ready-to-upload `.mobileconfig` (managed keys + login-item + notifications payloads) pre-filled with my org's values, so that every employee's wizard runs silent. *(P0 — this is what enables Bob's Silent First Light.)*
 
 **Acceptance Criteria:**
 - Emits one `.mobileconfig` for `dev.enac.controltower` complete-for-the-silent-path, plus login-item + notifications payloads. (H4)
@@ -244,7 +244,7 @@
 
 ---
 
-**US-A05 (P0):** As Raj, when I'm about to push to the fleet, I want a **red/green preflight** that validates the whole path before rollout, so that I catch a typo/missing key **before** the fleet breaks — not as a field false-Healthy. *(P0 — prevents the mis-provisioned Bob.)*
+**US-A05 (P0):** As Earl, when I'm about to push to the fleet, I want a **red/green preflight** that validates the whole path before rollout, so that I catch a typo/missing key **before** the fleet breaks — not as a field false-Healthy. *(P0 — prevents the mis-provisioned Bob.)*
 
 **Acceptance Criteria:**
 - Preflight checks: seed parses, declared dept repos exist, policy signed, profile **complete-for-silent** (the A-C1/B-H4 check run proactively), foundation pin resolves, mirror reachable. (H5)
@@ -252,7 +252,7 @@
 
 ---
 
-**US-A06 (P0):** As Raj, when preflight is green, I want to **deploy one artifact** to my MDM and have the fleet self-provision, so that I never touch each machine. *(P0 — the mechanical completion of the silent-Bob path.)*
+**US-A06 (P0):** As Earl, when preflight is green, I want to **deploy one artifact** to my MDM and have the fleet self-provision, so that I never touch each machine. *(P0 — the mechanical completion of the silent-Bob path.)*
 
 **Acceptance Criteria:**
 - One signed app + one profile uploaded to the MDM results in silent self-provision across managed machines.
@@ -262,7 +262,7 @@
 
 ### Operate — watch the fleet (job A2)
 
-**US-A07 (P0):** As Raj, when employees' machines drift, fall behind, or lose auth, I want a **fleet dashboard** showing healthy / stuck / behind / needs-auth at a glance, so that I trust the fleet without waiting for Bob to call. *(P0 — closes the ecosystem's named observability gap.)*
+**US-A07 (P0):** As Earl, when employees' machines drift, fall behind, or lose auth, I want a **fleet dashboard** showing healthy / stuck / behind / needs-auth at a glance, so that I trust the fleet without waiting for Bob to call. *(P0 — closes the ecosystem's named observability gap.)*
 
 **Acceptance Criteria:**
 - The dashboard renders sync health, drift, auth-expiry, version skew, usage/adoption. (G3)
@@ -271,7 +271,7 @@
 
 ---
 
-**US-A08 (P1):** As Raj, when the foundation publishes a new locked SHA, I want a **version-skew panel** showing fleet convergence, so that I can see who's behind.
+**US-A08 (P1):** As Earl, when the foundation publishes a new locked SHA, I want a **version-skew panel** showing fleet convergence, so that I can see who's behind.
 
 **Acceptance Criteria:**
 - The panel shows the fraction of the fleet on the current locked SHA.
@@ -281,7 +281,7 @@
 
 ### Govern — decisions that need my authority (job A3, MTM-4)
 
-**US-A09 (P1):** As Raj, when a held-major upgrade is pending, I want it to **route to my dashboard as an actionable item**, so that I decide with the authority Bob lacks.
+**US-A09 (P1):** As Earl, when a held-major upgrade is pending, I want it to **route to my dashboard as an actionable item**, so that I decide with the authority Bob lacks.
 
 **Acceptance Criteria:**
 - Held-majors reach IT centrally (approver authority declared in `ecosystem.yml`); Bob sees only the non-actionable "waiting on IT." (fixes A-H11)
@@ -289,14 +289,14 @@
 
 ---
 
-**US-A10 (P1):** As Raj, when a capability-policy conflict occurs, I want it in my **action log only**, so that Bob is never notified about something he can't action.
+**US-A10 (P1):** As Earl, when a capability-policy conflict occurs, I want it in my **action log only**, so that Bob is never notified about something he can't action.
 
 **Acceptance Criteria:**
 - Policy denials/conflicts route to the IT action log, never a Bob notification. (fixes A-M15)
 
 ---
 
-**US-A11 (P0):** As Raj, when a safety-relevant event fires (sig-fail, auth-revoked, policy-conflict, stalled-onboarding, persistence-disabled, notifications-off), I want it to reach a **live IT channel on-by-default for managed machines**, so that "IT notified" is never a no-op. *(P0 — this makes the security guarantee real, MTM-3.)*
+**US-A11 (P0):** As Earl, when a safety-relevant event fires (sig-fail, auth-revoked, policy-conflict, stalled-onboarding, persistence-disabled, notifications-off), I want it to reach a **live IT channel on-by-default for managed machines**, so that "IT notified" is never a no-op. *(P0 — this makes the security guarantee real, MTM-3.)*
 
 **Acceptance Criteria:**
 - Safety escalation is **split from analytics** and on-by-default for managed machines via a **mandatory** `AdminContact`. (fixes A-C5)
@@ -305,7 +305,7 @@
 
 ---
 
-**US-A12 (P1):** As Raj, when a machine's login item or notifications get disabled, I want that **detected and escalated**, so that a silently-off background agent isn't mistaken for a powered-off Mac.
+**US-A12 (P1):** As Earl, when a machine's login item or notifications get disabled, I want that **detected and escalated**, so that a silently-off background agent isn't mistaken for a powered-off Mac.
 
 **Acceptance Criteria:**
 - `SMAppService.status == .requiresApproval` / disabled login item is detected and surfaced as "persistence disabled" to IT. (fixes B-H3)
@@ -315,7 +315,7 @@
 
 ### Offboard — reliable removal (job A4)
 
-**US-A13 (P0):** As Raj, when an employee leaves, I want deprovision to be **MDM-native + server-side token revocation**, so that company access is revoked even if the employee trashes the app or stays offline. *(P0 — the "no secret ever materialized" guarantee.)*
+**US-A13 (P0):** As Earl, when an employee leaves, I want deprovision to be **MDM-native + server-side token revocation**, so that company access is revoked even if the employee trashes the app or stays offline. *(P0 — the "no secret ever materialized" guarantee.)*
 
 **Acceptance Criteria:**
 - Only an explicit `Deprovisioned=true` (never mere profile removal) triggers a wipe. (fixes B-M1)
@@ -325,7 +325,7 @@
 
 ---
 
-**US-A14 (P1):** As Raj, when a deprovision fires, I want a **soft-then-hard two-phase** with a grace window, so that an accidental flip is recoverable without a re-clone.
+**US-A14 (P1):** As Earl, when a deprovision fires, I want a **soft-then-hard two-phase** with a grace window, so that an accidental flip is recoverable without a re-clone.
 
 **Acceptance Criteria:**
 - Deprovision is debounced over a settling window; clones are quarantined for a grace window before hard wipe. (fixes B-M2)
@@ -335,7 +335,7 @@
 
 ### Audit (job A5)
 
-**US-A15 (P1):** As Raj, when my security team reviews what the always-on agent did, I want a **content-free, tamper-evident action log anchored to the org endpoint**, so that I can prove every auto-pull was visible, verified, and policy-bounded.
+**US-A15 (P1):** As Earl, when my security team reviews what the always-on agent did, I want a **content-free, tamper-evident action log anchored to the org endpoint**, so that I can prove every auto-pull was visible, verified, and policy-bounded.
 
 **Acceptance Criteria:**
 - A hash-chained action log is anchored to the org endpoint so truncation is server-detectable. (G4/B-L2)
@@ -343,7 +343,7 @@
 
 ---
 
-**US-A16 (P1):** As Raj, when I stand up the ecosystem, I want a **complete documentation set** (quickstart, per-MDM deploy guides, config reference, security-&-trust doc, ops/offboarding runbook), so that I can deploy from docs alone.
+**US-A16 (P1):** As Earl, when I stand up the ecosystem, I want a **complete documentation set** (quickstart, per-MDM deploy guides, config reference, security-&-trust doc, ops/offboarding runbook), so that I can deploy from docs alone.
 
 **Acceptance Criteria:**
 - The doc set is versioned in the public repo and covers Jamf/Kandji/Intune. (H6)
@@ -414,7 +414,7 @@
 
 ---
 
-## Jane / Sam — Developer-Contributor Stories (do-no-harm)
+## Rosa / Dwayne — Developer-Contributor Stories (do-no-harm)
 
 **US-D01 (P1, do-no-harm):** As a developer, when Control Tower supervises the same pipeline I run by hand, I want my direct `copilot update` / `resolve --explain` workflow to keep working **untouched**, so that I keep my terminal habits without the GUI double-writing my tree.
 
@@ -448,22 +448,22 @@
 | US-B17 | Security-shadow auto-suspend (Bob view) | Bob | P0 | US-O01, US-A11 |
 | US-B18 | Bad self-update rollback | Bob | P1 | US-B01 |
 | US-B19 | Clean uninstall, no orphans | Bob | P2 | — |
-| US-A01 | Guided seed generator | Raj | P1 | — |
-| US-A02 | Repo & access scaffolding | Raj | P1 | US-A01 |
-| US-A03 | Capability-policy authoring + signing | Raj | P1 | US-A01 |
-| US-A04 | MDM profile generator | Raj | P0 | US-A01 |
-| US-A05 | Red/green preflight | Raj | P0 | US-A02, US-A03, US-A04 |
-| US-A06 | Deploy one artifact → fleet self-provision | Raj | P0 | US-A05 |
-| US-A07 | Fleet dashboard | Raj | P0 | US-O07 |
-| US-A08 | Version-skew panel | Raj | P1 | US-A07 |
-| US-A09 | Held-major routes to IT | Raj | P1 | US-A07 |
-| US-A10 | Policy conflicts → IT action log | Raj | P1 | US-A11 |
-| US-A11 | Safety escalations reach live IT channel | Raj | P0 | US-A04 |
-| US-A12 | Persistence/notifications-off detection | Raj | P1 | US-A11 |
-| US-A13 | MDM-native deprovision | Raj | P0 | US-A04 |
-| US-A14 | Soft-then-hard wipe + grace | Raj | P1 | US-A13 |
-| US-A15 | Content-free tamper-evident audit log | Raj | P1 | US-A11 |
-| US-A16 | Documentation set | Raj | P1 | US-A01…A05 |
+| US-A01 | Guided seed generator | Earl | P1 | — |
+| US-A02 | Repo & access scaffolding | Earl | P1 | US-A01 |
+| US-A03 | Capability-policy authoring + signing | Earl | P1 | US-A01 |
+| US-A04 | MDM profile generator | Earl | P0 | US-A01 |
+| US-A05 | Red/green preflight | Earl | P0 | US-A02, US-A03, US-A04 |
+| US-A06 | Deploy one artifact → fleet self-provision | Earl | P0 | US-A05 |
+| US-A07 | Fleet dashboard | Earl | P0 | US-O07 |
+| US-A08 | Version-skew panel | Earl | P1 | US-A07 |
+| US-A09 | Held-major routes to IT | Earl | P1 | US-A07 |
+| US-A10 | Policy conflicts → IT action log | Earl | P1 | US-A11 |
+| US-A11 | Safety escalations reach live IT channel | Earl | P0 | US-A04 |
+| US-A12 | Persistence/notifications-off detection | Earl | P1 | US-A11 |
+| US-A13 | MDM-native deprovision | Earl | P0 | US-A04 |
+| US-A14 | Soft-then-hard wipe + grace | Earl | P1 | US-A13 |
+| US-A15 | Content-free tamper-evident audit log | Earl | P1 | US-A11 |
+| US-A16 | Documentation set | Earl | P1 | US-A01…A05 |
 | US-O01 | Security auto-suspend fleet-wide | Pablo | P0 | US-A11 |
 | US-O02 | OSS + reproducible + two-of-N signing | Pablo | P1 | — |
 | US-O03 | Zero bypass flags — safer than manual | Pablo | P1 | US-O05 |
@@ -471,16 +471,16 @@
 | US-O05 | Parse-never-compute | Pablo | P0 | US-O06 |
 | US-O06 | Bidirectional schema gate, fail-closed | Pablo | P0 | — (WS-A contract) |
 | US-O07 | Personal name un-emittable | Pablo | P1 | — |
-| US-D01 | Direct CLI workflow untouched | Jane/Sam | P1 | US-O06 (WS-A flock) |
+| US-D01 | Direct CLI workflow untouched | Rosa/Dwayne | P1 | US-O06 (WS-A flock) |
 
 ## Story Summary
 
 | User Type | P0 Stories | P1 Stories | P2 Stories | Total |
 |-----------|-----------|-----------|-----------|-------|
 | Bob (Operator) | 10 | 8 | 1 | 19 |
-| Raj (IT / Admin) | 6 | 10 | 0 | 16 |
+| Earl (IT / Admin) | 6 | 10 | 0 | 16 |
 | Pablo (Ecosystem owner) | 4 | 3 | 0 | 7 |
-| Jane / Sam (Contributor) | 0 | 1 | 0 | 1 |
+| Rosa / Dwayne (Contributor) | 0 | 1 | 0 | 1 |
 | **Total** | **20** | **22** | **1** | **43** |
 
 ## Critical View Coverage (touchpoints → stories)

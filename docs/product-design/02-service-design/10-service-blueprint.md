@@ -47,7 +47,7 @@ S1 Deploy (IT)  →  S2 Provision (Bob)  →  S3 First Partner  →  S4 Steady-S
 
 ## Customer Actions
 
-| Stage | Bob (Operator) | Raj (IT / Admin) |
+| Stage | Bob (Operator) | Earl (IT / Admin) |
 |-------|----------------|-------------------|
 | **S1 Deploy** | — | Authors seed in the generator; generates + preflights the MDM profile; uploads one `.mobileconfig` to Jamf/Kandji/Intune |
 | **S2 Provision** | Double-clicks once (or nothing, managed); approves the one browser sign-in; confirms company/team if unmanaged | Watches the fleet begin to report in |

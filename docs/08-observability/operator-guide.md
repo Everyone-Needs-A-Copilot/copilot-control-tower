@@ -79,7 +79,7 @@ not fixed here.
 `spinner`, `hollow`, `none`) — shape + color + a plain-language cell, legible
 in grayscale, never color alone. `render/fleet.ts`'s own module doc confirms
 this is deliberate: "the SAME badge vocabulary... never a second badge
-vocabulary for Raj." An operator reading the fleet table sees the same
+vocabulary for Earl." An operator reading the fleet table sees the same
 visual language a Bob sees on his own tray, just aggregated into rows.
 
 ## The safety-escalation feed (a separate, always-visible list)

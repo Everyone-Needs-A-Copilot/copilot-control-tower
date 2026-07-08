@@ -1,0 +1,326 @@
+<title>What You Need to Run Copilot Control Tower</title>
+<style>
+  :root {
+    --indigo: #3b3570;
+    --indigo-bright: #6d64c4;
+    --ground: #f5f5f9;
+    --surface: #ffffff;
+    --surface-2: #eeeef4;
+    --ink: #17162200;
+    --ink: #171622;
+    --ink-soft: #56536b;
+    --ink-faint: #86829c;
+    --line: #e2e1ec;
+    --req: #3b3570;      /* you do this */
+    --opt: #9a6a17;      /* optional */
+    --opt-bg: #f6ecd6;
+    --none: #2f6a4c;     /* users never touch */
+    --none-bg: #dcece2;
+    --radius: 14px;
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --maxw: 62rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --indigo: #a9a2ec;
+      --indigo-bright: #b7b0f2;
+      --ground: #100e18;
+      --surface: #1a1726;
+      --surface-2: #221e30;
+      --ink: #e9e8f2;
+      --ink-soft: #b0acc4;
+      --ink-faint: #7f7b95;
+      --line: #2c2839;
+      --req: #a9a2ec;
+      --opt: #e0b869;
+      --opt-bg: #322915;
+      --none: #79c79c;
+      --none-bg: #16281f;
+    }
+  }
+  :root[data-theme="light"] {
+    --indigo: #3b3570; --indigo-bright: #6d64c4; --ground: #f5f5f9; --surface: #ffffff;
+    --surface-2: #eeeef4; --ink: #171622; --ink-soft: #56536b; --ink-faint: #86829c;
+    --line: #e2e1ec; --req: #3b3570; --opt: #9a6a17; --opt-bg: #f6ecd6; --none: #2f6a4c; --none-bg: #dcece2;
+  }
+  :root[data-theme="dark"] {
+    --indigo: #a9a2ec; --indigo-bright: #b7b0f2; --ground: #100e18; --surface: #1a1726;
+    --surface-2: #221e30; --ink: #e9e8f2; --ink-soft: #b0acc4; --ink-faint: #7f7b95;
+    --line: #2c2839; --req: #a9a2ec; --opt: #e0b869; --opt-bg: #322915; --none: #79c79c; --none-bg: #16281f;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--font-sans); font-size: 17px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  /* ---- masthead ---- */
+  header.masthead { padding: 68px 0 40px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--indigo); margin: 0 0 18px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before {
+    content: ""; width: 26px; height: 26px; flex: none;
+    background: var(--indigo);
+    -webkit-mask: var(--glyph) center/contain no-repeat; mask: var(--glyph) center/contain no-repeat;
+  }
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.04; letter-spacing: -0.02em;
+    font-weight: 800; margin: 0 0 20px; text-wrap: balance; max-width: 20ch;
+  }
+  .standfirst {
+    font-size: clamp(1.06rem, 2.4vw, 1.3rem); color: var(--ink-soft); max-width: 60ch;
+    margin: 0; line-height: 1.5;
+  }
+  .standfirst b { color: var(--ink); font-weight: 650; }
+
+  /* ---- the two-role thesis ---- */
+  .thesis { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 40px 0 8px; }
+  @media (max-width: 620px) { .thesis { grid-template-columns: 1fr; } }
+  .role {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 26px 24px; position: relative; overflow: hidden;
+  }
+  .role::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent, var(--indigo));
+  }
+  .role.user { --accent: var(--none); }
+  .role.pub  { --accent: var(--req); }
+  .role .who { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 6px; }
+  .role h3 { margin: 0 0 10px; font-size: 1.35rem; letter-spacing: -0.01em; }
+  .role p { margin: 0; color: var(--ink-soft); font-size: 0.98rem; }
+  .role .verdict { display: inline-block; margin-top: 16px; font-weight: 700; font-size: 0.95rem; color: var(--accent); }
+
+  /* ---- sections ---- */
+  section { padding: 52px 0; border-bottom: 1px solid var(--line); }
+  .sec-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--indigo); margin: 0 0 8px; }
+  h2 { font-size: clamp(1.5rem, 3.5vw, 2rem); letter-spacing: -0.02em; margin: 0 0 14px; font-weight: 750; text-wrap: balance; }
+  section > .wrap > p { color: var(--ink-soft); max-width: 64ch; }
+  p a { color: var(--indigo); text-underline-offset: 3px; }
+
+  /* ---- status chips (shape + color, never color alone) ---- */
+  .chip { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em; font-weight: 600; padding: 3px 9px 3px 7px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; }
+  .chip::before { content: ""; width: 9px; height: 9px; flex: none; }
+  .chip.req { color: var(--req); background: color-mix(in srgb, var(--req) 12%, transparent); }
+  .chip.req::before { background: var(--req); border-radius: 2px; }                         /* filled square */
+  .chip.opt { color: var(--opt); background: var(--opt-bg); }
+  .chip.opt::before { border: 2px solid var(--opt); border-radius: 999px; }                 /* hollow ring */
+  .chip.none { color: var(--none); background: var(--none-bg); }
+  .chip.none::before { height: 2px; background: var(--none); align-self: center; }           /* dash */
+
+  /* ---- tables ---- */
+  .tablewrap { overflow-x: auto; margin-top: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.94rem; }
+  th, td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; background: var(--surface-2); position: sticky; top: 0; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.name { font-weight: 650; color: var(--ink); }
+  td.name .mono { display: block; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); font-weight: 500; margin-top: 3px; letter-spacing: 0.02em; }
+  td .desc { color: var(--ink-soft); }
+  .center { text-align: center; }
+  td.cost { font-family: var(--font-mono); font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+
+  /* ---- tier cards ---- */
+  .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }
+  @media (max-width: 780px) { .tiers { grid-template-columns: 1fr; } }
+  .tier { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 22px; display: flex; flex-direction: column; }
+  .tier .code { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+  .tier h3 { margin: 6px 0 4px; font-size: 1.2rem; letter-spacing: -0.01em; }
+  .tier .sub { color: var(--ink-soft); font-size: 0.9rem; margin: 0 0 16px; }
+  .tier ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+  .tier li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; font-size: 0.92rem; color: var(--ink-soft); line-height: 1.45; }
+  .tier li .mk { font-family: var(--font-mono); font-weight: 700; color: var(--indigo); line-height: 1.5; }
+  .tier li .mk.n { color: var(--none); }
+  .tier li b { color: var(--ink); font-weight: 650; }
+  .tier.lead { border-color: color-mix(in srgb, var(--indigo) 40%, var(--line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--indigo) 22%, transparent); }
+
+  /* ---- callout ---- */
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--indigo); border-radius: var(--radius); padding: 22px 24px; margin-top: 26px; }
+  .callout p { margin: 0; color: var(--ink-soft); font-size: 0.96rem; }
+  .callout p + p { margin-top: 10px; }
+  .callout b { color: var(--ink); }
+
+  footer { padding: 44px 0 72px; color: var(--ink-faint); font-size: 0.85rem; }
+  footer .mono { font-family: var(--font-mono); }
+  footer a { color: var(--indigo); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    a, .chip { transition: color .15s ease; }
+  }
+</style>
+
+<div style="--glyph: url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 487 243%22><path d=%22M120.6 195C79.5 195 46.2 171.5 46.2 118.1 46.2 64.7 80.7 48 139 48c58.3 0 91.2 10.2 91.2 42.5 0 32.4-53.6 104.5-109.6 104.5Z%22/><path d=%22M367.4 195c41.1 0 74.4-23.5 74.4-76.9 0-53.4-34.5-70.1-92.8-70.1-58.3 0-91.2 10.2-91.2 42.5 0 32.4 60.4 104.5 109.6 104.5Z%22/></svg>');">
+
+<header class="masthead"><div class="wrap">
+  <p class="eyebrow">Copilot Control Tower · Deployment</p>
+  <h1>What you actually need to run it</h1>
+  <p class="standfirst">The short version: <b>if you install it, you need nothing.</b> A signed release just runs. Someone who <b>publishes</b> releases signs them once. And the fleet infrastructure — telemetry, MDM, a shared secret store — is <b>optional</b>, and only for organizations that want those features. This page says exactly who needs what.</p>
+</div></header>
+
+<div class="wrap">
+  <div class="thesis">
+    <div class="role user">
+      <p class="who">If you're installing it</p>
+      <h3>The end user</h3>
+      <p>A developer or an employee who runs the menu-bar app. You download a signed release and open it. No account, no certificate, no infrastructure, no configuration file.</p>
+      <span class="verdict">→ You need nothing.</span>
+    </div>
+    <div class="role pub">
+      <p class="who">If you're distributing it</p>
+      <h3>The publisher / IT admin</h3>
+      <p>Whoever cuts the releases or deploys it across an organization. You sign each release once, and — only if you want the fleet features — stand up a little optional infrastructure.</p>
+      <span class="verdict">→ A one-time signing setup, plus optional infra.</span>
+    </div>
+  </div>
+</div>
+
+<section id="signing"><div class="wrap">
+  <p class="sec-label">Signing · one-time, publisher-side</p>
+  <h2>Nobody signs but the publisher</h2>
+  <p>Code signing is how an operating system decides to trust a binary. An unsigned, always-on background agent triggers a security warning and fails an enterprise security review — which this product is built to pass. So releases are signed. But signing is done <b>once, by whoever publishes the release</b>; everyone who downloads that release runs it with no signing step at all. The only people who ever sign are those who fork and rebuild it themselves — the same as any open-source project.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Credential</th><th>What it's for</th><th class="center">Who needs it</th><th>Cost</th><th class="center">Required?</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="name">Apple Developer ID<span class="mono">scripts/sign.sh · notarize.sh</span></td>
+          <td class="desc">Signs &amp; notarizes the macOS app so it opens without a Gatekeeper warning.</td>
+          <td class="center">Publisher</td>
+          <td class="cost">$99&nbsp;/&nbsp;yr</td>
+          <td class="center"><span class="chip req">Required to ship macOS</span></td>
+        </tr>
+        <tr>
+          <td class="name">minisign key set (2-of-N)<span class="mono">updater::multisig</span></td>
+          <td class="desc">Authorizes a self-update. Two of several key-holders must sign — no single person can push an update.</td>
+          <td class="center">Publisher</td>
+          <td class="cost">free</td>
+          <td class="center"><span class="chip opt">Only if auto-update is on</span></td>
+        </tr>
+        <tr>
+          <td class="name">Windows EV certificate<span class="mono">scripts/sign-windows.ps1</span></td>
+          <td class="desc">Signs the Windows build so SmartScreen trusts it. Comes on a hardware token from a certificate authority.</td>
+          <td class="center">Publisher</td>
+          <td class="cost">~$300–500&nbsp;/&nbsp;yr</td>
+          <td class="center"><span class="chip opt">Only to ship Windows</span></td>
+        </tr>
+        <tr>
+          <td class="name">The end user</td>
+          <td class="desc">Downloads a signed release and opens it.</td>
+          <td class="center">—</td>
+          <td class="cost">free</td>
+          <td class="center"><span class="chip none">Never signs anything</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section id="infra"><div class="wrap">
+  <p class="sec-label">Infrastructure · optional, organization-side</p>
+  <h2>The endpoints, and who truly needs them</h2>
+  <p>These are servers or URLs the app can talk to. None are hosted by us — an organization stands them up if it wants that feature. <b>For an individual, all four are unnecessary.</b> Each is a self-hosted, open component; there is no paid tier and no service to sign up for.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Endpoint</th><th>What it does</th><th class="center">Individual</th><th class="center">Team</th><th class="center">Enterprise&nbsp;fleet</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="name">Update feed<span class="mono">a static JSON URL</span></td>
+          <td class="desc">A URL the app checks for “is there a newer version?” Can be a file on S3 or GitHub Releases.</td>
+          <td class="center"><span class="chip none">Not needed</span></td>
+          <td class="center"><span class="chip opt">Optional</span></td>
+          <td class="center"><span class="chip opt">Optional</span></td>
+        </tr>
+        <tr>
+          <td class="name">Telemetry collector<span class="mono">opt-in · off by default</span></td>
+          <td class="desc">Receives content-free fleet events (host + status only, never file names) for the dashboard.</td>
+          <td class="center"><span class="chip none">Not needed</span></td>
+          <td class="center"><span class="chip opt">Optional</span></td>
+          <td class="center"><span class="chip opt">Optional</span></td>
+        </tr>
+        <tr>
+          <td class="name">Managed secret store<span class="mono">Infisical / OpenBao</span></td>
+          <td class="desc">Lets a team share identity-less integration credentials at tier scope. Self-hosted.</td>
+          <td class="center"><span class="chip none">Not needed</span></td>
+          <td class="center"><span class="chip opt">Optional</span></td>
+          <td class="center"><span class="chip opt">Optional</span></td>
+        </tr>
+        <tr>
+          <td class="name">MDM / .mobileconfig<span class="mono">Jamf · Intune · Kandji</span></td>
+          <td class="desc">Pushes managed configuration to company machines for a zero-question, silent setup.</td>
+          <td class="center"><span class="chip none">Not needed</span></td>
+          <td class="center"><span class="chip none">Not needed</span></td>
+          <td class="center"><span class="chip opt">Optional</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section id="tiers"><div class="wrap">
+  <p class="sec-label">By situation</p>
+  <h2>Start from where you are</h2>
+  <div class="tiers">
+    <div class="tier lead">
+      <span class="code">Situation 01</span>
+      <h3>An individual developer</h3>
+      <p class="sub">You just want to run it on your own machine.</p>
+      <ul>
+        <li><span class="mk n">✓</span><span>Download a <b>signed release</b> and open it.</span></li>
+        <li><span class="mk n">✓</span><span>Sign in when the app asks (your own accounts).</span></li>
+        <li><span class="mk n">—</span><span>No infrastructure. No certificate. No config.</span></li>
+      </ul>
+    </div>
+    <div class="tier">
+      <span class="code">Situation 02</span>
+      <h3>A small team</h3>
+      <p class="sub">You distribute it to a handful of people.</p>
+      <ul>
+        <li><span class="mk">1</span><span>Get an <b>Apple Developer ID</b>; sign + notarize releases.</span></li>
+        <li><span class="mk">2</span><span><b>Optional:</b> an update feed so the team auto-updates.</span></li>
+        <li><span class="mk">3</span><span><b>Optional:</b> a shared secret store if you share integration credentials.</span></li>
+      </ul>
+    </div>
+    <div class="tier">
+      <span class="code">Situation 03</span>
+      <h3>An enterprise fleet</h3>
+      <p class="sub">IT deploys it across many machines.</p>
+      <ul>
+        <li><span class="mk">1</span><span>Sign + notarize; add <b>minisign 2-of-N</b> for update integrity.</span></li>
+        <li><span class="mk">2</span><span>Push config via <b>MDM</b> for a silent, zero-question setup.</span></li>
+        <li><span class="mk">3</span><span><b>Optional:</b> telemetry collector for the fleet dashboard.</span></li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<section id="status"><div class="wrap">
+  <p class="sec-label">Honest status</p>
+  <h2>What is, and isn't, wired up yet</h2>
+  <p>The app is built and its seams for all of the above exist and are tested. But turning them <i>on</i> for real depends on things only an owner can supply: the signing certificates above, the CLI engine the app drives (published separately), and whichever endpoints an organization chooses to host. Until those land, the app runs against local mocks.</p>
+  <div class="callout">
+    <p><b>The one gap worth naming:</b> proactive OS notifications aren't built yet on either platform — the app surfaces what needs attention in its own window instead. Everything else on this page is code-complete and waiting on the credentials and endpoints, not on more building.</p>
+    <p>Deeper detail for whoever deploys it lives in the repository under <span class="mono" style="font-family:var(--font-mono);color:var(--ink)">docs/06-deployment/</span> — the per-area owner-gated checklists and the platform bring-up runbooks.</p>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <p class="mono">Copilot Control Tower · open source, free forever · no paid tier, no hosted service, no closed component.</p>
+</div></footer>
+
+<script>
+  // keep the viewer's theme toggle authoritative over the media query
+  (function () {
+    var root = document.documentElement;
+    try {
+      var saved = null;
+      if (saved) root.setAttribute("data-theme", saved);
+    } catch (e) {}
+  })();
+</script>
