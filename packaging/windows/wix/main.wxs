@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  M9 Stream-I (task 78) — per-user MSI template (invariant #3, admin-free
+  constraint, `docs/01-architecture/windows-parity.md` §1 rows 10/11,
+  ADR-M9-005). Windows analogue of the macOS `.pkg`/`.dmg` distribution
+  path — the direct-install artifact for Intune/SCCM push or manual
+  download; `packaging/windows/winget/` is the discoverable-install
+  companion.
+
+  ## HARD reality (be honest — read before touching this file)
+
+  There is NO Windows toolchain, NO WiX toolset, and NO Tauri Windows
+  bundler on this machine. This file has never been rendered by
+  `tauri-bundler`/`cargo-wix`, never compiled by `light.exe`/`candle.exe`
+  (WiX v3) or `wix.exe` (WiX v4), and never installed. It is authored
+  against Tauri's PUBLICLY DOCUMENTED default WiX template shape (the
+  `{{handlebars_placeholder}}` names below match tauri-bundler's own
+  well-known default `main.wxs` template as of Tauri v2) — but the EXACT
+  placeholder set can drift between `tauri-cli`/`cargo-wix` versions.
+  **Owner-gated, before the first real Windows build**: diff this file
+  against the real default template the installed `tauri-cli` version
+  ships (a verbose debug build targeting x86_64-pc-windows-msvc extracts
+  it, or inspect the `tauri-bundler` crate source at the pinned version)
+  and reconcile any placeholder drift. A placeholder mismatch
+  fails the WiX compile LOUDLY (a missing-variable build error), which is
+  the safe failure mode — it cannot silently produce a wrong-scope MSI.
+
+  ## THE INVARIANT THIS FILE ENCODES (never-admin, invariant #3/§7)
+
+  `InstallScope="perUser"` on `<Package>` + the `ALLUSERS` property left
+  EMPTY (never `"1"`) is what makes this a per-user install: no admin
+  token needed, installs under `%LocalAppData%\Programs\...` rather than
+  `%ProgramFiles%`, and `HKCU` (not `HKLM`) is the only registry hive this
+  installer itself ever writes to (`HKLM\...\Policies` is IT/MDM-managed —
+  this installer never touches it, matching `windows-parity.md` §1 row 3's
+  read-only/forced-domain boundary). **`ALLUSERS="1"` must NEVER appear in
+  this file** — that is the exact per-machine/admin-required anti-pattern
+  this task exists to avoid. A future edit that adds it back is a direct
+  invariant #3 regression, not a style choice.
+
+  Tauri's own docs name this exact gap: the WiX bundler has no first-class
+  "install mode" toggle the way the NSIS bundler does
+  (`bundle.windows.nsis.installMode`) — a custom `wix.template` override
+  (this file, referenced from `tauri.conf.json`'s `bundle.windows.wix.template`)
+  is the documented mechanism for per-user WiX/MSI output.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="{{product_name}}"
+    UpgradeCode="{{upgrade_code}}"
+    Language="{{language}}"
+    Codepage="{{codepage}}"
+    Version="{{version}}"
+    Manufacturer="{{manufacturer}}">
+
+    <Package
+      Id="*"
+      Keywords="Installer"
+      Description="{{product_name}} Installer"
+      Manufacturer="{{manufacturer}}"
+      InstallerVersion="450"
+      Languages="{{language}}"
+      Compressed="yes"
+      InstallScope="perUser"
+      SummaryCodepage="{{codepage}}" />
+
+    <!-- Per-user scope, part 2: ALLUSERS left EMPTY (never "1"). This
+         Property line existing at all, with a non-empty value, is the
+         single most consequential regression this file could suffer —
+         see `tests/fitness_m9_windows_wix_no_alluser_1.rs` (this
+         stream's own source-scan guard, macOS-runnable). -->
+    <Property Id="ALLUSERS" Value="" />
+    <Property Id="MSIINSTALLPERUSER" Value="1" />
+
+    <!-- No admin UAC elevation prompt for a per-user install. -->
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="DISABLEADVTSHORTCUTS" Value="1" />
+
+    <MajorUpgrade
+      Schedule="afterInstallInitialize"
+      DowngradeErrorMessage="A newer version of {{product_name}} is already installed. Setup will now exit." />
+
+    <Media Id="1" Cabinet="app.cab" EmbedCab="yes" />
+
+    <!-- Per-user install root: %LocalAppData%\Programs\... — never
+         %ProgramFiles% (that hive requires admin write access, defeating
+         the whole point of `InstallScope="perUser"`). -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="APPLICATIONFOLDER" Name="{{product_name}}" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="{{product_name}}" />
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id="APPLICATIONFOLDER">
+      <Component Id="MainExecutable" Guid="*">
+        <!-- Per-user components must be keyed off HKCU, never HKLM — the
+             registry-key-path requirement WiX enforces for any component
+             installed under a per-user directory. -->
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\{{manufacturer}}\{{product_name}}"
+          Name="Installed"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+        <File
+          Id="MainExecutableFile"
+          Name="{{main_binary_name}}"
+          Source="{{main_binary_path}}"
+          KeyPath="no" />
+      </Component>
+      <!-- The vendored `cc`/`copilot` CLI resource ships alongside the app
+           binary (see `tauri.conf.json`'s `bundle.resources` entry) —
+           verified-not-resigned by `scripts/verify-vendored-cc.sh`'s macOS
+           analog; this template does not re-verify it, only installs the
+           file `tauri-bundler` already staged under `bundle.resources`.
+           `{{#each resources}}` mirrors Tauri's own default template
+           convention for iterating staged bundle resources — see this
+           file's own top-of-file owner-gated diff note if this loop's
+           exact shape has drifted from the installed tauri-bundler
+           version. -->
+      {{#each resources}}
+      <Component Id="{{this.id}}" Guid="*" Directory="APPLICATIONFOLDER">
+        <File Id="{{this.id}}File" Source="{{this.path}}" KeyPath="yes" />
+      </Component>
+      {{/each}}
+    </DirectoryRef>
+
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="*">
+        <Shortcut
+          Id="ApplicationStartMenuShortcut"
+          Name="{{product_name}}"
+          Description="{{short_description}}"
+          Target="[#MainExecutableFile]"
+          WorkingDirectory="APPLICATIONFOLDER" />
+        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\{{manufacturer}}\{{product_name}}"
+          Name="StartMenuShortcut"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainFeature" Title="{{product_name}}" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="ApplicationShortcut" />
+      {{#each resources}}
+      <ComponentRef Id="{{this.id}}" />
+      {{/each}}
+    </Feature>
+
+    <!-- ========================================================
+         Never-orphan uninstall custom action (invariant #3, ADR-M9-005)
+         ========================================================
+         Runs the standalone helper compiled from
+         `packaging/windows/wix/uninstall-customaction.rs` (see that
+         file's own doc for exactly what it removes vs. retains). Deferred
+         + no-impersonation: Task Scheduler per-user task deletion for a
+         task registered by THIS SAME user does not require elevation, so
+         `Impersonate="no"` here is about running in the installer's own
+         deferred-execution context, not about requesting admin rights —
+         this install is, and remains, admin-free end to end. -->
+    <Binary Id="UninstallCleanupBinary" SourceFile="uninstall-customaction.exe" />
+    <CustomAction
+      Id="RunUninstallCleanup"
+      BinaryKey="UninstallCleanupBinary"
+      ExeCommand=""
+      Execute="deferred"
+      Impersonate="no"
+      Return="ignore" />
+
+    <InstallExecuteSequence>
+      <!-- Only on a genuine uninstall (REMOVE="ALL"), never on a repair
+           or an upgrade's remove-old-version-then-install-new-version
+           half — an in-place upgrade must never tear down the scheduled
+           tasks it is about to immediately re-register. -->
+      <Custom Action="RunUninstallCleanup" After="InstallInitialize">
+        REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE
+      </Custom>
+    </InstallExecuteSequence>
+  </Product>
+</Wix>

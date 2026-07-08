@@ -119,6 +119,21 @@ pub mod mobileconfig;
 // model/validator/DTOs. `cli`/`commands`/`timer`/`tray` stay private —
 // nothing outside this crate needs them.
 pub mod model;
+// M9/Stream-B (`.copilot/wp/52.md`, task 71, ADR-M9-001): the light
+// platform-abstraction module — traits only where a mock is genuinely
+// needed (forced-config, login-item, watchdog-signal, secret-store), cfg
+// pub-use aliasing elsewhere (tray art, CLI path). The macOS impl
+// (`platform::macos`) is a THIN wrapper delegating to the already-existing
+// `managed::forced`/`loginitem::smappservice`/`updater::watchdog`/
+// `render::glyph`/`cli::path` — a pure refactor, no logic moved, every one
+// of those modules' own public API and tests are unchanged. Pre-creates
+// every Windows shared surface (`platform::windows`, `Cargo.toml`'s
+// `cfg(windows)` dependency block) so the six parallel Windows streams
+// (C-H) each fill in exactly one stub file without colliding on this
+// foundation. `pub` — reached from
+// `tests/fitness_m9_platform_windows_cfg_gated.rs`, a separate crate linked
+// against `copilot_control_tower_lib`.
+pub mod platform;
 pub mod render;
 // M5/S6 (`.copilot/wp/30.md`, task 49): route-by-competence — the forced
 // `Deprovisioned` trigger + the auth-revoked -> IT-routed offer. `pub` —

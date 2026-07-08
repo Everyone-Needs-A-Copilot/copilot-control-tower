@@ -93,6 +93,13 @@
       "entitlements": "../packaging/entitlements/controltower.entitlements.plist",
       "hardenedRuntime": true,
       "minimumSystemVersion": "13.0"
+    },
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "wix": {
+        "template": "../packaging/windows/wix/main.wxs"
+      }
     }
   }
 }

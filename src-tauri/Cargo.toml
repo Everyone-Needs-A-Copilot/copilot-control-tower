@@ -133,6 +133,56 @@ core-foundation-sys = "0.8.7"
 # for `NSError`/`NSString`, etc.) are all that's needed here.
 objc2-service-management = "0.3"
 
+# M9/Stream-B (`.copilot/wp/52.md`, task 71, ADR-M9-001): the ENTIRE
+# cfg(windows) dependency block, pre-populated ONCE here so none of the six
+# parallel Windows streams (C-H, `platform/windows/{forced,loginitem,
+# watchdog,tray,secret_store,cli_path}.rs`) ever need to touch this file —
+# same target-gating discipline the macOS block above already established
+# (`[target.'cfg(target_os = "macos")'.dependencies]`). These are NEVER
+# compiled on this machine (no Windows toolchain here) and NEVER affect a
+# macOS `cargo build`/`cargo test` — target-specific dependencies are only
+# ever compiled for a matching build target, though Cargo does resolve them
+# into `Cargo.lock` regardless of host platform (already true here: `windows`
+# 0.61.3/`windows-sys`/`winreg` 0.55.0 were already present in this crate's
+# lock file before this change, pulled in transitively by `tauri`'s own
+# cross-platform tray/window backend).
+[target.'cfg(windows)'.dependencies]
+# Registry reads: `HKLM\Software\Policies\ENAC\ControlTower` (Stream-D,
+# ADR-M9-003's gated forced-config read), the `AppsUseLightTheme` value
+# (Stream-F's light/dark tray icon selection), and a registry uninstall key
+# (Stream-H's install-path CLI resolution). Version pinned to match what
+# this workspace's `Cargo.lock` already resolves transitively (via `tauri`),
+# so adding this direct dependency does not otherwise perturb the lock file.
+winreg = "0.55"
+# Windows Credential Manager / DPAPI secret storage backend (Stream-G,
+# `platform::windows::secret_store` — the SAME `keyring` call shape a real
+# macOS Keychain-backed implementation would use, per
+# `credentials-and-boundary.md` §1.4/§6). `windows-native` is `keyring`
+# 3.x's Windows Credential Manager backend feature name; Stream-G should
+# re-verify this against the `keyring` version actually available once a
+# Windows toolchain exists to build against.
+keyring = { version = "3", default-features = false, features = ["windows-native"] }
+# The official Windows API bindings — a fallback for any seam that needs a
+# genuine Win32 call `winreg`/`keyring`/shelling out to `schtasks.exe`/
+# `dsregcmd.exe` doesn't cover (e.g. Stream-D's domain-join/MDM-enrollment
+# probe, if it needs `NetGetJoinInformation` rather than shelling out to
+# `dsregcmd /status`). Already resolved transitively in this crate's lock
+# file (via `tauri`'s own Windows backend) at 0.61.3 — pinned to match.
+# `Win32_Foundation` is the minimal, universally-needed feature; each stream
+# needing a specific Win32 API surface adds its OWN feature flag to this
+# list (coordinate through Stream-B/this file's history rather than each
+# stream guessing at a feature name in isolation).
+#
+# `Win32_System_LibraryLoader` added by Stream-H (task 77,
+# `platform::windows::cli_path`): `SetDefaultDllDirectories` — the
+# DLL-search-order hijack hardening call (invariant #4, parity §1 row 7 /
+# §3 Q6) that removes the current-working-directory from the implicit DLL
+# search path before this app ever resolves/spawns the vendored CLI. Exact
+# binding signature is owner-gated to re-verify once a Windows toolchain
+# exists to build against (same caveat this file's `keyring` line above
+# already carries for Stream-G).
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
+
 # NOTE: no health-scoring, sync, signature, merge, or wipe crates belong here —
 # ever. That logic lives in the `copilot`/`cc` CLI (invariant #1, "parse never
 # compute"). A lint denying such imports is one of the M1 fitness functions

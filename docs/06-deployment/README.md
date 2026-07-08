@@ -65,6 +65,18 @@ on. Nothing in this directory claims a not-yet-built piece works.
   a real MDM console" items. Superseded in scope (not content) by the
   consolidated table below, which folds this list in alongside M7's
   not-yet-built equivalents.
+- **[`m9-owner-gated-split.md`](m9-owner-gated-split.md)** — the M9
+  (Windows re-skin) counterpart: buildable-now-behind-`cfg` vs. owner-gated
+  (needs a real Windows box, EV cert, or MDM console), carrying its own
+  **BUILT-BUT-UNVERIFIED-ON-WINDOWS** stamp since no Windows runtime
+  behavior can be verified from this machine at all. As of Stream-Z's
+  close-out (`tc task get 80`), `platform/` (Stream-B) and all eight Windows
+  seams (Streams C–H) plus packaging (I) and Authenticode (J) HAVE landed,
+  code-complete and `#[cfg(windows)]`-gated — see
+  [`../01-architecture/windows-parity.md`](../01-architecture/windows-parity.md)
+  §5 for the independently-QA'd verification matrix and
+  [`windows-bringup.md`](windows-bringup.md) for the owner's actual
+  bringup checklist. Not yet folded into the consolidated table below.
 - **[`../08-observability/operator-guide.md`](../08-observability/operator-guide.md)**
   — the fleet-dashboard operator guide (reading per-host worst-wins + the
   safety-escalation feed — there is no fleet-health score to read).

@@ -612,8 +612,10 @@ fn confirm_staged_bundle_boots(
 /// the REAL `manifest_url()`/`fetcher_for()` resolution (via
 /// `CT_UPDATE_FEED`) without writing into `$HOME/Library/Application
 /// Support/…` on the machine actually running `cargo test`. Completes the
-/// full pipeline end to end: stage + offline-staple-verify
-/// ([`apply_update_with`]) THEN, only on a successful stage, launch the
+/// full pipeline end to end: stage + the platform pre-promote check
+/// (offline staple on macOS, Authenticode on Windows — M9/Stream-J,
+/// [`verify::verify_pre_promote`]) via [`apply_update_with`] THEN, only on
+/// a successful stage, launch the
 /// staged bundle's own self-test and promote-or-roll-back
 /// ([`confirm_staged_bundle_boots`]) — see that function's own doc for why
 /// this crate's self-update transport doesn't defer that decision to a
@@ -625,7 +627,8 @@ fn apply_update_at(layout_root: PathBuf) -> UpdateState {
     let url = manifest_url();
     let fetcher = fetcher_for(&url);
     let layout = StagedLayout::new(layout_root.clone());
-    let staged_state = apply_update_with(fetcher.as_ref(), &url, &layout, verify::verify_staple);
+    let staged_state =
+        apply_update_with(fetcher.as_ref(), &url, &layout, verify::verify_pre_promote);
 
     if staged_state.status != UpdateStatus::Ready {
         return staged_state;
@@ -982,12 +985,14 @@ mod tests {
 
     #[test]
     fn apply_update_via_the_dev_feed_override_fails_closed_on_the_real_offline_staple_check() {
-        // The REAL `verify::verify_staple` (not a fixed closure) run against
-        // a plain staged directory that is genuinely not a notarized `.app`
-        // — proving the production `apply_update_at` wiring (real feed
-        // resolution + the real fail-closed staple gate) refuses end to end,
-        // the same "prove the fail-closed path for real, the positive path
-        // needs a real cert" caveat `verify::verify_staple`'s own doc
+        // The REAL `verify::verify_pre_promote` (not a fixed closure) run
+        // against a plain staged directory that is genuinely not a
+        // notarized `.app` — on macOS this dispatches straight to
+        // `verify::verify_staple` (M9/Stream-J's dispatcher never re-decides
+        // anything) — proving the production `apply_update_at` wiring (real
+        // feed resolution + the real fail-closed staple gate) refuses end to
+        // end, the same "prove the fail-closed path for real, the positive
+        // path needs a real cert" caveat `verify::verify_staple`'s own doc
         // carries.
         let _guard = super::test_env::ENV_LOCK
             .lock()

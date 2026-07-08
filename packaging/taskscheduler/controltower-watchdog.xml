@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  M9 Stream-C (task 72) — Windows crash-only watchdog Task Scheduler task
+  (ADR-M9-002, `docs/01-architecture/windows-parity.md` §1 row 1 / §3 Q1,
+  CLAUDE.md invariant #2). Windows analogue of
+  `packaging/launchd/com.everyoneneedsacopilot.controltower.plist`.
+
+  This is a TEMPLATE checked into the repo, not the installed task
+  definition. The single `__APP_EXE__` placeholder is substituted by
+  `platform::windows::watchdog::install` (Rust, in-process — the Windows
+  port of `install-watchdog.sh`'s `sed` substitution) at install time,
+  never hand-edited in place, so every install starts from this reviewed,
+  lint-clean checked-in file.
+
+  THE INVARIANT THIS FILE ENCODES (guarded by
+  `tests/fitness_m9_windows_watchdog_no_periodic_trigger.rs`, this stream's
+  parity to the macOS `fitness_watchdog_plist.rs`'s FF-M4-1 check):
+
+    The ONLY trigger below is a <LogonTrigger> (fires once per user logon —
+    NOT a periodic re-trigger). Restart-after-crash is handled ENTIRELY by
+    <RestartOnFailure> under <Settings>: Task Scheduler's own name for
+    "if this task's action process exits with a non-zero/abnormal code,
+    relaunch it, up to Count times, waiting Interval between attempts" — the
+    direct analogue of launchd's `KeepAlive={SuccessfulExit:false}`. A clean
+    (zero) exit is never treated as a failure and is never restarted.
+
+    A <TimeTrigger>, <CalendarTrigger>, or ANY <Repetition> block is BANNED
+    from this file. Either would repeat-launch the task on a fixed calendar
+    cadence regardless of the app's own exit code — that IS the forbidden
+    "repeat every N minutes" resurrect-always anti-pattern this ADR
+    explicitly rules out (the Task-Scheduler-shaped equivalent of a bare
+    `KeepAlive=true`): it would resurrect the app after an intentional Quit
+    and crash-loop a bad build.
+
+  Belt-and-suspenders against a double-launch race with Stream-E's SEPARATE
+  logon-trigger login-item task (a different scheduled task, parity row 2):
+  <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy> tells Task
+  Scheduler itself never to start a second instance of THIS task's action
+  while one is already running, layered underneath this crate's own
+  `tauri-plugin-single-instance` guard (`lib.rs`) — two independent reasons
+  a logon-time race never produces two competing resident processes
+  (invariant #2, single process).
+-->
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Copilot Control Tower crash-only watchdog. Restarts the app
+      only when its own process exits abnormally (RestartOnFailure), never
+      on a fixed repeat schedule and never after a clean Quit
+      (ADR-M9-002).</Description>
+    <URI>\EveryoneNeedsACopilot\ControlTowerWatchdog</URI>
+  </RegistrationInfo>
+
+  <!-- The ONLY trigger. Fires once per interactive logon of the installing
+       user — never a periodic re-fire. See the file-level comment. -->
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+
+  <Principals>
+    <Principal id="Author">
+      <!-- Per-user, interactive, admin-free — matches architecture.md
+           §8.3's "per-user, not per-machine" constraint and the mac
+           LaunchAgent's own per-user gui/$UID scoping. -->
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+
+  <Settings>
+    <!-- See the file-level comment: belt-and-suspenders against a
+         double-launch race with Stream-E's separate logon-trigger task. -->
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <!-- PT0S = no forced kill after a time limit; this is a background app
+         meant to run indefinitely, not a bounded batch job. -->
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+    <!-- THE crash-only mechanism. Count/Interval below are
+         `platform::windows::watchdog::RESTART_RETRY_COUNT`/
+         `RESTART_RETRY_INTERVAL`'s ISO-8601 form — owner-gated
+         starting-point defaults (ADR-M9-006), reused unchanged from the
+         SAME judgment-call constants `updater::circuit_breaker` already
+         flags as owner-ratification-pending on macOS. Keep these two
+         numbers and the Rust consts in sync by hand; a future session
+         could add a fitness test cross-checking them if drift becomes a
+         real risk. -->
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+  </Settings>
+
+  <Actions Context="Author">
+    <Exec>
+      <Command>__APP_EXE__</Command>
+    </Exec>
+  </Actions>
+</Task>

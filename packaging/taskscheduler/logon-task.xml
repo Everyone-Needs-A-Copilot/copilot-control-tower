@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<!--
+  M9 Stream-E (task 74) — per-user LOGON-trigger scheduled task (ADR-M5-004's
+  Windows counterpart, `docs/01-architecture/windows-parity.md` §1 row 2).
+
+  This is a TEMPLATE checked into the repo, not a literally-installed task
+  definition — the one `__APP_PATH__` placeholder is substituted at
+  register()-time (`src-tauri/src/platform/windows/loginitem.rs`'s
+  `render_task_xml`), mirroring `packaging/launchd/*.plist`'s own
+  `__APP_PATH__`/`__HOME__` substitution discipline (never hand-edited in
+  place).
+
+  THE INVARIANT THIS FILE ENCODES (Windows counterpart to FF-M5-4 /
+  ADR-M5-004): this task fires ONCE, at logon (`<LogonTrigger>`), and does
+  nothing else. It deliberately carries NO `<RestartOnFailure>` element and
+  NO periodic "repeat every N minutes" trigger — crash-relaunch is a
+  COMPLETELY SEPARATE scheduled task
+  (`src-tauri/src/platform/windows/watchdog.rs`, Stream-C, ADR-M9-002),
+  imported under a DIFFERENT task name through the SAME shared
+  `platform/windows/schtasks.rs` helper. Two mechanisms, ONE binary, NO
+  second resident process — this task never spawns a watcher, it only asks
+  Task Scheduler to start THIS app once at the next interactive logon.
+
+  Per-user, admin-free: `<LogonType>InteractiveToken</LogonType>` +
+  `<RunLevel>LeastPrivilege</RunLevel>` register/query/delete this task
+  without an elevation prompt, matching `SMAppService.mainAppService()`'s
+  admin-free per-user registration on macOS. GPO/Intune can separately push
+  this SAME task definition as a REQUIRED policy-managed task so a local
+  admin cannot disable it (parity to macOS's managed, force-approved login
+  item) — that push mechanism is owner-gated (needs a real GPO/Intune
+  console), not something this checked-in template can prove by itself.
+-->
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Launches Everyone Needs a Copilot - Control Tower at user logon. Login-launch persistence ONLY -- this task never restarts the app on crash or failure; see the crash-only watchdog task (a different, separately-registered Task Scheduler task) for that job.</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+    <!-- Deliberately NO <RestartOnFailure> element anywhere in this
+         Settings block -- that element belongs exclusively to
+         watchdog.rs's crash-restart task (ADR-M9-002). Its absence here is
+         the whole point, not an oversight. -->
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>__APP_PATH__</Command>
+    </Exec>
+  </Actions>
+</Task>

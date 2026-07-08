@@ -1,0 +1,16 @@
+# M9 Stream-I (task 78) — winget version manifest (the 3-file manifest
+# shape winget-pkgs requires: version / installer / locale). Discoverable-
+# install companion to `packaging/windows/wix/main.wxs`'s direct-download
+# MSI (`docs/01-architecture/windows-parity.md` §1 row 10).
+#
+# HARD reality: never submitted to microsoft/winget-pkgs, never validated
+# by `winget validate`/`winget install --manifest` — no Windows box, no
+# real signed MSI + published release URL/SHA256 exist yet to reference.
+# Authored against the publicly documented winget manifest schema
+# (PackageIdentifier, PackageVersion, DefaultLocale, ManifestType/Version)
+# — well-formed YAML, syntax-checkable, semantically unverified.
+PackageIdentifier: EveryoneNeedsACopilot.ControlTower
+PackageVersion: 0.1.0
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0

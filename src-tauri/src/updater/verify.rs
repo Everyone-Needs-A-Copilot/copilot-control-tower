@@ -195,6 +195,16 @@ pub enum VerifyError {
     /// compiled-in set all contribute zero); `required` is
     /// [`super::multisig::THRESHOLD_K`].
     InsufficientSignatures { valid: usize, required: usize },
+    /// [`verify_authenticode`] (Windows only, M9/Stream-J, ADR-M9-004): the
+    /// staged bundle failed Authenticode signature verification outright
+    /// (unsigned, a revoked/expired-without-timestamp signature, or a
+    /// signature `signtool verify` rejects) — Windows' nearest analog of
+    /// [`VerifyError::UnstapledBundle`]. There is no staple concept on
+    /// Windows (ADR-M9-004's own "Consequences": the offline-deterministic
+    /// first-launch guarantee is structurally weaker here than macOS's
+    /// notarize+staple), so this is the strongest refusal this platform's
+    /// pre-promote check can make.
+    UnsignedBundle,
 }
 
 impl std::fmt::Display for VerifyError {
@@ -229,6 +239,12 @@ impl std::fmt::Display for VerifyError {
             }
             VerifyError::InsufficientSignatures { valid, required } => {
                 write!(f, "This update has only {valid} of the required {required} independent signatures — it will not be installed.")
+            }
+            VerifyError::UnsignedBundle => {
+                write!(
+                    f,
+                    "This update isn't signed the way Everyone Needs a Copilot releases are — it will not be installed."
+                )
             }
         }
     }
@@ -584,12 +600,135 @@ pub fn verify_staple(bundle_path: &Path) -> Result<(), VerifyError> {
     }
 }
 
-/// No Gatekeeper/staple concept off macOS — fails closed (refuse), never
-/// guesses, matching `settings::managed::real_is_managed`'s off-macOS
-/// convention. A future Windows re-skin needs its own Authenticode-based
-/// check here, not a fallthrough that treats "we can't check" as "fine".
-#[cfg(not(target_os = "macos"))]
-pub fn verify_staple(_bundle_path: &Path) -> Result<(), VerifyError> {
+// ---------------------------------------------------------------------------
+// verify_authenticode — Windows pre-promote check, no staple (M9/Stream-J,
+// ADR-M9-004, `docs/01-architecture/windows-parity.md` Section 1 row 5 /
+// Section 3 Q3)
+// ---------------------------------------------------------------------------
+
+/// Env var naming the ABSOLUTE path to `signtool.exe` — this function never
+/// resolves it via a bare `PATH` lookup (the same "never invoke bare
+/// `<name>`" discipline `platform::windows::forced`'s
+/// `dsregcmd_absolute_path` and `scripts/sign-windows.ps1`'s own
+/// `CT_SIGNTOOL_PATH` requirement already apply). Unlike `dsregcmd.exe`
+/// (fixed at `%SystemRoot%\System32\dsregcmd.exe`), `signtool.exe` ships
+/// with the Windows SDK at a build-machine-specific path with no single
+/// well-known system location — so this module REQUIRES an operator to
+/// supply an absolute path via this env var; it never guesses one, and
+/// never falls back to a bare `Command::new("signtool")`. Missing or
+/// non-absolute is treated identically to "signtool verify failed" —
+/// [`VerifyError::UnsignedBundle`], fail-closed, never a silent skip.
+pub const SIGNTOOL_PATH_ENV: &str = "CT_SIGNTOOL_PATH";
+
+/// Pure helper: given the raw env var value (or `None`), decide whether
+/// it's usable as an absolute `signtool.exe` path. Deliberately NOT
+/// `#[cfg(windows)]` — kept cross-platform so this decision logic gets
+/// real `cargo test` coverage on THIS (macOS) machine, unlike the
+/// OS-touching [`verify_authenticode`] wrapper itself, which only compiles
+/// on Windows and has never been run anywhere. `#[allow(dead_code)]` on a
+/// non-Windows, non-test build (e.g. a plain macOS `cargo build`): its only
+/// production caller ([`verify_authenticode`]) is `#[cfg(windows)]`-gated
+/// out here, and its test coverage below only runs under `cargo test` —
+/// this is intentional cross-platform testability, not actually-dead code.
+#[allow(dead_code)]
+fn resolve_signtool_path(raw: Option<&str>) -> Option<&str> {
+    let raw = raw?;
+    if raw.is_empty() {
+        return None;
+    }
+    if Path::new(raw).is_absolute() {
+        Some(raw)
+    } else {
+        None
+    }
+}
+
+/// Windows' pre-promote check on a staged bundle (an MSI, or an extracted
+/// staging directory containing one — the exact staged-artifact shape is
+/// `updater::check`'s concern, not this function's): `signtool verify /pa
+/// /tw` against `bundle_path`. There is no staple to check on Windows
+/// (ADR-M9-004) — Authenticode signature validity is the nearest analog,
+/// and version-monotonicity (this ADR's OTHER named half) is already
+/// enforced upstream, once, cross-platform, by [`after_authenticated`]'s
+/// downgrade check inside [`verify_update`]/[`verify_update_multisig`] —
+/// this function does not re-implement or duplicate that check.
+///
+/// Fails closed on every non-success path: a missing/non-absolute
+/// [`SIGNTOOL_PATH_ENV`], a failure to spawn `signtool.exe`, or a non-zero
+/// `signtool verify` exit are all [`VerifyError::UnsignedBundle`] — never a
+/// silent "couldn't check, assume fine."
+///
+/// **OWNER-GATED, in full** (no Windows toolchain, no `signtool.exe`, no EV
+/// cert exist on this machine — this function has never run against a
+/// real signed OR unsigned artifact): whether `/pa /tw` is the right
+/// verification-policy flag combination for THIS app's actual signing
+/// shape, and whether a real EV-signed MSI produced by
+/// `scripts/sign-windows.ps1` actually passes this check end to end, are
+/// both unverified here. `windows-parity.md` §3 Q3 also names the
+/// SmartScreen reputation gap (a DIFFERENT, non-deterministic system this
+/// function does not touch or attempt to satisfy) as its own separate,
+/// owner-gated residual — recommended mitigation there is an EV cert plus
+/// an MDM-pushed `SmartScreenForTrustedAppsEnabled` allow-list for
+/// air-gapped fleets, not anything this verify function can itself
+/// influence.
+#[cfg(windows)]
+pub fn verify_authenticode(bundle_path: &Path) -> Result<(), VerifyError> {
+    let raw = std::env::var(SIGNTOOL_PATH_ENV).ok();
+    let Some(signtool) = resolve_signtool_path(raw.as_deref()) else {
+        return Err(VerifyError::UnsignedBundle);
+    };
+
+    let output = std::process::Command::new(signtool)
+        .arg("verify")
+        .arg("/pa")
+        .arg("/tw")
+        .arg(bundle_path)
+        .output();
+
+    match output {
+        Ok(o) if o.status.success() => Ok(()),
+        _ => Err(VerifyError::UnsignedBundle),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// verify_pre_promote — the cross-platform dispatcher `updater::check`'s
+// single production call site uses (M9/Stream-J)
+// ---------------------------------------------------------------------------
+
+/// The pre-promote check [`super::check::apply_update_at`]'s single
+/// production call site invokes (ADR-M4-004's "Verified -> Staged" gate's
+/// second half). A cross-platform DISPATCHER, never itself doing OS work
+/// or re-deciding anything: macOS calls [`verify_staple`] (offline
+/// notarization-staple check, unchanged from M4); Windows calls
+/// [`verify_authenticode`] (ADR-M9-004 — no staple exists on Windows,
+/// Authenticode signature validity is the nearest analog); every other
+/// target fails closed exactly as `verify_staple`'s PRE-M9
+/// `#[cfg(not(target_os = "macos"))]` stub always did
+/// ([`VerifyError::UnstapledBundle`], never guessed). Introducing this
+/// dispatcher — rather than leaving [`verify_staple`] itself compiled (and
+/// silently wrong) on every non-macOS target — is what lets
+/// [`verify_staple`] become genuinely `#[cfg(target_os = "macos")]`-only
+/// below: a caller that needs "the right pre-promote check for whatever
+/// platform this is" now names THIS function, never `verify_staple`
+/// directly, off macOS.
+#[cfg(target_os = "macos")]
+pub fn verify_pre_promote(bundle_path: &Path) -> Result<(), VerifyError> {
+    verify_staple(bundle_path)
+}
+
+/// See [`verify_pre_promote`] (macOS arm) — this is the Windows arm.
+#[cfg(windows)]
+pub fn verify_pre_promote(bundle_path: &Path) -> Result<(), VerifyError> {
+    verify_authenticode(bundle_path)
+}
+
+/// See [`verify_pre_promote`] (macOS arm) — the fail-closed fallback for
+/// every OTHER target (e.g. a Linux dev build of this crate), matching
+/// `verify_staple`'s own pre-M9 off-macOS behavior exactly: refuse,
+/// unconditionally, never guess.
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn verify_pre_promote(_bundle_path: &Path) -> Result<(), VerifyError> {
     Err(VerifyError::UnstapledBundle)
 }
 
@@ -1184,5 +1323,72 @@ mod tests {
         let bundle = fixtures_dir().join("staple").join("DoesNotExist.app");
         let err = verify_staple(&bundle).expect_err("a missing bundle must refuse, never panic");
         assert_eq!(err, VerifyError::UnstapledBundle);
+    }
+
+    // -- verify_pre_promote: the macOS arm must be IDENTICAL to calling
+    //    verify_staple directly — the dispatcher must never re-decide
+    //    anything, only route (M9/Stream-J). This is the one arm of the
+    //    dispatcher this machine can actually execute and compare. ---------
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn verify_pre_promote_on_macos_matches_verify_staple_on_an_unsigned_fixture() {
+        let bundle = fixtures_dir().join("staple").join("UnsignedApp.app");
+        assert_eq!(verify_pre_promote(&bundle), verify_staple(&bundle));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn verify_pre_promote_on_macos_matches_verify_staple_on_a_missing_bundle() {
+        let bundle = fixtures_dir().join("staple").join("DoesNotExist.app");
+        assert_eq!(verify_pre_promote(&bundle), verify_staple(&bundle));
+    }
+
+    // -- resolve_signtool_path: cross-platform pure logic (M9/Stream-J) —
+    //    real `cargo test` coverage on THIS machine, unlike the
+    //    `#[cfg(windows)]`-gated `verify_authenticode` wrapper it backs. ---
+
+    #[test]
+    fn resolve_signtool_path_accepts_an_absolute_path() {
+        // `Path::is_absolute`'s definition of "absolute" is HOST-RULES-
+        // dependent — a Windows drive-letter path (`C:\...`) is only
+        // recognized as absolute under Windows' own path rules, which this
+        // macOS test host does not have; that combination is exercised for
+        // real only on a genuine Windows `cargo test` run (owner-gated, no
+        // Windows toolchain here). What IS portable, and asserted here: a
+        // Unix-style absolute path counts as absolute under THIS host's
+        // rules, proving the function's "absolute, full stop — never a
+        // relative path" contract, independent of which OS actually runs
+        // it.
+        assert_eq!(
+            resolve_signtool_path(Some("/usr/bin/signtool")),
+            Some("/usr/bin/signtool")
+        );
+    }
+
+    #[test]
+    fn resolve_signtool_path_rejects_a_relative_path() {
+        assert_eq!(resolve_signtool_path(Some("signtool.exe")), None);
+        assert_eq!(resolve_signtool_path(Some("bin/signtool.exe")), None);
+    }
+
+    #[test]
+    fn resolve_signtool_path_rejects_empty_or_absent() {
+        assert_eq!(resolve_signtool_path(Some("")), None);
+        assert_eq!(resolve_signtool_path(None), None);
+    }
+
+    // -- UnsignedBundle error message never leaks anything sensitive
+    //    (mirrors the existing staple/signature leak tests above) ----------
+
+    #[test]
+    fn unsigned_bundle_error_message_is_generic_and_non_empty() {
+        let err = VerifyError::UnsignedBundle;
+        let display = err.to_string();
+        assert!(!display.is_empty());
+        assert!(
+            !display.contains("signtool"),
+            "message should be user-facing, not tool-internal"
+        );
     }
 }
