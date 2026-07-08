@@ -456,3 +456,49 @@ export interface UpdateState {
  */
 export const CHECK_FOR_UPDATE_CMD = "check_for_update" as const;
 export const APPLY_UPDATE_CMD = "apply_update" as const;
+
+/**
+ * M5/S2 — the deprovision DTO + render (parse-not-compute). Mirrors
+ * `src-tauri/src/deprovision/render.rs`'s `DeprovisionView` field-for-field
+ * (plain snake_case both sides, same convention as `RenderState`/
+ * `SettingsState` above).
+ *
+ * **This is a render of a CLI/MDM-PERFORMED deprovision, never something the
+ * UI triggers itself.** There is deliberately no
+ * `deprovision`/`run_deprovision` command exported here — the app contains
+ * ZERO wipe/retain logic (invariant #1), and deprovisioning an org is an
+ * IT/managed/leaver action, never a Bob-initiated one (route-by-competence,
+ * invariant #5). The trigger/routing surface (IT-routed, auth-revoked ->
+ * offer) is a later stream (S6), which will export its own command
+ * constant here once it lands — this type exists so that stream, and any
+ * IT-facing renderer, has a frozen shape to build against today.
+ *
+ * `retained_dirty` is the never-destroy reassurance (invariant #3) — render
+ * it prominently, always (including when empty: "no dirty personal work was
+ * in the way" is itself honest information). `secrets_touched` MUST be `0`;
+ * `secrets_alarm` is `true` iff it isn't — an HONEST ALARM, never hidden or
+ * normalized away. `removed_count` (`removed.materialized` upstream) must be
+ * rendered with NEUTRAL copy only ("N item(s) removed") — its exact count
+ * semantics are undefined even upstream (G-M5-4); never editorialize it into
+ * "files" or "trees".
+ */
+export type DeprovisionOutcome = "wiped" | "partial" | "noop" | "unreadable";
+
+/** The APP-OWNED reason a deprovision body could not be trusted — never a value the CLI emits itself. */
+export type DeprovisionUnreadableReason =
+  | "io_error"
+  | "parse_error"
+  | "schema_out_of_range"
+  | "missing_security_field"
+  | "invalid_content";
+
+export interface DeprovisionView {
+  outcome: DeprovisionOutcome;
+  unreadable_reason: DeprovisionUnreadableReason | null;
+  removed_count: number | null;
+  removed_clones: string[];
+  retained_dirty: string[];
+  secrets_touched: number;
+  secrets_alarm: boolean;
+  sentence: string;
+}

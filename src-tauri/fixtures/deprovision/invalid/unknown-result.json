@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "result": "obliterated",
+  "removed": {
+    "materialized": 1,
+    "clones": []
+  },
+  "retained_dirty": [],
+  "secrets_touched": 0
+}

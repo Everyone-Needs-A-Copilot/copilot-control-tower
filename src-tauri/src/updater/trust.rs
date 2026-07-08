@@ -25,18 +25,27 @@
 //!
 //! [`update_feed_url`], [`update_channel`], and [`allow_self_update`] each
 //! read their respective MDM-managed key (`UpdateFeedURL`, `UpdateChannel`,
-//! `AllowSelfUpdate`) via the **same** `CFPreferencesAppValueIsForced`
-//! pattern `settings::managed::is_managed` already established for M2 —
-//! deliberately a parallel implementation rather than a shared call into
-//! `settings::managed` (that module's `key_is_forced` is private and scoped
-//! to the managed-vs-unmanaged *gate*, a different concern from this
-//! module's update-trust surface; duplicating six lines of FFI plumbing
-//! costs less than coupling two independently-owned modules across a stream
-//! boundary). A value present only in the **user** domain (not forced) is
-//! **ignored** in favor of the compiled-in default and logged as a tamper
-//! event (`audit_ignored_user_domain_value`, mirroring
-//! `model::state::audit_invalid_content`'s `eprintln!`-is-the-interim-
-//! facility discipline) — never merely "does this key have a value."
+//! `AllowSelfUpdate`) via `crate::managed::forced::resolve_string`/
+//! `resolve_bool` — the consolidated, sole forced-domain FFI boundary
+//! (`.copilot/wp/30.md` M5/S1, ADR-M5-001). **Before that milestone** this
+//! module carried its own independent `CFPreferencesAppValueIsForced`/
+//! `CFPreferencesCopyAppValue` implementation, deliberately parallel to
+//! `settings::managed::key_is_forced` rather than sharing it (see that era's
+//! rationale, preserved in git history: two ad-hoc copies of the same six
+//! lines of FFI plumbing were judged cheaper than coupling two
+//! independently-owned modules). M5/S1 revisited that call once a THIRD
+//! independent copy was about to be needed for new security keys
+//! (`Deprovisioned`, `SharedSecretStoreURL`/`Tier`, …) — three copies of the
+//! app's single most security-critical FFI is exactly the un-auditable
+//! triplication invariant #4 forbids, so this module now delegates instead.
+//! Public behavior (`update_feed_url`/`update_channel`/`allow_self_update`)
+//! and every test in this file are unchanged by that refactor. A value
+//! present only in the **user** domain (not forced) is still **ignored** in
+//! favor of the compiled-in default and logged as a tamper event
+//! (`crate::managed::forced::audit_ignored_user_domain_value`, the same
+//! `eprintln!`-is-the-interim-facility discipline this module's own
+//! `audit_ignored_user_domain_value` used to implement locally) — never
+//! merely "does this key have a value."
 //!
 //! `settings::guard::DENIED_KEYS` already refuses these same key names if
 //! anyone tries to *write* them into `copilot.layers.yml` (M2/S3) — this
@@ -114,163 +123,46 @@ pub const DEFAULT_UPDATE_CHANNEL: &str = "stable";
 /// choice (architecture.md §8.3).
 pub const DEFAULT_ALLOW_SELF_UPDATE: bool = true;
 
-/// The macOS application-preferences domain these keys would be forced
-/// under — matches `tauri.conf.json`'s `identifier` and
-/// `settings::managed::APPLICATION_ID` (kept as an independent literal per
-/// the module doc's "deliberately a parallel implementation" note; a
-/// fitness test in `settings::managed`'s own suite already pins its copy,
-/// and `tests/fitness_trust_root_is_const.rs` pins this one — a drift
-/// between the two would be caught by either, not silently).
-const APPLICATION_ID: &str = "com.everyoneneedsacopilot.controltower";
-
 const UPDATE_FEED_URL_KEY: &str = "UpdateFeedURL";
 const UPDATE_CHANNEL_KEY: &str = "UpdateChannel";
 const ALLOW_SELF_UPDATE_KEY: &str = "AllowSelfUpdate";
 
-/// The three-way outcome of asking "what does the forced/user domain say
-/// about this key" — kept distinct from a plain `Option<String>` so the
-/// "ignored, not merely absent" tamper-log path (FF-M4-4) has something to
-/// pattern-match on. Never constructed directly outside [`real_lookup`]/the
-/// test seam below.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ForcedLookup {
-    /// The key is forced (`CFPreferencesAppValueIsForced` true) — this is
-    /// the ONLY case whose value may ever be honored.
-    Forced(String),
-    /// A value exists in the (user-writable) domain but is NOT forced — the
-    /// Convenience-Backdoor shape invariant #4 forbids. Ignored; logged.
-    IgnoredUserDomain,
-    /// No value at all, forced or otherwise — the ordinary, silent case.
-    Absent,
-}
-
-/// The pure decision — given a [`ForcedLookup`] outcome and the compiled-in
-/// default, what string does the caller actually get, and does this event
-/// need to be logged as a tamper attempt? Split from the OS-touching lookup
-/// itself so FF-M4-4's "ignored unless forced" rule is 100% unit-testable
-/// without a managed Mac (mirrors `settings::managed::apply_gate` being pure
-/// and separately tested from `is_managed`'s FFI call).
-fn resolve(lookup: &ForcedLookup, default: &str, key: &str) -> String {
-    match lookup {
-        ForcedLookup::Forced(value) => value.clone(),
-        ForcedLookup::IgnoredUserDomain => {
-            audit_ignored_user_domain_value(key);
-            default.to_string()
-        }
-        ForcedLookup::Absent => default.to_string(),
-    }
-}
-
-/// Emits the tamper-event audit line via `eprintln!` — the same interim
-/// facility `model::state::audit_invalid_content` uses (no logging/tracing
-/// crate exists in this crate yet). Carries the **key name only** — never a
-/// value read from the (untrusted, user-writable) domain, matching
-/// `settings::guard`'s "never echoes a secret" discipline extended to
-/// "never echoes an untrusted override attempt" here.
-fn audit_ignored_user_domain_value(key: &str) {
-    eprintln!(
-        "[copilot-control-tower] audit: a user-domain (non-forced) value for \"{key}\" was \
-         ignored in favor of the compiled-in default — this key is honored ONLY from the \
-         managed/forced MDM domain (invariant #4). See updater::trust."
-    );
-}
-
-#[cfg(target_os = "macos")]
-fn real_lookup(key: &str) -> ForcedLookup {
-    use core_foundation::base::TCFType;
-    use core_foundation::string::{CFString, CFStringRef};
-    use core_foundation_sys::preferences::{
-        CFPreferencesAppValueIsForced, CFPreferencesCopyAppValue,
-    };
-
-    let cf_key = CFString::new(key);
-    let cf_app_id = CFString::new(APPLICATION_ID);
-
-    // SAFETY: both `CFString`s outlive both FFI calls below (neither is
-    // dropped until this function returns); `CFPreferencesAppValueIsForced`
-    // only reads them (same shape as `settings::managed::key_is_forced`).
-    let forced = unsafe {
-        CFPreferencesAppValueIsForced(
-            cf_key.as_concrete_TypeRef(),
-            cf_app_id.as_concrete_TypeRef(),
-        )
-    } != 0;
-
-    // SAFETY: `CFPreferencesCopyAppValue` returns a `CFTypeRef` we OWN (the
-    // "Copy" in its name is Core Foundation's own ownership convention) or
-    // null if absent; wrapping it immediately in an `Option`-checked raw
-    // pointer and only ever calling `CFString::wrap_under_create_rule` on a
-    // confirmed-non-null, confirmed-string value avoids both a leak and a
-    // dangling-type misread.
-    let raw_value = unsafe {
-        CFPreferencesCopyAppValue(
-            cf_key.as_concrete_TypeRef(),
-            cf_app_id.as_concrete_TypeRef(),
-        )
-    };
-
-    if raw_value.is_null() {
-        return ForcedLookup::Absent;
-    }
-
-    // SAFETY: `raw_value` is non-null and was returned under the "create"
-    // rule (we own one retain) — `wrap_under_create_rule` takes ownership
-    // without an extra retain, matching Core Foundation's memory contract.
-    let cf_string: CFString = unsafe { TCFType::wrap_under_create_rule(raw_value as CFStringRef) };
-    let value = cf_string.to_string();
-
-    if forced {
-        ForcedLookup::Forced(value)
-    } else {
-        ForcedLookup::IgnoredUserDomain
-    }
-}
-
-/// No forced-domain concept off macOS yet (see
-/// `settings::managed::real_is_managed`'s identical rationale) — fails
-/// closed to `Absent` (compiled-in default), never guesses.
-#[cfg(not(target_os = "macos"))]
-fn real_lookup(_key: &str) -> ForcedLookup {
-    ForcedLookup::Absent
-}
-
+/// **M5/S1 delegation.** This module used to define its own private
+/// `ForcedLookup` enum + `resolve()`/`audit_ignored_user_domain_value()`/
+/// `real_lookup()` — the exact FFI call shape now consolidated into
+/// `crate::managed::forced` (see the module doc). `update_feed_url`/
+/// `update_channel`/`allow_self_update` below call
+/// `crate::managed::forced::resolve_string`/`resolve_bool` directly; there
+/// is no longer a local `ForcedLookup`/`real_lookup`/`resolve` in this file.
+/// `crate::managed::forced::ForcedLookup` (used by this file's own tests
+/// below, via `crate::managed::forced::forced_string`) is the SAME type
+/// `updater::trust`'s tests exercised before this refactor, just imported
+/// rather than locally defined.
+///
 /// The forced-domain-only update feed URL (FF-M4-4). Authoritative source
 /// for wherever `super::verify`'s eventual HTTP transport (S3/S9) fetches
 /// `latest.json` from.
 pub fn update_feed_url() -> String {
-    resolve(
-        &real_lookup(UPDATE_FEED_URL_KEY),
-        DEFAULT_UPDATE_FEED_URL,
-        UPDATE_FEED_URL_KEY,
-    )
+    crate::managed::forced::resolve_string(UPDATE_FEED_URL_KEY, DEFAULT_UPDATE_FEED_URL)
 }
 
 /// The forced-domain-only release channel (FF-M4-4,
 /// `release-and-versioning.md` §2).
 pub fn update_channel() -> String {
-    resolve(
-        &real_lookup(UPDATE_CHANNEL_KEY),
-        DEFAULT_UPDATE_CHANNEL,
-        UPDATE_CHANNEL_KEY,
-    )
+    crate::managed::forced::resolve_string(UPDATE_CHANNEL_KEY, DEFAULT_UPDATE_CHANNEL)
 }
 
 /// The forced-domain-only self-update allowance (FF-M4-4). `"false"`/`"0"`
 /// (case-insensitive) means disabled; anything else forced is treated as
 /// enabled rather than silently disabling updates on an ambiguous value —
 /// the safe failure mode for an *availability* toggle is "keep updating",
-/// the opposite of a signature/staple check's fail-closed-to-refuse.
+/// the opposite of a signature/staple check's fail-closed-to-refuse. This is
+/// `crate::managed::forced::forced_bool`'s exact canonical parse rule (see
+/// that function's doc — it was generalized FROM this function's original
+/// inline `matches!` when M5/S1 consolidated the boundary), so this reduces
+/// to a direct `resolve_bool` call.
 pub fn allow_self_update() -> bool {
-    match real_lookup(ALLOW_SELF_UPDATE_KEY) {
-        ForcedLookup::Forced(value) => {
-            !matches!(value.to_ascii_lowercase().as_str(), "false" | "0" | "no")
-        }
-        ForcedLookup::IgnoredUserDomain => {
-            audit_ignored_user_domain_value(ALLOW_SELF_UPDATE_KEY);
-            DEFAULT_ALLOW_SELF_UPDATE
-        }
-        ForcedLookup::Absent => DEFAULT_ALLOW_SELF_UPDATE,
-    }
+    crate::managed::forced::resolve_bool(ALLOW_SELF_UPDATE_KEY, DEFAULT_ALLOW_SELF_UPDATE)
 }
 
 #[cfg(test)]
@@ -304,54 +196,80 @@ mod tests {
     }
 
     // -- forced-domain resolution is pure and testable without a managed
-    //    Mac (FF-M4-4) ------------------------------------------------------
+    //    Mac (FF-M4-4). `resolve_string`/`resolve_bool`/`ForcedLookup` now
+    //    live in `crate::managed::forced` (M5/S1 consolidation) — these
+    //    tests exercise this file's OWN consumers of that shared API
+    //    (`update_feed_url`/`update_channel`/`allow_self_update`) via the
+    //    dev-seam override, which proves the delegation actually wires
+    //    through end to end rather than merely re-testing the already-tested
+    //    generic `resolve_string`/`resolve_bool` (covered by
+    //    `managed::forced`'s own test suite). ---------------------------
+
+    use crate::cli::test_env::ENV_LOCK;
+    use crate::managed::forced::{ForcedLookup, FORCED_OVERRIDE_ENV_PREFIX};
+
+    fn override_env_name(key: &str) -> String {
+        format!("{FORCED_OVERRIDE_ENV_PREFIX}{}", key.to_ascii_uppercase())
+    }
 
     #[test]
     fn absent_falls_back_to_the_compiled_in_default() {
-        assert_eq!(
-            resolve(
-                &ForcedLookup::Absent,
-                DEFAULT_UPDATE_FEED_URL,
-                "UpdateFeedURL"
-            ),
-            DEFAULT_UPDATE_FEED_URL
-        );
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe { std::env::remove_var(override_env_name(UPDATE_FEED_URL_KEY)) };
+        assert_eq!(update_feed_url(), DEFAULT_UPDATE_FEED_URL);
     }
 
     #[test]
     fn a_user_domain_only_value_is_ignored_in_favor_of_the_default() {
-        let lookup = ForcedLookup::IgnoredUserDomain;
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let env_name = override_env_name(UPDATE_FEED_URL_KEY);
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe { std::env::set_var(&env_name, "user") };
         assert_eq!(
-            resolve(&lookup, DEFAULT_UPDATE_FEED_URL, "UpdateFeedURL"),
+            update_feed_url(),
             DEFAULT_UPDATE_FEED_URL,
             "an unforced (user-domain) value must NEVER win over the compiled-in default"
         );
+        unsafe { std::env::remove_var(&env_name) };
     }
 
     #[test]
     fn a_forced_value_is_honored() {
-        let lookup =
-            ForcedLookup::Forced("https://mirror.internal.example/latest.json".to_string());
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let env_name = override_env_name(UPDATE_FEED_URL_KEY);
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe {
+            std::env::set_var(
+                &env_name,
+                "forced:https://mirror.internal.example/latest.json",
+            )
+        };
         assert_eq!(
-            resolve(&lookup, DEFAULT_UPDATE_FEED_URL, "UpdateFeedURL"),
+            update_feed_url(),
             "https://mirror.internal.example/latest.json"
         );
+        unsafe { std::env::remove_var(&env_name) };
     }
 
     #[test]
     fn allow_self_update_defaults_true_when_absent() {
         assert!(matches!(
-            real_lookup("SomeKeyThatIsNeverForcedOrSetOnThisDevBox_Xyz"),
+            crate::managed::forced::forced_string("SomeKeyThatIsNeverForcedOrSetOnThisDevBox_Xyz"),
             ForcedLookup::Absent
         ));
     }
 
     #[test]
     fn allow_self_update_forced_false_variants_all_disable() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let env_name = override_env_name(ALLOW_SELF_UPDATE_KEY);
         for v in ["false", "False", "FALSE", "0", "no", "No"] {
-            let enabled = !matches!(v.to_ascii_lowercase().as_str(), "false" | "0" | "no");
-            assert!(!enabled, "{v:?} must be treated as disabled");
+            // SAFETY: serialized by ENV_LOCK.
+            unsafe { std::env::set_var(&env_name, format!("forced:{v}")) };
+            assert!(!allow_self_update(), "{v:?} must be treated as disabled");
         }
+        unsafe { std::env::remove_var(&env_name) };
     }
 
     // -- real, OS-touching sanity checks (mirrors
@@ -365,13 +283,17 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn on_this_unmanaged_dev_machine_none_of_the_three_keys_are_forced() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         for key in [
             UPDATE_FEED_URL_KEY,
             UPDATE_CHANNEL_KEY,
             ALLOW_SELF_UPDATE_KEY,
         ] {
+            // SAFETY: serialized by ENV_LOCK — ensures no dev-seam override
+            // is active for these keys so the REAL FFI path is exercised.
+            unsafe { std::env::remove_var(override_env_name(key)) };
             assert_eq!(
-                real_lookup(key),
+                crate::managed::forced::forced_string(key),
                 ForcedLookup::Absent,
                 "key {key:?} must not be forced on an unmanaged dev machine"
             );
@@ -381,6 +303,16 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn the_real_end_to_end_readers_fall_back_to_compiled_in_defaults_here() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: serialized by ENV_LOCK — clears any dev-seam override so
+        // the REAL (unmanaged-dev-machine) path is exercised.
+        for key in [
+            UPDATE_FEED_URL_KEY,
+            UPDATE_CHANNEL_KEY,
+            ALLOW_SELF_UPDATE_KEY,
+        ] {
+            unsafe { std::env::remove_var(override_env_name(key)) };
+        }
         assert_eq!(update_feed_url(), DEFAULT_UPDATE_FEED_URL);
         assert_eq!(update_channel(), DEFAULT_UPDATE_CHANNEL);
         assert_eq!(allow_self_update(), DEFAULT_ALLOW_SELF_UPDATE);

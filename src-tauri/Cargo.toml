@@ -108,6 +108,20 @@ copilot-control-tower = { path = ".", features = ["dev-seam"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10.1"
 core-foundation-sys = "0.8.7"
+# Managed login-item (M5/S3, `.copilot/wp/30.md` ADR-M5-004): safe(r) Rust
+# bindings to the `ServiceManagement` framework's `SMAppService` (macOS 13+),
+# used ONLY by `loginitem::smappservice::RealSMAppService` — the actual
+# `register`/`unregister`/`status` calls are owner-gated (need a signed
+# bundle + a real Mac to observe genuine approval-state transitions;
+# `cargo test` injects a fake `LoginItemService` instead, never this real
+# impl). Chosen over hand-rolling raw `objc2`/`msg_send!` call sites: this
+# crate is a maintained, typed wrapper (part of the same `objc2` project
+# `tauri`'s own macOS tray-icon backend already depends on transitively) that
+# gives `SMAppService`/`SMAppServiceStatus` real Rust types instead of a
+# second hand-rolled unsafe FFI surface next to `managed::forced`'s
+# CoreFoundation one. Default features (`SMAppService`, `objc2-foundation`
+# for `NSError`/`NSString`, etc.) are all that's needed here.
+objc2-service-management = "0.3"
 
 # NOTE: no health-scoring, sync, signature, merge, or wipe crates belong here —
 # ever. That logic lives in the `copilot`/`cc` CLI (invariant #1, "parse never

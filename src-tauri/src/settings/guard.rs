@@ -599,6 +599,19 @@ const DENIED_KEYS: &[&str] = &[
     "disablewizard",
     "deprovisioned",
     "admincontact",
+    // M5/S1 gap flagged in `managed::keys`'s module doc ("A real,
+    // evidence-based gap this freeze surfaces"): `SharedSecretStoreURL`/
+    // `SharedSecretStoreTier` (credentials-and-boundary.md §1.6.2 step 6 —
+    // an ENDPOINT REFERENCE, never a secret value, but forced-domain-only
+    // exactly like every other key in this list) and `LoginItemManaged`
+    // (ADR-M5-004) were reader-side registered in `managed::keys::MANAGED_KEYS`
+    // but missing here, so nothing stopped Settings from hand-writing one of
+    // these three names into `copilot.layers.yml`'s `extra` mapping and
+    // having never-destroy preserve it as if it were ordinary unrecognized
+    // config — closed by this addition (M5/S5 hardening fix).
+    "sharedsecretstoreurl",
+    "sharedsecretstoretier",
+    "loginitemmanaged",
     // Trust roots / signing (compiled-in code, never config — invariant #4).
     "rootkey",
     "keyset",
@@ -1071,6 +1084,11 @@ layers:
             "AdminContact",
             "OrgSlug",
             "Department",
+            "SharedSecretStoreURL",
+            "shared_secret_store_url",
+            "SharedSecretStoreTier",
+            "LoginItemManaged",
+            "login_item_managed",
             "root_key",
             "key_set",
             "policy_signers",

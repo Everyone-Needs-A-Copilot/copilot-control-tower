@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # mock-cc — a stand-in for the real `cc`/`copilot` CLI, driven entirely by the fixture
 # corpus in this directory. Lets Control Tower be driven through every doctor state
-# (and, as of M3, the wizard's device-flow sign-in seam) without a real fleet, a real
-# CLI, or real OAuth. See README.md for the doctor corpus map and
-# fixtures/wizard/README.md for the auth seam + wizard scenario corpus.
+# (and, as of M3, the wizard's device-flow sign-in seam; as of M5/S2, the deprovision
+# seam) without a real fleet, a real CLI, real OAuth, or a real (mutating!) wipe. See
+# README.md for the doctor corpus map, fixtures/wizard/README.md for the auth seam +
+# wizard scenario corpus, and fixtures/deprovision/README.md for the deprovision corpus.
 #
 # Usage (mirrors the real CLI's invocation shape):
 #   mock-cc doctor --json
@@ -14,6 +15,9 @@
 #                                     #   `cc auth` integration, never a `gh auth status`
 #                                     #   screen-scrape) — identical behavior to `auth`.
 #   mock-cc auth login --json --poll
+#   mock-cc deprovision <org> --json # M5/S2: emit a canned deprovision REPORT — this
+#                                     #   stub NEVER touches the filesystem; it only
+#                                     #   prints a fixture body, exactly like `doctor`.
 #
 # Fixture selection for `doctor` (checked in this order):
 #   1. --fixture=<name> or --fixture <name> on the command line
@@ -79,13 +83,45 @@
 #      the honest-failure outcomes (denied/expired/timeout/pending are normal, expected
 #      terminal/interim states, not env errors)
 #   2  env error — CT_AUTH_SCENARIO=exit-2, or an unrecognized scenario name
+#
+# --- deprovision (M5/S2, `.copilot/wp/30.md`) ------------------------------------------
+# Fixture selection for `deprovision <org>` — the SAME $CT_FIXTURE/$CC_FIXTURE/
+# --fixture convention as `doctor` (checked in the same order), resolved against
+# deprovision/corpus/<name>.json first, then deprovision/invalid/<name>.json, then
+# tried as a literal path. Default (when unset): "wiped-clean". CT_FIXTURE=list and
+# CT_FIXTURE=exit-2 behave the same as they do for `doctor` (list also enumerates the
+# deprovision corpus; exit-2 simulates the env-error/flock-held path — no trustworthy
+# body, exit 2).
+#
+# Exit code for `deprovision` — deliberately simpler than `doctor`'s: cli-contract.md's
+# `deprovision` row names no per-body exit-code convention (no analogue of doctor's
+# severity:"fail" -> exit 1), so this stub always exits 0 once a fixture body is found,
+# EVERY fixture printed verbatim (including deprovision/invalid/ — those exist so the
+# app's OWN fail-closed parsing, `model::deprovision::parse_deprovision_body`, is what's
+# under test, exactly like doctor's `checker-missing-*` fixtures rely on the app failing
+# closed on CONTENT rather than on the exit code):
+#   0  a fixture body was found and printed (corpus/ OR invalid/ — see above)
+#   2  CT_FIXTURE=exit-2, or the requested fixture can't be found
+#
+# NEVER wipes anything: this stub is pure text-in/text-out, exactly like `doctor` — it
+# holds no filesystem-deletion logic at all, matching the real invariant this whole
+# feature exists to prove (FF-M5-2, `tests/fitness_m5_no_wipe_logic.rs`).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORPUS_DIR="$HERE/corpus"
 INVALID_DIR="$HERE/invalid"
+# M5/S2: the `deprovision` verb's own fixture corpus, deliberately separate
+# from doctor's (a different --json shape entirely) — see
+# fixtures/deprovision/README.md.
+DEPROVISION_CORPUS_DIR="$HERE/deprovision/corpus"
+DEPROVISION_INVALID_DIR="$HERE/deprovision/invalid"
 
-fixture="${CT_FIXTURE:-${CC_FIXTURE:-healthy-clean-fleet}}"
+# No hardcoded default here — `doctor` defaults to "healthy-clean-fleet" and
+# `deprovision` defaults to "wiped-clean", applied below once $verb is known
+# (both share the same $CT_FIXTURE/$CC_FIXTURE/--fixture selection
+# convention; only the fallback-when-unset value differs per verb).
+fixture="${CT_FIXTURE:-${CC_FIXTURE:-}}"
 auth_scenario="${CT_AUTH_SCENARIO:-${CC_AUTH_SCENARIO:-authorized}}"
 
 # --fixture=<name> / --fixture <name>, --scenario=<name> / --scenario <name>, and
@@ -128,6 +164,15 @@ while [ $i -lt ${#args[@]} ]; do
   i=$((i + 1))
 done
 
+# Per-verb default (only when nothing set $fixture at all — an explicit
+# `--fixture=list`/`exit-2`/named fixture always wins, checked below).
+if [ -z "$fixture" ]; then
+  case "$verb" in
+    deprovision) fixture="wiped-clean" ;;
+    *) fixture="healthy-clean-fleet" ;;
+  esac
+fi
+
 list_fixtures() {
   echo "corpus (valid, schema-passing, for 'doctor'):"
   for f in "$CORPUS_DIR"/*.json; do
@@ -136,6 +181,16 @@ list_fixtures() {
   done
   echo "invalid (adversarial, intentionally NOT schema-valid — for CliUnreadable tests):"
   for f in "$INVALID_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "deprovision corpus (valid, for 'deprovision <org> --json'):"
+  for f in "$DEPROVISION_CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "deprovision invalid (adversarial, for the Unreadable path):"
+  for f in "$DEPROVISION_INVALID_DIR"/*.json; do
     [ -e "$f" ] || continue
     printf '  %s\n' "$(basename "${f%.json}")"
   done
@@ -150,7 +205,7 @@ if [ "$fixture" = "list" ]; then
 fi
 
 if [ -z "$verb" ]; then
-  echo "mock-cc: usage: mock-cc doctor --json | mock-cc auth --json [--poll]   (or CT_FIXTURE=list mock-cc doctor --json)" >&2
+  echo "mock-cc: usage: mock-cc doctor --json | mock-cc auth --json [--poll] | mock-cc deprovision <org> --json   (or CT_FIXTURE=list mock-cc doctor --json)" >&2
   exit 2
 fi
 
@@ -207,6 +262,46 @@ PY
     )"
 
     exit "$exit_code"
+    ;;
+
+  deprovision)
+    # `mock-cc deprovision <org> --json` — `$subverb` carries the org
+    # (`copilot deprovision <org> --json`'s positional argument); this stub
+    # never reads it (no fixture varies by org), it only exists so callers
+    # proving arg-forwarding have something real to assert on.
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable, flock held) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+
+    resolve_deprovision_fixture_path() {
+      local name="$1"
+      if [ -f "$DEPROVISION_CORPUS_DIR/$name.json" ]; then
+        echo "$DEPROVISION_CORPUS_DIR/$name.json"
+      elif [ -f "$DEPROVISION_INVALID_DIR/$name.json" ]; then
+        echo "$DEPROVISION_INVALID_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
+
+    path="$(resolve_deprovision_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown deprovision fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
+
+    # Unlike `doctor`, this contract has no documented per-body exit-code
+    # convention (cli-contract.md's `deprovision` row names none) — every
+    # fixture (corpus/ or invalid/) is emitted verbatim on a clean exit 0.
+    # The app's OWN fail-closed parsing (`model::deprovision::
+    # parse_deprovision_body`) is what's under test for the invalid/
+    # corpus, exactly like doctor's `checker-missing-*` fixtures rely on the
+    # app failing closed on CONTENT, not on the exit code.
+    cat "$path"
+    exit 0
     ;;
 
   auth)

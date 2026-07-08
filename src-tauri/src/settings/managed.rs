@@ -20,6 +20,15 @@
 //! "what counts as managed" and "what Settings may never write" stay the
 //! same vocabulary.
 //!
+//! **M5/S1 consolidation:** the actual `CFPreferencesAppValueIsForced` FFI
+//! call this module used to make directly now lives SOLELY in
+//! `crate::managed::forced::key_is_forced` (`.copilot/wp/30.md`
+//! ADR-M5-001) — this module's own `key_is_forced` below is a thin
+//! delegating wrapper kept for call-site stability, not a second FFI
+//! implementation. Public behavior (`is_managed`, `apply_gate`,
+//! `refuse_locked_writes`) and every test in this file are unchanged by that
+//! refactor.
+//!
 //! ## The dev-mockable seam
 //!
 //! [`MANAGED_OVERRIDE_ENV`] (`CT_MANAGED_OVERRIDE=1`/`0`) lets a debug/test
@@ -51,13 +60,9 @@
 use super::dto::{LayerInput, LayerRow, Tier};
 use super::validate::FieldError;
 
-/// The macOS application-preferences domain this app's managed keys would be
-/// forced under — matches `tauri.conf.json`'s `identifier`.
-const APPLICATION_ID: &str = "com.everyoneneedsacopilot.controltower";
-
-/// Any ONE of these being forced in [`APPLICATION_ID`]'s domain means this
-/// machine has an MDM-delivered managed ecosystem. See the module doc for
-/// why these particular two names.
+/// Any ONE of these being forced in `crate::managed::keys::APPLICATION_ID`'s
+/// domain means this machine has an MDM-delivered managed ecosystem. See the
+/// module doc for why these particular two names.
 const MANAGED_INDICATOR_KEYS: &[&str] = &["EcosystemSeedURL", "DisableWizard"];
 
 /// Dev/test-only override env var — see the module doc's "dev-mockable
@@ -107,27 +112,14 @@ fn real_is_managed() -> bool {
     false
 }
 
-#[cfg(target_os = "macos")]
+/// **M5/S1 delegation** — the actual `CFPreferencesAppValueIsForced` FFI
+/// call lives SOLELY in `crate::managed::forced::key_is_forced` now (see
+/// this module's doc); this wrapper exists only so every call site below
+/// stays unchanged. `crate::managed::forced::key_is_forced` already fails
+/// closed to `false` off macOS on its own, so this wrapper needs no
+/// `#[cfg(target_os = "macos")]` of its own.
 fn key_is_forced(key: &str) -> bool {
-    use core_foundation::base::TCFType;
-    use core_foundation::string::CFString;
-    use core_foundation_sys::preferences::CFPreferencesAppValueIsForced;
-
-    let cf_key = CFString::new(key);
-    let cf_app_id = CFString::new(APPLICATION_ID);
-    // SAFETY: both `CFString`s are kept alive for the duration of this call
-    // (they aren't dropped until this function returns), and
-    // `CFPreferencesAppValueIsForced` only reads them — this is the standard
-    // core-foundation-sys FFI call shape (pass a borrowed `CFStringRef` via
-    // `as_concrete_TypeRef()`, never transfer ownership across the FFI
-    // boundary).
-    let forced = unsafe {
-        CFPreferencesAppValueIsForced(
-            cf_key.as_concrete_TypeRef(),
-            cf_app_id.as_concrete_TypeRef(),
-        )
-    };
-    forced != 0
+    crate::managed::forced::key_is_forced(key)
 }
 
 /// Applies the managed gate to already-projected [`LayerRow`]s

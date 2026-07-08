@@ -32,6 +32,26 @@
 //!   (S5) orchestration flows (`.copilot/wp/15.md`). The IPC commands +
 //!   window that wire it all together (S6) live in `commands.rs` alongside
 //!   the M1/M2 surface, and are registered/managed below.
+//! - `deprovision` — M5/S2: the `cc deprovision <org> --json` DTO + render
+//!   (parse-not-compute — see that module's own doc). No wipe/retain logic
+//!   anywhere in it; the CLI performs the deprovision, this module only
+//!   asks what happened and renders it honestly (never-destroy
+//!   `retained_dirty`, the `secrets_touched` alarm). Its trigger/routing
+//!   caller is `routing::deprovision_trigger` (M5/S6, below) — still no
+//!   Tauri command or any Bob-facing affordance anywhere in the chain
+//!   (invariant #5).
+//! - `managed` — M5/S1: the SOLE `CFPreferences` forced-domain FFI boundary
+//!   (`managed::forced`) + the frozen managed-key registry (`managed::keys`)
+//!   — see that module's own doc. `settings::managed`/`updater::trust`
+//!   delegate their forced-domain reads here rather than each carrying an
+//!   independent FFI call.
+//! - `routing` — M5/S6: route-by-competence (invariant #5, architecture.md
+//!   §9). `Actor`/`ItSignal`/`route_credential_state` (auth `expired` ->
+//!   Bob's own re-auth, `revoked` -> a content-free IT offer) plus
+//!   `deprovision_trigger` (the forced `Deprovisioned` key -> `deprovision::
+//!   run_deprovision` -> an IT-routed render). Deliberately not wired to any
+//!   Tauri command, emitted event, or the popover — see that module's own
+//!   doc and `tests/fitness_m5_deprovision_is_it_routed.rs` (FF-M5-3).
 //!
 //! Nothing in this file computes ecosystem state. If a change here starts
 //! looking like resolution/sync/signature/merge/health-scoring logic, it
@@ -41,6 +61,40 @@
 // `timer.rs`.
 mod cli;
 mod commands;
+// M5/S2 (`.copilot/wp/30.md`): the deprovision DTO + render (parse-not-
+// compute) — `cc deprovision <org> --json` spawn + fail-closed parse +
+// honest render (never-destroy `retained_dirty`, the `secrets_touched`
+// alarm). No Tauri command wired to it yet (route-by-competence, invariant
+// #5): the IT/managed trigger surface is a later stream (S6), not this one.
+// `pub` for the same reason `model`/`render`/`settings` are — reached from
+// `tests/fitness_m5_no_wipe_logic.rs`, a separate crate linked against
+// `copilot_control_tower_lib`.
+pub mod deprovision;
+// M5/S1 (`.copilot/wp/30.md`): the sole `CFPreferences` forced-domain FFI
+// boundary + frozen managed-key registry. `pub` — reached from
+// `tests/fitness_m5_single_forced_boundary.rs`, a separate crate linked
+// against `copilot_control_tower_lib`.
+pub mod managed;
+// M5/S3 (`.copilot/wp/30.md`, ADR-M5-004): the managed login-item —
+// `SMAppService` launch-at-login + the `LoginItemManaged` forced-domain
+// enablement decision, DISTINCT from the M4 crash-only `launchd` watchdog
+// (`updater::watchdog`) — see `loginitem`'s own module doc for the full
+// delineation. `pub` — reached from
+// `tests/fitness_m5_loginitem_not_watchdog.rs`, a separate crate linked
+// against `copilot_control_tower_lib`. Not yet wired to a Tauri
+// command/uninstaller call site (that wiring is a later stream, matching
+// `deprovision`'s own "not yet wired" precedent above).
+pub mod loginitem;
+// M5/S4 (`.copilot/wp/30.md`): the Admin-mode `.mobileconfig` generator —
+// PURE Rust, iterates `managed::keys::MANAGED_KEYS` (never a second
+// hand-maintained key list), asserts its own emitted domain equals
+// `managed::keys::APPLICATION_ID` (FF-M5-6, closes G-M5-1), and never emits
+// a secret value (FF-M5-7). `pub` — reached from
+// `tests/fitness_m5_generator_domain_and_no_secrets.rs` and
+// `examples/gen_mobileconfig_fixture.rs`, both separate crates/binaries
+// linked against `copilot_control_tower_lib`. No real MDM upload (owner-
+// gated) — see `mobileconfig`'s own module doc.
+pub mod mobileconfig;
 // `pub` (T3): `model`/`render`/`settings` are reached from `tests/` and
 // `examples/gen_dev_fixtures.rs` (separate crates linked against
 // `copilot_control_tower_lib`), which need `model::state::parse_doctor_body`,
@@ -49,6 +103,12 @@ mod commands;
 // nothing outside this crate needs them.
 pub mod model;
 pub mod render;
+// M5/S6 (`.copilot/wp/30.md`, task 49): route-by-competence — the forced
+// `Deprovisioned` trigger + the auth-revoked -> IT-routed offer. `pub` —
+// reached from `tests/fitness_m5_deprovision_is_it_routed.rs`, a separate
+// crate linked against `copilot_control_tower_lib`. Not wired to any Tauri
+// command (invariant #5 — see `routing`'s own module doc).
+pub mod routing;
 pub mod settings;
 mod timer;
 mod tray;

@@ -17,7 +17,14 @@
 //!
 //! T3: implemented. `render::derive` consumes `state::DoctorVerdict` /
 //! `state::ParseOutcome` to produce the `RenderState` DTO the web UI renders.
+//!
+//! M5/S2 (`.copilot/wp/30.md`): `deprovision` is the same wire+domain+parse-
+//! boundary split, for `cc deprovision <org> --json` instead of `doctor
+//! --json` — collapsed into one file since that shape is small. See its own
+//! module doc for the deprovision-specific fail-closed rules (`secrets_touched`
+//! in particular).
 
+pub mod deprovision;
 pub mod doctor;
 pub mod envelope;
 pub mod failclosed;
