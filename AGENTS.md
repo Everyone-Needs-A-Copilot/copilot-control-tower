@@ -3,8 +3,8 @@
 ## Project Overview
 
 - Project: `copilot-control-tower`
-- Description: Project using codex-copilot
-- Stack: Unknown
+- Description: Open-source Tauri menu-bar app that supervises the `copilot`/`cc` CLI and provides an Admin mode for IT setup and deployment.
+- Stack: Tauri v2 / Rust / TypeScript / Vite
 
 ## Codex Copilot
 

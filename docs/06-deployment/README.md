@@ -19,6 +19,10 @@ rather than splitting the observability doc set across two directories.
 `docs/09-admin/` does not exist and isn't needed; nothing here outgrew this
 one directory.
 
+Admin deployment starts after the publisher has produced a signed, notarized
+artifact. For the role split and handoff boundary, see
+[`../reference/publisher-admin-experience.md`](../reference/publisher-admin-experience.md).
+
 ## What's real today vs. what's designed
 
 This matters more than usual here, because the milestone that builds most of

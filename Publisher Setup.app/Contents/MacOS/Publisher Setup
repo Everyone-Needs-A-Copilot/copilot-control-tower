@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+cd "${REPO_ROOT}"
+
+BUILD_DIR=".copilot/publisher-setup"
+BIN="${BUILD_DIR}/publisher-setup"
+SOURCE="scripts/publisher_setup.swift"
+
+mkdir -p "${BUILD_DIR}"
+
+if [[ ! -x "${BIN}" || "${SOURCE}" -nt "${BIN}" || "$0" -nt "${BIN}" ]]; then
+    /usr/bin/env swiftc "${SOURCE}" -o "${BIN}"
+fi
+
+exec "${BIN}"

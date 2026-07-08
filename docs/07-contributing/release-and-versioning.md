@@ -63,6 +63,14 @@ Both channels are read **only from the forced MDM domain** (`CFPreferencesAppVal
 4. The watchdog verifies the staged bundle is stapled **offline** before promoting it (no dependency on reaching Apple's notarization CDN at swap time) — this is what makes air-gapped/proxy fleets on an internal `UpdateFeedURL` mirror safe to auto-update.
 5. Only after 1–4 succeed does a build become eligible for either channel; `beta` vs `stable` is a promotion decision, not a different build pipeline.
 
+For the hands-on publisher setup path (CSR, G2 Sub-CA certificate, G2
+intermediate trust fix, **Publisher Setup.app**, local release env,
+`scripts/setup-publisher.sh` fallback, `sign.sh`, and `notarize.sh`), see
+[`publisher-release-runbook.md`](publisher-release-runbook.md).
+Keep that publisher path separate from the Admin/IT deployment path in
+[`../06-deployment/standup-runbook.md`](../06-deployment/standup-runbook.md):
+the publisher signs artifacts; the administrator configures and deploys them.
+
 ---
 
 ## 3. Changelog conventions

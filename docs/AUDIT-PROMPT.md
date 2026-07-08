@@ -41,6 +41,8 @@ Then, in order:
    coercing to a safe-looking default (e.g. missing `signed` must mean UNSIGNED, never signed).
 5. Cross-check every candidate finding against `docs/AUDIT-HANDOFF.md` §8 (known mocked gaps)
    before reporting it — a mocked seam is not a bug.
+6. Look for security vulnerabilities, inefficient code, and low-performing code.
+7. Ensure the final product aligns with the product vision.
 
 RULES:
 - Do NOT modify product code except throwaway mutations to test a fitness test (revert them).

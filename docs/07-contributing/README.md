@@ -78,11 +78,20 @@ and [`release-and-versioning.md`](release-and-versioning.md):
 
 Full mechanics live in
 [`../03-design/design-distribution.md`](../03-design/design-distribution.md)
-(§1, §4) and [`release-and-versioning.md`](release-and-versioning.md) §2; the
-summary a contributor needs:
+(§1, §4), [`release-and-versioning.md`](release-and-versioning.md) §2, and
+the step-by-step publisher path in
+[`publisher-release-runbook.md`](publisher-release-runbook.md); the summary a
+contributor needs:
 
 - **Developer ID signing** in the inside-out order (innermost frameworks/
   helpers first, the `.app` last), hardened runtime on.
+- **Local publisher setup** should use the repo-local **Publisher Setup.app**
+  after the Developer ID Application certificate is installed; it walks the
+  publisher through prerequisites, stores the notary profile through Apple's
+  keychain-backed `notarytool` flow, and writes the ignored
+  `.env.release.local` file. The shell script
+  [`scripts/setup-publisher.sh`](../../scripts/setup-publisher.sh) remains a
+  fallback for headless setup.
 - **Notarization** via `notarytool submit --wait`, then **stapling** both the
   `.app` and the `.dmg` — stapling matters because the crash-only watchdog
   verifies a staged self-update bundle is stapled **offline**, before
