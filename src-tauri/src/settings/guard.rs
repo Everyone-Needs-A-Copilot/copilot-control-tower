@@ -315,12 +315,19 @@ fn scan_mapping_for_secrets(
 
 /// Recurses into a raw `serde_yaml::Value` (used for `extra` catch-alls and
 /// the loosely-typed `rank`/`version` fields) looking for a secret-shaped
-/// leaf string.
+/// leaf string or mapping key.
 fn scan_value(value: &Value) -> Option<&'static str> {
     match value {
         Value::String(s) => secret_reason_in(s),
         Value::Sequence(seq) => seq.iter().find_map(scan_value),
-        Value::Mapping(map) => map.iter().find_map(|(_, v)| scan_value(v)),
+        Value::Mapping(map) => map.iter().find_map(|(k, v)| {
+            if let Some(key) = k.as_str() {
+                if let Some(reason) = secret_reason_in(key) {
+                    return Some(reason);
+                }
+            }
+            scan_value(v)
+        }),
         Value::Tagged(t) => scan_value(&t.value),
         Value::Null | Value::Bool(_) | Value::Number(_) => None,
     }
@@ -904,6 +911,28 @@ layers:
     auth: ssh-personal
     activation: always
     ghp_1234567890ABCDEFabcdef1234567890AB: "innocuous value"
+"#;
+        let manifest = parse_manifest(text).expect("should parse");
+        let err = scan_for_secrets(&manifest).expect_err("must refuse");
+        assert_eq!(err.kind, GuardErrorKind::SecretDetected);
+        assert_secret_value_never_leaks(&err, "ghp_1234567890ABCDEFabcdef1234567890AB");
+    }
+
+    #[test]
+    fn a_secret_hidden_as_a_nested_extra_field_key_is_refused() {
+        let text = r#"
+version: 1
+layers:
+  - id: personal-pablo
+    role: personal
+    product: claude
+    rank: 10
+    source:
+      repo: git@github-personal:me/repo.git
+    auth: ssh-personal
+    activation: always
+    metadata:
+      ghp_1234567890ABCDEFabcdef1234567890AB: "innocuous value"
 "#;
         let manifest = parse_manifest(text).expect("should parse");
         let err = scan_for_secrets(&manifest).expect_err("must refuse");

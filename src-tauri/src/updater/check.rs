@@ -1,8 +1,8 @@
 //! The update-check/apply transport (M4/S4, ADR-M4-004: "own the transport,
 //! parse [never compute] the doctor signal"). This module fetches the
-//! signed update manifest + signature (+, when applying, the artifact),
+//! signed update manifest + k-of-N signatures (+, when applying, the artifact),
 //! hands them to `sec`'s already-landed, fail-closed
-//! [`verify::verify_update`]/[`verify::verify_staple`] — **never
+//! [`verify::verify_update_multisig`]/[`verify::verify_staple`] — **never
 //! reimplemented, never bypassed** — and, on success, stages the verified
 //! bundle into `do`'s [`watchdog::StagedLayout`]. `apply_update` then
 //! completes the promote-or-rollback decision itself (M4 gap-closure, S11):
@@ -13,7 +13,7 @@
 //! deferred promise (`confirm_staged_bundle_boots`). This module computes no
 //! ecosystem state of its own (invariant #1): every accept/refuse decision
 //! it renders is a direct, unedited pass-through of what
-//! `verify_update`/`verify_staple`/`watchdog::decide` decided.
+//! `verify_update_multisig`/`verify_staple`/`watchdog::decide` decided.
 //!
 //! Both [`check_for_update`] and [`apply_update`] honor `trust::
 //! allow_self_update()` (FF-M4-4, forced-domain-only) FIRST — `Allow
@@ -26,7 +26,7 @@
 //!
 //! ## Why `check_for_update` downloads the (small, today) artifact too
 //!
-//! `verify::verify_update` authenticates `(version, channel, artifact
+//! `verify::verify_update_multisig` authenticates `(version, channel, artifact
 //! identity)` as ONE atomic, signed fact — by design, it requires the real
 //! artifact bytes to do that (see that module's own doc: pinning the hash
 //! *inside* the signed manifest is what closes a swapped-artifact/replay
@@ -34,16 +34,16 @@
 //! `fixtures/updater/` additionally carry an (unused-by-`verify`)
 //! `artifact_url` field matching `release-and-versioning.md` §2's `latest.
 //! json` shape — a tempting shortcut would be to peek that field with a
-//! second, independent signature check (using the same `trust::trust_root`/
-//! `minisign_verify` building blocks `verify_update` itself calls) so
+//! second, independent signature check (using the same compiled-in multisig
+//! roots and `minisign_verify` building blocks `verify_update_multisig` itself calls) so
 //! *checking* stays cheap (manifest-only) and only *applying* pays for the
 //! full artifact download. This module deliberately does **not** do that:
-//! duplicating even a few lines of "verify this signature" outside the one
+//! duplicating even a few lines of "verify these signatures" outside the one
 //! frozen, audited module this crate trusts for it is a worse trade than a
 //! wasted download, especially while `D-4-M4` (the real feed endpoint) is
 //! still owner-gated/undefined and today's fixture artifacts are a few
 //! bytes, not tens of MB. `check_for_update` therefore calls the exact same
-//! `verify::verify_update` `apply_update` does, just without ever staging
+//! `verify::verify_update_multisig` `apply_update` does, just without ever staging
 //! the result. If the real feed's artifact size later makes this wasteful,
 //! the fix is a manifest-only-verify entry point added to `verify.rs`
 //! itself (using that already-present `artifact_url` field) — a follow-up,
@@ -73,9 +73,10 @@ use std::time::Duration;
 use super::dto::{UpdateState, UpdateStatus};
 use super::heartbeat::{self, default_heartbeat_root};
 use super::launch::{self, StagedBundleLauncher};
+use super::multisig;
 use super::rollback_marker;
 use super::trust;
-use super::verify::{self, VerifyError};
+use super::verify::{self, VerifiedUpdate, VerifyError};
 use super::watchdog::{self, StagedLayout};
 
 /// The dev/test-only feed-root override — see the module doc. Not read at
@@ -228,12 +229,22 @@ fn fetcher_for(url: &str) -> Box<dyn FeedFetcher> {
     }
 }
 
-/// The manifest's minisign signature — minisign's own sibling-file
-/// convention (`<file>.minisig`), matching every fixture pair under
-/// `fixtures/updater/` (`valid-manifest.json` / `valid-manifest.json.
-/// minisig`).
-fn signature_url(manifest_url: &str) -> String {
-    format!("{manifest_url}.minisig")
+/// One root-specific minisign signature sibling for `manifest_url`.
+///
+/// The live feed publishes one file per compiled-in multisig root:
+/// `<manifest-url>.<root-id>.minisig` (for example,
+/// `latest.json.rootA.minisig`). This lets the transport fetch every public
+/// root's candidate signature without trying to parse the manifest before it
+/// has met the k-of-N threshold.
+fn signature_url(manifest_url: &str, signature_id: &str) -> String {
+    format!("{manifest_url}.{signature_id}.minisig")
+}
+
+fn signature_urls(manifest_url: &str) -> Vec<String> {
+    multisig::TRUST_ROOT_SIGNATURE_IDS
+        .iter()
+        .map(|id| signature_url(manifest_url, id))
+        .collect()
 }
 
 /// The artifact's location — a fixed sibling filename in the same
@@ -328,33 +339,83 @@ fn self_update_gate(allowed: bool) -> Option<UpdateState> {
     }
 }
 
-/// Fetches the manifest + its signature + the artifact from `manifest_url`
-/// via `fetcher`, in that order — the one place both `check_for_update` and
-/// `apply_update` assemble the three inputs `verify::verify_update` needs.
+struct FetchedBundle {
+    manifest: Vec<u8>,
+    signatures: Vec<String>,
+    signature_fetch_error: Option<FetchError>,
+    artifact: Vec<u8>,
+}
+
+/// Fetches the manifest + every root-specific signature sibling + the
+/// artifact from `manifest_url` via `fetcher`, in that order — the one place
+/// both `check_for_update` and `apply_update` assemble the inputs
+/// `verify::verify_update_multisig` needs.
 fn fetch_bundle(
     fetcher: &dyn FeedFetcher,
     manifest_url: &str,
-) -> Result<(Vec<u8>, String, Vec<u8>), UpdateState> {
+) -> Result<FetchedBundle, UpdateState> {
     let manifest = fetcher
         .fetch(manifest_url)
         .map_err(|e| error_state(fetch_error_message("an update", &e)))?;
 
-    let signature_bytes = fetcher
-        .fetch(&signature_url(manifest_url))
-        .map_err(|e| error_state(fetch_error_message("an update", &e)))?;
-    // A signature file is minisign's own plain-text format; bytes that
-    // somehow aren't UTF-8 are simply an empty string here rather than a
-    // separate error branch — `verify::verify_update` independently decodes
-    // whatever string it's handed and fails closed to `MalformedSignature`
-    // on anything that doesn't parse (including empty), so this never masks
-    // a real refusal.
-    let signature = String::from_utf8(signature_bytes).unwrap_or_default();
+    let mut signatures = Vec::new();
+    let mut signature_fetch_error = None;
+    for url in signature_urls(manifest_url) {
+        match fetcher.fetch(&url) {
+            Ok(signature_bytes) => {
+                // A signature file is minisign's own plain-text format; bytes
+                // that somehow aren't UTF-8 are simply an empty string here.
+                // `verify::verify_update_multisig` independently decodes each
+                // string and counts only signatures that parse and match a
+                // compiled-in root, so this never turns bad input into trust.
+                signatures.push(String::from_utf8(signature_bytes).unwrap_or_default());
+            }
+            // Feeds may publish any threshold-satisfying subset of the N
+            // root signatures. Missing optional root files contribute zero;
+            // the verifier decides whether the remaining signatures meet K.
+            Err(FetchError::NotFound) => {}
+            Err(e) => {
+                if signature_fetch_error.is_none() {
+                    signature_fetch_error = Some(e);
+                }
+            }
+        }
+    }
 
     let artifact = fetcher
         .fetch(&artifact_sibling(manifest_url))
         .map_err(|e| error_state(fetch_error_message("an update", &e)))?;
 
-    Ok((manifest, signature, artifact))
+    Ok(FetchedBundle {
+        manifest,
+        signatures,
+        signature_fetch_error,
+        artifact,
+    })
+}
+
+fn verify_fetched_bundle(bundle: &FetchedBundle) -> Result<VerifiedUpdate, UpdateState> {
+    let signatures: Vec<&str> = bundle.signatures.iter().map(String::as_str).collect();
+    match verify::verify_update_multisig(&bundle.artifact, &signatures, &bundle.manifest) {
+        Ok(verified) => Ok(verified),
+        // A validly-signed manifest for a version <= what's already running
+        // is exactly "nothing to update" (see `verify::VerifyError::
+        // Downgrade`'s own doc on why this also covers same-version replay)
+        // — never surfaced as an `Error`.
+        Err(VerifyError::Downgrade { .. }) => Err(up_to_date_state()),
+        Err(VerifyError::InsufficientSignatures { .. })
+            if bundle.signature_fetch_error.is_some() =>
+        {
+            Err(error_state(fetch_error_message(
+                "update signatures",
+                bundle
+                    .signature_fetch_error
+                    .as_ref()
+                    .expect("checked above"),
+            )))
+        }
+        Err(e) => Err(error_state(e.to_string())),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -365,24 +426,19 @@ fn fetch_bundle(
 /// explicit parameters so tests inject a [`LocalDirFetcher`] pointed at
 /// `fixtures/updater/` directly, without touching `CT_UPDATE_FEED` at all.
 pub fn check_for_update_with(fetcher: &dyn FeedFetcher, manifest_url: &str) -> UpdateState {
-    let (manifest, signature, artifact) = match fetch_bundle(fetcher, manifest_url) {
+    let bundle = match fetch_bundle(fetcher, manifest_url) {
         Ok(bundle) => bundle,
         Err(state) => return state,
     };
 
-    match verify::verify_update(&artifact, &signature, &manifest) {
+    match verify_fetched_bundle(&bundle) {
         Ok(verified) => UpdateState {
             status: UpdateStatus::Available,
             available_version: Some(verified.version.to_string()),
             current_version: current_version_string(),
             message: None,
         },
-        // A validly-signed manifest for a version <= what's already running
-        // is exactly "nothing to update" (see `verify::VerifyError::
-        // Downgrade`'s own doc on why this also covers same-version replay)
-        // — never surfaced as an `Error`.
-        Err(VerifyError::Downgrade { .. }) => up_to_date_state(),
-        Err(e) => error_state(e.to_string()),
+        Err(state) => state,
     }
 }
 
@@ -439,18 +495,17 @@ pub fn apply_update_with(
     layout: &StagedLayout,
     staple_check: impl Fn(&Path) -> Result<(), VerifyError>,
 ) -> UpdateState {
-    let (manifest, signature, artifact) = match fetch_bundle(fetcher, manifest_url) {
+    let bundle = match fetch_bundle(fetcher, manifest_url) {
         Ok(bundle) => bundle,
         Err(state) => return state,
     };
 
-    let verified = match verify::verify_update(&artifact, &signature, &manifest) {
-        Ok(v) => v,
-        Err(VerifyError::Downgrade { .. }) => return up_to_date_state(),
-        Err(e) => return error_state(e.to_string()),
+    let verified = match verify_fetched_bundle(&bundle) {
+        Ok(verified) => verified,
+        Err(state) => return state,
     };
 
-    if let Err(e) = stage(layout, &verified.version.to_string(), &artifact) {
+    if let Err(e) = stage(layout, &verified.version.to_string(), &bundle.artifact) {
         return error_state(format!("Couldn't save the verified update: {e}"));
     }
 
@@ -689,6 +744,26 @@ mod tests {
         fixtures_dir().join(name).display().to_string()
     }
 
+    fn copy_threshold_signed_feed(feed_dir: &Path, manifest_name: &str) {
+        std::fs::copy(
+            fixtures_dir().join(manifest_name),
+            feed_dir.join(MANIFEST_FILENAME),
+        )
+        .unwrap();
+        for id in ["rootA", "rootB"] {
+            std::fs::copy(
+                fixtures_dir().join(format!("{manifest_name}.{id}.minisig")),
+                feed_dir.join(format!("{MANIFEST_FILENAME}.{id}.minisig")),
+            )
+            .unwrap();
+        }
+        std::fs::copy(
+            fixtures_dir().join("artifact.bin"),
+            feed_dir.join(ARTIFACT_FILENAME),
+        )
+        .unwrap();
+    }
+
     // -- FetchError / LocalDirFetcher ---------------------------------------
 
     #[test]
@@ -712,10 +787,22 @@ mod tests {
     // -- sibling URL derivation ----------------------------------------------
 
     #[test]
-    fn signature_url_appends_the_minisig_suffix() {
+    fn signature_url_appends_the_root_id_and_minisig_suffix() {
         assert_eq!(
-            signature_url("https://example.com/stable/latest.json"),
-            "https://example.com/stable/latest.json.minisig"
+            signature_url("https://example.com/stable/latest.json", "rootA"),
+            "https://example.com/stable/latest.json.rootA.minisig"
+        );
+    }
+
+    #[test]
+    fn signature_urls_cover_every_compiled_in_root_id() {
+        assert_eq!(
+            signature_urls("https://example.com/stable/latest.json"),
+            vec![
+                "https://example.com/stable/latest.json.rootA.minisig".to_string(),
+                "https://example.com/stable/latest.json.rootB.minisig".to_string(),
+                "https://example.com/stable/latest.json.rootC.minisig".to_string(),
+            ]
         );
     }
 
@@ -763,7 +850,7 @@ mod tests {
     fn a_validly_signed_newer_manifest_reports_available() {
         let state = check_for_update_with(
             &LocalDirFetcher,
-            &fixture_manifest_url("valid-manifest.json"),
+            &fixture_manifest_url("multisig-manifest.json"),
         );
         assert_eq!(state.status, UpdateStatus::Available);
         assert_eq!(state.available_version.as_deref(), Some("9.9.9"));
@@ -774,7 +861,7 @@ mod tests {
     fn a_downgrade_manifest_reports_up_to_date_not_error() {
         let state = check_for_update_with(
             &LocalDirFetcher,
-            &fixture_manifest_url("downgrade-manifest.json"),
+            &fixture_manifest_url("multisig-downgrade-manifest.json"),
         );
         assert_eq!(state.status, UpdateStatus::UpToDate);
         assert!(state.available_version.is_none());
@@ -789,22 +876,25 @@ mod tests {
     #[test]
     fn a_signature_from_the_wrong_key_reports_error_with_a_plain_message() {
         // Reuses the SAME fixture verify.rs's own adversarial test uses,
-        // proving this module doesn't re-derive or soften the refusal.
-        let manifest_path = fixtures_dir().join("valid-manifest.json");
-        let bad_sig_path = fixtures_dir().join("valid-manifest.json.wrongkey.minisig");
-        // A tiny in-memory fetcher pairing the right manifest with the WRONG
-        // signature file, since the sibling-derivation convention always
-        // pairs `<manifest>.minisig` — this test needs to inject a
-        // mismatched pair directly instead.
+        // proving this module doesn't re-derive or soften the refusal: one
+        // good root plus one attacker root is still below the threshold.
+        let manifest_path = fixtures_dir().join("multisig-manifest.json");
+        let root_a_sig_path = fixtures_dir().join("multisig-manifest.json.rootA.minisig");
+        let bad_sig_path = fixtures_dir().join("multisig-manifest.json.attacker.minisig");
         struct MismatchedSigFetcher {
             manifest: PathBuf,
+            root_a_sig: PathBuf,
             wrong_sig: PathBuf,
             artifact: PathBuf,
         }
         impl FeedFetcher for MismatchedSigFetcher {
             fn fetch(&self, resource: &str) -> Result<Vec<u8>, FetchError> {
-                let path = if resource.ends_with(".minisig") {
+                let path = if resource.ends_with(".rootA.minisig") {
+                    &self.root_a_sig
+                } else if resource.ends_with(".rootB.minisig") {
                     &self.wrong_sig
+                } else if resource.ends_with(".rootC.minisig") {
+                    return Err(FetchError::NotFound);
                 } else if resource.ends_with("artifact.bin") {
                     &self.artifact
                 } else {
@@ -815,6 +905,7 @@ mod tests {
         }
         let fetcher = MismatchedSigFetcher {
             manifest: manifest_path,
+            root_a_sig: root_a_sig_path,
             wrong_sig: bad_sig_path,
             artifact: fixtures_dir().join("artifact.bin"),
         };
@@ -825,6 +916,36 @@ mod tests {
             "an error state must always carry a plain-language message"
         );
         assert!(!state.message.unwrap().is_empty());
+    }
+
+    #[test]
+    fn only_one_valid_root_signature_reports_error_not_available() {
+        struct OneSignatureFetcher;
+        impl FeedFetcher for OneSignatureFetcher {
+            fn fetch(&self, resource: &str) -> Result<Vec<u8>, FetchError> {
+                let path = if resource.ends_with(".rootA.minisig") {
+                    fixtures_dir().join("multisig-manifest.json.rootA.minisig")
+                } else if resource.ends_with(".rootB.minisig")
+                    || resource.ends_with(".rootC.minisig")
+                {
+                    return Err(FetchError::NotFound);
+                } else if resource.ends_with("artifact.bin") {
+                    fixtures_dir().join("artifact.bin")
+                } else {
+                    fixtures_dir().join("multisig-manifest.json")
+                };
+                std::fs::read(path).map_err(|_| FetchError::NotFound)
+            }
+        }
+
+        let state = check_for_update_with(&OneSignatureFetcher, "placeholder/latest.json");
+
+        assert_eq!(state.status, UpdateStatus::Error);
+        assert!(state
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("only 1 of the required 2"));
     }
 
     #[test]
@@ -849,7 +970,7 @@ mod tests {
 
         let state = apply_update_with(
             &LocalDirFetcher,
-            &fixture_manifest_url("valid-manifest.json"),
+            &fixture_manifest_url("multisig-manifest.json"),
             &layout,
             |_path| Ok(()),
         );
@@ -876,7 +997,7 @@ mod tests {
 
         let state = apply_update_with(
             &LocalDirFetcher,
-            &fixture_manifest_url("valid-manifest.json"),
+            &fixture_manifest_url("multisig-manifest.json"),
             &layout,
             |_path| Err(VerifyError::UnstapledBundle),
         );
@@ -901,7 +1022,7 @@ mod tests {
 
         let state = apply_update_with(
             &LocalDirFetcher,
-            &fixture_manifest_url("downgrade-manifest.json"),
+            &fixture_manifest_url("multisig-downgrade-manifest.json"),
             &layout,
             |_path| Ok(()),
         );
@@ -923,10 +1044,14 @@ mod tests {
         }
         impl FeedFetcher for TamperedFetcher {
             fn fetch(&self, resource: &str) -> Result<Vec<u8>, FetchError> {
-                let path = if resource.ends_with(".minisig") {
-                    // Reuse the ORIGINAL valid signature, paired below with
-                    // the TAMPERED manifest — must still be refused.
-                    fixtures_dir().join("valid-manifest.json.minisig")
+                let path = if resource.ends_with(".rootA.minisig") {
+                    // Reuse ORIGINAL valid signatures, paired below with the
+                    // TAMPERED manifest — must still be refused.
+                    fixtures_dir().join("multisig-manifest.json.rootA.minisig")
+                } else if resource.ends_with(".rootB.minisig") {
+                    fixtures_dir().join("multisig-manifest.json.rootB.minisig")
+                } else if resource.ends_with(".rootC.minisig") {
+                    return Err(FetchError::NotFound);
                 } else if resource.ends_with("artifact.bin") {
                     self.artifact.clone()
                 } else {
@@ -955,21 +1080,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let feed_dir = scratch_dir("feed-check");
-        std::fs::copy(
-            fixtures_dir().join("valid-manifest.json"),
-            feed_dir.join(MANIFEST_FILENAME),
-        )
-        .unwrap();
-        std::fs::copy(
-            fixtures_dir().join("valid-manifest.json.minisig"),
-            feed_dir.join(format!("{MANIFEST_FILENAME}.minisig")),
-        )
-        .unwrap();
-        std::fs::copy(
-            fixtures_dir().join("artifact.bin"),
-            feed_dir.join(ARTIFACT_FILENAME),
-        )
-        .unwrap();
+        copy_threshold_signed_feed(&feed_dir, "multisig-manifest.json");
 
         // SAFETY: serialized by ENV_LOCK.
         unsafe { std::env::set_var(DEV_FEED_OVERRIDE_ENV, &feed_dir) };
@@ -998,21 +1109,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let feed_dir = scratch_dir("feed-apply");
-        std::fs::copy(
-            fixtures_dir().join("valid-manifest.json"),
-            feed_dir.join(MANIFEST_FILENAME),
-        )
-        .unwrap();
-        std::fs::copy(
-            fixtures_dir().join("valid-manifest.json.minisig"),
-            feed_dir.join(format!("{MANIFEST_FILENAME}.minisig")),
-        )
-        .unwrap();
-        std::fs::copy(
-            fixtures_dir().join("artifact.bin"),
-            feed_dir.join(ARTIFACT_FILENAME),
-        )
-        .unwrap();
+        copy_threshold_signed_feed(&feed_dir, "multisig-manifest.json");
         let layout_root = scratch_dir("feed-apply-layout");
 
         // SAFETY: serialized by ENV_LOCK.

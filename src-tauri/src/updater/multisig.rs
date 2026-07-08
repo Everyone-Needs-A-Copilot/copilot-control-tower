@@ -8,16 +8,15 @@
 //! ## Why a new module rather than editing `trust.rs` in place
 //!
 //! `trust.rs` is M4's file, and its single-root `trust_root()`/
-//! `TRUST_ROOT_PUBLIC_KEY_B64` are still the exact path `verify::verify_update`
-//! uses today (kept working, unmodified, per this task's own instruction —
-//! there is no reason to migrate that call site: `verify_update_multisig`
-//! below is an ADDITIONAL, stricter entrypoint the transport can move to
-//! independently). Putting the k-of-N array in its own file means the two
-//! trust models (one compiled-in root vs. N compiled-in roots + a threshold)
-//! are never accidentally conflated by a future edit to either file, and
-//! `trust.rs`'s existing fitness scans (`trust_root_function_body_only_ever_
-//! parses_the_compiled_in_const`, the FF-M4-2 bypass-flag scan) stay scoped
-//! to exactly what they always scanned.
+//! `TRUST_ROOT_PUBLIC_KEY_B64` still back `verify::verify_update` for the
+//! single-root compatibility/test surface M4 already shipped. The live
+//! self-update transport now uses the stricter `verify_update_multisig`
+//! entrypoint, but keeping the k-of-N array in its own file still keeps the
+//! two trust models (one compiled-in root vs. N compiled-in roots + a
+//! threshold) from being accidentally conflated by a future edit to either
+//! file; `trust.rs`'s existing fitness scans
+//! (`trust_root_function_body_only_ever_parses_the_compiled_in_const`, the
+//! FF-M4-2 bypass-flag scan) stay scoped to exactly what they always scanned.
 //!
 //! ## The k-of-N model
 //!
@@ -96,6 +95,14 @@ pub const TRUST_ROOTS_B64: [&str; 3] = [
     "RWQSc31bl8sLb0IQzrCyPpyvCbPKZBdUVwJwoUh6cCdNWF/t4Bx0vCmz",
 ];
 
+/// Stable feed suffix identifiers for the signatures corresponding to
+/// [`TRUST_ROOTS_B64`], in the same order. A live feed publishes signatures as
+/// `<manifest-url>.<id>.minisig`; the updater fetches every id and accepts any
+/// threshold-satisfying subset. These are public so the live transport and the
+/// fitness tests share one root list shape rather than hand-maintaining a
+/// second N.
+pub const TRUST_ROOT_SIGNATURE_IDS: [&str; 3] = ["rootA", "rootB", "rootC"];
+
 /// The two-of-N threshold: at least this many DISTINCT roots (out of
 /// [`TRUST_ROOTS_B64`]) must each independently verify the same manifest
 /// bytes. `>= 2` by construction — see the module doc and
@@ -119,6 +126,11 @@ const _: () = assert!(
 const _: () = assert!(
     TRUST_ROOTS_B64.len() >= THRESHOLD_K,
     "there must be at least THRESHOLD_K compiled-in trust roots, or two-of-N could never be satisfied"
+);
+
+const _: () = assert!(
+    TRUST_ROOT_SIGNATURE_IDS.len() == TRUST_ROOTS_B64.len(),
+    "each compiled-in multisig trust root must have exactly one feed signature id"
 );
 
 /// Parses every entry of [`TRUST_ROOTS_B64`] into a usable key, in the same

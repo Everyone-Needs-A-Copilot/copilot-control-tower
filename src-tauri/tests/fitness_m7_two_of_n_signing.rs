@@ -19,6 +19,8 @@
 //! 4. Duplicate signatures from the SAME root don't count as two independent
 //!    approvals.
 //! 5. A wrong-key/garbage signature never counts toward the threshold.
+//! 6. The live self-update transport calls the k-of-N verifier, not the old
+//!    single-root verifier.
 //!
 //! Items 3-5 are also unit-tested directly inside
 //! `updater::verify`'s own `#[cfg(test)]` module (closer to the code, exact
@@ -127,10 +129,18 @@ fn multisig_rs() -> String {
     fs::read_to_string(src_dir().join("updater").join("multisig.rs")).expect("read multisig.rs")
 }
 
+fn check_rs() -> String {
+    fs::read_to_string(src_dir().join("updater").join("check.rs")).expect("read check.rs")
+}
+
 /// Production-only source (comments stripped, `#[cfg(test)]` blocks
 /// stripped) — what the two source-scan tests below actually inspect.
 fn multisig_production_source() -> String {
     strip_cfg_test_blocks(&strip_comments(&multisig_rs()))
+}
+
+fn check_production_source() -> String {
+    strip_cfg_test_blocks(&strip_comments(&check_rs()))
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +220,21 @@ fn no_bypass_flag_anywhere_in_multisig_source() {
              updater/multisig.rs: {needle:?}"
         );
     }
+}
+
+#[test]
+fn live_update_transport_calls_the_multisig_verifier() {
+    let stripped = check_production_source();
+    assert!(
+        stripped.contains("verify::verify_update_multisig("),
+        "FF-M7-TWO-OF-N: updater/check.rs production code must route live update \
+         manifest verification through verify_update_multisig"
+    );
+    assert!(
+        !stripped.contains("verify::verify_update(&"),
+        "FF-M7-TWO-OF-N: updater/check.rs production code must not keep the live \
+         self-update transport on the single-root verifier"
+    );
 }
 
 // ---------------------------------------------------------------------------

@@ -115,6 +115,12 @@ None of the four secret keys are committed — only the fixtures they signed.
 | `multisig-downgrade-manifest.json` | `app_version: "0.0.1"`, validly two-of-N-signed — proves the downgrade rule survives unchanged under the multisig path even when the threshold is otherwise met. |
 | `multisig-downgrade-manifest.json.rootA.minisig` / `.rootB.minisig` | `rootA`/`rootB`'s real signatures over `multisig-downgrade-manifest.json` (two distinct, valid signatures — meets `THRESHOLD_K`, and the manifest must STILL be refused as a downgrade). |
 
+The live feed uses the same root-id suffix convention against its well-known
+manifest name: for `latest.json`, publish `latest.json.rootA.minisig`,
+`latest.json.rootB.minisig`, and optionally `latest.json.rootC.minisig`. Any
+threshold-satisfying subset accepts; fewer than `THRESHOLD_K` distinct valid
+root signatures refuses.
+
 The existing `garbage.minisig`/`missing.minisig` (malformed/absent signature)
 and `tampered-manifest.json` (bytes-mismatch) fixtures from the M4 corpus
 above are reused as-is for the multisig adversarial matrix too — a garbage or

@@ -44,11 +44,11 @@
 //!
 //! ## Two-of-N: [`verify_update_multisig`] (M7/S5, `.copilot/wp` task 64)
 //!
-//! [`verify_update_multisig`] is a stricter SIBLING entrypoint to
-//! `verify_update`, not a replacement — `verify_update` still requires
-//! exactly the one compiled-in root ([`trust::trust_root`]) M4 always did,
-//! kept working unmodified. `verify_update_multisig` instead requires **at
-//! least [`super::multisig::THRESHOLD_K`] DISTINCT roots** (out of
+//! [`verify_update_multisig`] is the stricter live self-update entrypoint.
+//! `verify_update` remains available for M4's single-root compatibility/test
+//! surface and still requires exactly the one compiled-in root
+//! ([`trust::trust_root`]) M4 always did. `verify_update_multisig` requires
+//! **at least [`super::multisig::THRESHOLD_K`] DISTINCT roots** (out of
 //! [`super::multisig::TRUST_ROOTS_B64`]) to each independently produce a
 //! valid signature over the exact same manifest bytes before the manifest is
 //! trusted enough to parse. Both entrypoints share the identical

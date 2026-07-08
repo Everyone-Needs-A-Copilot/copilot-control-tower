@@ -28,18 +28,20 @@
 //! - [`multisig`] (M7/S5, `sec`-owned, `.copilot/wp` task 64) — the
 //!   compiled-in N-root array + `THRESHOLD_K` two-of-N threshold
 //!   (`architecture.md` §7/§11 item 1, flagged G-M7-4), consumed by
-//!   [`verify::verify_update_multisig`]. Does NOT modify [`trust`]'s
-//!   single-root path — that stays exactly as M4 built it; this module is a
-//!   stricter, additional entrypoint, not a migration.
+//!   [`verify::verify_update_multisig`] and by the live self-update
+//!   transport. [`trust`]'s single-root path stays present for M4's
+//!   compatibility/test surface, but the update-check/apply flow now demands
+//!   k-of-N signatures.
 //! - [`check`] (M4/S4, `me`-owned) — the update-check/apply TRANSPORT:
-//!   fetches the signed manifest (+ signature, + artifact) from
+//!   fetches the signed manifest (+ k-of-N signature siblings, + artifact) from
 //!   `trust::update_feed_url()` via a trait-based, test-mockable
-//!   [`check::FeedFetcher`], hands them to `verify::verify_update`/
-//!   `verify::verify_staple` (never reimplemented), and on success stages
-//!   the result into `watchdog::StagedLayout` for the next relaunch's
-//!   self-test/promote decision. `commands.rs`'s `check_for_update`/
-//!   `apply_update` IPC commands are thin `spawn_blocking` wrappers around
-//!   this module's own `check_for_update`/`apply_update` functions.
+//!   [`check::FeedFetcher`], hands them to
+//!   `verify::verify_update_multisig`/`verify::verify_staple` (never
+//!   reimplemented), and on success stages the result into
+//!   `watchdog::StagedLayout` for the next relaunch's self-test/promote
+//!   decision. `commands.rs`'s `check_for_update`/`apply_update` IPC
+//!   commands are thin `spawn_blocking` wrappers around this module's own
+//!   `check_for_update`/`apply_update` functions.
 //! - [`dto`] (M4/S4-S5, `me`-owned) — the `UpdateState`/`UpdateStatus` IPC
 //!   DTO `check`/`commands.rs` return, mirroring `src/types.ts`'s
 //!   already-frozen (S10) shape.

@@ -1551,22 +1551,25 @@ mod update_ipc_tests {
             .join("updater")
     }
 
-    /// Points `CT_UPDATE_FEED` at a fresh directory carrying a copy of the
-    /// SAME dev-signed fixture pair `updater::check`'s own tests use, so the
-    /// REAL `check_for_update()`/`apply_update()` IPC commands (not the
-    /// `_with`-suffixed testable cores) can be exercised end to end, over
-    /// this crate's real async command surface, with zero real network.
+    /// Points `CT_UPDATE_FEED` at a fresh directory carrying a threshold-
+    /// satisfying copy of the SAME dev-signed multisig fixtures
+    /// `updater::check`'s own tests use, so the REAL `check_for_update()`/
+    /// `apply_update()` IPC commands (not the `_with`-suffixed testable
+    /// cores) can be exercised end to end, over this crate's real async
+    /// command surface, with zero real network.
     fn seed_feed_dir(dir: &std::path::Path) {
         std::fs::copy(
-            fixtures_dir().join("valid-manifest.json"),
+            fixtures_dir().join("multisig-manifest.json"),
             dir.join("latest.json"),
         )
         .unwrap();
-        std::fs::copy(
-            fixtures_dir().join("valid-manifest.json.minisig"),
-            dir.join("latest.json.minisig"),
-        )
-        .unwrap();
+        for id in ["rootA", "rootB"] {
+            std::fs::copy(
+                fixtures_dir().join(format!("multisig-manifest.json.{id}.minisig")),
+                dir.join(format!("latest.json.{id}.minisig")),
+            )
+            .unwrap();
+        }
         std::fs::copy(
             fixtures_dir().join("artifact.bin"),
             dir.join("artifact.bin"),
