@@ -41,12 +41,29 @@
 //! `.app`), not the raw artifact bytes `verify_update` receives — S3's state
 //! machine calls both before ever transitioning `Verified -> Staged`
 //! (ADR-M4-004). Neither function alone reaches `Verified`.
+//!
+//! ## Two-of-N: [`verify_update_multisig`] (M7/S5, `.copilot/wp` task 64)
+//!
+//! [`verify_update_multisig`] is a stricter SIBLING entrypoint to
+//! `verify_update`, not a replacement — `verify_update` still requires
+//! exactly the one compiled-in root ([`trust::trust_root`]) M4 always did,
+//! kept working unmodified. `verify_update_multisig` instead requires **at
+//! least [`super::multisig::THRESHOLD_K`] DISTINCT roots** (out of
+//! [`super::multisig::TRUST_ROOTS_B64`]) to each independently produce a
+//! valid signature over the exact same manifest bytes before the manifest is
+//! trusted enough to parse. Both entrypoints share the identical
+//! post-authentication logic (downgrade + artifact-hash checks — see
+//! [`after_authenticated`]): once *either* scheme has authenticated the
+//! manifest bytes, "is this actually a newer, hash-matching update" is the
+//! same question with the same fail-closed answer either way.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use minisign_verify::Signature;
 use serde::Deserialize;
 
+use super::multisig;
 use super::trust;
 
 // ---------------------------------------------------------------------------
@@ -170,6 +187,14 @@ pub enum VerifyError {
     /// binary, or some other trust path) — this app's own updates must
     /// always be notarized; "accepted for some other reason" still refuses.
     InvalidStaple,
+    /// [`verify_update_multisig`] only: fewer than
+    /// [`super::multisig::THRESHOLD_K`] of the supplied signatures verified
+    /// against DISTINCT compiled-in roots. `valid` is the number of distinct
+    /// roots actually satisfied (duplicate signatures from the same root,
+    /// garbage/malformed signatures, and signatures from a key outside the
+    /// compiled-in set all contribute zero); `required` is
+    /// [`super::multisig::THRESHOLD_K`].
+    InsufficientSignatures { valid: usize, required: usize },
 }
 
 impl std::fmt::Display for VerifyError {
@@ -201,6 +226,9 @@ impl std::fmt::Display for VerifyError {
             }
             VerifyError::InvalidStaple => {
                 write!(f, "This update wasn't notarized the way Everyone Needs a Copilot releases are — it will not be installed.")
+            }
+            VerifyError::InsufficientSignatures { valid, required } => {
+                write!(f, "This update has only {valid} of the required {required} independent signatures — it will not be installed.")
             }
         }
     }
@@ -247,6 +275,109 @@ pub(crate) fn verify_update_against(
 
     // Only now — after the signature over these EXACT bytes has checked
     // out — is `manifest`'s content trusted enough to parse and act on.
+    after_authenticated(artifact, manifest, current)
+}
+
+// ---------------------------------------------------------------------------
+// verify_update_multisig — two-of-N (M7/S5)
+// ---------------------------------------------------------------------------
+
+/// Verifies `signatures` — a slice of minisign signatures, each in
+/// minisign's own multi-line text format, in ANY order — against `manifest`
+/// using the compiled-in [`super::multisig::TRUST_ROOTS_B64`], requiring at
+/// least [`super::multisig::THRESHOLD_K`] of them to each independently
+/// verify against a DISTINCT root. Then checks `manifest`'s declared version
+/// is newer than the version currently running, and that `artifact`'s
+/// sha256 matches what the (now-authenticated) manifest declares — the
+/// identical downgrade/hash logic [`verify_update`] applies, via
+/// [`after_authenticated`].
+///
+/// **Distinct-root accounting, precisely:** for each supplied signature
+/// string, this function tries every compiled-in root in turn; the FIRST
+/// root it matches is recorded (by index) and no other root is tried for
+/// that same signature (a genuine minisign signature can only ever verify
+/// against the one key that produced it — trying further roots after a
+/// match is pure waste, never a correctness concern). The set of matched
+/// root INDICES (not the count of input signatures) is what is compared
+/// against `THRESHOLD_K`, so:
+/// - Two different signature strings that both verify against the SAME root
+///   contribute exactly one index to the set (not two) — a duplicated or
+///   re-submitted single custodian's approval can never masquerade as a
+///   second, independent one.
+/// - A malformed/garbage signature string fails to decode and contributes
+///   nothing (never an error by itself — it simply doesn't count).
+/// - A structurally-valid signature from a key OUTSIDE the compiled-in set
+///   (e.g. an attacker's own keypair) matches no root and contributes
+///   nothing.
+///
+/// Fails closed with [`VerifyError::InsufficientSignatures`] if, after
+/// processing every supplied signature, fewer than `THRESHOLD_K` distinct
+/// roots were satisfied.
+pub fn verify_update_multisig(
+    artifact: &[u8],
+    signatures: &[&str],
+    manifest: &[u8],
+) -> Result<VerifiedUpdate, VerifyError> {
+    verify_update_multisig_against(artifact, signatures, manifest, &current_app_version())
+}
+
+/// The testable core of [`verify_update_multisig`] — same "current version
+/// as an explicit parameter" shape as [`verify_update_against`], and for the
+/// identical reason (downgrade-refusal fixtures shouldn't depend on this
+/// crate's own constantly-advancing `Cargo.toml` version).
+pub(crate) fn verify_update_multisig_against(
+    artifact: &[u8],
+    signatures: &[&str],
+    manifest: &[u8],
+    current: &Version,
+) -> Result<VerifiedUpdate, VerifyError> {
+    let roots = multisig::trust_roots();
+    let mut satisfied_root_indices: HashSet<usize> = HashSet::new();
+
+    for signature in signatures {
+        let Ok(sig) = Signature::decode(signature) else {
+            continue; // malformed/garbage — contributes nothing, not an error
+        };
+        for (idx, root) in roots.iter().enumerate() {
+            if root.verify(manifest, &sig, false).is_ok() {
+                satisfied_root_indices.insert(idx);
+                break; // a signature verifies against at most one root
+            }
+        }
+    }
+
+    if satisfied_root_indices.len() < multisig::THRESHOLD_K {
+        return Err(VerifyError::InsufficientSignatures {
+            valid: satisfied_root_indices.len(),
+            required: multisig::THRESHOLD_K,
+        });
+    }
+
+    // Only now — after >= THRESHOLD_K distinct roots have authenticated
+    // these EXACT manifest bytes — is `manifest`'s content trusted enough to
+    // parse and act on. Same downgrade/hash rules as the single-root path;
+    // meeting the threshold is necessary, never sufficient, for acceptance.
+    after_authenticated(artifact, manifest, current)
+}
+
+// ---------------------------------------------------------------------------
+// after_authenticated — shared by both verify_update_against and
+// verify_update_multisig_against, once each has independently established
+// that `manifest`'s bytes are authentic (one root vs. k-of-N respectively).
+// ---------------------------------------------------------------------------
+
+/// Parses `manifest` (ALREADY authenticated by the caller — this function
+/// trusts its content unconditionally) and checks the declared version is
+/// strictly newer than `current`, then that `artifact`'s sha256 matches the
+/// declared `artifact_sha256`. Neither the single-root nor the k-of-N
+/// verifier reaches [`VerifiedUpdate`] without going through here — there is
+/// exactly one downgrade rule and one hash rule in this crate, applied
+/// identically regardless of which trust scheme authenticated the bytes.
+fn after_authenticated(
+    artifact: &[u8],
+    manifest: &[u8],
+    current: &Version,
+) -> Result<VerifiedUpdate, VerifyError> {
     let wire: UpdateManifestWire =
         serde_json::from_slice(manifest).map_err(|_| VerifyError::MalformedManifest)?;
 
@@ -707,6 +838,260 @@ mod tests {
         assert_eq!(err, VerifyError::MalformedSignature);
     }
 
+    // -- verify_update_multisig: two-of-N adversarial matrix (FF-M7-TWO-OF-N,
+    //    M7/S5) --------------------------------------------------------------
+
+    fn multisig_old_current() -> Version {
+        Version {
+            major: 0,
+            minor: 0,
+            patch: 0,
+        }
+    }
+
+    #[test]
+    fn k_valid_distinct_signatures_are_accepted() {
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+        let sig_b = read_fixture_string("multisig-manifest.json.rootB.minisig");
+
+        let verified = verify_update_multisig_against(
+            &artifact,
+            &[&sig_a, &sig_b],
+            &manifest,
+            &multisig_old_current(),
+        )
+        .expect("two distinct valid signatures must meet the two-of-N threshold");
+        assert_eq!(
+            verified.version,
+            Version {
+                major: 9,
+                minor: 9,
+                patch: 9
+            }
+        );
+    }
+
+    #[test]
+    fn all_n_signatures_present_still_accepts() {
+        // More than K distinct valid signatures is fine — THRESHOLD_K is a
+        // MINIMUM, not an exact count.
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+        let sig_b = read_fixture_string("multisig-manifest.json.rootB.minisig");
+        let sig_c = read_fixture_string("multisig-manifest.json.rootC.minisig");
+
+        assert!(verify_update_multisig_against(
+            &artifact,
+            &[&sig_a, &sig_b, &sig_c],
+            &manifest,
+            &multisig_old_current(),
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn k_minus_one_valid_signatures_are_refused() {
+        // Exactly ONE valid signature — one short of THRESHOLD_K (2) — must
+        // be refused, never treated as "good enough".
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+
+        let err = verify_update_multisig_against(
+            &artifact,
+            &[&sig_a],
+            &manifest,
+            &multisig_old_current(),
+        )
+        .expect_err("a single valid signature must never satisfy a two-of-N threshold");
+        assert_eq!(
+            err,
+            VerifyError::InsufficientSignatures {
+                valid: 1,
+                required: multisig::THRESHOLD_K,
+            }
+        );
+    }
+
+    #[test]
+    fn zero_signatures_supplied_is_refused() {
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+
+        let err =
+            verify_update_multisig_against(&artifact, &[], &manifest, &multisig_old_current())
+                .expect_err("no signatures at all must refuse");
+        assert_eq!(
+            err,
+            VerifyError::InsufficientSignatures {
+                valid: 0,
+                required: multisig::THRESHOLD_K,
+            }
+        );
+    }
+
+    #[test]
+    fn two_valid_signatures_from_the_same_root_do_not_count_twice() {
+        // The SAME root's signature, submitted twice (simulating a
+        // duplicated/re-submitted single custodian's approval, or an
+        // attacker who only ever got one custodian to sign trying to pad
+        // the list), must still only satisfy ONE of the two required
+        // distinct roots.
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+
+        let err = verify_update_multisig_against(
+            &artifact,
+            &[&sig_a, &sig_a],
+            &manifest,
+            &multisig_old_current(),
+        )
+        .expect_err("duplicate signatures from one root must never count as two");
+        assert_eq!(
+            err,
+            VerifyError::InsufficientSignatures {
+                valid: 1,
+                required: multisig::THRESHOLD_K,
+            }
+        );
+    }
+
+    #[test]
+    fn a_mix_of_one_valid_and_one_garbage_signature_is_refused() {
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+        let garbage = read_fixture_string("garbage.minisig");
+
+        let err = verify_update_multisig_against(
+            &artifact,
+            &[&sig_a, &garbage],
+            &manifest,
+            &multisig_old_current(),
+        )
+        .expect_err("one valid signature plus one garbage signature is still below threshold");
+        assert_eq!(
+            err,
+            VerifyError::InsufficientSignatures {
+                valid: 1,
+                required: multisig::THRESHOLD_K,
+            }
+        );
+    }
+
+    #[test]
+    fn a_signature_from_a_key_outside_the_compiled_in_set_never_counts() {
+        // The "attacker" fixture is a structurally-valid minisign signature
+        // over the SAME manifest bytes, but from a key that is not one of
+        // the three compiled-in roots — it must verify against none of them.
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+        let attacker_sig = read_fixture_string("multisig-manifest.json.attacker.minisig");
+
+        let err = verify_update_multisig_against(
+            &artifact,
+            &[&sig_a, &attacker_sig],
+            &manifest,
+            &multisig_old_current(),
+        )
+        .expect_err("a non-root signature must never count toward the threshold");
+        assert_eq!(
+            err,
+            VerifyError::InsufficientSignatures {
+                valid: 1,
+                required: multisig::THRESHOLD_K,
+            }
+        );
+    }
+
+    #[test]
+    fn empty_and_missing_signatures_mixed_in_never_count() {
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+        let sig_b = read_fixture_string("multisig-manifest.json.rootB.minisig");
+        let missing = read_fixture_string("missing.minisig"); // empty file
+
+        // k valid distinct + noise (an empty signature entry) still accepts —
+        // noise must never SUBTRACT from an otherwise-sufficient threshold.
+        assert!(verify_update_multisig_against(
+            &artifact,
+            &[&sig_a, &sig_b, &missing],
+            &manifest,
+            &multisig_old_current(),
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn a_downgrade_is_refused_even_with_k_valid_distinct_signatures() {
+        // M4's downgrade rule must survive completely intact under the
+        // multisig scheme: meeting the two-of-N threshold authenticates the
+        // BYTES, it does not exempt the manifest's declared version from the
+        // anti-replay/downgrade check.
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-downgrade-manifest.json");
+        let sig_a = read_fixture_string("multisig-downgrade-manifest.json.rootA.minisig");
+        let sig_b = read_fixture_string("multisig-downgrade-manifest.json.rootB.minisig");
+
+        let current = Version {
+            major: 5,
+            minor: 0,
+            patch: 0,
+        };
+        let err = verify_update_multisig_against(&artifact, &[&sig_a, &sig_b], &manifest, &current)
+            .expect_err("k-of-N authentication must not exempt a manifest from the downgrade rule");
+        match err {
+            VerifyError::Downgrade {
+                attempted,
+                current: c,
+            } => {
+                assert_eq!(
+                    attempted,
+                    Version {
+                        major: 0,
+                        minor: 0,
+                        patch: 1
+                    }
+                );
+                assert_eq!(c, current);
+            }
+            other => panic!("expected Downgrade, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_tampered_manifest_against_original_multisig_signatures_is_refused() {
+        // Same "whole manifest is authenticated, not just a signature field"
+        // property as the single-root fixture, exercised against the k-of-N
+        // path: pairing a DIFFERENT manifest's bytes with valid-looking
+        // signatures for the original bytes must fail every root check.
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("tampered-manifest.json"); // M4's tampered fixture
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+        let sig_b = read_fixture_string("multisig-manifest.json.rootB.minisig");
+
+        let err = verify_update_multisig_against(
+            &artifact,
+            &[&sig_a, &sig_b],
+            &manifest,
+            &multisig_old_current(),
+        )
+        .expect_err("signatures over different bytes must not verify against tampered bytes");
+        assert_eq!(
+            err,
+            VerifyError::InsufficientSignatures {
+                valid: 0,
+                required: multisig::THRESHOLD_K,
+            }
+        );
+    }
+
     // -- error messages never leak key material / secrets -------------------
 
     #[test]
@@ -737,6 +1122,41 @@ mod tests {
             assert!(
                 !display.contains(&wrongkey_sig) && !debug.contains(&wrongkey_sig),
                 "leaked raw signature text"
+            );
+        }
+    }
+
+    #[test]
+    fn no_verify_error_ever_contains_a_multisig_trust_root_public_key_or_raw_signature_text() {
+        let artifact = read_fixture("artifact.bin");
+        let manifest = read_fixture("multisig-manifest.json");
+        let sig_a = read_fixture_string("multisig-manifest.json.rootA.minisig");
+        let attacker_sig = read_fixture_string("multisig-manifest.json.attacker.minisig");
+
+        let cases: Vec<VerifyError> = vec![
+            verify_update_multisig_against(&artifact, &[], &manifest, &multisig_old_current())
+                .unwrap_err(),
+            verify_update_multisig_against(
+                &artifact,
+                &[&sig_a, &attacker_sig],
+                &manifest,
+                &multisig_old_current(),
+            )
+            .unwrap_err(),
+        ];
+
+        for err in cases {
+            let display = err.to_string();
+            let debug = format!("{err:?}");
+            for pubkey in multisig::TRUST_ROOTS_B64 {
+                assert!(
+                    !display.contains(pubkey) && !debug.contains(pubkey),
+                    "leaked a multisig trust root: {display} / {debug}"
+                );
+            }
+            assert!(
+                !display.contains(&sig_a) && !debug.contains(&sig_a),
+                "leaked raw multisig signature text"
             );
         }
     }

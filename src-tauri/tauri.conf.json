@@ -55,6 +55,21 @@
         "visible": false,
         "skipTaskbar": false,
         "center": true
+      },
+      {
+        "label": "fleet",
+        "title": "Copilot Control Tower — Fleet (Admin)",
+        "url": "fleet.html",
+        "width": 720,
+        "height": 640,
+        "minWidth": 480,
+        "minHeight": 420,
+        "resizable": true,
+        "maximizable": true,
+        "decorations": true,
+        "visible": false,
+        "skipTaskbar": false,
+        "center": true
       }
     ],
     "security": {

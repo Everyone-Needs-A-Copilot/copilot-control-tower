@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- IT fleet dashboard (M7 S4, task 63) — the Admin-facing surface,
+         `50-ux-design.md`'s SURFACE 3 ("Admin / fleet window ◀── Raj (IT),
+         not Bob; opened rarely"). Its own page (would be reached from a
+         future Admin-window shell alongside Settings/wizard), driven under
+         plain `vite dev` (no Tauri host — this repo's headless-verification
+         path) by the dev-fixture harness (fleet-main.ts), same pattern
+         `settings.html`/`wizard.html` established.
+
+         HYPOTHESIS (Founding Decision #9, SOUL.md § 9): no real IT operator
+         has ever touched a fleet dashboard — see `render/fleet.ts`'s visible
+         stamp, not just this comment. -->
+    <title>Copilot Control Tower — Fleet (Admin)</title>
+    <link rel="stylesheet" href="./styles/tokens.css" />
+    <link rel="stylesheet" href="./styles/fleet.css" />
+  </head>
+  <body>
+    <!-- Dev-only fixture switcher (see fleet-main.ts) — dead code in a
+         release build, same convention as index.html's/settings.html's/
+         wizard.html's #ct-dev-harness. -->
+    <div id="ct-dev-harness"></div>
+    <div id="app" aria-label="Copilot Control Tower Fleet Dashboard"></div>
+    <script type="module" src="./fleet-main.ts"></script>
+  </body>
+</html>

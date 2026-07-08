@@ -35,6 +35,10 @@ fn main() {
     // live-flow IPC seam — same ACL-enforcement reasoning, scoped to the
     // popover (`capabilities/default.json`'s `allow-get-bob-lane`/
     // `allow-get-security-banner`), the only window that renders either.
+    // `get_fleet` (M7/S9, task 68, `render::fleet::get_fleet`): the IT fleet
+    // dashboard's snapshot pull — same ACL-enforcement reasoning, scoped to
+    // the (not-yet-shown) `fleet` window (`capabilities/fleet.json`'s
+    // `allow-get-fleet`), the only window that renders it.
     let attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "get_state",
@@ -56,6 +60,7 @@ fn main() {
             "get_security_banner",
             "check_for_update",
             "apply_update",
+            "get_fleet",
         ]));
     tauri_build::try_build(attributes).expect("tauri_build::try_build failed");
 

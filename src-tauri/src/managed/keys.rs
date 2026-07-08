@@ -67,6 +67,16 @@
 //!   resolution-time API the CLI calls, not a channel content flows
 //!   through"); this module never reads or exposes a secret through them.
 //! - `LoginItemManaged` is **provisional** — see its own doc comment below.
+//! - `TelemetryEnabled`/`TelemetryEndpoint` are `security_sensitive: true`
+//!   per M7/S2 (task 61, ADR-M7-003, FF-M7-OPTIN): an unauthenticated write
+//!   to either key is a real security lever (silently turning on analytics
+//!   telemetry, or redirecting it to an attacker-controlled collector) —
+//!   this pair is the documented INTERIM carrier for `telemetry::optin`'s
+//!   `TelemetryCarrier` seam pending G-M7-1's owner ratification of the
+//!   FINAL carrier (the org's signed `ecosystem.yml`, surfaced via a future
+//!   CLI `--json` field this app cannot itself verify the signature of, per
+//!   invariant #1). See `telemetry::optin`'s module doc for the full
+//!   carrier-divergence writeup.
 //!
 //! ## A real, evidence-based gap this freeze surfaces (flagged, not fixed
 //! here — out of this task's file scope)
@@ -273,6 +283,20 @@ pub const MANAGED_KEYS: &[ManagedKey] = &[
         forced_only: true,
         purpose: "PROVISIONAL, pending S3 confirmation of the exact key name/semantics: this app's OWN forced-domain marker announcing that MDM has separately pushed the `com.apple.servicemanagement` managed login-item payload (a DIFFERENT preferences domain this app does not itself read), so the app can skip nagging Bob to enable background running manually (ADR-M5-004).",
     },
+    ManagedKey {
+        name: "TelemetryEnabled",
+        kind: KeyKind::Bool,
+        security_sensitive: true,
+        forced_only: true,
+        purpose: "M7/S2 (task 61, ADR-M7-003, FF-M7-OPTIN) INTERIM analytics opt-in flag — forced-domain-only so a local, non-admin write can never silently turn on analytics telemetry for a machine the org never opted in (analytics is off-by-default, opt-in-only, invariant per SOUL). G-M7-1 (memory `m7-observability-admin-decisions`): the canonical carrier for this decision is the org's SIGNED `ecosystem.yml`, surfaced only via a future CLI `--json` field (this app cannot itself verify a signature — parse, never compute); no such field exists yet, so this forced-domain key is the documented INTERIM carrier behind `telemetry::optin`'s `TelemetryCarrier` seam, not the final owner-ratified answer.",
+    },
+    ManagedKey {
+        name: "TelemetryEndpoint",
+        kind: KeyKind::String,
+        security_sensitive: true,
+        forced_only: true,
+        purpose: "M7/S2 (task 61, ADR-M7-003, FF-M7-OPTIN) INTERIM analytics collector endpoint — an ENDPOINT REFERENCE ONLY (owner infra, G-M7-3), never a secret, same shape as `SharedSecretStoreURL`. Forced-domain-only so analytics can never be silently redirected to an attacker-controlled collector by a user-domain write; absent means the analytics gate resolves to Disabled, never a guessed default (`observability.md` §6). Same G-M7-1 interim-carrier caveat as `TelemetryEnabled` above.",
+    },
 ];
 
 #[cfg(test)]
@@ -374,6 +398,8 @@ mod tests {
             "HTTPSProxy",
             "SharedSecretStoreTier",
             "SharedSecretStoreURL",
+            "TelemetryEnabled",
+            "TelemetryEndpoint",
             "UpdateChannel",
             "UpdateFeedURL",
         ];

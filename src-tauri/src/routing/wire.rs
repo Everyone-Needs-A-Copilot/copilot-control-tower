@@ -89,6 +89,39 @@ pub fn wire_doctor(verdict: &DoctorVerdict, sink: &dyn ItSignalSink) -> Option<B
     })
 }
 
+/// **M7/S3-S9** (`.copilot/wp/43.md`, tasks 62/68): re-derives the
+/// content-free [`ItSignal`]s one doctor verdict's routing would dispatch —
+/// WITHOUT touching any sink. Built entirely from functions already public
+/// and already pure ([`doctor_routable_events`] + [`super::policy::route`]),
+/// so calling this is never a second CLI spawn and never a second trust
+/// decision (invariant #1) — it is the SAME already-trusted `verdict` this
+/// poll's [`wire_doctor`] call routes, re-mapped a second time for a
+/// DIFFERENT consumer. Mirrors `render::security_banner`'s own "a SEPARATE,
+/// parallel parse of the same slice, never derived from `Routed`" precedent
+/// — applied here to feed the telemetry emitter (`telemetry::emitter`)
+/// rather than a security banner. The extraction match (which `Routed`
+/// variants carry a dispatch-worthy signal) is intentionally the SAME shape
+/// [`emit`]'s own internal match uses — both exist because a bare
+/// `EscalateIt` and an `AutoAct`'s optional `it_signal` companion are the
+/// only two places an [`ItSignal`] is ever produced; this is a second reader
+/// of that fact, not a second decision about it.
+pub fn doctor_it_signals(verdict: &DoctorVerdict) -> Vec<ItSignal> {
+    doctor_routable_events(verdict)
+        .into_iter()
+        .filter_map(|event| match super::policy::route(event) {
+            Routed::EscalateIt(signal) => Some(signal),
+            Routed::AutoAct(AutoAct {
+                it_signal: Some(signal),
+                ..
+            }) => Some(signal),
+            Routed::AutoAct(AutoAct {
+                it_signal: None, ..
+            })
+            | Routed::AskBob(_) => None,
+        })
+        .collect()
+}
+
 /// Builds the content-free `RoutableEvent`s for one TRUSTED update verdict —
 /// one [`RoutableEvent::UpdateChange`] per `changed[]` entry, one
 /// [`RoutableEvent::HeldForApproval`] per `held_for_approval[]` entry, one
@@ -384,6 +417,52 @@ mod tests {
         let sink = LocalSink::new();
         assert!(wire_doctor(&v, &sink).is_none());
         assert!(sink.entries().is_empty());
+    }
+
+    // -- doctor_it_signals (M7/S3-S9) -----------------------------------------
+
+    /// The exact same destructive-repair verdict `wire_doctor_dispatches_a_
+    /// destructive_repair_to_the_it_sink_and_asks_bob_nothing` above proves
+    /// dispatches `RepairNeedsReview` to a sink — `doctor_it_signals` must
+    /// independently re-derive the SAME signal, with no sink involved at all.
+    #[test]
+    fn doctor_it_signals_re_derives_the_same_signal_a_sink_would_have_received() {
+        let v = verdict(vec![checker(Severity::Fail, true, true)], vec![]);
+        let signals = doctor_it_signals(&v);
+        assert_eq!(signals.len(), 1);
+        assert_eq!(signals[0].kind, ItSignalKind::RepairNeedsReview);
+    }
+
+    #[test]
+    fn doctor_it_signals_is_empty_for_a_clean_verdict() {
+        let v = verdict(vec![checker(Severity::Pass, false, false)], vec![]);
+        assert!(doctor_it_signals(&v).is_empty());
+    }
+
+    /// An expired-auth verdict routes `AskBob`, never a signal — confirms
+    /// `doctor_it_signals` never manufactures one for a Bob-only lane.
+    #[test]
+    fn doctor_it_signals_is_empty_for_an_ask_bob_only_verdict() {
+        let v = verdict(vec![], vec![auth(AuthState::Expired)]);
+        assert!(doctor_it_signals(&v).is_empty());
+    }
+
+    /// Calling `doctor_it_signals` never dispatches anything to a sink —
+    /// proven by running the SAME verdict through `wire_doctor` afterward on
+    /// a fresh sink and confirming it still reports its own dispatch
+    /// independently (i.e. `doctor_it_signals` shares no hidden sink state).
+    #[test]
+    fn doctor_it_signals_never_touches_any_sink() {
+        let v = verdict(vec![checker(Severity::Fail, true, true)], vec![]);
+        let _ = doctor_it_signals(&v);
+        let sink = LocalSink::new();
+        let prompt = wire_doctor(&v, &sink);
+        assert!(prompt.is_none());
+        assert_eq!(
+            sink.entries().len(),
+            1,
+            "wire_doctor's own dispatch is unaffected"
+        );
     }
 
     // -- wire_update ----------------------------------------------------------

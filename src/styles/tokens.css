@@ -76,6 +76,14 @@
   /* --- Layout --- */
   --popover-width: 320px;
   --menu-row-height: 28px;
+  /* M7 S4 additions — the Admin/Fleet dashboard needed these two tokens
+     (60-ui-design.md § Design Tokens → "the one dense surface") and no
+     prior surface had defined them; added here rather than as a
+     fleet.css-local literal so they stay a single shared source, same
+     discipline M3 S7's wizard-token addition above already established. */
+  --dashboard-row-height: 32px;
+  --admin-window-min-width: 900px;
+  --admin-window-min-height: 600px;
 
   /* --- Radius --- */
   --radius-control: 6px;

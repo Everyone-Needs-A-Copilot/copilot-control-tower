@@ -64,6 +64,16 @@
 //! looking like resolution/sync/signature/merge/health-scoring logic, it
 //! belongs in the `copilot`/`cc` CLI instead (invariant #1).
 
+// M7/S6-S7 (`.copilot/wp/43.md`, tasks 65/66): the Admin-mode `ecosystem.yml`
+// seed generator (`admin::seed`) + the on-demand red/green preflight
+// (`admin::preflight`) — see that module's own doc for the full SOUL/gap
+// framing. `pub` — reached from `tests/` fixture-drift/fitness files and
+// `examples/gen_seed_fixture.rs`, separate crates/binaries linked against
+// `copilot_control_tower_lib`, matching `mobileconfig`'s own precedent. No
+// Tauri command wired to it yet (Admin-mode's own IPC surface is a later,
+// unscheduled stream) — this task's scope is the generator + preflight pure
+// functions only.
+pub mod admin;
 // T5 (`timer::poll_once`) is the real call site for `cli::run_doctor` — see
 // `timer.rs`.
 mod cli;
@@ -117,6 +127,13 @@ pub mod render;
 // command (invariant #5 — see `routing`'s own module doc).
 pub mod routing;
 pub mod settings;
+// M7/S1 (`.copilot/wp/43.md`, task 60): the isolated telemetry stream's
+// content-free `FleetEvent` wire type (`telemetry::schema`) — see that
+// module's own doc for scope (schema only; the opt-in gate, the real
+// emitter, and the fleet dashboard are separate, later streams). `pub` —
+// reached from `tests/fitness_m7_telemetry_schema_content_free.rs`, a
+// separate crate linked against `copilot_control_tower_lib`.
+pub mod telemetry;
 mod timer;
 mod tray;
 // M4 Stream-D (S6) + gap-closure (S11): staged-bundle layout + promote/
@@ -162,7 +179,8 @@ pub fn run() {
             commands::check_for_update,
             commands::apply_update,
             commands::get_bob_lane,
-            commands::get_security_banner
+            commands::get_security_banner,
+            render::fleet::get_fleet
         ])
         .setup(|app| {
             // ADR-M4-001 (QA gap-closure D1): the app-level launch-failure
@@ -230,6 +248,18 @@ pub fn run() {
             app.manage(routing::emit::LocalSink::new());
             app.manage(render::bob_lane::BobLaneState::new());
             app.manage(render::security_banner::SecurityBannerState::new());
+
+            // M7/S9 (`.copilot/wp/43.md`, task 68): the telemetry emitter's
+            // own managed state — the additional, opt-in-gated remote sink
+            // `timer::poll_once` dispatches every doctor poll's content-free
+            // `FleetEvent`s through, alongside (never instead of) the
+            // `LocalSink` above. `TelemetryState::production()` ships the
+            // real transport SEAM behind a `MockTransport` (the real HTTP
+            // transport to an org's own collector endpoint is owner-gated,
+            // G-M7-3 — see `telemetry::emitter`'s own doc) — reaching it at
+            // all still requires the forced/managed opt-in carrier to
+            // resolve `Enabled`, which no dev/default install ever does.
+            app.manage(telemetry::emitter::TelemetryState::production());
 
             // D2 (T9 follow-up): the tray click-toggle / Esc-and-blur
             // `hide_popover` race guard (see `tray::AutoHideGuard`) — managed

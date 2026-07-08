@@ -19,6 +19,10 @@
 // `commands.rs`.
 pub mod bob_lane;
 pub mod derive;
+// M7/S9 (`.copilot/wp/43.md`, task 68): the IT fleet dashboard's render DTO
+// (`FleetView`/`FleetHostView`/`FleetActionItem`, mirroring `src/types.ts`)
+// + `get_fleet`'s backing logic — see that module's own doc.
+pub mod fleet;
 pub mod glyph;
 pub mod security_banner;
 

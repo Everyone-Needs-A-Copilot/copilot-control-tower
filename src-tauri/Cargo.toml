@@ -62,6 +62,16 @@ minisign-verify = "0.2.5"
 # `updater::trust::DEFAULT_UPDATE_FEED_URL`'s doc); only
 # `updater::check::LocalDirFetcher` (dev/test seam) is.
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
+# Telemetry (M7/S1, `.copilot/wp/43.md`, task 60, `docs/08-observability/
+# observability.md` §5): `telemetry::schema::derive_machine_id`'s from-scratch
+# HMAC-SHA256(hardware_uuid||posix_uid, per-install salt) construction. Not a
+# NEW dependency in the build graph — `sha2` 0.10 is already resolved
+# transitively (see `Cargo.lock`); this entry only promotes it to a direct
+# dependency this crate's own code calls. A from-scratch ~15-line RFC 2104
+# HMAC (in `telemetry::schema`) is used instead of also pulling a second
+# `hmac` crate, since `sha2` alone is sufficient and this app never needs a
+# generic HMAC-over-any-hash abstraction.
+sha2 = "0.10"
 
 # Dev-only, gates the SAME `CT_CLI_PATH`/`DEV_OVERRIDE_ENV` mock-`cc` seam
 # (`cli::path`) that's normally reachable via `#[cfg(any(debug_assertions,

@@ -1,0 +1,7 @@
+{
+  "hosts": [
+    { "machine_id": "MBP-ENG-014", "status": "healthy", "badge_state": "pass", "actionable_items": [] },
+    { "machine_id": "MBP-ENG-027", "status": "healthy", "badge_state": "pass", "actionable_items": [] },
+    { "machine_id": "MBP-SALES-003", "status": "healthy", "badge_state": "pass", "actionable_items": [] }
+  ]
+}

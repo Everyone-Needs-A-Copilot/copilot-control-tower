@@ -39,6 +39,18 @@
 //! governed by `tests/fitness_m5_deprovision_is_it_routed.rs` (that scan is
 //! scoped to `commands.rs`/`tray.rs`/`lib.rs`'s handler list + everything
 //! under `src/routing/`), so this file references `routing::` directly.
+//!
+//! **M7/S9 (`.copilot/wp/43.md`, task 68):** the SAME poll additionally
+//! drives the telemetry emitter — `telemetry::emitter::TelemetryState::
+//! emit_for_doctor_verdict` re-derives this poll's content-free
+//! `ItSignal`s (`routing::wire::doctor_it_signals`, a pure, sink-free read —
+//! never a second CLI spawn) plus this poll's status transition into
+//! `telemetry::schema::FleetEvent`s, and hands them to the telemetry sink.
+//! **This is purely additive**: the `LocalSink` dispatch above is
+//! completely unchanged — telemetry is a SEPARATE, opt-in remote sink
+//! behind the SAME content-free discipline, gated by `telemetry::optin::
+//! telemetry_optin` (off by default; a call reaches no transport at all
+//! when disabled — see `telemetry::emitter`'s own doc).
 
 use crate::commands::DoctorState;
 use crate::model::state::ParseOutcome;
@@ -116,6 +128,12 @@ pub async fn poll_once(app: &AppHandle) {
             ),
         };
 
+    // M7/S9: the PREVIOUS status, captured before it's overwritten below —
+    // `telemetry::emitter::fleet_events_for_poll` needs it to decide whether
+    // this poll's status is genuinely NEW (never re-emitted on every poll
+    // that just reconfirms the same status).
+    let previous_status = doctor_state.snapshot().status;
+
     doctor_state.replace(fresh.clone());
 
     // Always emitted, even when the state is unchanged, so the popover's
@@ -142,6 +160,14 @@ pub async fn poll_once(app: &AppHandle) {
         let prompt = crate::routing::wire::wire_doctor(verdict, &*sink);
         let bob_lane = app.state::<BobLaneState>();
         bob_lane.apply_doctor_prompt(prompt, &*sink);
+
+        // M7/S9: the additional, opt-in-gated remote telemetry sink —
+        // `LocalSink`'s own dispatch above is unchanged. Off means off:
+        // `TelemetryState::emit_for_doctor_verdict` checks the live opt-in
+        // gate first and reaches no transport call at all when disabled
+        // (the default).
+        let telemetry = app.state::<crate::telemetry::emitter::TelemetryState>();
+        telemetry.emit_for_doctor_verdict(verdict, previous_status);
     }
 
     // M6/S6: the forced `Deprovisioned` trigger (M5/S6), evaluated on the

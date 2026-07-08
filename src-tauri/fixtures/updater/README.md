@@ -1,10 +1,18 @@
-# M4/S1-S2 update-verification fixture corpus
+# M4/S1-S2 update-verification fixture corpus (extended M7/S5 with two-of-N)
 
 Drives `updater::verify`'s fail-closed adversarial test matrix and
 `updater::verify::verify_staple`'s offline Gatekeeper check without a real
 signing/notarization ceremony (owner-gated — see `updater::trust`'s doc on
 `TRUST_ROOT_PUBLIC_KEY_B64`). Referenced by `.copilot/wp/24.md` (M4-S1/S2) and
 consumed by `src-tauri/src/updater/verify.rs`'s `#[cfg(test)]` suite.
+
+**M7/S5 (`.copilot/wp` task 64) extended this corpus** with a second family of
+fixtures (the `multisig-*` files below) driving `updater::verify::
+verify_update_multisig`'s two-of-N adversarial matrix, consumed by both
+`updater::verify`'s own `#[cfg(test)]` suite and the crate-level
+`tests/fitness_m7_two_of_n_signing.rs`. The M4 fixtures above this line are
+**unmodified** — see `docs/05-security/signing-custody.md` for the two-of-N
+policy this extension implements.
 
 ## The dev keypair
 
@@ -88,6 +96,36 @@ regeneration — they're deliberately not real signatures.
 | `garbage.minisig` | Not a minisign signature at all (arbitrary text) — the "malformed signature" case. |
 | `missing.minisig` | An empty file — the "no signature supplied" case. |
 | `staple/UnsignedApp.app/` | A fake `.app` bundle (no real code signature at all) for `verify_staple`'s fail-closed test — exercised against the REAL system `/usr/sbin/spctl`, not a mock; see `verify_staple`'s own doc for exactly what this can and can't prove without a real Developer ID. |
+
+## The M7/S5 two-of-N corpus (`multisig-*`)
+
+Three **new, separate dev keypairs** (`rootA`/`rootB`/`rootC` — matching
+`updater::multisig::TRUST_ROOTS_B64`'s three compiled-in entries, in the same
+order) plus a fourth, one-off "attacker" keypair (outside the compiled-in
+set), generated with the identical scratch-project process described above.
+None of the four secret keys are committed — only the fixtures they signed.
+
+| File | What it is |
+|---|---|
+| `multisig-manifest.json` | `app_version: "9.9.9"`, `channel: "stable"`, `artifact_sha256` = sha256 of `artifact.bin` (the SAME artifact the M4 corpus uses — no need for a second stand-in binary). |
+| `multisig-manifest.json.rootA.minisig` | `rootA`'s real minisign signature over `multisig-manifest.json`. |
+| `multisig-manifest.json.rootB.minisig` | `rootB`'s real signature over the same bytes. |
+| `multisig-manifest.json.rootC.minisig` | `rootC`'s real signature over the same bytes — used to prove "more than K distinct valid signatures still accepts" (K=2, N=3). |
+| `multisig-manifest.json.attacker.minisig` | A structurally-valid minisign signature over the SAME `multisig-manifest.json` bytes, but from a key OUTSIDE `TRUST_ROOTS_B64` entirely — must verify against none of the three compiled-in roots and contribute zero toward the threshold. |
+| `multisig-downgrade-manifest.json` | `app_version: "0.0.1"`, validly two-of-N-signed — proves the downgrade rule survives unchanged under the multisig path even when the threshold is otherwise met. |
+| `multisig-downgrade-manifest.json.rootA.minisig` / `.rootB.minisig` | `rootA`/`rootB`'s real signatures over `multisig-downgrade-manifest.json` (two distinct, valid signatures — meets `THRESHOLD_K`, and the manifest must STILL be refused as a downgrade). |
+
+The existing `garbage.minisig`/`missing.minisig` (malformed/absent signature)
+and `tampered-manifest.json` (bytes-mismatch) fixtures from the M4 corpus
+above are reused as-is for the multisig adversarial matrix too — a garbage or
+missing signature, or a signature paired with tampered bytes, behaves
+identically regardless of which trust scheme is checking it, so no
+multisig-specific duplicate of those three fixtures was needed.
+
+If `TRUST_ROOTS_B64` in `updater/multisig.rs` is ever rotated (dev keys
+replaced by new dev keys), every `multisig-*.minisig` file must be re-signed
+with the corresponding new key, and `multisig-manifest.json.attacker.minisig`
+must be re-signed with a still-different, still-outside-the-set key.
 
 ## What this corpus deliberately does NOT contain
 

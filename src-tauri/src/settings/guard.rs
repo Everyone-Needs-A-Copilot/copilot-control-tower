@@ -612,6 +612,17 @@ const DENIED_KEYS: &[&str] = &[
     "sharedsecretstoreurl",
     "sharedsecretstoretier",
     "loginitemmanaged",
+    // M7/S2 (task 61, ADR-M7-003, FF-M7-OPTIN): `TelemetryEnabled`/
+    // `TelemetryEndpoint` are forced-domain-only, security-sensitive keys
+    // added to `managed::keys::MANAGED_KEYS` for the analytics opt-in gate
+    // (`telemetry::optin`) — deny-listed here so the same
+    // Convenience-Backdoor shape closed for the M4/M5 keys above (a value
+    // hand-written into `copilot.layers.yml`'s `extra` mapping and preserved
+    // by never-destroy as if it were ordinary config) can never smuggle a
+    // silent analytics opt-in, or a redirected collector endpoint, in
+    // through Settings.
+    "telemetryenabled",
+    "telemetryendpoint",
     // Trust roots / signing (compiled-in code, never config — invariant #4).
     "rootkey",
     "keyset",
@@ -1089,6 +1100,10 @@ layers:
             "SharedSecretStoreTier",
             "LoginItemManaged",
             "login_item_managed",
+            "TelemetryEnabled",
+            "telemetry_enabled",
+            "TelemetryEndpoint",
+            "telemetry_endpoint",
             "root_key",
             "key_set",
             "policy_signers",

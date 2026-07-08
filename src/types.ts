@@ -676,3 +676,104 @@ export interface SecurityBanner {
  * popover's already-working render — it just means no banner shows yet.
  */
 export const GET_SECURITY_BANNER_CMD = "get_security_banner" as const;
+
+/**
+ * M7 S4 (task 63) — the IT fleet dashboard's render contract
+ * (`docs/08-observability/observability.md` §7.1; `60-ui-design.md` § 6
+ * Admin / Fleet Dashboard). Mirrors the eventual Rust `FleetHostView`
+ * (owner-gated behind G-M7-3, the real collected-fleet source — undefined
+ * today) — built to this shape ahead of a live command, same "build-to-
+ * shape" convention `BobPrompt`/`ItSignal`/`SecurityBanner` above already
+ * use; a future live-wiring stream (S9) reconciles any drift once a real
+ * `get_fleet`-shaped command exists.
+ *
+ * **Per-host, worst-wins — the SAME precedence the tray glyph already
+ * uses.** `status`/`badge_state` are one fact about one machine, computed
+ * entirely CLI-side; this UI adds no judgment of its own, exactly like
+ * `HeaderView.glyph_state` upstream in this same file.
+ */
+export interface FleetHostView {
+  machine_id: string;
+  /** One of the ~10 CLI-emitted doctor statuses — the SAME vocabulary `CliStatus` already names. */
+  status: CliStatus;
+  /** Worst-wins per-host badge — the SAME 12-token `BadgeState` vocabulary the tray glyph uses. */
+  badge_state: BadgeState;
+  /** This host's row in the safety-escalation feed — content-free, never personal-item-bearing. */
+  actionable_items: FleetActionItem[];
+}
+
+/**
+ * A single actionable IT item — content-free by construction, reusing M6's
+ * `ItSignalKind` (`routing::ItSignal`, task 53) rather than inventing a
+ * parallel vocabulary. Carries no personal item name, file path, or free
+ * text — the same "impossible, not discouraged" standard `ItSignal` itself
+ * already holds (see that type's own doc above). This is the M6 EscalateIt
+ * lane (held-major / security-shadow-suspend / auth-revoked / policy-denial
+ * / …) surfacing on the Admin dashboard, never anything shown to Bob.
+ */
+export interface FleetActionItem {
+  kind: ItSignalKind;
+  machine_id: string;
+}
+
+/**
+ * The whole fleet dashboard's render contract. **The fleet IS the set of
+ * hosts** (`docs/08-observability/observability.md` §7.1) — count them,
+ * don't score them.
+ *
+ * **FORBIDDEN, permanently (FF-M7-NOSCORE, SOUL *The Second Pilot* Case
+ * Law): no aggregate/blended score field, ever.** A "fleet health 94/100"
+ * number is OUT because it implies the app judges health — it renders
+ * CLI-parsed per-host facts only. If a future change adds a numeric or
+ * percentage field to this type, that IS the violation this milestone
+ * exists to prevent; `render/fleet.ts`'s own module doc carries the
+ * render-side half of this guard, and this type intentionally has no third
+ * field beyond `hosts` to make the temptation structurally harder to act
+ * on by accident.
+ */
+export interface FleetView {
+  hosts: FleetHostView[];
+}
+
+/**
+ * `get_fleet` — the additive IPC command name this stream reserves for a
+ * future live-wiring task (S9, mock-fixture-backed collected-fleet source,
+ * G-M7-3 owner-gated — the real collector query API is undefined today),
+ * mirroring `GET_BOB_LANE_CMD`/`GET_SECURITY_BANNER_CMD`'s identical "not
+ * yet landed on the Rust side, invoked defensively" convention. A missing
+ * command must never crash the Admin window — it just means the dashboard
+ * renders its own empty-fleet state (§7.1's "No machines are reporting
+ * yet" line) until that stream lands.
+ */
+export const GET_FLEET_CMD = "get_fleet" as const;
+
+/**
+ * M7 S7 (task 66) — the Admin-mode red/green preflight report
+ * (`architecture.md` §8.1 item 5; `docs/08-observability/observability.md`
+ * §7.1: "preflight is a one-time, on-demand validation call before
+ * rollout... not a continuous signal from the fleet"). Mirrors the Rust
+ * `admin::preflight::PreflightReport` — an Admin UI renders this as a plain
+ * checklist before pushing a rollout to the fleet.
+ *
+ * **FORBIDDEN, permanently: no aggregate/readiness score field, ever** —
+ * the same discipline `FleetView`'s own doc above holds itself to. This
+ * type intentionally carries only `checks`; a future "readiness: 8/10"
+ * field on this type IS the violation this stream exists to prevent.
+ */
+export type PreflightCheckStatus = "pass" | "fail" | "unknown";
+
+/**
+ * One check's result. `status: "unknown"` means "not checked/unreachable" —
+ * NEVER rendered as green. A check is `"pass"` only if it genuinely,
+ * positively passed (the same "never fabricate a pass" discipline
+ * `FleetHostView`'s own doc above holds itself to).
+ */
+export interface PreflightCheckResult {
+  check: string;
+  status: PreflightCheckStatus;
+  detail: string;
+}
+
+export interface PreflightReport {
+  checks: PreflightCheckResult[];
+}

@@ -25,6 +25,12 @@
 //!   [`heartbeat::FileHeartbeatSource`] into `watchdog`'s
 //!   [`watchdog::HeartbeatSource`] seam — exactly the wiring this module's
 //!   doc asked for, rather than a second, redefined heartbeat contract.
+//! - [`multisig`] (M7/S5, `sec`-owned, `.copilot/wp` task 64) — the
+//!   compiled-in N-root array + `THRESHOLD_K` two-of-N threshold
+//!   (`architecture.md` §7/§11 item 1, flagged G-M7-4), consumed by
+//!   [`verify::verify_update_multisig`]. Does NOT modify [`trust`]'s
+//!   single-root path — that stays exactly as M4 built it; this module is a
+//!   stricter, additional entrypoint, not a migration.
 //! - [`check`] (M4/S4, `me`-owned) — the update-check/apply TRANSPORT:
 //!   fetches the signed manifest (+ signature, + artifact) from
 //!   `trust::update_feed_url()` via a trait-based, test-mockable
@@ -81,6 +87,7 @@ pub mod circuit_breaker;
 pub mod dto;
 pub mod heartbeat;
 pub mod launch;
+pub mod multisig;
 pub mod rollback_marker;
 pub mod selftest;
 pub mod startup;
