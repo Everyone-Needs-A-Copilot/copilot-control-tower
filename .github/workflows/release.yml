@@ -1,0 +1,93 @@
+name: release
+
+# M4 Stream-D / S7 — build, sign, notarize, verify-vendored-cc, publish.
+#
+# CONFIG ONLY, NOT executed by this session (owner-gated: needs the real
+# Developer ID Application cert + notarization credentials + a real signed
+# `cc` artifact — none of which this repo holds). Triggered only by pushing
+# a `v*` tag, which is itself an owner action, never a normal PR/push.
+#
+# Every credential below is read from a repo/environment secret — never
+# hardcoded in this file (invariant #4). `scripts/*.sh` are unexecuted here
+# too; this workflow is the wiring that WOULD invoke them on a real runner
+# with real secrets configured.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-sign-notarize:
+    runs-on: macos-14
+    # Owner-gated: this job requires repo secrets that do not exist in this
+    # session (APPLE_SIGNING_IDENTITY, APPLE_CERTIFICATE, etc.) and is only
+    # ever triggered by an owner-pushed release tag.
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: cargo test (fitness functions + unit tests, ~247+ tests)
+        working-directory: src-tauri
+        run: |
+          cargo test --all-targets
+          cargo clippy --all-targets -- -D warnings
+          cargo fmt --check
+
+      - name: Verify vendored cc (checksum + verify-not-resign, ADR-M4-005)
+        run: ./scripts/verify-vendored-cc.sh packaging/cc/cc
+
+      - name: plutil -lint watchdog plist
+        run: plutil -lint packaging/launchd/com.everyoneneedsacopilot.controltower.plist
+
+      - name: tauri build (universal .app + .dmg)
+        env:
+          # Tauri's bundler reads these directly for macOS signing — never
+          # written to tauri.conf.json (invariant #4, "never hardcoded").
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: npm run tauri build
+
+      - name: Explicit sign pass (frameworks/dylibs, inside-out)
+        env:
+          CT_SIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: ./scripts/sign.sh "src-tauri/target/release/bundle/macos/Copilot Control Tower.app"
+
+      - name: Notarize + staple (.app and .dmg)
+        env:
+          CT_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          CT_NOTARY_KEY_ISSUER: ${{ secrets.APPLE_NOTARY_KEY_ISSUER }}
+          CT_NOTARY_KEY_PATH: ${{ secrets.APPLE_NOTARY_KEY_PATH }}
+        run: |
+          ./scripts/notarize.sh \
+            "src-tauri/target/release/bundle/macos/Copilot Control Tower.app" \
+            "src-tauri/target/release/bundle/dmg/Copilot Control Tower.dmg"
+
+      - name: Sign the update manifest (minisign, custody separate from Developer ID cert)
+        env:
+          CT_MINISIGN_SECRET_KEY: ${{ secrets.CT_MINISIGN_SECRET_KEY }}
+        run: |
+          echo "owner-gated: minisign two-of-N custody (ADR-M4-003) is not yet" \
+               "assigned — release-and-versioning.md §2 step 3 blocks stable" \
+               "promotion in CI until it is. This step is a documented no-op" \
+               "placeholder, not a real signing call, until that custody" \
+               "decision is made."
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: copilot-control-tower-${{ github.ref_name }}
+          path: |
+            src-tauri/target/release/bundle/macos/*.app
+            src-tauri/target/release/bundle/dmg/*.dmg

@@ -389,3 +389,70 @@ export const WIZARD_CHOOSE_PRODUCTS_CMD = "wizard_choose_products" as const;
 export const WIZARD_SET_LAYERS_CMD = "wizard_set_layers" as const;
 export const WIZARD_BEGIN_SIGNIN_CMD = "wizard_begin_signin" as const;
 export const WIZARD_POLL_SIGNIN_CMD = "wizard_poll_signin" as const;
+
+/**
+ * M4 S10 — Control Tower's own self-update affordance. This is a DIFFERENT
+ * signal from `CliStatus`'s `"update-available"`/`"updating-app"` above:
+ * those two are the CLI-parsed, worst-wins verdict about a PRODUCT (Claude
+ * Copilot, CLI Copilot, …) needing an update, 1:1 from `doctor.status`
+ * (invariant #1, parse-never-compute). `UpdateState` is Control Tower's own
+ * binary's self-update TRANSPORT (ADR-M4-004: "M4 must not re-derive
+ * [the doctor] verdict; it owns only the transport") — download / verify /
+ * stage / promote / rollback of the app itself, driven by the two commands
+ * below, which the M4 `me` agent (Stream-D, S4/S5) lands in parallel with
+ * this UI task (`.copilot/wp/24.md`'s ADR-M4-004/ADR-M4-002).
+ *
+ * **Frozen by the S10 task brief** (this UI builds to it before the real
+ * Rust DTO exists — same "T7 builds to this shape directly" convention
+ * `RenderState`'s header doc used for T3): a later stream reconciles any
+ * drift once `src-tauri/src/commands.rs` actually defines
+ * `check_for_update`/`apply_update`'s real return type. If Rust lands a
+ * differently-shaped `UpdateState`, that reconcile is S11's job, not a
+ * silent assumption here.
+ */
+export type UpdateStatus =
+  | "idle"
+  | "checking"
+  | "up-to-date"
+  | "available"
+  | "downloading"
+  | "verifying"
+  | "staging"
+  | "ready"
+  | "rolled-back"
+  | "error";
+
+/**
+ * The self-update transport's own render contract. `message` is ALWAYS
+ * plain language (never raw signature/heartbeat/watchdog text) — this
+ * mirrors `WizardState.error`'s discipline exactly. Rendering must never
+ * fabricate a friendlier string when `message` is present; the ONE place a
+ * local fallback copy is used is when `message` is `null` (see
+ * `render/copy.ts`'s `UPDATE_*` fallbacks).
+ */
+export interface UpdateState {
+  status: UpdateStatus;
+  available_version: string | null;
+  current_version: string;
+  message: string | null;
+}
+
+/**
+ * `check_for_update` — sync/async request-response (no event stream, same
+ * convention as the wizard's command surface above): a snapshot pull, used
+ * both for an initial-load check and to poll progress while an update is in
+ * flight (`render/update.ts` polls this at a short fixed cadence while
+ * `status` is one of checking/downloading/verifying/staging — the S4/S5
+ * contract doesn't expose its own polling-interval field the way
+ * `WizardState.signin_interval_secs` does, so this UI picks a conservative
+ * fixed cadence; flagged for S11 to reconcile against whatever real cadence
+ * the backend expects).
+ *
+ * `apply_update` — kicks off (or advances) the update; returns the
+ * resulting `UpdateState` from that single call. `render/update.ts` treats
+ * this exactly like `wizard_advance`: idempotent to call again, and a
+ * still-in-progress return value is expected to be followed by
+ * `check_for_update` polling rather than a second `apply_update` call.
+ */
+export const CHECK_FOR_UPDATE_CMD = "check_for_update" as const;
+export const APPLY_UPDATE_CMD = "apply_update" as const;

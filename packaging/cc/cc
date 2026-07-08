@@ -1,0 +1,25 @@
+#!/bin/sh
+# M4 Stream-D / S8 — PLACEHOLDER vendored `cc`, NOT the real signed CLI.
+#
+# This stub exists purely to exercise the bundling wiring (tauri.conf.json's
+# bundle.resources -> Contents/Resources/cc, the exact path
+# `cli::path::resolve()` already computes) and the checksum/verify step
+# (`scripts/verify-vendored-cc.sh`) before the real artifact exists.
+#
+# ADR-M4-005 (memory `m4-distribution-decisions`): the real `cc` is
+# published already-signed/notarized/universal by `claude-copilot` CI at a
+# pinned SHA+version; Control Tower CI VERIFIES it (codesign/spctl), never
+# re-signs it (verify-not-resign — one signing authority, no lockstep
+# deadlock). That cross-repo push is owner-gated (D-3) and not done in this
+# session. Until it lands, this file is what ships in
+# `Contents/Resources/cc` — deliberately obvious that it is not a working
+# CLI (honest failure, never a silent fake-success), so a build using this
+# placeholder fails `cli-spawnable`/doctor checks loudly rather than
+# pretending to be healthy.
+#
+# When the real `cc` lands: replace this file wholesale (do not edit it in
+# place) and update packaging/cc/PINNED_SHA256 to the new artifact's
+# checksum — see scripts/verify-vendored-cc.sh.
+
+echo '{"schema_version":"0.0.0","error":"placeholder cc — not vendored yet (D-3, owner-gated)"}' >&2
+exit 1

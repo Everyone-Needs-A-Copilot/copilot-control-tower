@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  M4 Stream-D / S7 — hardened-runtime entitlements for Developer ID signing
+  (architecture.md §7: "Developer ID (not Mac App Store — the sandbox
+  forbids spawning `copilot`), hardened runtime... Userland-only
+  entitlements — no admin, no privileged helper.").
+
+  Deliberately EMPTY of exceptions. This app is not sandboxed (App Sandbox
+  would forbid spawning the vendored `cc` child process, which is the whole
+  point of this app), but "not sandboxed" only means the sandbox entitlement
+  key is simply absent here — it does NOT mean hardened-runtime exceptions
+  are needed. No JIT, no unsigned executable memory, no disabled library
+  validation, no privileged helper: every hardened-runtime protection stays
+  at its default-secure setting. If a future capability genuinely needs one
+  of these relaxed, add it here explicitly and justify it in this comment —
+  never add an exception silently.
+-->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>

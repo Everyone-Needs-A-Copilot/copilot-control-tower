@@ -22,7 +22,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { STATE_CHANGED_EVENT, type RenderState } from "./types";
+import { CHECK_FOR_UPDATE_CMD, STATE_CHANGED_EVENT, type RenderState, type UpdateState } from "./types";
 import { renderPopover } from "./render/popover";
 import { ensureLiveRegion } from "./render/a11y";
 import { isTauriHost } from "./tauri-host";
@@ -36,12 +36,37 @@ const appEl: HTMLElement = appElOrNull;
 
 const liveRegion = ensureLiveRegion(document.body);
 
+/**
+ * M4 S10: Control Tower's OWN self-update state, held separately from
+ * `RenderState` because `state-changed` (the doctor timer's push) never
+ * carries it — this module re-renders the popover on every doctor push, so
+ * the last-fetched `UpdateState` is kept here and re-passed each time rather
+ * than being lost on the next `state-changed` event.
+ */
+let latestUpdateState: UpdateState | null = null;
+
+/**
+ * Best-effort initial fetch of `check_for_update` (S4/S5, landing in
+ * parallel — see `types.ts`'s `UpdateState` doc). Defensively wrapped: a
+ * not-yet-landed command must never break the popover's real, already-
+ * working `RenderState` render — it just means no update section shows yet
+ * (honest silence, never a fabricated status).
+ */
+async function fetchInitialUpdateState(): Promise<UpdateState | null> {
+  try {
+    return await invoke<UpdateState>(CHECK_FOR_UPDATE_CMD);
+  } catch {
+    return null;
+  }
+}
+
 async function runTauri(): Promise<void> {
   const initial = await invoke<RenderState>("get_state");
-  renderPopover(appEl, liveRegion, initial);
+  latestUpdateState = await fetchInitialUpdateState();
+  renderPopover(appEl, liveRegion, initial, latestUpdateState);
 
   await listen<RenderState>(STATE_CHANGED_EVENT, (event) => {
-    renderPopover(appEl, liveRegion, event.payload);
+    renderPopover(appEl, liveRegion, event.payload, latestUpdateState);
   });
 
   await wireDismissal();
@@ -98,14 +123,38 @@ async function runDevFixtureHarness(): Promise<void> {
     return;
   }
 
+  // M4 S10: a SECOND, independent switcher for `UpdateState` fixtures
+  // (`./dev-fixtures/update/*.json` — a subdirectory, so the glob above
+  // never picks these up). Independent from the `RenderState` fixture above
+  // so any combination is reachable headlessly — this is the dimension the
+  // S10 verification renders every state of, not the products/layers one.
+  const updateModules = import.meta.glob<UpdateState>("./dev-fixtures/update/*.json", {
+    eager: true,
+    import: "default",
+  });
+  const updateFixtures: Array<{ name: string; state: UpdateState | null }> = [
+    { name: "(none)", state: null },
+    ...Object.entries(updateModules)
+      .map(([path, state]) => ({
+        name: path.replace("./dev-fixtures/update/", "").replace(".json", ""),
+        state,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  ];
+
   const params = new URLSearchParams(window.location.search);
   let index = Math.max(
     0,
     fixtures.findIndex((f) => f.name === params.get("fixture")),
   );
+  let updateIndex = Math.max(
+    0,
+    updateFixtures.findIndex((f) => f.name === params.get("update")),
+  );
 
   const harness = document.getElementById("ct-dev-harness");
   let select: HTMLSelectElement | null = null;
+  let updateSelect: HTMLSelectElement | null = null;
 
   if (harness) {
     harness.className = "ct-dev-harness";
@@ -121,7 +170,26 @@ async function runDevFixtureHarness(): Promise<void> {
       select?.appendChild(opt);
     });
     select.addEventListener("change", () => show(Number(select?.value ?? 0)));
-    harness.append(label, select);
+
+    const updateLabel = document.createElement("label");
+    updateLabel.textContent = "Update:";
+    updateLabel.htmlFor = "ct-update-fixture-select";
+    updateSelect = document.createElement("select");
+    updateSelect.id = "ct-update-fixture-select";
+    updateFixtures.forEach((f, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = f.name;
+      updateSelect?.appendChild(opt);
+    });
+    updateSelect.addEventListener("change", () => showUpdate(Number(updateSelect?.value ?? 0)));
+
+    harness.append(label, select, updateLabel, updateSelect);
+  }
+
+  function render(): void {
+    const fixture = fixtures[index];
+    renderPopover(appEl, liveRegion, fixture.state, updateFixtures[updateIndex]?.state ?? null);
   }
 
   function show(i: number): void {
@@ -131,12 +199,24 @@ async function runDevFixtureHarness(): Promise<void> {
     const url = new URL(window.location.href);
     url.searchParams.set("fixture", fixture.name);
     window.history.replaceState(null, "", url);
-    renderPopover(appEl, liveRegion, fixture.state);
+    render();
+  }
+
+  function showUpdate(i: number): void {
+    updateIndex = ((i % updateFixtures.length) + updateFixtures.length) % updateFixtures.length;
+    const fixture = updateFixtures[updateIndex];
+    if (updateSelect) updateSelect.value = String(updateIndex);
+    const url = new URL(window.location.href);
+    url.searchParams.set("update", fixture.name);
+    window.history.replaceState(null, "", url);
+    render();
   }
 
   window.addEventListener("keydown", (evt) => {
     if (evt.key === "]") show(index + 1);
     if (evt.key === "[") show(index - 1);
+    if (evt.key === "}") showUpdate(updateIndex + 1);
+    if (evt.key === "{") showUpdate(updateIndex - 1);
   });
 
   show(index);

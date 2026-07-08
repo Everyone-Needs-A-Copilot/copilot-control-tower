@@ -18,7 +18,9 @@
 //! - `commands` — T5/T8/D2/M2-S6: the `get_state`/`refresh_now`/
 //!   `hide_popover` Tauri commands + `state-changed` event (the doctor
 //!   seam), plus `get_settings`/`save_settings`/`open_settings_window` (the
-//!   Settings seam) — the whole Rust<->web-UI IPC surface lives here.
+//!   Settings seam) and `check_for_update`/`apply_update` (M4/S5, thin
+//!   `spawn_blocking` wrappers over `updater::check`) — the whole
+//!   Rust<->web-UI IPC surface lives here.
 //! - `settings` — M2: the layer-manifest model + validator + never-destroy
 //!   writer + secret/security guard + authoring policy + managed gate
 //!   (`copilot.layers.yml`) — everything `commands::get_settings`/
@@ -50,6 +52,14 @@ pub mod render;
 pub mod settings;
 mod timer;
 mod tray;
+// M4 Stream-D (S6) + gap-closure (S11): staged-bundle layout + promote/
+// rollback decision, trust/verify/heartbeat, and (S11) the wiring that
+// actually puts that machinery on the live path — the `--self-test` process
+// entrypoint (`updater::selftest`, called from `main.rs`), the synchronous
+// self-test `apply_update` now runs (`updater::check::
+// confirm_staged_bundle_boots`), and the crash-only startup reconciliation
+// below (`updater::startup`) — see `updater/mod.rs`.
+pub mod updater;
 pub mod wizard;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -81,9 +91,50 @@ pub fn run() {
             commands::wizard_set_layers,
             commands::wizard_begin_signin,
             commands::wizard_poll_signin,
-            commands::open_wizard_window
+            commands::open_wizard_window,
+            commands::check_for_update,
+            commands::apply_update
         ])
         .setup(|app| {
+            // ADR-M4-001 (QA gap-closure D1): the app-level launch-failure
+            // circuit breaker — see `updater::circuit_breaker`'s own doc.
+            // Runs as the VERY FIRST thing in `.setup()`, before even the
+            // interrupted-update reconciliation below, because this guards
+            // against the CURRENT/promoted build itself crash-looping for
+            // ANY reason — the normal startup path (tray build, doctor
+            // timer, wizard, that reconciliation) is exactly the code that
+            // could be the thing crashing, so none of it may run before
+            // this check has had a chance to say "stop". Fail-closed by
+            // construction: an ambiguous marker trips the breaker rather
+            // than guessing a fresh start (see that module's doc).
+            if crate::updater::circuit_breaker::record_launch_attempt()
+                == crate::updater::circuit_breaker::LaunchDecision::CircuitOpen
+            {
+                // Enter the honest degraded state instead of the normal
+                // (possibly crash-causing) startup path: still `.manage()`
+                // `DoctorState` (so `get_state`/a stray popover load never
+                // panics on unmanaged state) and still build a tray — never
+                // a false Healthy, the tray icon still cannot lie — but skip
+                // the doctor timer, the wizard, and the interrupted-update
+                // reconciliation, since restarting that machinery is exactly
+                // the risk this breaker exists to stop taking.
+                let degraded = commands::circuit_breaker_render_state();
+                app.manage(commands::DoctorState::new(degraded.clone()));
+                app.manage(tray::AutoHideGuard::new());
+                tray::build(app.handle(), &degraded)?;
+                return Ok(());
+            }
+
+            // M4 gap-closure (S11): a crash-only, idempotent check for a
+            // PRIOR launch's interrupted (never self-tested) staged update —
+            // see `updater::startup`'s own doc. Runs first, before anything
+            // else in setup touches tray/doctor state, so a leftover
+            // `staged/` from a killed/crashed previous launch is never left
+            // ambiguous. This is NOT the `--self-test` entrypoint itself
+            // (that's `main.rs`, which exits before `run()` is ever called)
+            // and does not start a second process (invariant #2).
+            crate::updater::startup::reconcile_interrupted_update();
+
             // macOS: menu-bar app, no Dock icon, no Cmd-Tab entry. Must be set
             // on the running app *after* the event loop starts spinning up
             // windows, which is why this lives in `.setup()` rather than
@@ -121,6 +172,14 @@ pub fn run() {
             // T5: starts the doctor poll loop — a Tokio task inside THIS
             // process (invariant #2), immediate poll then ~1h cadence.
             timer::start(app.handle().clone());
+
+            // ADR-M4-001 (QA gap-closure D1): once this launch stays up past
+            // `circuit_breaker::HEALTHY_UPTIME`, it has proven itself clean —
+            // reset the crash-loop counter the check above just incremented.
+            // Only reached on the non-circuit-open path (the branch above
+            // returns early), matching that module's "call once, on the
+            // normal startup path" contract.
+            crate::updater::circuit_breaker::schedule_clean_run_after_healthy_uptime();
 
             // T8/T9 test hook, opt-in only: normally the popover only opens
             // via a tray left-click (`tray::toggle_popover`), which manual

@@ -32,9 +32,68 @@ tauri-plugin-single-instance = "2"
 # manifest model round-trip fields it doesn't know about yet (never-destroy
 # groundwork for S2). Revisit if a maintained successor emerges.
 serde_yaml = "0.9"
+# Update trust/verification (M4/S1-S2, ADR-M4-003, FF-M4-3/FF-M4-5): verifies
+# an update manifest's minisign signature against the compiled-in trust root
+# (`updater::trust`). Chosen over `ed25519-dalek` deliberately: this crate is
+# VERIFY-ONLY (no signing, no key generation — the private key never needs to
+# exist anywhere near this binary), has **zero transitive dependencies**, and
+# speaks the exact wire format (`untrusted comment` / `trusted comment` /
+# base64 signature lines) `release-and-versioning.md` §2 already specifies
+# for the signed `latest.json` manifest — `ed25519-dalek` would additionally
+# require hand-rolling that framing/parsing ourselves for no security
+# benefit, since this app only ever verifies, never signs. Signing (the real
+# release pipeline, owner-gated) uses the full `minisign` CLI/crate
+# out-of-band; this dependency never needs signing capability.
+minisign-verify = "0.2.5"
+# Update-check transport (M4/S4, ADR-M4-004's "own the transport" half): the
+# PRODUCTION `updater::check::FeedFetcher` implementation's HTTP GET against
+# `trust::update_feed_url()`. `reqwest` is not a NEW dependency in the build
+# graph — it's already resolved (and compiled) as `tauri` core's own
+# transitive dependency (see `Cargo.lock`); this entry only adds the
+# blocking feature so `updater::check`'s synchronous, trait-based
+# `FeedFetcher::fetch` (easy to unit-test with a fixture double, matching
+# `updater::watchdog::HeartbeatSource`'s seam shape) can call it directly,
+# without hand-rolling TLS. `default-features = false` + explicit `rustls`
+# (not `native-tls`) matches the TLS backend `tauri` itself already selects
+# for its own `reqwest` use (`reqwest/rustls-no-provider`) — avoids pulling
+# a SECOND TLS stack into the binary. The real network path this enables is
+# never exercised
+# by `cargo test` (D-4-M4's feed endpoint is owner-gated/undefined — see
+# `updater::trust::DEFAULT_UPDATE_FEED_URL`'s doc); only
+# `updater::check::LocalDirFetcher` (dev/test seam) is.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
+
+# Dev-only, gates the SAME `CT_CLI_PATH`/`DEV_OVERRIDE_ENV` mock-`cc` seam
+# (`cli::path`) that's normally reachable via `#[cfg(any(debug_assertions,
+# test))]` — see the `[dev-dependencies]` self-dependency below for why this
+# feature exists and how it stays out of a real `cargo build --release`
+# binary. `default = []`: never on unless a dev/test build opts in.
+[features]
+dev-seam = []
 
 [dev-dependencies]
 syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+# Self-dependency, dev-only (M4 follow-up, "external integration test
+# release-build gap" — the `--release` counterpart to M3's
+# `cli::path::DEV_OVERRIDE_ENV` fix): `cargo test`'s integration test
+# binaries (`tests/*.rs`) link the lib crate as an ordinary, NON-test
+# dependency — no `--cfg test` is passed to that build, so `#[cfg(any(
+# debug_assertions, test))]` (which fixed the crate's OWN `#[cfg(test)] mod
+# tests` under M3) does NOT reach code an *external* `tests/*.rs` file needs,
+# specifically under `--release` where `debug_assertions` is also false.
+# Confirmed via `cargo test --release --test
+# fitness_signin_seam_holds_no_secret -v`: the lib build feeding that
+# integration test binary passes neither `--cfg test` nor `-C
+# debug-assertions`. This self-dependency (a well-known, Cargo-supported
+# pattern — see the Cargo Book's "Dev Dependencies") re-enables the
+# `dev-seam` feature ONLY for that lib-as-test-dependency build, via
+# Cargo's per-target feature unification (edition 2021 defaults to resolver
+# "2", which keeps this feature isolated to dev/test builds): it has zero
+# effect on `cargo build --release`'s actual `bin` target, which never
+# consults `[dev-dependencies]` at all. Re-verified with the same `strings
+# target/release/copilot-control-tower | grep -c CT_CLI_PATH` == 0 check M3
+# used, on a genuine (non-test) `cargo build --release`.
+copilot-control-tower = { path = ".", features = ["dev-seam"] }
 
 # Settings (M2, S5): the managed/unmanaged gate reads the macOS forced/managed
 # preferences domain (`CFPreferencesAppValueIsForced`) — invariant #4,

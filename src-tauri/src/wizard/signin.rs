@@ -641,9 +641,31 @@ mod tests {
             interval_secs: 0,
             expires_in_secs: 0,
         };
-        // A bogus CLI path proves this never even tries to spawn once the
+        // A DETERMINISTICALLY-resolvable CLI path (the mock, under the same
+        // shared `ENV_LOCK` every other `CT_CLI_PATH`-touching test in this
+        // module uses) proves this never even tries to SPAWN it, once the
         // deadline has already elapsed — pure fail-closed bookkeeping.
-        let result = poll_signin(&session);
+        //
+        // Test-isolation fix (found chasing an M4 `cargo test --release`
+        // flake): this test previously called `poll_signin` with NO
+        // `CT_CLI_PATH` override and no `ENV_LOCK` guard at all. `poll_signin`
+        // unconditionally calls `cli::path::resolve()` BEFORE its own
+        // zero-deadline bookkeeping ever runs — with no override set (the
+        // `cargo test` binary is not a macOS app bundle), `resolve()` fails
+        // closed to `PathError::NotVendored`, so the assertion below would
+        // (correctly, by this file's own fail-closed discipline) see
+        // `Err(CliUnavailable)`, not the `Ok(Timeout)` this test expects.
+        // The ONLY reason this ever passed was an accidental, unlocked race:
+        // whichever sibling test elsewhere in this same test binary happened
+        // to have `CT_CLI_PATH` set to the real mock at that exact moment
+        // made `resolve()` succeed instead — invisible during normal `cargo
+        // test` runs, but expected to occasionally interleave the other way
+        // (observed once under `cargo test --release --lib`, not reproduced
+        // in several immediate reruns — exactly the fingerprint of an
+        // unlocked, timing-dependent env-var race, not a real regression in
+        // the deadline logic itself). `with_cli_path` closes that gap the
+        // same way every other test in this file already does.
+        let result = with_cli_path(Path::new(&mock_cc()), || poll_signin(&session));
         assert_eq!(result, Ok(terminal(SigninStatus::Timeout)));
     }
 

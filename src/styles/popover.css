@@ -91,6 +91,74 @@
   flex: 0 0 auto;
 }
 
+/* --- Control Tower's own self-update affordance (M4 S10) --- */
+
+.ct-update {
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ct-update__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.ct-update__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ct-update__sentence {
+  margin: 0;
+  font-size: var(--type-body-size);
+  color: var(--text-primary);
+}
+
+.ct-update__detail {
+  margin: var(--space-hair) 0 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+
+.ct-update .ct-primary-action {
+  width: auto;
+  margin: 0;
+  padding-left: var(--space-lg);
+  padding-right: var(--space-lg);
+}
+
+/* The rollback toast — reassuring understatement, never alarm styling: same
+   neutral card the Settings manifest-wide banner uses, but bordered with
+   `--separator` (not `--status-error`) since a rollback is a protection, not
+   a failure Bob needs to worry about. */
+.ct-update__toast {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-card);
+}
+
+.ct-update__toast-title {
+  margin: 0;
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ct-update__toast-detail {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+
 /* --- Product list (tree/disclosure) --- */
 
 .ct-section-label {

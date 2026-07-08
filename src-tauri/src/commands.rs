@@ -92,12 +92,13 @@ impl DoctorState {
 
 /// The honest bootstrap state held before the app's first doctor poll
 /// returns: `client_state: CliUnreadable` with NO reason (distinct from any
-/// real I/O/schema failure — `cli_unreadable_reason: None` is only reachable
-/// from here, never from `model::state::parse_doctor_body`, which always
-/// picks a concrete reason). Deliberately NOT `ClientState::Ok` / any
-/// `CliStatus` — this function does not go through the parse boundary at all
-/// (there is no CLI body yet to parse), so it must not fabricate one; it is
-/// an honest "haven't checked yet", never Healthy, never a guessed status.
+/// real I/O/schema failure — `cli_unreadable_reason: None` is reachable only
+/// from here and from `circuit_breaker_render_state` below, never from
+/// `model::state::parse_doctor_body`, which always picks a concrete reason).
+/// Deliberately NOT `ClientState::Ok` / any `CliStatus` — this function does
+/// not go through the parse boundary at all (there is no CLI body yet to
+/// parse), so it must not fabricate one; it is an honest "haven't checked
+/// yet", never Healthy, never a guessed status.
 pub fn initial_render_state() -> RenderState {
     RenderState {
         client_state: ClientState::CliUnreadable,
@@ -108,6 +109,35 @@ pub fn initial_render_state() -> RenderState {
         header: HeaderView {
             glyph_state: "hollow".to_string(),
             sentence: "Checking your setup…".to_string(),
+        },
+        products: Vec::new(),
+        auth_issues: Vec::new(),
+    }
+}
+
+/// The honest degraded state shown when `updater::circuit_breaker`'s
+/// launch-failure breaker trips (ADR-M4-001, D1 gap-closure):
+/// `client_state: CliUnreadable` with no reason, same as
+/// `initial_render_state` above and for the same reason — this state is not
+/// derived from a CLI parse at all (no doctor poll has happened, or ever
+/// will, this launch), so it must not fabricate a `CliStatus`/
+/// `CliUnreadableReason` pulled from that unrelated domain. Distinguished
+/// from the bootstrap state only by its glyph/sentence: `"bang"` (the one
+/// red glyph, matching the CLI-unreadable io_error/exit_2 sentence's own
+/// severity) and an honest, ETA-free "reinstalling should fix it" sentence —
+/// never a false Healthy, per invariant #4/CLAUDE.md "the tray icon still
+/// cannot lie".
+pub fn circuit_breaker_render_state() -> RenderState {
+    RenderState {
+        client_state: ClientState::CliUnreadable,
+        cli_unreadable_reason: None,
+        host: None,
+        status: None,
+        offline: false,
+        header: HeaderView {
+            glyph_state: "bang".to_string(),
+            sentence: "Control Tower keeps failing to start. Reinstalling should fix it."
+                .to_string(),
         },
         products: Vec::new(),
         auth_issues: Vec::new(),
@@ -1355,6 +1385,172 @@ pub fn open_wizard_window(app: AppHandle) {
         let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
         let _ = window.show();
         let _ = window.set_focus();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Self-update IPC (M4/S4-S5, `.copilot/wp/24.md`)
+// ---------------------------------------------------------------------------
+
+/// Checks for a Control Tower self-update — a thin `spawn_blocking` wrapper
+/// around `updater::check::check_for_update()`, the pure (well, network/
+/// filesystem-touching but stateless) transport function. `spawn_blocking`
+/// (not a direct `await`) matters here: `check_for_update()`'s production
+/// `HttpFetcher` uses `reqwest::blocking`, which panics if invoked from
+/// inside an already-running async runtime — the SAME reason `cli::spawn`'s
+/// doctor invocation runs on its own thread rather than as a `tokio::
+/// process::Command`. A `spawn_blocking` join failure (extremely rare —
+/// the closure itself doesn't panic under any normal input) falls back to
+/// the same honest `Error` shape a genuine fetch failure produces, never a
+/// silently-stale snapshot.
+#[tauri::command]
+pub async fn check_for_update() -> crate::updater::dto::UpdateState {
+    tauri::async_runtime::spawn_blocking(crate::updater::check::check_for_update)
+        .await
+        .unwrap_or_else(|_| update_spawn_join_error_state())
+}
+
+/// Applies a Control Tower self-update — same `spawn_blocking` shape as
+/// [`check_for_update`], wrapping `updater::check::apply_update()` (fetch,
+/// verify, stage into `updater::watchdog::StagedLayout`, offline-staple-gate
+/// — see that function's own doc). `apply_update()` itself now also
+/// completes the promote-or-rollback DECISION synchronously (M4 gap-closure,
+/// S11): it launches the staged bundle's own `--self-test` process and hands
+/// the observed heartbeat to `updater::watchdog::run_self_test` (already
+/// landed, never re-implemented in this command) — so the `UpdateState` this
+/// command returns is a direct, unedited pass-through of that real decision
+/// (`Ready` on promote, `RolledBack` on rollback), never a second,
+/// app-computed verdict about whether the staged bundle is trustworthy
+/// (invariant #1).
+#[tauri::command]
+pub async fn apply_update() -> crate::updater::dto::UpdateState {
+    tauri::async_runtime::spawn_blocking(crate::updater::check::apply_update)
+        .await
+        .unwrap_or_else(|_| update_spawn_join_error_state())
+}
+
+/// Shared by both self-update commands' exceptional "the blocking task
+/// itself failed to run" path — mirrors `unreadable_io_error`'s identical
+/// role for the doctor poll task.
+fn update_spawn_join_error_state() -> crate::updater::dto::UpdateState {
+    crate::updater::dto::UpdateState {
+        status: crate::updater::dto::UpdateStatus::Error,
+        available_version: None,
+        current_version: env!("CARGO_PKG_VERSION").to_string(),
+        message: Some("Something went wrong checking for updates — try again later.".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod update_ipc_tests {
+    use super::*;
+    use crate::updater::check::test_env::ENV_LOCK;
+    use crate::updater::dto::UpdateStatus;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn scratch_dir(name: &str) -> std::path::PathBuf {
+        let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let pid = std::process::id();
+        let dir = std::env::temp_dir().join(format!("ct-update-ipc-test-{name}-{pid}-{n}"));
+        std::fs::create_dir_all(&dir).expect("create scratch dir");
+        dir
+    }
+
+    fn fixtures_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join("updater")
+    }
+
+    /// Points `CT_UPDATE_FEED` at a fresh directory carrying a copy of the
+    /// SAME dev-signed fixture pair `updater::check`'s own tests use, so the
+    /// REAL `check_for_update()`/`apply_update()` IPC commands (not the
+    /// `_with`-suffixed testable cores) can be exercised end to end, over
+    /// this crate's real async command surface, with zero real network.
+    fn seed_feed_dir(dir: &std::path::Path) {
+        std::fs::copy(
+            fixtures_dir().join("valid-manifest.json"),
+            dir.join("latest.json"),
+        )
+        .unwrap();
+        std::fs::copy(
+            fixtures_dir().join("valid-manifest.json.minisig"),
+            dir.join("latest.json.minisig"),
+        )
+        .unwrap();
+        std::fs::copy(
+            fixtures_dir().join("artifact.bin"),
+            dir.join("artifact.bin"),
+        )
+        .unwrap();
+    }
+
+    /// The self-update IPC commands take no `State`/`AppHandle` — same
+    /// shape `save_settings_at`'s own test helper documents:
+    /// `tauri::async_runtime::block_on`'s lazily-initialized default
+    /// runtime is enough to drive them, no live Tauri app required.
+    #[test]
+    fn check_for_update_command_reports_available_via_the_dev_feed_override() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let feed_dir = scratch_dir("check-cmd");
+        seed_feed_dir(&feed_dir);
+
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe { std::env::set_var(crate::updater::check::DEV_FEED_OVERRIDE_ENV, &feed_dir) };
+        let state = tauri::async_runtime::block_on(check_for_update());
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe { std::env::remove_var(crate::updater::check::DEV_FEED_OVERRIDE_ENV) };
+
+        assert_eq!(state.status, UpdateStatus::Available);
+        assert_eq!(state.available_version.as_deref(), Some("9.9.9"));
+        assert_eq!(state.current_version, env!("CARGO_PKG_VERSION"));
+
+        std::fs::remove_dir_all(&feed_dir).ok();
+    }
+
+    #[test]
+    fn check_for_update_command_reports_error_when_the_feed_is_unreachable() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe {
+            std::env::set_var(
+                crate::updater::check::DEV_FEED_OVERRIDE_ENV,
+                "/nonexistent/definitely-not-a-real-feed-dir",
+            )
+        };
+        let state = tauri::async_runtime::block_on(check_for_update());
+        // SAFETY: serialized by ENV_LOCK.
+        unsafe { std::env::remove_var(crate::updater::check::DEV_FEED_OVERRIDE_ENV) };
+
+        assert_eq!(state.status, UpdateStatus::Error);
+        assert!(state.message.is_some());
+    }
+
+    // NOTE: `apply_update()` (the bare, zero-argument production command) is
+    // deliberately NOT exercised here — it stages into `updater::check::
+    // default_layout_root()`, which resolves to the REAL `$HOME/Library/
+    // Application Support/…` on whatever machine runs `cargo test`, and this
+    // crate's convention (`settings::writer`'s and `updater::heartbeat`'s own
+    // `default_*_path`/`default_*_root` tests) is to only ever assert the
+    // STRUCTURE of a real production path, never actually write through it.
+    // The full fetch -> verify -> stage -> fail-closed-staple pipeline this
+    // command wraps IS exercised end to end, via the real `verify::
+    // verify_staple` and a real `CT_UPDATE_FEED` override, by `updater::
+    // check`'s own `apply_update_via_the_dev_feed_override_fails_closed_
+    // on_the_real_offline_staple_check` test — which injects an explicit
+    // scratch `StagedLayout` root via `apply_update_at` instead. This
+    // command is a thin, identically-shaped `spawn_blocking` wrapper around
+    // `updater::check::apply_update` — the SAME wrapper shape `check_for_
+    // update`'s own command tests above already prove works.
+
+    #[test]
+    fn update_spawn_join_error_state_carries_a_plain_message_and_the_real_current_version() {
+        let state = update_spawn_join_error_state();
+        assert_eq!(state.status, UpdateStatus::Error);
+        assert_eq!(state.current_version, env!("CARGO_PKG_VERSION"));
+        assert!(state.message.is_some());
     }
 }
 

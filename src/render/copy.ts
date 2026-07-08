@@ -11,7 +11,7 @@
  * contextual primary-action label, and static chrome strings (section
  * label, action effects) — from the same templates, never paraphrased.
  */
-import type { BadgeState, CliStatus, DeptProjectView, Layer, LayerView, ProductView } from "../types";
+import type { BadgeState, CliStatus, DeptProjectView, Layer, LayerView, ProductView, UpdateState, UpdateStatus } from "../types";
 
 /**
  * The badge shown on a product's COLLAPSED row — "worst of that product's
@@ -381,3 +381,76 @@ export const LAYER_SETUP_TITLE = "Set up your team";
 export const LAYER_SETUP_REPOS_LEGEND = "Repositories";
 /** PLACEHOLDER — generic step-navigation chrome the design docs don't give an explicit label for. */
 export const CONTINUE_LABEL = "Continue";
+
+/**
+ * M4 S10 — Control Tower's own self-update affordance (`UpdateState`,
+ * `render/update.ts`). Distinct from the `CliStatus` "update-available"/
+ * "updating-app" rows above, which describe a PRODUCT's update, not Control
+ * Tower's own binary (see `types.ts`'s `UpdateState` doc for the full
+ * boundary). Every VERBATIM row is cited; every net-new string below is
+ * marked PLACEHOLDER (same convention as `SETTINGS_*`/wizard's `PLACEHOLDER`
+ * strings above) — flagged for a cw pass, never silently invented as if
+ * approved.
+ */
+
+/** Verbatim, 70-copy-voice.md § "Loading & Processing" → "App self-update". Doubles as the in-progress header for downloading/verifying/staging (no separate mock exists per phase). */
+export const UPDATE_HEADER = "Updating Control Tower…";
+/** PLACEHOLDER — no row exists for the pre-click "is one available" check; built from the same present-tense-progress register as "Checking your Mac…". */
+export const UPDATE_CHECKING = "Checking for updates…";
+/** PLACEHOLDER phase words — reassuring/brief/honest-about-phase per the Loading & Processing rule, never a percentage/ETA (Case Law OUT). */
+export const UPDATE_PHASE_WORD: Partial<Record<UpdateStatus, string>> = {
+  downloading: "Downloading…",
+  verifying: "Verifying…",
+  staging: "Staging…",
+};
+/** PLACEHOLDER — reuses the existing "an update is available" vocabulary (`stateWords`'s "update" case) but names Control Tower explicitly, since this is the app's OWN update, not a product's. */
+export const UPDATE_AVAILABLE_SENTENCE = "An update is available for Control Tower.";
+/** PLACEHOLDER — quiet/factual per the "no celebratory update" invariant (SOUL "silence beats a toast; a toast beats a celebration"). Never "🎉"/"All set!". */
+export const UPDATE_READY_SENTENCE = "Updated.";
+/** PLACEHOLDER — mirrors the Empty States "Version-skew, all on current SHA" register ("Every machine is on the current version."), scoped to Bob's own machine. */
+export const UPDATE_UP_TO_DATE_SENTENCE = "Control Tower is up to date.";
+/** Verbatim, 70-copy-voice.md § "Success States" → "Rollback protected them". THE load-bearing string this task exists to ship — never paraphrased at render time. */
+export const UPDATE_ROLLBACK_FALLBACK = "Kept your working version.";
+/** PLACEHOLDER — plain-language fallback ONLY for a `null` backend `message`; the real `message` (Rust's `WizardState.error` discipline) always wins when present. Mirrors the "never blame, never a code" Errors microcopy structure. */
+export const UPDATE_ERROR_FALLBACK = "I couldn't check for updates right now.";
+/** PLACEHOLDER — version-line detail, e.g. "Now on 1.3.0." / "1.3.0 available." */
+export function updateVersionDetail(state: UpdateState): string | null {
+  if (state.status === "ready" && state.available_version) return `Now on ${state.available_version}.`;
+  if (state.status === "available" && state.available_version) return `${state.available_version} available.`;
+  return null;
+}
+
+/** The one honest top-line sentence for a given `UpdateState` — never fabricates beyond what `status`/`message` prove. */
+export function updateSentence(state: UpdateState): string {
+  switch (state.status) {
+    case "checking":
+      return UPDATE_CHECKING;
+    case "available":
+      return UPDATE_AVAILABLE_SENTENCE;
+    case "downloading":
+    case "verifying":
+    case "staging":
+      return UPDATE_HEADER;
+    case "ready":
+      return UPDATE_READY_SENTENCE;
+    case "up-to-date":
+      return UPDATE_UP_TO_DATE_SENTENCE;
+    case "rolled-back":
+      // Always the canonical reassuring line — the load-bearing string this
+      // task ships — never the raw backend `message` (that's shown as
+      // supplementary detail by `buildToast`, `render/update.ts`).
+      return UPDATE_ROLLBACK_FALLBACK;
+    case "error":
+      return state.message ?? UPDATE_ERROR_FALLBACK;
+    case "idle":
+    default:
+      return "";
+  }
+}
+
+/** VoiceOver label for the whole update section — the sentence plus, where relevant, the version detail (a11y rule 2). */
+export function updateSectionLabel(state: UpdateState): string {
+  const detail = updateVersionDetail(state);
+  const sentence = updateSentence(state);
+  return detail ? `${sentence} ${detail}` : sentence;
+}

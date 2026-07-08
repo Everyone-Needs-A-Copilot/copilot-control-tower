@@ -26,7 +26,11 @@ fn main() {
     // `wizard_begin_signin`/`wizard_poll_signin`/`open_wizard_window`
     // (M3/S6, `get_wizard_product_catalog` added S8): the first-run wizard's
     // IPC seam — same ACL-enforcement reasoning, scoped to only the wizard
-    // window (`capabilities/wizard.json`).
+    // window (`capabilities/wizard.json`). `check_for_update`/`apply_update`
+    // (M4/S5, `.copilot/wp/24.md`): the self-update transport's IPC seam —
+    // same ACL-enforcement reasoning, scoped to the popover
+    // (`capabilities/default.json`'s `allow-check-for-update`/
+    // `allow-apply-update`), the only window that renders the update banner.
     let attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "get_state",
@@ -44,6 +48,8 @@ fn main() {
             "wizard_begin_signin",
             "wizard_poll_signin",
             "open_wizard_window",
+            "check_for_update",
+            "apply_update",
         ]));
     tauri_build::try_build(attributes).expect("tauri_build::try_build failed");
 

@@ -79,7 +79,22 @@ use std::path::{Path, PathBuf};
 /// this out completely — belt-and-suspenders with `dev_override`'s own gate:
 /// the literal env-var name string isn't embedded in a shipped release
 /// binary at all, not merely unread.
-#[cfg(any(debug_assertions, test))]
+///
+/// M4 follow-up (`tests/fitness_signin_seam_holds_no_secret.rs`'s
+/// `adversarial_leaked_field_never_survives_the_public_seam_end_to_end`):
+/// `cfg(test)` above covers this crate's OWN `#[cfg(test)] mod tests`
+/// (built with `--cfg test` when `cargo test` compiles this LIB target
+/// directly), but an EXTERNAL integration test under `tests/` links this
+/// lib as an ordinary, non-test dependency — verified via `cargo test
+/// --release --test fitness_signin_seam_holds_no_secret -v` that this
+/// build gets neither `--cfg test` nor `-C debug-assertions`, so it still
+/// couldn't reach `CT_CLI_PATH` even after the fix above. `feature =
+/// "dev-seam"` closes that remaining gap; see `Cargo.toml`'s
+/// `[dev-dependencies]` self-dependency for how the feature turns on ONLY
+/// for that lib-as-test-dependency build and never for a genuine `cargo
+/// build --release` binary (which never reads `[dev-dependencies]` at
+/// all — re-verified with the same `strings` scan).
+#[cfg(any(debug_assertions, test, feature = "dev-seam"))]
 pub const DEV_OVERRIDE_ENV: &str = "CT_CLI_PATH";
 
 /// The vendored CLI's expected filename inside `Contents/Resources/` once
@@ -128,7 +143,7 @@ impl std::fmt::Display for PathError {
 /// result is an already-`canonicalize()`d absolute path to an existing,
 /// executable file. See the module doc for the two-branch resolution order.
 pub fn resolve() -> Result<PathBuf, PathError> {
-    #[cfg(any(debug_assertions, test))]
+    #[cfg(any(debug_assertions, test, feature = "dev-seam"))]
     {
         if let Some(dev_result) = dev_override() {
             return dev_result;
@@ -159,7 +174,12 @@ pub fn resolve() -> Result<PathBuf, PathError> {
 /// shipped `cargo build --release` artifact — that build has no `cfg(test)`
 /// either, and the release `strings` scan (re-verified after this fix) still
 /// shows zero occurrences of `CT_CLI_PATH`/`dev_override`.
-#[cfg(any(debug_assertions, test))]
+///
+/// `feature = "dev-seam"` widening: see `DEV_OVERRIDE_ENV`'s doc comment
+/// above for the external-integration-test-under-`--release` gap this
+/// closes, and `Cargo.toml`'s `[dev-dependencies]` self-dependency for why
+/// it never reaches a genuine shipped `cargo build --release` binary.
+#[cfg(any(debug_assertions, test, feature = "dev-seam"))]
 fn dev_override() -> Option<Result<PathBuf, PathError>> {
     let raw = env::var_os(DEV_OVERRIDE_ENV)?;
     Some(canonicalize_executable(PathBuf::from(raw)))

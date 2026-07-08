@@ -16,3 +16,18 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   }
   return el;
 }
+
+/**
+ * The one action-button shape the whole app uses: a real `<button>` (never a
+ * `div`/`span` click target), its plain-language effect folded into the
+ * accessible name (a11y rule 2, 70-copy-voice.md "VoiceOver — every action
+ * row names its action + plain-language effect"). Extracted out of
+ * `popover.ts` (M1) so `render/update.ts` (M4 S10) doesn't duplicate it —
+ * same "never duplicate component logic" rule that moved `h()` here.
+ */
+export function buildActionButton(label: string, effect: string, className: string): HTMLButtonElement {
+  const btn = h("button", { className, text: label });
+  btn.type = "button";
+  btn.setAttribute("aria-label", effect ? `${label} — ${effect}` : label);
+  return btn;
+}

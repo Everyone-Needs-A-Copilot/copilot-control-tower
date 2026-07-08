@@ -73,6 +73,14 @@ pub fn doctor_with_timeout(cli_path: &Path, timeout: Duration) -> DoctorRunOutco
     command
         .arg("doctor")
         .arg("--json")
+        // M4/S5 (`.copilot/wp/24.md`): Control Tower is the SINGLE owner of
+        // the vendored `cc` (ADR-M4-005) — this env var tells `cc` to
+        // disable its own `self-update`, so the two binaries never fight
+        // over who updates the CLI. Set on every spawn of `cc` this crate
+        // performs (not just `doctor`), never conditionally — there is no
+        // scenario where Control Tower spawns a `cc` it does NOT want to be
+        // the sole updater of.
+        .env("COPILOT_MANAGED_BY", "controltower")
         // Never inherit the parent's stdin — this is a menu-bar app with no
         // interactive terminal; an inherited stdin could otherwise let a
         // misbehaving CLI block waiting on input that will never arrive.
@@ -323,6 +331,51 @@ mod tests {
             "timeout path took {elapsed:?}, expected it to fail closed near the 200ms bound, \
              not wait out the child's full 5s sleep"
         );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn doctor_spawns_cc_with_copilot_managed_by_controltower_fitness_m4_s5() {
+        // ADR-M4-005 (`.copilot/wp/24.md`): Control Tower is the single
+        // owner of the vendored `cc` — every spawn of it must disable `cc`'s
+        // own `self-update` via this env var, so the two updaters never
+        // fight. A tiny script that echoes the env var back as this "doctor"
+        // run's JSON body proves it's actually present in the CHILD's
+        // environment (not just set on the `Command` and silently dropped),
+        // exercising the real spawn path rather than inspecting `Command`
+        // internals (which `std::process::Command` doesn't expose anyway).
+        let dir = std::env::temp_dir().join(format!(
+            "ct-spawn-managed-by-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("env-echoing-cc");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nprintf '{\"managed_by\": \"%s\"}' \"$COPILOT_MANAGED_BY\"\n",
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&script).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&script, perms).unwrap();
+        }
+
+        match doctor(&script) {
+            DoctorRunOutcome::Body(bytes) => {
+                let body = std::str::from_utf8(&bytes).unwrap();
+                assert!(
+                    body.contains("\"managed_by\": \"controltower\""),
+                    "expected COPILOT_MANAGED_BY=controltower in the spawned child's own \
+                     environment, got body: {body:?}"
+                );
+            }
+            other => panic!("expected Body, got {other:?}"),
+        }
 
         let _ = std::fs::remove_dir_all(&dir);
     }

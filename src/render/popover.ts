@@ -18,9 +18,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { renderBadge } from "./badges";
 import * as copy from "./copy";
 import { announce, attachProductListKeyboard } from "./a11y";
-import { h } from "./dom";
+import { buildActionButton, h } from "./dom";
+import { buildUpdateSection } from "./update";
 import { isTauriHost } from "../tauri-host";
-import type { DeptProjectView, LayerView, ProductView, RenderState } from "../types";
+import type { DeptProjectView, LayerView, ProductView, RenderState, UpdateState } from "../types";
 
 function divider(): HTMLElement {
   return h("hr", { className: "ct-sep" });
@@ -28,13 +29,6 @@ function divider(): HTMLElement {
 
 function slug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-}
-
-function buildActionButton(label: string, effect: string, className: string): HTMLButtonElement {
-  const btn = h("button", { className, text: label });
-  btn.type = "button";
-  btn.setAttribute("aria-label", effect ? `${label} — ${effect}` : label);
-  return btn;
 }
 
 function primaryAction(state: RenderState): { label: string; effect: string } | null {
@@ -236,8 +230,21 @@ function buildFooter(): HTMLElement {
 /**
  * Renders the whole popover into `container` from a `RenderState` snapshot.
  * `liveRegion` receives the announced status sentence (a11y rule 3).
+ *
+ * `updateState` (M4 S10, optional/additive) is Control Tower's OWN
+ * self-update transport state — a separate signal from `RenderState.status`
+ * (see `types.ts`'s `UpdateState` doc). `undefined`/`null`/`"idle"` render
+ * nothing extra (silence-is-success, P1): this parameter only ever ADDS a
+ * section, never changes how the rest of the popover renders, so every
+ * existing call site (and every `RenderState`-only fixture) keeps working
+ * unchanged.
  */
-export function renderPopover(container: HTMLElement, liveRegion: HTMLElement, state: RenderState): void {
+export function renderPopover(
+  container: HTMLElement,
+  liveRegion: HTMLElement,
+  state: RenderState,
+  updateState?: UpdateState | null,
+): void {
   container.replaceChildren();
 
   if (state.client_state === "cli_unreadable") {
@@ -247,6 +254,14 @@ export function renderPopover(container: HTMLElement, liveRegion: HTMLElement, s
   }
 
   container.appendChild(buildHeader(state));
+
+  if (updateState && updateState.status !== "idle") {
+    const section = buildUpdateSection(updateState, liveRegion);
+    if (section) {
+      container.appendChild(section);
+      container.appendChild(divider());
+    }
+  }
 
   const action = primaryAction(state);
   if (action) container.appendChild(buildPrimaryActionButton(action));

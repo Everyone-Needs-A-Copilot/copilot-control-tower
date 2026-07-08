@@ -587,6 +587,15 @@ const DENIED_KEYS: &[&str] = &[
     "httpsproxy",
     "updatefeedurl",
     "allowselfupdate",
+    // M4/S4-S5 gap sec found: `UpdateChannel` is read solely via the same
+    // forced-domain-only reader as `UpdateFeedURL`/`AllowSelfUpdate`
+    // (`updater::trust::update_channel`, FF-M4-4) — it was missing from
+    // this list, which would have let it be smuggled into
+    // `copilot.layers.yml` as ordinary config even though it's exactly as
+    // security-sensitive as its two siblings above (a user-writable channel
+    // pin is a supply-chain lever: it can steer this app's own self-update
+    // onto a `beta`/`pinned:<version>` feed a local user chose, not IT).
+    "updatechannel",
     "disablewizard",
     "deprovisioned",
     "admincontact",
@@ -1056,6 +1065,7 @@ layers:
             "AuthMode",
             "Host",
             "AllowSelfUpdate",
+            "UpdateChannel",
             "DisableWizard",
             "Deprovisioned",
             "AdminContact",
