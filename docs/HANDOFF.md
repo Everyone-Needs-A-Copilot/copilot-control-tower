@@ -1,5 +1,10 @@
 # HANDOFF — Copilot Control Tower (App Build)
 
+> **⚠️ The build is DONE.** All 9 milestones are built and pushed. If you're
+> picking this back up, read [`RESUME-HERE.md`](RESUME-HERE.md) instead — it's the
+> post-build pickup (signing, infra, WS-A de-mock). This file is kept for the
+> historical build brief only.
+
 A self-contained brief to **start a fresh conversation and build the app**. Everything a new session needs with zero prior context. **Point Claude Code at this one file — it carries the full marching orders below.** Supersedes the earlier "freeze WS-A" handoff — the spec is done, the CLI engine is underway, and **the next job is building the actual macOS app.**
 
 > **Kickoff (paste into a fresh Claude Code session in this repo):**
