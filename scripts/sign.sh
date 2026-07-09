@@ -30,15 +30,17 @@
 # frameworks/dylibs before the final top-level `codesign` call on the .app
 # itself.
 #
-# ## Why there is no re-sign-in-place flag here
+# ## Re-signing in place with --force
 #
-# This script signs a fresh `tauri build` output exactly once; it does not
-# need to overwrite an already-signed artifact in place, so no
-# already-signed-overwrite codesign flag appears here at all — narrower than
-# "avoid the two banned flags," genuinely absent because it isn't needed for
-# this one-shot flow. Re-signing an already-signed bundle (if that ever
-# becomes a real need) is out of scope for this script and should be its own
-# reviewed change, not a flag quietly added here.
+# `tauri build` (tauri.conf sets the signing identity) already signs the app
+# during bundling, so this script receives an already-signed bundle. It
+# re-signs with `--force` to apply the hardened runtime and this repo's
+# locked-down entitlements as the signature that actually ships. Signing is
+# deliberately centralized here so the entitlements and runtime options are
+# the reviewed ones; `--force` here means "replace the build-time signature
+# with the release signature," not "skip verification" (the two banned flags,
+# --skip-verify and the trust-weakening --force-in-place variants, remain
+# absent; codesign --force only overwrites the existing signature).
 #
 # Usage: sign.sh "/path/to/Copilot Control Tower.app"
 
@@ -71,22 +73,32 @@ echo "signing (inside-out) with identity: ${CT_SIGN_IDENTITY}"
 # itself is verified, never re-signed by us; this loop's globs intentionally
 # exclude it. If `cc`'s own path ever needs touching that is a signing-
 # authority change, not a glob tweak).
-find "${APP_PATH}/Contents/Frameworks" -type f \( -name "*.dylib" -o -name "*.framework" \) -print0 2>/dev/null |
-    while IFS= read -r -d '' item; do
-        codesign --sign "${CT_SIGN_IDENTITY}" \
-            --options runtime \
-            --timestamp \
-            --entitlements "${ENTITLEMENTS}" \
-            "${item}"
-    done
+#
+# Guard on the directory existing: a Tauri/wry app that bundles no frameworks
+# (it uses the system WebKit) has no Contents/Frameworks, and running `find`
+# against a missing path exits non-zero, which under `set -euo pipefail` would
+# abort the whole script *before* the outer .app is signed.
+if [[ -d "${APP_PATH}/Contents/Frameworks" ]]; then
+    find "${APP_PATH}/Contents/Frameworks" -type f \( -name "*.dylib" -o -name "*.framework" \) -print0 |
+        while IFS= read -r -d '' item; do
+            codesign --sign "${CT_SIGN_IDENTITY}" \
+                --options runtime \
+                --timestamp \
+                --entitlements "${ENTITLEMENTS}" \
+                "${item}"
+        done
+fi
 
 # The outer .app last — codesign checks existing nested signatures when
 # signing the parent, so this must come after every nested item above.
+# Sign only the top-level bundle (no --deep): the nested items above are
+# already signed, and codesign signs shallow by default when --deep is omitted.
+# (`--deep=false` is not valid codesign syntax — --deep takes no argument.)
 codesign --sign "${CT_SIGN_IDENTITY}" \
     --options runtime \
     --timestamp \
     --entitlements "${ENTITLEMENTS}" \
-    --deep=false \
+    --force \
     "${APP_PATH}"
 
 codesign --verify --strict --deep --verbose=2 "${APP_PATH}"
