@@ -4,7 +4,7 @@ Guidance for a Claude Code session building this product. Read [`docs/START-HERE
 
 ## What this is
 
-An open-source macOS menu-bar app (Tauri v2) that is the always-on, self-healing **face + supervisor over the `copilot`/`cc` CLI**, plus an **Admin mode** IT setup/deploy tool. Two faces, one binary. See [`docs/00-overview/product-brief.md`](docs/00-overview/product-brief.md).
+An open-source macOS menu-bar app (native SwiftUI/AppKit) that is the always-on, self-healing **face + supervisor over the `copilot`/`cc` CLI**, plus an **Admin mode** org setup tool. Two faces, one binary. See [`docs/00-overview/product-brief.md`](docs/00-overview/product-brief.md).
 
 ## The invariants (do not violate)
 
@@ -22,8 +22,8 @@ An open-source macOS menu-bar app (Tauri v2) that is the always-on, self-healing
 
 ## Tech
 
-- **Tauri v2**, Rust core + minimal web UI (keep the UI tiny — no heavy framework).
-- macOS-first; design every OS-integration edge so Windows is a re-skin (see design-distribution §6).
+- **Native macOS app** (SwiftUI/AppKit): a menu-bar tray plus windows, in the same native-quality family as the Publisher Setup app. It renders the CLI's `--json` and shells out to the `copilot` CLI (invariant #1); it holds no resolution/sync/compute logic of its own. This supersedes the prior Tauri v2 / web-UI plan.
+- macOS-only for now; a native SwiftUI app is macOS-specific. Windows is a future consideration, not a current design constraint (the earlier Windows-re-skin plan is deferred).
 - Invoke the CLI by **absolute, translocation-safe** path; never bare `copilot` (avoids the `gh copilot` collision).
 
 ## How to build
