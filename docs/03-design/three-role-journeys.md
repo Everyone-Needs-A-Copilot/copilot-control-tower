@@ -23,13 +23,13 @@ invariants (SOUL §9 role split; `publisher-release-runbook.md` §"Repo boundary
 | Surface | What it actually is | Authority |
 |---|---|---|
 | **Publisher Setup.app** | Repo-local SwiftUI utility (`scripts/publisher_setup.swift`). Not the product binary, not a customer feature. | Release-signing only |
-| **Control Tower (Admin mode)** | A mode *inside* the shipped Tauri binary. | Fleet / config |
+| **Control Tower (Admin mode)** | A mode *inside* the shipped Tauri binary. | Org standup / config |
 | **Control Tower (first-run wizard / tray)** | The *same* Tauri binary, user-facing. | Personal data + sign-in only |
 
 The real design target is **no dead-ends in any of the three**: no unguided
 Terminal, no hand-edited YAML, no undocumented "go ask someone," no cross-role
 decision leak. Some steps *categorically cannot* be automated (creating an Apple
-account, clicking in Jamf, standing up a GitHub org, a key-custody ceremony).
+account, standing up a GitHub org, a key-custody ceremony).
 For those the target is **guided teach-and-verify**, not automation. Conflating
 "must be guided" with "must be automated" is the failure mode to avoid.
 
@@ -38,13 +38,15 @@ Jobs-to-be-done, per role:
 - **Publisher:** *"Someone handed me a project I've never seen and told me to
   ship it. Walk me from 'I have nothing' to 'a signed artifact exists' without
   guessing which Apple credential does what, and never make me a shell user."*
-- **Admin:** *"I'm told to deploy this fleet-wide. Tell me exactly which GitHub
-  repos to create, who to ask for which grant, and the owner of every red item,
-  so I stand up the org from a guided tool + docs and never hand-edit YAML."*
+- **Admin:** *"I'm told to stand up this org's Copilot Solutioning Ecosystem.
+  Tell me exactly which GitHub repos to create, who to ask for which grant, how
+  to wire the shared secret store, and the owner of every red item, so I stand
+  up the org from a guided tool + docs and never hand-edit YAML."*
   (This is the literal SOUL success signal, SOUL §8.)
 - **User (Bob):** *"When this lands on my Mac, give me a working partner from one
-  double-click or zero, and ask me only about my own data, never a release or
-  MDM decision I can't judge."*
+  double-click, let me join my own department without asking anyone, and ask me
+  only about my own data, never a release or org-config decision I can't
+  judge."*
 
 ## 1. Publisher journey
 
@@ -102,59 +104,70 @@ Multi-account auth standard: SSH host aliases `github-personal` / `github-work`
 with `IdentitiesOnly yes`, the only mechanism that disambiguates two
 `github.com` identities on one machine (`four-tier-topology.md` §6.1).
 
+Note (D10): a product/project the org builds with the CSE is not a fifth tier
+here. It has its own repo and is standardized by the Copilot instruction layer
+(Claude/Codex Copilot) when someone works in it. These four tiers are
+**components** (Knowledge/CLI/Claude/Codex Copilot), never projects.
+
 ### 2b. Admin end-to-end sequence
+
+Center of gravity (D3/D4): stand up the 4-tier component repos, grant team
+access (entitlement), configure the central shared secret store, and author the
+ecosystem seed. No MDM, no fleet console, no forced-key domain.
 
 | # | Stage | Step | External party / grant | Build state |
 |---|---|---|---|---|
-| A0 | Orient + authority | Confirm fleet/config authority; get MDM console + GitHub org-admin sponsor | GitHub org owner; MDM admin; an `AdminContact` | N/A |
-| A1 | Stand up repos | Create `copilot-org` + `copilot-dept-<unit>`; set org base-read; create dept teams | GitHub org owner | Design (docs only) |
-| A2 | Decide who authors | Choose authors per dept; grant team write; provision their **own** on-device SSH key | Author + team-admin | Design; mechanism ratified |
-| A3 | Author `ecosystem.yml` seed | Generate the seed (products/depts/pins/auth/policy_signers/telemetry) | N/A | **NOT BUILT** (interim: hand-author YAML) |
-| A4 | Configure access + policy signers | Sign capability policy; set CODEOWNERS/rulesets on executable paths | Policy signer | Design |
-| A5 | Gather managed keys | Collect the 17 forced-domain keys (`OrgSlug`, `EcosystemSeedURL`, `AdminContact`, `UpdateFeedURL`, `DisableWizard`, …) | Org decisions | Registry shipped; **collection UI not built** |
-| A6 | Generate `.mobileconfig` | Run generator → one profile w/ prefs + login-item + notifications; fail-closed secret scan | N/A | **SHIPPED (M5)**: the one step real today |
-| A7 | Preflight | Red/green: seed parses, dept repos exist, policy signed, profile complete, pin resolves, mirror reachable; each red names its owner | N/A | **NOT BUILT** (interim: manual checklist) |
-| A8 | Upload to MDM | Upload `.mobileconfig` + artifact to Jamf/Kandji/Intune; scope to group | MDM console | Artifact real; per-MDM path unwritten; forced-key-takes-effect unverified |
-| A9 | Login-item + safety channel | Login-item rides the profile; set **mandatory** `AdminContact` | IT monitored endpoint | **SHIPPED (M5)**; unverified on real Mac |
-| A10 | Analytics opt-in (optional) | Off by default; only if org signs `telemetry.enabled/endpoint` | Org collector | Gate + transport seam built; real HTTP absent |
-| A11 | Shared secret store (optional) | Deploy Infisical/OpenBao; scope by GitHub-team; deliver URL via MDM only | IT infra | Org decision, no code gap |
-| A12 | Roll out to test Mac | Push build via MDM; first run reads forced keys; wizard silent if `DisableWizard` | MDM | Design |
-| A13 | Verify fleet | Per-host worst-wins + safety feed; **no fleet-health score exists** | N/A | Frontend renders **fixtures only**; no live backend |
-| A14 | Deprovision a leaver | Set forced `Deprovisioned=true` (never mere profile removal) | MDM | **SHIPPED (M5)**; unverified on real Mac |
+| A0 | Orient + authority | Confirm org/config authority; get a GitHub org-owner sponsor + an `AdminContact` for safety escalation | GitHub org owner; `AdminContact` | N/A |
+| A1 | Stand up repos | Create `copilot-org` + `copilot-dept-<unit>` per department; set org base-read | GitHub org owner | Design (docs only) |
+| A2 | Grant team access (entitlement) | Create dept teams; grant read/write; this **is** the entitlement (D3: entitlement == repo access) | GitHub org owner / team-admin | Design; mechanism ratified |
+| A3 | Provision authoring keys | Choose authors per dept; grant team write; provision each author's **own** on-device SSH key | Author + team-admin | Design |
+| A4 | Configure central shared secret store | Deploy Infisical/OpenBao; scope access by GitHub-team membership; endpoint delivered via inherited org repo config, never MDM (D4/D6) | IT infra | Org decision, no code gap |
+| A5 | Author the ecosystem seed | Generate `ecosystem.yml` (components/depts/pins/auth/policy_signers/telemetry) in-app, open the PR | N/A | **NOT BUILT** (interim: hand-author YAML) |
+| A6 | Configure access policy signers | Sign the capability policy; set CODEOWNERS/rulesets on the executable paths | Policy signer | Design |
+| A7 | Analytics opt-in (optional) | Off by default; only if org signs `telemetry.enabled/endpoint` | Org collector | Gate + transport seam built; real HTTP absent |
+| A8 | Verify setup | Red/green: repos exist, seed parses, policy signed, secret store reachable, pins resolve; each red names its owner | N/A | **NOT BUILT** (interim: manual checklist) |
+| A9 | Deprovision a leaver | Revoke the person's GitHub repo access + rotate shared-secret-store tokens (D4); no MDM, no remote wipe | GitHub org owner / secret-store admin | **NOT BUILT** (mechanism defined; no in-app action yet) |
 
 Moments of truth: **A0** (every prerequisite is *another person*, highest
-abandonment risk) and **A3** (forced back to hand-YAML, the one place the SOUL
-success signal is currently false).
+abandonment risk) and **A5** (forced back to hand-YAML, still the one place the
+SOUL success signal is currently false).
 
-Admin done = artifact + generated profile deploy to a managed test Mac; preflight
-explains every blocker; fleet reflects real machines; safety escalation reaches
-`AdminContact`.
+Admin done = the four spine artifacts exist and verify clean: repos + teams
+(entitlement), the central secret store, and a signed ecosystem seed; safety
+escalation reaches `AdminContact`.
 
 ## 3. User (Bob) journey
 
-Entry state: Bob does nothing and heard nothing, by design. Two lanes.
+Entry state: Bob hears about it once (a link to the signed `.dmg`), installs it
+himself, and then hears nothing further unless something needs him. No MDM push
+and no zero-touch (D4): one install path, not two lanes.
 
-| # | Stage | Managed (MDM) lane | Unmanaged lane | Boundary rule |
-|---|---|---|---|---|
-| U0 | Arrival | App + profile pushed silently; starts at login | Bob double-clicks the `.dmg` once | Never asked to install a profile or judge trust |
-| U1 | First run | `DisableWizard` forced → zero-question silent provision | Wizard asks only what Bob can answer | Never exposes org/MDM/release concerns |
-| U2 | Integration sign-in | "Sign in to Slack" → browser device-flow → token to OS keychain | Same | Never sees a raw API key |
-| U3 | Steady state | Tray parses `doctor --json`, worst-wins; silent when fine | Same | Icon never fabricates Healthy |
-| U4 | Cadence sync | Authorized upstream change appears; pull-only/downward | Same | Never pushes personal content up |
-| U5 | A change needs him | Only ever: his sign-in, or his dirty personal WIP | Same | Held-major/policy/security → IT, never Bob |
-| U6 | Conflict (author-Bob only) | Plain-language keep-yours/theirs/both/escalate | Same | Raw Git never shown |
-| U7 | Safety event | Auto-acted, past-tense ("kept you safe"); IT notified content-free | In-app only | Bob never approves/unblocks |
-| U8 | Update / rollback | Crash-only watchdog; bad update → "kept your working version" | Same | Never a scary failure dialog |
-| U9 | Departure | Forced `Deprovisioned=true` wipes/quarantines | n/a | Bob takes no action |
+| # | Stage | What happens | Boundary rule |
+|---|---|---|---|
+| U0 | Arrival | Bob double-clicks the signed, notarized `.dmg` once | Never asked to install a profile or judge trust |
+| U1 | First run | Wizard asks only what Bob can answer | Never exposes org/release concerns |
+| U2 | Department discovery + join | Wizard/tray shows the departments Bob is entitled to, validated by his GitHub repo access; selecting one syncs that layer onto his machine (D7.1) | Bob only ever sees departments he's already entitled to; no admin decision leaks in |
+| U3 | Personal sign-in | "Sign in to Slack" (his own account) → browser device-flow → token to OS keychain | Never sees a raw API key; this is *his* credential, never shared-store material |
+| U4 | Entitled shared integrations | Org/dept integrations (Salesforce, Workday, Microsoft) already appear connected because his entitled layer provisions them from the central shared secret store; no sign-in prompt (D6/D7.2) | Shown as a distinct, separately-labeled register from U3; Bob never sets up a shared integration's credentials |
+| U5 | Steady state | Tray parses `doctor --json`, worst-wins; silent when fine | Icon never fabricates Healthy |
+| U6 | Cadence sync | Authorized upstream component change appears (foundation/org/dept); pull-only/downward | Never pushes personal content up |
+| U7 | Personal-key multi-machine sync | Bob's own personal keys follow him to a second machine, ending the `.env` hand-copying (D7.3) | His keys, his machines only; never touches shared-store material |
+| U8 | A change needs him | Only ever: his sign-in, his dirty personal WIP, or a new department to join | Held-major/policy/security → IT (`AdminContact`), never Bob |
+| U9 | Conflict (author-Bob only) | Plain-language keep-yours/theirs/both/escalate | Raw Git never shown |
+| U10 | Safety event | Auto-acted, past-tense ("kept you safe"); IT notified content-free | Bob never approves/unblocks |
+| U11 | Update / rollback | Crash-only watchdog; bad update → "kept your working version" | Never a scary failure dialog |
+| U12 | Departure | His GitHub repo access is revoked and shared-secret-store tokens rotated; already-synced content on his disk is not remotely wiped (accepted residual, D4) | Bob takes no action; revocation is server-side and he cannot reverse it |
 
 The intended arc is deliberately **flat and quiet**: "it just sits there,
-quietly solid" (SOUL §8). The only sanctioned peaks are U2 ("I just click sign-in
-and it works") and U8 ("it kept my work when the update went bad"). Every negative
-emotion Bob could feel is an anti-pattern the product exists to design *out*.
+quietly solid" (SOUL §8). The only sanctioned peaks are U3 ("I just click sign-in
+and it works") and U11 ("it kept my work when the update went bad"). Every
+negative emotion Bob could feel is an anti-pattern the product exists to design
+*out*.
 
-User done = managed user gets a ready system with no terminal; unmanaged gets a
-clear wizard; the app never asks the user to judge Publisher/Admin decisions;
-status stays honest and recoverable.
+User done = Bob gets a ready system with no terminal, joins his own department
+without asking anyone, can tell his personal sign-ins apart from integrations
+that were just there because he's entitled to them, and the app never asks him
+to judge a Publisher/Admin decision; status stays honest and recoverable.
 
 ## 4. Dead-ends & gaps (the design targets)
 
@@ -166,15 +179,14 @@ status stays honest and recoverable.
 | G4 | Publisher | **DMG path assumption**: app assumed fixed name; Tauri emits versioned name (**FIXED** in redesign) |
 | G5 | Publisher | CI + two-of-N custody undecided; update-feed URL still a placeholder |
 | G6 | Admin | **`ecosystem.yml` seed generator NOT BUILT**: Admin must hand-author YAML |
-| G7 | Admin | **Preflight NOT BUILT**: no red/green safety net before a fleet push |
-| G8 | Admin | Managed-key collection has no UI (17 keys exist in `keys.rs`, nothing gathers them) |
-| G9 | Admin | No per-MDM (Jamf/Kandji/Intune) walkthrough; forced-key-takes-effect unverified |
-| G10 | Admin | GitHub topology is docs-only, not an in-app flow |
-| G11 | Admin | "Who to talk to" is implicit prose, no contacts artifact |
-| G12 | Admin | Fleet dashboard fixtures-only; no live backend |
-| G13 | Admin | Analytics carrier field unratified |
-| G14 | User | Managed vs unmanaged first-run unproven on real machines |
-| G15 | Cross | Publisher→Admin→User is a sequential gate with no shared status object |
+| G7 | Admin | **Setup verification NOT BUILT**: no red/green check that repos, teams, the secret store, and the seed are correctly wired before Bob's first sync |
+| G8 | Admin | GitHub topology is docs-only, not an in-app flow |
+| G9 | Admin | "Who to talk to" is implicit prose, no contacts artifact |
+| G10 | Admin | Analytics carrier field unratified |
+| G11 | User | **Department discovery/join has no UI**: nothing surfaces which departments Bob is entitled to or lets him join by repo access (D7.1) |
+| G12 | User | **Shared-vs-personal integration split doesn't exist**: the current model conflates personal sign-in (device-flow) with entitled shared integrations provisioned centrally (D7.2) |
+| G13 | User | **Personal-key multi-machine sync unbuilt**: Bob still hand-copies `.env` between his own machines (D7.3) |
+| G14 | Cross | Publisher→Admin→User is a sequential gate with no shared status object |
 
 ## 5. "Must be in the app" list
 
@@ -182,29 +194,29 @@ status stays honest and recoverable.
 Covered P0–P11. This pass **added/hardened**: a persistent roadmap sidebar; a
 Welcome/orientation screen; a **cert-trust verify** screen closing G1/G2;
 **dynamic DMG-path resolution** closing G4; a **structured Publisher→Admin
-handoff** block closing G3 (feeds G15). P1/P3/P4/P6/P7 remain TEACH screens
+handoff** block closing G3 (feeds G14). P1/P3/P4/P6/P7 remain TEACH screens
 (Apple's own web console, cannot/should not be automated). P12 (CI secrets) and
 P13 (custody ceremony) stay owner-gated; the app names them as next steps.
 
 ### 5b. Control Tower (Admin mode, Tauri): the biggest build gap
-1. Prerequisites & contacts screen (names the four external parties, closes G11).
-2. GitHub topology guide, teach + verify (closes G10).
-3. "Who authors" decision flow + on-device SSH keygen (A2).
-4. **Seed generator**: author `ecosystem.yml` in-app + open the PR (closes G6). Highest-value build.
-5. Managed-key collector + validator over the 17 keys (closes G8).
-6. Preflight red/green, each red item names its owner (closes G7).
-7. Per-MDM upload walkthroughs + "confirm forced key flipped" verify (closes G9).
-8. Honest fleet view: per-host worst-wins, no health score, wire the live backend (closes G12).
-9. Guided deprovision action.
+1. Prerequisites & contacts screen (names the GitHub org owner + `AdminContact`, closes G9).
+2. GitHub topology guide, teach + verify (closes G8).
+3. "Who authors" decision flow + on-device SSH keygen (A3).
+4. Central shared secret store setup guide: connect Infisical/OpenBao, scope by GitHub team (A4).
+5. **Seed generator**: author `ecosystem.yml` in-app + open the PR (closes G6). Highest-value build.
+6. Access policy signer flow: sign the capability policy, set CODEOWNERS/rulesets (A6).
+7. Setup verification: red/green over repos, teams, secret store, and seed, each red names its owner (closes G7).
+8. Guided deprovision action: revoke GitHub repo access + rotate shared-secret-store tokens.
 
 ### 5c. Control Tower (first-run wizard / tray, Tauri, user)
-1. Silent managed first-run + honest holding states (never false-Healthy).
-2. Unmanaged wizard asking only Bob-answerable things.
-3. Device-flow sign-in rendering; native secure input for legacy key integrations.
-4. Plain-language conflict chooser (CLI-computed, app-rendered).
-5. Hard boundary: held-major/policy/security/deprovision → IT via `AdminContact`, never Bob.
+1. Single self-install first-run wizard asking only Bob-answerable things; honest holding states (never false-Healthy).
+2. Department discovery + join: surface entitled departments, validate by GitHub repo access, sync on selection (closes G11).
+3. Device-flow personal sign-in, rendered as a distinct register from entitled shared integrations (closes G12); native secure input for legacy key integrations.
+4. Personal-key multi-machine sync surface (closes G13).
+5. Plain-language conflict chooser (CLI-computed, app-rendered).
+6. Hard boundary: held-major/policy/security/deprovision → IT via `AdminContact`, never Bob.
 
-### 5d. Cross-cutting (closes G15)
+### 5d. Cross-cutting (closes G14)
 A shared handoff status object in the CLI `--json` contract that each surface
 renders: `{publisher: done|blocked, admin: done|blocked, artifact_ref,
 next_owner}`. Belongs in the CLI per parse-never-compute; all three surfaces
@@ -215,5 +227,5 @@ render it.
 The Admin journey is a **HYPOTHESIS**: no real IT operator has touched it
 (`06-deployment/README.md` banner; SOUL §9 #9). Every Admin recommendation should
 be prototyped with one real operator before it hardens; the seed generator (G6)
-and preflight (G7) are the two builds that most directly convert the hypothesis
-into the ratified SOUL success signal.
+and setup verification (G7) are the two builds that most directly convert the
+hypothesis into the ratified SOUL success signal.

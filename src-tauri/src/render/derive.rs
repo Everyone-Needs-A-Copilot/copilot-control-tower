@@ -61,23 +61,6 @@ pub struct LayerView {
     pub severity: LayerSeverity,
     pub badge_state: String,
     pub detail: Option<String>,
-    /// Temporary department-project entries scoped under this layer.
-    /// PLACEHOLDER: `doctor.schema.json`'s checker shape carries no
-    /// project-level field yet (see the schema's `checkers[]` properties),
-    /// so this is always empty for M1 — the field exists for
-    /// forward-compatibility with `src/types.ts`'s optional
-    /// `LayerView.projects`, and is omitted from the serialized JSON while
-    /// empty so the wire shape matches the T3 spec exactly.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub projects: Vec<DeptProjectView>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct DeptProjectView {
-    pub name: String,
-    pub severity: LayerSeverity,
-    pub badge_state: String,
-    pub detail: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -274,14 +257,12 @@ fn bucket_layer(verdict: &DoctorVerdict, product_key: &str, layer_key: &str) -> 
             severity: LayerSeverity::None,
             badge_state: "none".to_string(),
             detail: None,
-            projects: Vec::new(),
         },
         Some(c) => LayerView {
             layer: layer_key.to_string(),
             severity: severity_to_layer_severity(c.severity),
             badge_state: severity_badge(c.severity).to_string(),
             detail: c.detail.clone(),
-            projects: Vec::new(),
         },
     }
 }
@@ -515,28 +496,6 @@ mod tests {
             rs.header.sentence,
             "I couldn't start the engine. Click to reinstall — it's a fix, not a reset."
         );
-    }
-
-    /// T8 (Part B item 5 — dept-project drift): `doctor.schema.json`'s
-    /// `checkers[]` shape carries no project-level field in M1, so
-    /// `LayerView.projects` must stay empty rather than fabricate a project
-    /// nesting the CLI never reported (parse-never-compute). Locks in the
-    /// PLACEHOLDER decision documented on `LayerView::projects` so a future
-    /// change can't silently start inventing project rows.
-    #[test]
-    fn dept_layer_projects_are_never_fabricated_in_m1() {
-        let rs = render("needs-attention-codex-dept-fail");
-        for p in &rs.products {
-            for l in &p.layers {
-                assert!(
-                    l.projects.is_empty(),
-                    "{}/{} layer carries a fabricated project entry — the M1 doctor \
-                     schema has no project-level field to render one from",
-                    p.product,
-                    l.layer
-                );
-            }
-        }
     }
 
     #[test]

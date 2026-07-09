@@ -25,7 +25,6 @@ import { buildUpdateSection } from "./update";
 import { isTauriHost } from "../tauri-host";
 import type {
   BobLaneView,
-  DeptProjectView,
   LayerView,
   ProductView,
   RenderState,
@@ -107,21 +106,7 @@ function buildUnreadable(state: RenderState): HTMLElement {
   return wrap;
 }
 
-function buildProjectRow(project: DeptProjectView): HTMLElement {
-  const row = h("div", {
-    className: "ct-project-row",
-    attrs: { role: "treeitem", "aria-level": "3", "aria-label": copy.deptProjectLabel(project) },
-  });
-  row.tabIndex = -1;
-  row.appendChild(renderBadge(project.badge_state));
-  row.appendChild(h("span", { className: "ct-project-label", text: `${project.name} (project)` }));
-  row.appendChild(h("span", { className: "ct-project-detail", text: copy.layerDetailText(project) }));
-  return row;
-}
-
 function buildLayerRow(layer: LayerView): HTMLElement {
-  // Outer wrapper is a plain block so a dept project list (if any) stacks
-  // BELOW the layer's own flex line, rather than fighting it for width.
   const wrap = h("div", { className: "ct-layer-item" });
 
   const row = h("div", {
@@ -140,12 +125,6 @@ function buildLayerRow(layer: LayerView): HTMLElement {
     row.appendChild(buildActionButton(actionLabel, copy.ACTION_EFFECT[actionLabel] ?? "", "ct-layer-action"));
   }
   wrap.appendChild(row);
-
-  if (layer.projects && layer.projects.length > 0) {
-    const projects = h("div", { className: "ct-projects", attrs: { role: "group" } });
-    layer.projects.forEach((p) => projects.appendChild(buildProjectRow(p)));
-    wrap.appendChild(projects);
-  }
 
   return wrap;
 }

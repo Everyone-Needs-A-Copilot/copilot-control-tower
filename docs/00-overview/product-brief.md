@@ -9,9 +9,9 @@ Content inherits down a four-tier model — **foundation → org → department 
 Control Tower delivers this as **two faces over one open-source binary**:
 
 - **Operator mode** — a macOS menu-bar app that gives Bob a working, focus-scoped Copilot partner from one double-click, then keeps the machine synced and self-healed for as long as it runs.
-- **Admin mode** — a guided, open-source tool that lets an IT team stand up and deploy the whole ecosystem for their org: seed generator, MDM-profile generator, preflight validation, fleet dashboard, deployment runbooks.
+- **Admin mode** — a guided, open-source tool that lets an IT team stand up and deploy the whole ecosystem for their org: seed generator, repo/team/secret-store scaffolding, preflight validation, deployment runbooks. Entitlement + deployment is GitHub repo access, not device management.
 
-> **Evidence honesty.** Claude Copilot delivering value to a team is **real and tested** (several users on Pablo's team). The Admin / IT-operator experience (MDM, fleet dashboard, deprovision) and the multi-writer org/dept authoring loop are **as-yet-unvalidated hypotheses** — no real IT operator has run Admin mode, and the propagation loop has never run with more than one writer.
+> **Evidence honesty.** Claude Copilot delivering value to a team is **real and tested** (several users on Pablo's team). The Admin / IT-operator experience (repo/team scaffolding, entitlement, deprovision) and the multi-writer org/dept authoring loop are **as-yet-unvalidated hypotheses** — no real IT operator has run Admin mode, and the propagation loop has never run with more than one writer.
 
 ## Control tower, not the pilot
 
@@ -21,15 +21,26 @@ The name is the model. A control tower doesn't fly the plane — it watches ever
 
 **Control Tower parses; it never computes.** Every health verdict, resolution decision, signature check, prune, and wipe is performed by the CLI — the same hardened pipeline a headless developer runs by hand. If Control Tower vanished, the CLI would still be correct. That contract is what makes an always-on, auto-pulling agent *safer* than a human running `copilot update` manually: nothing about the GUI's presence changes what's true or what's safe.
 
+## What Control Tower syncs
+
+Control Tower keeps four CSE components current at every layer a user is entitled to: **Knowledge
+Copilot** (the knowledge layer), **CLI Copilot** (the integration layer to systems outside the
+computer), and the **Claude Copilot** / **Codex Copilot** instruction layer. All four sync the same
+way, pull-only and downward across foundation → org → department → personal; none of them is a
+"products" picture, and none is more managed than another.
+
 ## Host-awareness
 
-Control Tower detects and manages **Claude Copilot** and/or **Codex Copilot** independently on a given machine — zero, one, or both may be present. It has no hard-coded product knowledge beyond detection and column selection; the CLI's `derive` step resolves the rest.
+Within the instruction-layer half of that set, Control Tower detects and manages **Claude Copilot**
+and/or **Codex Copilot** independently on a given machine — zero, one, or both may be present. It
+has no hard-coded component knowledge beyond detection and column selection; the CLI's `derive` step resolves the rest.
 
 ## Non-goals
 
 - **Not a second brain.** No resolution logic, no health scoring, no signature verification lives in the app — that would duplicate a hardened pipeline and create two sources of truth.
 - **No independent decision-making about systems of record.** Reads happen unprompted; writes confirm.
 - **Windows is deferred**, not designed against — macOS-first, Windows is a later re-skin.
-- **Does not replace systems of record** (GitHub, MDM, Teams/HR directories) — it supervises and surfaces state that already lives there.
+- **Does not replace systems of record** (GitHub, Teams/HR directories) — it supervises and surfaces state that already lives there.
+- **Not a project/product manager.** A product/project (e.g. Insights Copilot, Pipeline, Method) carries its own knowledge/skills/agents/integrations inside its own repo, standardized by the Copilot instruction layer when you work in it. It is never a Control Tower sync layer.
 
 For the full validated architecture — the status model, process model, the app↔CLI contract, distribution/signing, Admin mode, and the escalation model — see [`../01-architecture/architecture.md`](../01-architecture/architecture.md).

@@ -72,15 +72,6 @@ export interface LayerView {
   severity: LayerSeverity;
   badge_state: BadgeState;
   detail: string | null;
-  /** A temporary department project scoped under this layer (dept only). */
-  projects?: DeptProjectView[];
-}
-
-export interface DeptProjectView {
-  name: string;
-  severity: LayerSeverity;
-  badge_state: BadgeState;
-  detail: string | null;
 }
 
 export interface ProductView {

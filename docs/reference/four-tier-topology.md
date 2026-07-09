@@ -8,6 +8,12 @@
 | **Question answered** | "Generalize the model from 3 tiers to **PERSONAL › DEPARTMENT › ORG › FOUNDATION** (and N tiers), map each tier to a **different GitHub account/org**, and give ENAC — who owns the foundation — a way to author foundation changes too." |
 | **Appendices** | `research/research-ntier-arch.md` · `research/research-github-topology.md` · `research/research-foundation-governance.md` *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))* |
 
+> **Resolves CSE open-question 1** ("how does an Org take the Foundation version: clone, fork, or
+> template + upstream remote?"), per
+> [`cse-alignment-decisions.md`](cse-alignment-decisions.md) D5: separate co-resolved repos +
+> resolver precedence (§§2-3) + one-way `copilot promote` (§8), not fork/upstream. See also
+> [`copilot-solutioning-ecosystem.md`](copilot-solutioning-ecosystem.md#open-design-questions).
+
 ---
 
 ## 1. Bottom line up front
@@ -71,7 +77,7 @@ version: 1
 layers:
   - id: personal-pablo
     role: personal              # open vocabulary, not a closed enum
-    product: claude              # WHICH product this layer belongs to (§4.x) — required, non-empty
+    component: claude            # WHICH CSE component this layer belongs to (§4.x) — required, non-empty
     rank: 10                    # lower = higher precedence; gaps leave room to insert
     source:
       repo: git@github-personal:pablitoalejo/claude-copilot-private.git
@@ -81,7 +87,7 @@ layers:
 
   - id: dept-engineering
     role: department
-    product: claude
+    component: claude
     unit: engineering           # WHICH department this layer serves (§5)
     rank: 20
     source:
@@ -91,7 +97,7 @@ layers:
 
   - id: org-acme
     role: org
-    product: claude
+    component: claude
     rank: 30
     source:
       repo: git@github-work:acme-corp/copilot-org.git
@@ -100,7 +106,7 @@ layers:
 
   - id: foundation
     role: foundation
-    product: claude
+    component: claude
     rank: 40
     source:
       repo: https://github.com/Everyone-Needs-A-Copilot/claude-copilot.git
@@ -108,13 +114,13 @@ layers:
     auth: anon                  # public HTTPS, no credential
 ```
 
-**`product`** is a **required, non-empty** string on every layer entry — one of the config-driven
-product set (initially `knowledge` | `cli` | `claude` | `codex`; adding a fifth product is a data
-edit, not a schema change). It is already **implied** by the `copilot-<product>-<tier>` repo-naming
-convention (e.g. `copilot-dept-engineering` under a `claude` product's org, or a `copilot-knowledge-
-dept-finance` repo per `ecosystem-architecture.md` §4.1) — this field just **declares** it explicitly
-on the layer so the resolver doesn't have to infer product from a URL string. Invariant: a layer
-belongs to exactly one `product` × tier.
+**`component`** is a **required, non-empty** string on every layer entry, one of the config-driven
+CSE component set (initially `knowledge` | `cli` | `claude` | `codex`; adding a fifth component is a
+data edit, not a schema change). It is already **implied** by the `copilot-<component>-<tier>`
+repo-naming convention (e.g. `copilot-dept-engineering` under a `claude` component's org, or a
+`copilot-knowledge-dept-finance` repo per `ecosystem-architecture.md` §4.1); this field just
+**declares** it explicitly on the layer so the resolver doesn't have to infer component from a URL
+string. Invariant: a layer belongs to exactly one `component` × tier.
 
 **Rules that keep it N-extensible:**
 
@@ -204,10 +210,10 @@ This is the single point where the two research streams diverged, and it is a **
 
 **Decision — Option A (separate repos) is the default, everywhere, per owner decision (2026-07-06).** Department content is confidential business data — financial figures, forecasts, proprietary methods and processes — not merely organizationally scoped. GitHub gives **no path-level read ACL**; the repository is the only read-confidentiality boundary it offers, and `CODEOWNERS` governs review routing, not read access. A subfolder only scopes *resolution* (which content a user's manifest engages — focus), it never scopes *readability*: any member with read access to the parent repo can clone it and read every department's subfolder. So a real per-department read boundary **requires** a per-department repo.
 
-- **Option A (separate repos) is the default for every department, every product.** This is not a "pick by taste" choice — it is the only topology that actually isolates confidential departmental content.
+- **Option A (separate repos) is the default for every department, every component.** This is not a "pick by taste" choice — it is the only topology that actually isolates confidential departmental content.
 - **Option B (subfolders) is a narrow, explicit opt-in**, reserved for departmental content an enterprise has affirmatively decided is non-confidential (pure organizational scoping, not secrecy). Choosing it must be a deliberate, documented exception, not a default assumption — and it still buys the real wins it always did: no org↔dept version skew (one SHA), one clone, and "promote dept→org" as moving a file up a directory (accepted trade-offs *only* for genuinely non-confidential content).
 
-**The architecture does not force the mechanism, only the default.** Because the manifest layer source is `(repo, path)`, a `department` layer can be *either* a separate repo (Option A: `repo` differs, no `path`) *or* a subfolder (Option B: same `repo`, distinct `path`); the resolver is identical either way. `ecosystem.yml`'s per-product `topology` field defaults to `separate` and must be explicitly set to `subfolder` to opt out (see `04-ecosystem-architecture.md` §4.2, §8.1 *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*).
+**The architecture does not force the mechanism, only the default.** Because the manifest layer source is `(repo, path)`, a `department` layer can be *either* a separate repo (Option A: `repo` differs, no `path`) *or* a subfolder (Option B: same `repo`, distinct `path`); the resolver is identical either way. `ecosystem.yml`'s per-component `topology` field defaults to `separate` and must be explicitly set to `subfolder` to opt out (see `04-ecosystem-architecture.md` §4.2, §8.1 *(external — source-repo appendix; see [ecosystem-links.md](./ecosystem-links.md))*).
 
 ### 6.3 GitHub teams mapping
 

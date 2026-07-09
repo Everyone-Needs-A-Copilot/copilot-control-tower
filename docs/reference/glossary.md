@@ -12,38 +12,44 @@ defined differently in an older doc, **this page wins**; fix the drift there, no
 
 ## Core architecture
 
-**Layer vs. tier vs. product vs. dimension** — four distinct axes; the docs use them precisely and
+**Layer vs. tier vs. component vs. dimension** — four distinct axes; the docs use them precisely and
 none of them substitute for another:
 - **Tier** is the conceptual precedence rank in the inheritance stack: **PERSONAL (10) › DEPARTMENT
   (20) › ORG (30) › FOUNDATION (40)**. A tier is a *position*, not a file.
 - **Layer** is a concrete, self-describing manifest entry (`id`/`role`/`rank`/`source`/`auth`/
-  `product`) that *occupies* a tier. One tier can hold more than one layer — e.g. a user in two
+  `component`) that *occupies* a tier. One tier can hold more than one layer — e.g. a user in two
   departments declares two `department`-role layers at distinct ranks (`20`, `21`). `role` is an
   open string, so a 5th tier (`squad`, `region`) is a data edit, not a schema change.
   Ref: [`four-tier-topology.md`](four-tier-topology.md) §§2–4.
-- **Product** — an independently four-tier-layered bundle of dimensions; the initial products are
-  **Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot**. Product is **config-driven** —
+- **Component** — an independently four-tier-layered CSE tool; the initial components are
+  **Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot**. Component is **config-driven** —
   these four are the initial set declared in `ecosystem.yml`/`copilot.layers.yml`, not a hardcoded
-  count — and a new product is additive by adding layers, not a schema change. **Invariant: a layer
-  belongs to exactly one product × tier.** Product is a first-class **attribution + grouping axis**
-  carried on every layer and every resolved item (a `product` field), distinct from the *tier* it
+  count — and a new component is additive by adding layers, not a schema change. **Invariant: a layer
+  belongs to exactly one component × tier.** Component is a first-class **attribution + grouping axis**
+  carried on every layer and every resolved item (a `component` field), distinct from the *tier* it
   occupies and the *dimension(s)* it resolves. Ref: [`four-tier-topology.md`](four-tier-topology.md)
   §4; [`ecosystem-architecture.md`](ecosystem-architecture.md) §§1, 3.
+- **Product / Project** — the built output someone builds *using* the CSE (e.g. Insights Copilot,
+  Pipeline, Method), never a CSE component. **Never synced by Control Tower.** A project is
+  self-contained: its own knowledge/skills/agents/integrations live inside its own repo, standardized
+  by the Copilot instruction layer when you work in it, not a Control Tower sync layer. Do not confuse
+  with **Component** above. Ref: [`cse-alignment-decisions.md`](cse-alignment-decisions.md) D1, D2,
+  D10; [`copilot-solutioning-ecosystem.md`](copilot-solutioning-ecosystem.md).
 - **Dimension** — a content-*kind* the resolver resolves: **agents, skills, commands, protocol,
   knowledge, memory, tasks, cli-integrations**. Each dimension has its own fold semantics (override,
   accumulate, personal-write, project-local — see `ecosystem-architecture.md` §3.1) applied
-  per-layer, independent of which product or tier the layer belongs to.
+  per-layer, independent of which component or tier the layer belongs to.
   Ref: [`ecosystem-architecture.md`](ecosystem-architecture.md) §3.1.
-- **The crisp distinction:** *tier* is **where** in precedence a layer sits; *product* is **which
-  bundle** a layer belongs to (an attribution/grouping label carried alongside); *dimension* is
+- **The crisp distinction:** *tier* is **where** in precedence a layer sits; *component* is **which
+  CSE tool** a layer belongs to (an attribution/grouping label carried alongside); *dimension* is
   **what kind of content** the resolver is folding when it walks that layer. A layer has exactly one
-  tier and exactly one product; it may contribute to one or more dimensions.
+  tier and exactly one component; it may contribute to one or more dimensions.
 
 **Materialize** — the act of copying the *resolved* (winning, per-name) set of agents/skills/
 commands/knowledge out of local layer clones into the paths a host actually scans (e.g. `.claude/`).
 Materialize is **copy, not read-time merge** — the host is layer-unaware. As of the reconciling-sync
 fix it behaves like `rsync --delete`: every `copilot update` diffs the current resolved set against
-the previous lockfile and **prunes** anything whose owning layer/product left the set, not just adds.
+the previous lockfile and **prunes** anything whose owning layer/component left the set, not just adds.
 Ref: [`architecture.md`](../01-architecture/architecture.md) §3.2 (via `ecosystem-architecture.md`),
 [`ecosystem-architecture.md`](ecosystem-architecture.md) §3.2.
 
@@ -136,13 +142,13 @@ Ref: [`architecture.md`](../01-architecture/architecture.md) §3; `SOUL.md` §4.
 
 ## Trust, security & governance
 
-**Managed / MDM domain** — the forced preferences domain (`com.apple.ManagedClient.preferences` for
-bundle ID `dev.enac.controltower`) that an MDM (Jamf/Kandji/Intune) writes. **Security-sensitive
-keys are honored only from this forced domain** — `UpdateFeedURL`, `FoundationMirror`,
-`EcosystemSeedURL`, `HTTPSProxy`, `GitHubHost`, `AuthMode`, `AllowSelfUpdate`, `Deprovisioned` — read
-via `CFPreferencesAppValueIsForced`. A value present only in the unmanaged user domain is **ignored**
-and logged as a tamper event; on unmanaged machines the compiled-in trust root is authoritative.
-Ref: [`architecture.md`](../01-architecture/architecture.md) §8.3.
+**Trust roots & signed inherited config** — there is no MDM/managed-preferences domain (dropped
+completely, D4). **Security-sensitive keys are honored only from compiled-in trust roots** (code, not
+config) plus **signed, inherited org/foundation config** (a signed capability policy) —
+`UpdateFeedURL`, `FoundationMirror`, `EcosystemSeedURL`, `HTTPSProxy`, `GitHubHost`, `AuthMode`,
+`AllowSelfUpdate`, `Deprovisioned`. A value present only in user-editable local config is **ignored**
+and logged as a tamper event. Entitlement + deployment is GitHub repo access, not device management.
+Ref: [`cse-alignment-decisions.md`](cse-alignment-decisions.md) D4; [`architecture.md`](../01-architecture/architecture.md) §8.3.
 
 **Translocation-safe path** — the CLI must be invoked by an **absolute path resolved from the
 running app bundle** (`Bundle.main.bundleURL`), never a hardcoded `/Applications` path and never a
@@ -156,10 +162,10 @@ schema-mismatched all render as an honest holding state, never a guessed green. 
 form of invariant #1 (parse, never compute) at the UI layer.
 Ref: `SOUL.md` §2, Case Law; [`architecture.md`](../01-architecture/architecture.md) §2.
 
-**"Silent first light"** — the moment a managed (MDM-pushed) Bob reaches a working, team-scoped
-Copilot partner having been asked **zero** technical questions — he watches a progress bar and is
-done. The hero happy-path moment-that-matters (MTM-1) the whole wizard and MDM-profile-generator
-chain exists to deliver.
+**"Silent first light"** — the moment a Bob who is already GitHub-entitled (org/department repo
+access) self-installs the signed app and reaches a working, team-scoped Copilot partner having been
+asked **zero** technical questions — he watches a progress bar and is done. The hero happy-path
+moment-that-matters (MTM-1) the whole wizard exists to deliver.
 Ref: [`40-moments-that-matter.md`](../product-design/02-service-design/40-moments-that-matter.md)
 MTM-1; [`00-vision.md`](../product-design/00-overview/00-vision.md).
 
@@ -195,8 +201,9 @@ wizard, and escalation routing (architecture §§2–7). This is the primary, Bo
 first, judged first.
 
 **Admin mode** — `control-tower admin`, the IT setup/deploy tool: seed generator, repo/access
-scaffolding, capability-policy authoring, MDM-profile generator, preflight validation, fleet
-dashboard, deployment runbooks. It is the **enabler** of Operator mode at fleet scale, never a
+scaffolding, capability-policy authoring, preflight validation, deployment runbooks. Entitlement +
+deployment is GitHub repo access, not device management. It is the **enabler** of Operator mode at
+fleet scale, never a
 co-equal audience — "Bob-first" is a founding, locked decision.
 Ref: [`architecture.md`](../01-architecture/architecture.md) §8; `SOUL.md` Founding Decision #2.
 
@@ -214,7 +221,7 @@ once frozen, WS-B onward proceed concurrently, each against the same frozen sche
 | **WS-B** | App shell & supervisor: single process, state machine, host detection, timers | A |
 | **WS-C** | Wizard & onboarding | B, A |
 | **WS-D** | Distribution & self-update | B; cross-repo signing contract with A's repo |
-| **WS-E** | MDM & security | D (for deploy), B (for runtime) |
+| **WS-E** | Entitlement & security | A (entitlement verb), B (for runtime) |
 | **WS-F** | Bob-agency & escalation | B, A |
 | **WS-G** | Observability & IT dashboard | F |
 | **WS-H** | Admin mode & docs (open source enablement) | A, partial E |
@@ -231,7 +238,7 @@ time estimates attach to any phase.
 |---|---|
 | **P0** | WS-A contract frozen + `flock`; WS-B shell runs and reads `doctor --json` with correct per-host state. |
 | **P1** | WS-C wizard (silent + fail-closed + Waiting-for-network); WS-D signed/notarized + cross-repo binary contract + watchdog rollback. |
-| **P2** | WS-E MDM (forced-domain keys, managed login item, MDM-native deprovision); WS-F actor-competence escalation + safety-channel-on-by-default. |
+| **P2** | WS-E entitlement & security (department discovery/join, signed inherited config, GitHub-based offboarding); WS-F actor-competence escalation + safety-channel-on-by-default. |
 | **P3** | WS-G opt-in telemetry + IT dashboard + two-of-N signing; WS-H Admin mode + docs. |
 | **P4** | WS-I Windows re-skin. |
 

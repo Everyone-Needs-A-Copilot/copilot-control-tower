@@ -17,7 +17,7 @@
 > *is*) and the five invariants in `CLAUDE.md` (its spine). This file decides
 > *what is allowed to exist in it.*
 
-> **STATUS: RATIFIED v1.3** — drafted 2026-07-06, ratified with the owner (Pablo)
+> **STATUS: RATIFIED v1.4** — drafted 2026-07-06, ratified with the owner (Pablo)
 > 2026-07-06 after the design challenge (Phases 1–5 complete, design brief approved).
 > **Revised to v1.1 (2026-07-06)** after a primary-evidence owner interview
 > (`scratchpad/interview-ground-truth.md`) reframed the essence to **democratization**
@@ -36,6 +36,13 @@
 > recommended path for sharing identity-less integration credentials at tier scope, and
 > invariant #6 is broadened from "keychain" to "keychain and/or managed secret store" —
 > git remains permanently excluded. Ref `docs/05-security/credentials-and-boundary.md` §6.
+> **Revised to v1.4 (2026-07-09):** conformed to the CSE Alignment Decisions
+> (`docs/reference/cse-alignment-decisions.md`): Control Tower syncs the CSE tooling
+> components (Knowledge Copilot, CLI Copilot, the Claude/Codex Copilot instruction
+> layer), never the products/projects built with them (D1); MDM is dropped completely
+> as a mechanism, with security posture and the shared-secret-store endpoint rehomed to
+> compiled-in trust roots plus signed, inherited org/foundation config (D4); a project
+> is confirmed self-contained, not a Control Tower layer (D10).
 > Supersedes the earlier stub at `docs/00-overview/soul.md`; the canonical soul is now
 > this root file. Changes only on durable evidence, logged in Section 10.
 
@@ -145,7 +152,8 @@ supposed to render, becomes a second and untrustworthy pilot.
 | An agent that runs the *same* pipeline with **zero bypass flags** | An "unstick it" mode with `--force` / `--skip-verify`, or a "make it Healthy anyway" override |
 | A router that **auto-suspends** a security-shadowing override and tells IT | A notifier that pings Bob and hopes he lets Bob **self-unblock** a held update |
 | A crash-only watchdog (`KeepAlive={SuccessfulExit:false}`) | A resurrect-always watchdog (`KeepAlive=true`) that crash-loops a bad build |
-| A tower that **surfaces** state living in GitHub / MDM / HR | A system of record that owns org structure, or an **AI chat surface** |
+| A tower that **surfaces** state living in GitHub / HR | A system of record that owns org structure, or an **AI chat surface** |
+| A carrier that syncs the **CSE tooling components** (Knowledge Copilot, CLI Copilot, and the Claude/Codex Copilot instruction layer) across foundation→org→dept→personal | A tower that syncs the **products/projects** built *with* that tooling: Control Tower syncs the tooling you build WITH, never the products you build |
 | A carrier that **propagates authorized change quietly on cadence** across foundation→org→dept→personal, without clobbering personal work | A **real-time / constant-refresh syncer** — per-minute refresh is explicitly wrong; cadence with a manual "sync now" escape hatch is correct |
 | A bridge that makes the ecosystem consumable **by the non-technical** — writable org/dept tiers authored by trained early-adopters (Obsidian → push → cadence sync) | A tool **only for the technical**, or one that makes consuming the ecosystem require technical skill |
 | A wall that makes personal↔shared crossing **impossible by accident** — personal content is structurally un-pushable to a shared tier | A path that lets **private personal information reach a shared/public tier** by accident (*The Leak* — never permitted) |
@@ -195,8 +203,9 @@ not become a Bob-facing prompt.
 
 ### Principle 3: As little app as possible
 **Meaning:** One signed binary. No daemon, no fallback loop, a tiny web UI, no heavy
-framework, no bypass flags, security keys honored only from the forced/managed
-domain. Trust comes from *less* surface an enterprise review must audit, not more.
+framework, no bypass flags, security keys honored only via compiled-in trust roots
+and signed, inherited org/foundation config. Trust comes from *less* surface an
+enterprise review must audit, not more.
 Every added capability is weighed against the auditability that is the moat.
 **Rejection:** We reject **any surface that grows the audit burden without serving
 the essential job** — a chat UI, a settings panel that re-points the update feed,
@@ -275,9 +284,9 @@ gates all adoption says no.
 **Early warning:** "just this once to unstick it," "a power-user mode," "read it from
 the user prefs for convenience," "make it never die," "add an override."
 **Line in the sand:** No bypass flag, no lower-bar mode, no "make it Healthy anyway"
-ever exists in the codebase. Security-sensitive config honored *only* from the
-forced/managed domain. `KeepAlive` is never `true`. Trust roots are compiled-in code,
-not config.
+ever exists in the codebase. Security-sensitive config honored *only* via compiled-in
+trust roots and signed, inherited org/foundation config. `KeepAlive` is never `true`.
+Trust roots are compiled-in code, not config.
 
 ### The Copilot of the Copilot
 **Drift:** "There's a menu-bar surface right here — add a chat box so Bob can ask
@@ -397,7 +406,7 @@ person.
 | Auto-suspend a security-shadowing override + escalate to IT | **IN** | 3 | The Fix That Acts Itself — reversible + Bob-can't-judge ⇒ auto-act, never notify-and-hope. |
 | Honest *Waiting-for-network* / *IT-config-incomplete* states | **IN** | 1, 4 | Added surface, but honesty > as-little-app; the alternative is a false-Healthy, the worst outcome. |
 | Crash-only watchdog with staged-bundle rollback | **IN** | 4 | Owns rollback outside the bundle that may not start; `KeepAlive={SuccessfulExit:false}`. |
-| Admin-mode seed + MDM-profile generator + red/green preflight | **IN** | 2 | The enabler of the silent path at fleet scale; generates artifacts, computes no ecosystem verdict. |
+| Admin-mode seed generator + red/green preflight | **IN** | 2 | The enabler of the silent path at team scale; generates artifacts, computes no ecosystem verdict. |
 | Held-major routes to IT's dashboard as an *actionable* item (US-A09) | **IN** | 3 | Right actor — approval authority is IT's; the same event Bob may only see as a non-actionable sentence. |
 | Distinct per-state badge shapes (wrench/key/clock/dot/triangle/bang) legible in grayscale | **IN** | 4 | Shape is the first encoder, color the second; honest status must survive color-blind + monochrome render. |
 | Offline health score so the icon "still works" when the CLI can't run | **OUT** | 1 | The Second Pilot — a computed verdict is a second, wrong source of truth. Use an honest holding state. |
@@ -406,7 +415,7 @@ person.
 | Let Bob self-unblock a blocked/held update | **OUT** | 3, 4 | Same — hands a non-competent actor a decision that trains blind-approve or defeats a gate. |
 | `--force` / `--skip-verify` "unstick it" mode | **OUT** | 4 | The Convenience Backdoor — the whole safety claim is zero bypass flags; no lower-bar mode may exist. |
 | `KeepAlive=true` so the tray never dies | **OUT** | 4 | The Convenience Backdoor — resurrects a bad build into a crash-loop; watchdog is crash-only. |
-| Read `UpdateFeedURL` / mirror from the user preference domain | **OUT** | 4 | Supply-chain RCE via preference write; security keys honored only from the forced/managed domain. |
+| Read `UpdateFeedURL` / mirror from the user preference domain | **OUT** | 4 | Supply-chain RCE via preference write; security keys honored only via compiled-in trust roots and signed, inherited config, never a user-editable domain. |
 | A "make it Healthy anyway" manual override | **OUT** | 1, 4 | Fabricates the exact false-Healthy the fail-closed states exist to prevent. |
 | Screen-scraping human CLI output instead of `--json` | **OUT** | 1 | A misread `fail`→`pass` shows green over red — the highest integration risk; parse the contract, not the prose. |
 | A computed "fleet health 94/100" score, trophy rings, or sparkline flourish on the Admin dashboard | **OUT** | 1, 4 | The Second Pilot as a *visual* — a number that looks computed-by-us implies the app judges health; it renders CLI facts only. |
@@ -424,7 +433,7 @@ person.
 | **Keep-both** as the always-available floor on a genuine merge overlap (both versions land side-by-side, no data loss, no Git literacy) | **IN** | 2, 4 | The no-data-loss floor of the ratified layered `copilot publish` (auto-merge → keep-yours/theirs/both → park-and-escalate). CLI computes and applies; the app only renders the plain-language choice. Answers *The Git Error To A Non-Technical Person* without ever showing Git. |
 | Secrets (API keys, integration tokens) committed to **any tier's git repo**, public or private — even a private dept/org repo | **OUT** | 4 | The ratified credentials rule (DREAD ≈ 9.2/10): git is a distribution/history mechanism, not a trust boundary; a committed secret is irreversibly exposed the moment it lands. No git host is a secrets carrier at any tier. Elevated to a `CLAUDE.md` invariant. |
 | Background / automated sync that can push **personal content upward** to a shared tier (a defect or design flaw making the cadence sync bidirectional) | **OUT** | 4 | *The Leak*, its worst form — DREAD ≈ 9.4/10 because it needs **zero human error**, only a code defect, and fires on every machine every cadence tick. Closed by construction: no personal-holding path has an upward push credential. Elevated to a `CLAUDE.md` invariant. |
-| A tier-scoped, IT-managed shared secret store (e.g. Infisical/OpenBao) for identity-less integration credentials, endpoint delivered only via the MDM-managed domain | **IN** | 1, 4 | v1.3 amendment (`docs/05-security/credentials-and-boundary.md` §1.6) — additive, higher-precedence rung on the existing keychain ladder; still references-not-secrets in inheritance content; falls through to the keychain floor if absent. |
+| A tier-scoped, IT-managed shared secret store (e.g. Infisical/OpenBao) for identity-less integration credentials, endpoint delivered via inherited org repo config | **IN** | 1, 4 | v1.3 amendment (`docs/05-security/credentials-and-boundary.md` §1.6), rehomed off MDM at v1.4 (D4/D6): additive, higher-precedence rung on the existing keychain ladder; the endpoint is not a secret, access stays gated by GitHub-team membership; still references-not-secrets in inheritance content; falls through to the keychain floor if absent. |
 | A git push credential (author's own SSH key) placed in any shared/managed secret store, at any tier | **OUT** | 4 | Recreates the shared-credential attribution/blast-radius trade-off for exactly the class of credential that must stay per-user. Git-push credentials are always per-user, never shared-store material (`docs/05-security/credentials-and-boundary.md` §6.4). |
 
 ---
@@ -441,7 +450,7 @@ one.
 
 - [ ] Zero resolution/health/signature/wipe logic in the app codebase (code-review gate).
 - [ ] Exactly one signed binary; no headless daemon; no in-app fallback loop; `KeepAlive` never `true`.
-- [ ] No `--skip-verify` / `--force` path exists; security keys read only from the forced/managed domain (CI entitlement + preference lint).
+- [ ] No `--skip-verify` / `--force` path exists; security keys read only via compiled-in trust roots and signed, inherited config (CI entitlement + preference lint).
 - [ ] The icon has no code path to fabricate Healthy; missing security fields in `--json` fail closed to fail, never safe.
 - [ ] Every escalation traces to auto-act / escalate-IT / ask-Bob by the competence matrix; Bob-facing notification count trends toward zero.
 - [ ] Silent managed first-run reaches Healthy or an *honest* holding state — never a false-Healthy.
@@ -574,7 +583,8 @@ Spine-level, inherited from the five invariants and confirmed at ratification:
    Second Pilot*.
 6. **Security posture is inherited and never weakened** — a constraint above the
    principles, not tradeable. No bypass flags, no lower-bar mode, security keys only
-   from the forced/managed domain, `KeepAlive` never `true`. Resolves *The Convenience
+   via compiled-in trust roots and signed, inherited org/foundation config,
+   `KeepAlive` never `true`. Resolves *The Convenience
    Backdoor*.
 7. **Priority order is settled (confirmed 2026-07-06):** Parse-never-compute (honesty)
    > Route-by-competence × reversibility > As-little-app — with
@@ -588,7 +598,7 @@ Spine-level, inherited from the five invariants and confirmed at ratification:
 Added at v1.1 (2026-07-06 owner interview):
 
 9. **Evidence-honesty on the unvalidated tiers.** As of 2026-07-06, the **Admin / IT-
-   operator experience** (MDM standup, fleet dashboard, deprovision) and the **multi-
+   operator experience** (Admin standup, fleet dashboard, deprovision) and the **multi-
    writer authoring flow** (Obsidian → push → cadence sync across a department) are
    **HYPOTHESES, not validated with real operators/writers** — no real IT admin has
    touched Admin mode; the authoring loop has never run with more than one writer.
@@ -611,10 +621,11 @@ Added at v1.2 (2026-07-07 owner ratification of the two foundational designs):
        and integration credentials MUST NEVER be committed to, stored in, or transmitted
        via any tier's git repository, public or private. Inheritance content may
        reference a secret's *name and acquisition method*; never its value. No git host
-       is a secrets carrier at any tier. *(Carrier — broadened v1.3 — is the per-user OS
-       keychain **and/or** a tier-scoped, IT-managed shared secret store delivered only
-       via the MDM-managed domain; git remains permanently excluded either way — Case
-       Law IN; reinforces **The Leak**.)*
+       is a secrets carrier at any tier. *(Carrier — broadened v1.3, rehomed off MDM at
+       v1.4 (D4/D6) — is the per-user OS keychain **and/or** a tier-scoped, IT-managed
+       shared secret store whose endpoint is delivered via inherited org repo config;
+       git remains permanently excluded either way — Case Law IN; reinforces **The
+       Leak**.)*
     2. **No cross-tier write capability from a personal-holding path.** No working tree,
        credential, or automated code path that holds personal-tier content is ever
        configured with write access to a department/org/foundation remote. Reaching a
@@ -654,8 +665,9 @@ canonical doc are traceable:
   Raw Git is never shown to Bob. Ref `docs/01-architecture/inheritance-and-publish.md`.
 - [x] **RESOLVED — Credentials-carrier.** Secrets ride the **OS keychain** (per-user)
   established via **per-integration OAuth/device-flow** — requiring no cloud secret store;
-  inheritance content carries **references, not secrets**; **never git**. A narrow
-  MDM-provisioned machine-credential covers unattended kiosk machines. Ref
+  inheritance content carries **references, not secrets**; **never git**. (The narrow
+  MDM-provisioned kiosk-credential seam noted here at v1.2 is dropped along with MDM
+  at v1.4 (D4); unattended-kiosk provisioning is not part of the current model.) Ref
   `docs/05-security/credentials-and-boundary.md`.
 - [x] **RESOLVED (v1.3, 2026-07-07) — Author git-push-credential provisioning.** Per-user,
   on-device ed25519 keypair (private key keychain/`ssh-agent`-resident, never in git),
@@ -667,11 +679,39 @@ canonical doc are traceable:
 **No foundational problems remain open (v1.3).** A shared, IT-managed secret store
 (recommended: **Infisical**, self-hosted via Coolify; alternative: **OpenBao**) is now the
 **recommended** — not required — mechanism for a department/org to share identity-less
-integration credentials at tier scope, endpoint delivered only via the MDM-managed domain.
+integration credentials at tier scope, endpoint delivered via inherited org repo config.
 It still carries only `requires_secret: <NAME>` references in inheritance content, never
 values; git-push credentials are explicitly excluded from this store — they are always
 per-user (see the resolved item above). Ref `docs/05-security/credentials-and-boundary.md`
 §1.6.
+
+Added at v1.4 (2026-07-09, CSE Alignment Decisions):
+
+11. **CSE alignment (ratified, `docs/reference/cse-alignment-decisions.md`).** An audit
+    against the Copilot Solutioning Ecosystem model surfaced a vocabulary collision and an
+    over-rotation into enterprise MDM; these decisions correct both without touching the
+    product's essence, principles, or anti-patterns:
+    - **What Control Tower manages (D1/D2).** Control Tower orchestrates the **CSE tooling
+      components** (Knowledge Copilot, CLI Copilot, and the Claude/Codex Copilot
+      instruction layer) across foundation→org→dept→personal. It does **not** manage the
+      **products/projects** built with that tooling. *Control Tower syncs the tooling you
+      build WITH, never the products you build.*
+    - **MDM is dropped completely (D4).** No `.mobileconfig`, no Jamf/Kandji/Intune flow,
+      no forced/managed configuration domain, no fleet dashboard as an Admin center of
+      gravity. Install is a self-install of the signed, notarized `.dmg`. Security-sensitive
+      config and the shared secret-store endpoint are rehomed to **compiled-in trust roots**
+      plus **signed, inherited org/foundation config**; nothing security-critical comes from
+      user-editable local config. Offboarding is **revoke GitHub repo access + rotate
+      shared-secret-store tokens** (accepted residual: already-synced content on a departed
+      person's disk is not remotely wiped; acceptable for the target small, trusted orgs).
+    - **Entitlement is GitHub repo access (D3).** The single entitlement and deployment
+      spine: team membership grants read/write; selecting an entitled department syncs that
+      layer onto the machine.
+    - **A project is self-contained, not a Control Tower layer (D10).** A product/project
+      carries its own knowledge, skills, agents, and integrations *inside its own repo*,
+      standardized by the Copilot instruction layer when you work in that project. It is
+      never a Control Tower sync layer, and there is no "department project" entry in
+      Control Tower's model.
 
 *Engineering-roadmap open items (not Soul-blocking, tracked in architecture/user-story
 TODOs): **personal-layer content scope** (what beyond writing-voice belongs in the
@@ -695,6 +735,7 @@ When updated, add the rationale to the changelog below.
 
 | Date | Version | Change & rationale |
 |------|---------|--------------------|
+| 2026-07-09 | **v1.4 RATIFIED** | Conformed to the **CSE Alignment Decisions** (`docs/reference/cse-alignment-decisions.md`), an audit against the Copilot Solutioning Ecosystem model. Added **Founding Decision #11, CSE alignment**: (D1/D2) Control Tower orchestrates the **CSE tooling components** (Knowledge Copilot, CLI Copilot, the Claude/Codex Copilot instruction layer), never the products/projects built with them; imported the load-bearing line "Control Tower syncs the tooling you build WITH, never the products you build" into the IS/IS-NOT table (Section 2). (D4) **MDM is dropped completely**: no `.mobileconfig`, no Jamf/Kandji/Intune, no forced/managed configuration domain, no fleet dashboard as an Admin center of gravity; security-sensitive config and the shared secret-store endpoint are rehomed from "forced/managed MDM domain" to **compiled-in trust roots + signed, inherited org/foundation config** (Principle 3, invariant #6/Founding Decision #6, the Convenience Backdoor anti-pattern, and the affected Case Law rows); offboarding recast as revoke-repo-access + rotate-store-tokens. (D3) Entitlement is GitHub repo access, the deployment spine. (D10) A project is **self-contained**, not a Control Tower layer: its knowledge/skills/agents/integrations live in its own repo. No change to the essence, the three principles, the priority order, or the anti-patterns themselves (The Leak and The Git Error To A Non-Technical Person are unchanged). Companion edit: `CLAUDE.md` invariants #4 and #6 reworded to match. |
 | 2026-07-07 | **v1.3 RATIFIED** | Same-day owner-requested amendment to `docs/05-security/credentials-and-boundary.md`, closing the one seam v1.2 left open. **Author git-push-credential provisioning is now RESOLVED** (§9): per-user, on-device ed25519 keypair (private key keychain/`ssh-agent`-resident, never in git), public key registered to the author's own GitHub account, authorization via GitHub Team membership — no foundational problem remains open. **Adopted a shared, IT-managed secret store** (recommended: Infisical, self-hosted via Coolify; alternative: OpenBao) as the recommended — not required — path for sharing identity-less integration credentials at tier scope; still references-not-secrets, endpoint delivered only via the MDM-managed domain. **Invariant #6 broadened**: the secrets carrier is now "per-user OS keychain **and/or** a tier-scoped managed secret store," never git either way. Extended Case Law with **2 new verdicts** (1 IN / 1 OUT): tier-scoped managed secret store for integration creds → IN; git push credential in a shared store → OUT. New totals **13 IN / 21 OUT (34)**. |
 | 2026-07-07 | **v1.2 RATIFIED** | Ratified with the owner (Pablo) alongside the two foundational designs, now canonical at `docs/01-architecture/inheritance-and-publish.md` and `docs/05-security/credentials-and-boundary.md`. **Three of the open foundational problems are RESOLVED** (§9, recorded with resolution + canonical ref, not deleted): (1) **writable-tier vs. never-destroy** — the consumer-read-only / author-writable split keeps invariant #3 intact with no wording change; (2) **non-technical merge conflict** — layered `copilot publish` (auto-merge → keep-yours/theirs/**both** → park-and-escalate), keep-both = no-data-loss floor, merge logic CLI-side; (3) **credentials-carrier** — OS keychain + per-integration OAuth, references-not-secrets in inheritance content, never git. Added **Founding Decision #10 — the four inheritance-safety rules** (secrets never in inheritance content/git; no cross-tier write from a personal-holding path; sync pull-only/downward; fail-closed leak-scan on every writable push), cross-referencing and hardening *The Leak* and *The Git Error To A Non-Technical Person* — **being elevated to `CLAUDE.md` invariants**. Extended Case Law with **5 new verdicts** (3 IN / 2 OUT): OS-keychain+OAuth carrier → IN, pull-only downward sync → IN, keep-both floor → IN; secrets in any git repo → OUT, background sync pushing personal content upward → OUT. New totals **12 IN / 20 OUT (32)**. §9 now shows **3 RESOLVED + 1 remaining** open foundational item — the **author git-push-credential provisioning** seam (specified in principle, not fully worked) — with **personal-layer content scope** demoted to the engineering-roadmap TODOs. |
 | 2026-07-06 | **v1.1 RATIFIED** | Revised after a primary-evidence owner interview (`scratchpad/interview-ground-truth.md`). **Essence reframed to democratization** — "give a non-technical person the AI superpowers of a deeply technical one, safely enough to run unattended"; *parse-never-compute / the icon that cannot lie* is reframed from the point to *how it earns the right to run unattended*, and "keeps your environment Copilot-ready" is woven in (Sections 1, 2). Added the **writable inheritance model** (foundation→org→dept→personal, cadence-not-realtime, without clobbering personal work) and the **trained early-adopter author** as a second consumer psychographic to IS/IS-NOT and Who-this-serves. Added two anti-patterns — **The Leak** (personal content crossing into a shared tier by accident — impossible-by-construction) and **The Git Error To A Non-Technical Person** (a raw VCS conflict must resolve invisibly or hold-and-escalate, never dump Git on Bob). Extended Case Law with **5 new verdicts** (1 IN / 4 OUT): invisible non-technical merge-conflict resolution → IN; accidental personal→shared path, real-time refresh, raw Git errors to Bob, and any technical-skill-to-consume path → OUT. New totals **9 IN / 18 OUT (27)**. Added **evidence-honesty** (Founding Decision #9): Admin/IT-operator and multi-writer authoring are HYPOTHESES held as assumptions, not proven ground. **Logged three open foundational problems** as prominent TODOs: the credentials-carrier, personal-layer content scope, and the writable-tier vs. never-destroy/read-only-mirrors architectural tension. Kept the ratified priority order and the pure-OSS / Bob-first founding decisions. |

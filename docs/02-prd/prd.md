@@ -14,11 +14,11 @@
 
 ## 1. Goal & non-goals
 
-**Goal.** Ship an open-source, Developer-ID-signed, MDM-deployable macOS menu-bar app that (a) delivers a non-technical user ("Bob") a working, focus-scoped Copilot partner via one double-click, (b) keeps every machine synced and self-healed as a **face+supervisor over the `copilot`/`cc` CLI** (never a second brain), and (c) gives IT an open-source tool + docs to stand up and deploy the ecosystem org-wide.
+**Goal.** Ship an open-source, Developer-ID-signed, notarized macOS menu-bar app that (a) delivers a non-technical user ("Bob") a working, focus-scoped Copilot partner via one double-click, (b) keeps every machine synced (per CSE component × entitled layer: Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot) and self-healed as a **face+supervisor over the `copilot`/`cc` CLI** (never a second brain), and (c) gives IT an open-source tool + docs to stand up and deploy the ecosystem org-wide via GitHub repo access.
 
-**Non-goals (v1).** Windows (P4 re-skin only); a second brain / any resolution logic in the app (the CLI owns it); replacing systems of record (CLI Copilot remains the runtime gateway); multi-org-per-machine (ecosystem-level, deferred).
+**Non-goals (v1).** Windows (P4 re-skin only); a second brain / any resolution logic in the app (the CLI owns it); replacing systems of record (CLI Copilot remains the runtime gateway); multi-org-per-machine (ecosystem-level, deferred); device management (entitlement + deployment is GitHub repo access, not MDM); product/project management (a product/project is self-contained in its own repo, not a Control Tower layer, D10).
 
-**Definition of done (v1 / macOS).** An IT admin uses Admin mode to generate the seed + MDM profile, pushes the signed app + profile via Jamf/Intune, and a non-technical employee's Mac silently self-provisions, stays healed, and reports fleet health — with all 25 Critical/High red-team findings closed and the CLI `--json` contract test green.
+**Definition of done (v1 / macOS).** An IT admin uses Admin mode to generate the seed and repo/team scaffolding, and a non-technical employee self-installs the signed, notarized app, is entitled by GitHub org/department repo access (discovering and joining a department if needed), stays healed, and reports fleet health — with all 25 Critical/High red-team findings closed and the CLI `--json` contract test green.
 
 ---
 
@@ -31,14 +31,14 @@ WS-A  CLI contract (--json + flock + COPILOT_MANAGED_BY)   [PREREQ — in claude
 WS-B  App shell & supervisor (single process, state machine, host detect, timers)
 WS-C  Wizard & onboarding            depends: B (shell), A (bootstrap json)
 WS-D  Distribution & self-update     depends: B ; cross-repo signing contract with A's repo
-WS-E  MDM & security                 depends: D (signing) for deploy; B for runtime
+WS-E  Entitlement & security         depends: A (entitlement/discovery verb), B for runtime
 WS-F  Bob-agency & escalation        depends: B (state), A (findings schema)
 WS-G  Observability & IT dashboard   depends: F (escalation split), A (json)
-WS-H  Admin mode & docs (open source) depends: A (seed/profile schema), partial E
+WS-H  Admin mode & docs (open source) depends: A (seed schema), partial E
 WS-I  Windows re-skin  [P4]          depends: B, D
 ```
 
-**Critical path:** WS-A contract → WS-B shell → WS-D signing → WS-E MDM → the Bob silent-deploy path. Everything else parallelizes off WS-B once the contract is frozen.
+**Critical path:** WS-A contract → WS-B shell → WS-D signing → the Bob self-install path (no zero-touch, D4). WS-E's department discovery/join flow (D7.1) gates a first meaningful sync, not the initial install. Everything else parallelizes off WS-B once the contract is frozen.
 
 ---
 
@@ -76,7 +76,7 @@ WS-I  Windows re-skin  [P4]          depends: B, D
 |---|---|---|
 | C1 | GUI wizard over Ring-1 phases; **install login-item + crash-watchdog at the FIRST phase**, persist a checkpoint (fixes A-H6) | interrupted setup resumes headlessly |
 | C2 | Asked-vs-derived question flow (host if ambiguous, sign-in, company/team pick-list) | ≤3 questions unmanaged |
-| C3 | **Silent managed path** — read `dev.enac.controltower`; **schema-validate before silent mode**; missing/malformed required key → fail-closed **IT-config-incomplete** (fixes A-C1, B-H4); typed values; settling-window retry for partial MDM apply | zero questions when complete; never false-Healthy |
+| C3 | **Silent entitled path** — read signed, inherited org/foundation config (D4); **schema-validate before silent mode**; missing/malformed required key → fail-closed **IT-config-incomplete** (reworked from A-C1, B-H4 for D4); typed values; a user already GitHub-entitled to org/department needs no manual join | zero questions when entitlement resolves cleanly; never false-Healthy |
 | C4 | **Waiting-for-network** first-run (foundation-only) + **seed-not-yet-published vs solo** distinction (fixes A-H7, A-H12) | offline day-one never shows Healthy |
 | C5 | Wizard window focus fix (Accessory→Regular during setup, fixes B-L1); teach panel (cheat-sheet + add-a-skill + backup offer) | window foregrounds; teach shown |
 
@@ -95,14 +95,18 @@ WS-I  Windows re-skin  [P4]          depends: B, D
 
 ---
 
-## 7. WS-E — MDM & security
+## 7. WS-E — Entitlement & security
+
+*Entitlement + deployment is GitHub repo access (D3); there is no MDM (dropped completely, D4).*
 
 | Task | Detail | Acceptance |
 |---|---|---|
-| E1 | Managed config schema (`dev.enac.controltower`); **security-sensitive keys honored ONLY from the forced/managed domain** (`CFPreferencesAppValueIsForced`); user-domain values for those keys ignored + logged as tamper (fixes B-C5) | user `defaults write UpdateFeedURL` has no effect |
-| E2 | **Managed login-item payload** (`com.apple.servicemanagement`) + **notifications profile** (`com.apple.notificationsettings`) so persistence/notifications are force-enabled (fixes B-H3, B-M7, A-H10); detect disabled state | login item non-toggleable on managed fleet |
-| E3 | **MDM-native deprovision** — server-side token revocation + MDM-run `copilot deprovision`; only explicit `Deprovisioned=true` triggers (not profile removal, fixes B-M1); **soft-then-hard** with debounce/grace (fixes A-C4, B-M2) | leaver offline/trashing app still loses access on reconnect |
-| E4 | **Per-user** everything ($UID tree/keychain/login/watchdog); no writable `/Users/Shared`; kiosk **machine-credential** (`gh-app` in system keychain); stable keychain designated requirement (fixes B-H5, B-H7, B-M6) | two users = two ids; kiosk auth works |
+| E1 | **Department discovery + join** (D7.1, elevated from a descoped side effect) — surface the departments a user is entitled to, validate by their GitHub repo access, sync the selected layer onto the machine | user discovers and joins an entitled department without hand-editing config |
+| E2 | **Security-sensitive config** honored only from compiled-in trust roots + signed, inherited org/foundation config (a signed capability policy); values present only in user-editable local config are ignored + logged as tamper (reworked from B-C5 for D4) | a locally-edited `UpdateFeedURL` has no effect |
+| E3 | **Entitled shared integrations** (D7.2) — show shared org/dept integrations provisioned by entitlement (secret-store endpoint via inherited org config, D6) as a register distinct from **personal sign-in** (device-flow, per-person) | shared vs personal integrations never conflated |
+| E4 | **Offboarding** — revoke the person's GitHub access + rotate shared-secret store tokens; accepted residual: content already synced to a departed person's disk is not remotely wiped, no MDM to reach the device (reworked from B-M1, A-C4, B-M2 for D4) | revoked leaver loses further sync and shared-secret access on reconnect |
+| E5 | **Personal-key multi-machine sync** (D7.3) — sync a user's own personal keys across their own machines, ending `.env` hand-copying | a personal key added on one machine is available on the user's other machines |
+| E6 | **Per-user** everything ($UID tree/keychain/login/watchdog); no writable `/Users/Shared`; kiosk **machine-credential** (`gh-app` in system keychain); stable keychain designated requirement (fixes B-H5, B-H7, B-M6) | two users = two ids; kiosk auth works |
 
 ---
 
@@ -135,15 +139,15 @@ WS-I  Windows re-skin  [P4]          depends: B, D
 | H1 | **Seed generator** — guided `ecosystem.yml` authoring; opens PR to `<org>/copilot-ecosystem` | valid seed produced, no hand-YAML |
 | H2 | **Repo & access scaffolding** — create/verify org + separate dept repos; emit team/CODEOWNERS/branch-protection; declared-repo existence check | typo can't ship a 404 |
 | H3 | **Capability-policy** authoring + signing (security key distinct from push) | policy signed by authorized signer |
-| H4 | **MDM profile generator** — ready-to-upload `.mobileconfig` (managed keys + login-item + notifications payloads) pre-filled | one artifact → silent fleet wizard |
-| H5 | **Preflight validation** — seed parses, dept repos exist, policy signed, profile complete-for-silent, pin resolves, mirror reachable; red/green report | IT validates before rollout |
-| H6 | **Documentation set** — quickstart, per-MDM deploy guides (Jamf/Kandji/Intune), config reference, security-&-trust doc, ops/offboarding runbook; versioned in the public repo | an IT team can deploy from docs alone |
+| H4 | **Self-install + entitlement guide** — walks a user through installing the signed `.dmg` and discovering/joining an entitled department (replaces MDM profile/zero-touch, D4) | user can self-install and join without an IT push |
+| H5 | **Preflight validation** — seed parses, dept repos exist, policy signed, pin resolves, mirror reachable; red/green report | IT validates before rollout |
+| H6 | **Documentation set** — quickstart, self-install + department-entitlement guide, config reference, security-&-trust doc, ops/offboarding runbook; versioned in the public repo | an IT team can deploy from docs alone |
 
 ---
 
 ## 11. WS-I — Windows re-skin *(P4)*
 
-Six boundary shims over the shared Tauri core: system tray, Task Scheduler (vs launchd), EV code-sign + SmartScreen, MSI/winget, Credential Manager (vs Keychain), Intune/GPO managed config (same key names). Core, wizard, updater, compat guard, device-flow auth, escalation model all unchanged.
+Five boundary shims over the shared Tauri core: system tray, Task Scheduler (vs launchd), EV code-sign + SmartScreen, MSI/winget, Credential Manager (vs Keychain). Core, wizard, updater, compat guard, device-flow auth, escalation model, and GitHub-repo-access entitlement all unchanged.
 
 ---
 
@@ -153,11 +157,11 @@ Six boundary shims over the shared Tauri core: system tray, Task Scheduler (vs l
 |---|---|
 | **P0** | WS-A contract frozen + `flock`; WS-B shell runs, reads `doctor --json`, correct host state |
 | **P1** | WS-C wizard (silent + fail-closed + waiting-for-network); WS-D signed/notarized + cross-repo binary contract + watchdog rollback |
-| **P2** | WS-E MDM (forced-domain keys, managed login-item, MDM-native deprovision); WS-F actor-competence escalation + safety-channel-on |
+| **P2** | WS-E entitlement & security (department discovery/join, signed inherited config, GitHub-based offboarding); WS-F actor-competence escalation + safety-channel-on |
 | **P3** | WS-G opt-in telemetry + IT dashboard + two-of-N signing; WS-H Admin mode + docs |
 | **P4** | WS-I Windows re-skin |
 
-**Exit (v1):** all Critical/High red-team findings (§10 of `05-control-tower.md`) closed; a test Mac silently self-provisions from an MDM push and reports fleet health; IT can stand up + deploy the ecosystem from Admin mode + docs alone.
+**Exit (v1):** all Critical/High red-team findings (§10 of `05-control-tower.md`) closed; a test Mac self-installs, is entitled by GitHub org/department repo access, and reports fleet health; IT can stand up + deploy the ecosystem from Admin mode + docs alone.
 
 ---
 
@@ -165,5 +169,5 @@ Six boundary shims over the shared Tauri core: system tray, Task Scheduler (vs l
 
 - **The `--json` contract is the whole safety boundary** (B-H6) — schema drift = silent security bypass. Mitigation: contract test in `copilot` CI, bidirectional gate, fail-closed missing fields. *Owner: WS-A.*
 - **Cross-repo signing lockstep** (B-H1) — two repos, one signature requirement. Mitigation: signed-artifact contract + pinned SHA. *Owner: WS-D + WS-A repo.*
-- **Always-on agent trust** — an auto-pulling token-holder is a supply-chain surface. Mitigation: open source + two-of-N signing + managed-only security keys + full audit trail. *Owner: WS-E/WS-G/WS-H.*
+- **Always-on agent trust** — an auto-pulling token-holder is a supply-chain surface. Mitigation: open source + two-of-N signing + compiled-in trust roots and signed inherited config + full audit trail. *Owner: WS-E/WS-G/WS-H.*
 - **Bob is not a reliable actor** — the entire escalation model must assume this. *Owner: WS-F.*

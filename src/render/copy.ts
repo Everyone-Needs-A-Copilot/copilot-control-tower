@@ -17,7 +17,6 @@ import type {
   BobNotice,
   BobPrompt,
   CliStatus,
-  DeptProjectView,
   Layer,
   LayerView,
   ProductView,
@@ -164,8 +163,8 @@ function layerStateWords(layer: LayerView): string {
   return stateWords(layer.badge_state, layer.detail);
 }
 
-/** The text shown in a layer/project row's detail slot — the CLI's own detail if present, else the honest fallback phrase. */
-export function layerDetailText(layer: LayerView | DeptProjectView): string {
+/** The text shown in a layer row's detail slot — the CLI's own detail if present, else the honest fallback phrase. */
+export function layerDetailText(layer: LayerView): string {
   return layer.detail ?? stateWords(layer.badge_state, null);
 }
 
@@ -240,12 +239,7 @@ export function layerRowLabel(layer: LayerView): string {
   return `${LAYER_LABEL[layer.layer]} layer — ${layerStateWords(layer)}.`;
 }
 
-/** "{ProjectName} (a department project) needs a repair." */
-export function deptProjectLabel(project: DeptProjectView): string {
-  return `${project.name} (a department project) — ${stateWords(project.badge_state, project.detail)}.`;
-}
-
-/** Inline layer/project action label, only rendered when that row is the actionable one. */
+/** Inline layer action label, only rendered when that row is the actionable one. */
 export function layerActionLabel(row: { badge_state: BadgeState }): string | null {
   if (row.badge_state === "key") return "Sign in…";
   // "bang" here is a checker-severity `fail` bucket badge (worse than
