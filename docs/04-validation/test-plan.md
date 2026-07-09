@@ -13,7 +13,7 @@
 
 ## 1. Test strategy & the pyramid
 
-Control Tower is a Tauri v2 app: a Rust core (state machine, CLI spawner/parser, timers, MDM-preference reader) plus a deliberately tiny web UI (tray menu, wizard, dashboard). It supervises an external process (`copilot`/`cc`) it must never fully trust to be well-behaved and must never re-implement. That shape drives four test layers, weighted like a pyramid — most tests at the bottom, fewest at the top:
+Control Tower is a Tauri v2 app: a Rust core (state machine, CLI spawner/parser, timers, signed-inherited-config reader) plus a deliberately tiny web UI (tray menu, wizard, dashboard). It supervises an external process (`copilot`/`cc`) it must never fully trust to be well-behaved and must never re-implement. That shape drives four test layers, weighted like a pyramid — most tests at the bottom, fewest at the top:
 
 ```
                     ▲  E2E (tray / wizard / dashboard)          — fewest, slowest, highest confidence per test
@@ -33,12 +33,12 @@ Target: pure functions with no process spawn, no filesystem, no network.
 - **Status state machine** (`state::reduce`): given a set of per-host `doctor` results + auth + network flags, assert the rendered state and precedence (`IT-config-incomplete > Signed-out > Needs-attention > Offline > Syncing > Update-available > Healthy`), and that it **only** transitions from a fresh CLI payload (no default-to-last-good, no client-side inference).
 - **Escalation router** (`escalate::route`): given an event class + reversibility + actor-competence inputs, assert it lands in exactly one of `auto-act` / `escalate-it` / `ask-bob` (FC-9, FC-12, FC-14, FC-16, §9 of `architecture.md`).
 - **Schema gate** (`schema::gate`): given `schema_version` vs. the app's compiled `min_schema`/`max_schema`, assert fail-closed on both older-than-floor and newer-than-ceiling (FC-26, E6, B-H6).
-- **Managed-preference reader** (`prefs::read_security_key`): given a stub `CFPreferences`-shaped double that reports a value present-only-in-user-domain vs. forced/managed, assert the security-sensitive keys (`UpdateFeedURL`, `FoundationMirror`, `EcosystemSeedURL`, `HTTPSProxy`, `GitHubHost`, `AuthMode`, `AllowSelfUpdate`, `Deprovisioned`) are **ignored** unless `CFPreferencesAppValueIsForced` is true, and a tamper event is logged (FC-27, E7, B-C5).
+- **Signed-config reader** (`config::read_security_key`): given a stub double that reports a value from an unsigned, re-signed, or signature-mismatched local copy of the inherited org/foundation config vs. one that verifies against the compiled-in trust root, assert the security-sensitive keys (`UpdateFeedURL`, `FoundationMirror`, `EcosystemSeedURL`, `HTTPSProxy`, `GitHubHost`, `AuthMode`, `AllowSelfUpdate`) are **ignored** unless the signature verifies, and a tamper event is logged (FC-27, E7, B-C5).
 - **Property-based tests** (proptest/quickcheck-style, on the parser and the state reducer):
   - *Idempotence:* `reduce(reduce(s, evt), evt) == reduce(s, evt)` — replaying the same fresh JSON twice never flips state.
   - *Monotonic fail-closed:* for any fixture, deleting a security-relevant field never makes the parsed result **more** permissive (mutate-and-assert: strictly-equal-or-more-restrictive severity).
   - *No fabricated Healthy:* for any generated `doctor` JSON where `status != "healthy"`, `reduce` never outputs the Healthy state (this is the executable form of DQ-1/FC-6, run continuously, not just against curated fixtures).
-- **Test doubles used:** Stubs for `CFPreferences`/keychain/network reachability (canned responses, isolate from macOS APIs in unit scope). No Mocks here — nothing in this layer needs interaction verification, only correct transformation of inputs to outputs.
+- **Test doubles used:** Stubs for the signed-config reader/keychain/network reachability (canned responses, isolate from macOS APIs and git I/O in unit scope). No Mocks here — nothing in this layer needs interaction verification, only correct transformation of inputs to outputs.
 
 ### 1.2 Integration tests (Rust core ↔ a mock CLI, majority of confidence-per-test)
 
@@ -73,10 +73,10 @@ Required for every UI change per this repo's testing floor: **zero console error
 
 E2E suites, one per Critical View + one per E2E scenario (§6 has the full mapping):
 - CV-1 icon/status sentence: render each state from a mock `doctor --json`, assert the exact plain-language sentence naming the failing host where applicable (FC-7, E21).
-- CV-2 wizard: silent-managed zero-question path (mock a complete forced-domain profile); ≤3-question unmanaged path; fail-closed IT-config-incomplete; Waiting-for-network hold; resume-after-quit from a persisted checkpoint.
+- CV-2 wizard: zero-question path when entitlement is unambiguous (mock a complete, signature-verified org seed config); ≤3-question solo/no-org path; fail-closed IT-config-incomplete; Waiting-for-network hold; resume-after-quit from a persisted checkpoint.
 - CV-3 dropdown/what-changed: Sync now/Repair/Sign-in spawn the right verb only (Spy-verified); security-shadow past-tense message; prune-of-used-item notice vs. silent zero-usage prune.
 - CV-4 Admin fleet dashboard: healthy/stuck/behind/needs-auth categorization from mock fleet data; version-skew panel; held-major-awaiting-IT card; persistence-disabled card.
-- CV-5 Admin setup + preflight: seed generator → scaffolding → MDM profile generator → preflight, including a red preflight on a declared-repo 404 (FC-19).
+- CV-5 Admin setup + preflight: seed generator → scaffolding → repo + team-grant setup → preflight, including a red preflight on a declared-repo 404 (FC-19).
 
 **Test doubles used:** the mock CLI (Fake) throughout; a Spy for verb-invocation assertions (FC-11). No Mocks — nothing here requires asserting a call happened in a particular order for its own sake; state-based assertion (rendered text/badge/state) is preferred and is what the requirement actually says.
 
@@ -98,7 +98,7 @@ E2E suites, one per Critical View + one per E2E scenario (§6 has the full mappi
 
 **Notes:**
 - **macOS-first, by necessity, not just by priority** — the tray, `SMAppService`, `launchd`, Keychain, and the webview itself are all macOS APIs; there is no meaningful Linux/Windows substitute for most of this matrix today.
-- **Windows (P4 re-skin) is out of this matrix for now.** When P4 starts, the CI matrix gets a second column (Windows runner) for the six boundary shims (tray, Task Scheduler, EV/SmartScreen, MSI/winget, Credential Manager, Intune/GPO) — §1.1/§1.2/§1.3 (parsing, state machine, contract test) are **platform-independent by design** (pure Rust) and should need zero changes; only §1.4 (E2E) and the shims need Windows-specific suites. This is deferred, not designed in detail here, per P4 phasing.
+- **Windows (P4 re-skin) is out of this matrix for now.** When P4 starts, the CI matrix gets a second column (Windows runner) for the five boundary shims (tray, Task Scheduler, EV/SmartScreen, MSI/winget, Credential Manager) — §1.1/§1.2/§1.3 (parsing, state machine, contract test) are **platform-independent by design** (pure Rust) and should need zero changes; only §1.4 (E2E) and the shims need Windows-specific suites. This is deferred, not designed in detail here, per P4 phasing. No MDM/GPO shim is planned: entitlement and deployment are GitHub repo access, not a device-management channel (D4), on either platform.
 - **No test in this matrix ever spawns a real `flock` against a real `copilot.lock` on a developer's actual `~/.copilot` tree.** All lock-contention behavior is exercised against the mock CLI (§1.2) or a scratch directory, never a real ecosystem tree — this matters because CLAUDE.md's never-destroy invariant extends to CI hygiene: tests must not have a blast radius onto anything resembling a real personal working tree.
 
 ---
@@ -204,9 +204,9 @@ Legend: **U**nit · **I**ntegration · **C**ontract · **E**2E · — not yet co
 
 | ID | Criterion / Scenario | Test type(s) | Note |
 |---|---|---|---|
-| FC-1 | Silent managed first-run | I, E | mock forced-domain profile; assert zero prompts (event-log assertion) |
-| FC-2 | Unmanaged ≤3 questions | E | wizard E2E, prompt-count assertion |
-| FC-3 | Fail-closed on missing MDM key | U, I, E | schema-validate unit test + wizard E2E for IT-config-incomplete render |
+| FC-1 | Silent first-run when entitlement is unambiguous | I, E | mock a fully-derivable entitlement (single department, no ambiguity) from repo access; assert zero prompts (event-log assertion) |
+| FC-2 | Solo/no-org ≤3 questions | E | wizard E2E, prompt-count assertion |
+| FC-3 | Fail-closed on missing/malformed org seed config key | U, I, E | schema-validate unit test + wizard E2E for IT-config-incomplete render |
 | FC-4 | Waiting-for-network / seed-vs-solo | U, I, E | state-machine unit test + wizard E2E |
 | FC-5 | Resume interrupted setup | I, E | checkpoint-persistence integration test + quit/relaunch E2E |
 | FC-6 | Honest icon, never false-Healthy | U (property, §3 DQ-1), I | see §3 DQ-1 for the exhaustive instrument |
@@ -223,25 +223,25 @@ Legend: **U**nit · **I**ntegration · **C**ontract · **E**2E · — not yet co
 | FC-17 | Bad self-update rollback | I (watchdog harness) | needs a distinct watchdog-process integration harness — owned by WS-D; **not yet coverable in this repo's CI as designed** (watchdog is a separate stable binary; needs its own test target once WS-D lands, see §8) |
 | FC-18 | Clean uninstall | manual + scripted smoke | `launchctl`/`SMAppService` state assertions post-uninstall; owned by WS-D, needs a real macOS runner with install rights |
 | FC-19 | Admin seed + scaffolding + preflight | I, E | CV-5 preflight E2E, incl. red-preflight-on-404 fixture |
-| FC-20 | MDM profile generator | I, E | generated `.mobileconfig` validated against the managed-profile schema |
+| FC-20 | Admin seed generator | I, E | generated `ecosystem.yml`/seed config validated against schema; repo + team-grant scaffolding smoke |
 | FC-21 | Fleet dashboard | E | CV-4, mock fleet-data fixtures |
 | FC-22 | Safety channel never a no-op | I | escalation-router + audit-log integration test (F3) |
 | FC-23 | Persistence/notifications-off detection | I | stub `SMAppService.status`/notification-permission Fakes |
-| FC-24 | MDM-native deprovision | I, E | Scenario 6 fixtures; `secrets_touched==0` assertion |
+| FC-24 | Server-side offboarding (repo-access revoke + token rotation) | I, E | Scenario 6 fixtures; `secrets_touched==0` assertion |
 | FC-25 | Parse-never-compute + provenance | **static + code-review gate + provenance diff (§3 DQ-3)** | not behaviorally testable alone |
 | FC-26 | Bidirectional schema gate | U, C | §1.3.3 |
-| FC-27 | Security keys only from forced domain | U | stub `CFPreferencesAppValueIsForced` |
+| FC-27 | Security keys only from signature-verified inherited config | U | stub the config-signature verifier (valid / invalid / absent signature against the compiled-in trust root) |
 | FC-28 | Telemetry PII un-emittable | U | schema-level type test: usage payload type admits only {org,dept,foundation} |
 | FC-29 | Do-no-harm coexistence | I | flock-contention integration test (§1.2, E15) |
 | DQ-1 | False-Healthy = 0 | U property test + field oracle | §3 |
 | DQ-2 | Auto-suspend = 100% | adversarial harness | §3 |
 | DQ-3 | Parse-never-compute = 0 lines | static gate + provenance diff | §3 |
-| DQ-4 | Managed machines reach true terminal state ≥99% | field dashboard metric | not a pre-release CI test — a fleet-observability metric fed by G3; **flagged: depends on WS-G dashboard existing** |
+| DQ-4 | Org-joined machines reach true terminal state ≥99% | field dashboard metric | not a pre-release CI test — a fleet-observability metric fed by G3; **flagged: depends on WS-G dashboard existing** |
 | DQ-5 | Telemetry PII leakage = 0 | U | same as FC-28 |
 | DQ-6 | Materialized content matches CLI-computed winning layer | I | provenance-diff integration test, also backstops DQ-3 |
 | DQ-7 | Safety escalations reach IT = 100% | I | audit-log-vs-emitted-signal cross-check, same mechanism as FC-22 |
 | DQ-8 | Deprovision secrets_touched == 0 | I | fixture assertion, `deprovision/clean-wipe.json` |
-| DQ-9 | No user-domain security key ever honored | U | same as FC-27, plus a CI preference-lint pass |
+| DQ-9 | No unsigned/tampered inherited-config security key ever honored | U | same as FC-27, plus a CI signed-config-lint pass |
 | Scenario 1 — Silent First Light | I, E | FC-1/FC-3 suites combined |
 | Scenario 2 — Unmanaged ≤3 questions | E | FC-2 |
 | Scenario 3 — Invisible steady-state self-heal | I | FC-9/FC-10 |
@@ -249,13 +249,13 @@ Legend: **U**nit · **I**ntegration · **C**ontract · **E**2E · — not yet co
 | Scenario 5 — Org standup + fleet deploy | E | FC-19/20/21 (Admin mode, CV-5) |
 | Scenario 6 — Offboarding a leaver | I, E | FC-24 |
 | Scenario 7 — Watchdog catches a bad update | — **not yet coverable** | needs the stable-watchdog binary + `--self-test` heartbeat mechanism (WS-D, P1); design a dedicated watchdog-integration harness once that binary exists |
-| E1 | Missing MDM key + silent wizard | U, I, E | = FC-3 |
+| E1 | Missing org seed config key + silent wizard | U, I, E | = FC-3 |
 | E2 | Offline first-run | I, E | = FC-4 |
 | E3 | Seed not yet published | I, E | = FC-4 |
 | E4 | Quit mid-wizard | I, E | = FC-5 |
 | E5 | Gatekeeper kills vendored CLI | manual/CI signing smoke | owned by WS-D; needs a real signed build, not unit-testable |
 | E6 | Schema drift shows green over red | U, C | = FC-26 |
-| E7 | User-domain preference-write attack | U | = FC-27 |
+| E7 | Local edit of the cloned inherited-config file | U | = FC-27 |
 | E8 | Security shadow Bob never sees | adversarial harness | = FC-16/DQ-2 |
 | E9 | Un-wipeable leaver | I | = FC-24 |
 | E10 | Held-major dumped on Bob | I, E | = FC-14 |
@@ -282,10 +282,10 @@ Each finding below is marked **closed** in `architecture.md` §10; each gets a f
 
 | Finding | Regression test |
 |---|---|
-| A-C1 / B-H4 | `doctor/missing-security-field.json`-style fixtures for the managed profile; wizard E2E asserting IT-config-incomplete, never Healthy, on any required-key-absent case; settling-window retry timing test |
+| A-C1 / B-H4 | `doctor/missing-security-field.json`-style fixtures for the inherited org seed config; wizard E2E asserting IT-config-incomplete, never Healthy, on any required-key-absent case; settling-window retry timing test |
 | A-C2 | Signing/notarization CI smoke (`cli-spawnable` doctor check present and asserted as a named finding, not a generic red) — owned by WS-D |
 | A-C3 / FC-16 | Adversarial harness (§3 DQ-2) |
-| A-C4 | Deprovision integration suite (§1.2); assert wipe trigger is `Deprovisioned=true` only, never profile-removal alone (regression for M1 too) |
+| A-C4 | Offboarding integration suite (§1.2); assert wipe trigger is a persistent, verified loss of all org repo access only, never a single failed pull alone (regression for M1 too) |
 | A-C5 / FC-22 | Safety-channel-always-on integration test; assert the channel fires independent of the analytics opt-in flag |
 | A-H6 / FC-5 | Checkpoint-resume integration + E2E (quit-after-clone-before-materialize fixture) |
 | A-H7 / FC-4 | Offline-first-run fixture; assert Waiting-for-network, never Healthy, never a scary error |
@@ -303,10 +303,10 @@ Each finding below is marked **closed** in `architecture.md` §10; each gets a f
 | B-C2 | `KeepAlive={SuccessfulExit:false}` plist assertion (static config check) + circuit-breaker integration test (N non-zero exits → stop relaunching) |
 | B-C3 | Watchdog liveness-heartbeat integration harness — **owned by WS-D, needs the watchdog binary; see §8 gap** |
 | B-C4 | Compat-matrix integration test: newer-CLI-pulls-newer-app fixture; `COPILOT_MANAGED_BY=controltower` self-update no-op assertion |
-| B-C5 / FC-27 | Forced-domain-only security-key test (§1.1) |
+| B-C5 / FC-27 | Signed-inherited-config-only security-key test (§1.1) |
 | B-H1 | Cross-repo signing contract — CI smoke asserting vendored CLI is verified (`codesign`/`spctl`), never re-signed; blocks release if older than compat floor. Owned by WS-D. |
 | B-H2 | Signed-uninstaller + self-`bootout`-guard smoke — owned by WS-D |
-| B-H3 / FC-23 | Managed-login-item + `.requiresApproval` detection unit/integration test |
+| B-H3 / FC-23 | Login-item `.requiresApproval` detection unit/integration test (no org-side force-approve lever exists in this model; detection-and-nudge only) |
 | B-H4 | = A-C1 above |
 | B-H5 / FC-28 | Per-user salted `machine_id` unit test; layer-restricted usage-emission schema test |
 | B-H6 / FC-26 | Bidirectional schema gate test (§1.3.3) |

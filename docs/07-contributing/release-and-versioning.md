@@ -2,7 +2,7 @@
 
 Two independent version surfaces ship out of this repo, and this policy exists because they must never be conflated: the **app binary** (Control Tower.app) and the **`--json` contract** (`schema_version`, defined in [`../01-architecture/cli-contract.md`](../01-architecture/cli-contract.md) and the schemas in [`../01-architecture/schemas/`](../01-architecture/schemas/)). A contract change and an app change can each trigger a release on their own; this doc orders what happens when either does.
 
-Related: [`../01-architecture/architecture.md`](../01-architecture/architecture.md) §7 (self-update) and §8.3 (forced-domain managed keys), [`design-distribution.md`](../03-design/design-distribution.md) §1 and §4 (signing/notarization detail, superseded on process model only), [`../05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md), [`../05-security/threat-model.md`](../05-security/threat-model.md) (B4, the self-update trust chain).
+Related: [`../01-architecture/architecture.md`](../01-architecture/architecture.md) §7 (self-update) and §8.3 (signed-inherited-config managed keys), [`design-distribution.md`](../03-design/design-distribution.md) §1 and §4 (signing/notarization detail, superseded on process model only), [`../05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md), [`../05-security/threat-model.md`](../05-security/threat-model.md) (B4, the self-update trust chain).
 
 ---
 
@@ -12,7 +12,7 @@ Related: [`../01-architecture/architecture.md`](../01-architecture/architecture.
 
 Control Tower.app is versioned `MAJOR.MINOR.PATCH` (standard semver). What triggers each:
 
-- **MAJOR** — a change that breaks the compat matrix's guarantee to an existing CLI range (e.g. the app drops support for a `schema_version` floor a supported CLI still emits), or a change to a forced-domain managed key's meaning (any fleet relying on the old semantics of `AllowSelfUpdate`, `UpdateFeedURL`, etc. would misbehave).
+- **MAJOR** — a change that breaks the compat matrix's guarantee to an existing CLI range (e.g. the app drops support for a `schema_version` floor a supported CLI still emits), or a change to a signed-inherited-config managed key's meaning (any org relying on the old semantics of `AllowSelfUpdate`, `UpdateFeedURL`, etc. would misbehave).
 - **MINOR** — new capability that doesn't change existing behavior for a fleet that ignores it (new Admin-mode step, new Needs-attention state, widening a `min_schema`/`max_schema` range to admit a newer CLI without dropping the old floor).
 - **PATCH** — bug fix, security fix, or dependency bump with no behavior change to the contract or managed-key surface.
 
@@ -48,12 +48,12 @@ Because the app version and the contract version move independently, the app pub
 
 ## 2. Release channels
 
-Two channels, gated by the same forced-domain managed keys the architecture already defines (§8.3) — no separate channel-gating mechanism is introduced here.
+Two channels, gated by the same signed-inherited-config managed keys the architecture already defines (§8.3); no separate channel-gating mechanism is introduced here.
 
 - **`stable`** — the default channel; what `UpdateFeedURL` points to when unset. Only a **schema-compatible** app build per §1.2/§1.3 is promoted here.
-- **`beta`** (and a `pinned:<version>` pseudo-channel for IT-forced version locks) — pre-release builds and fleet-specific pins. Selected via the managed `UpdateChannel` key.
+- **`beta`** (and a `pinned:<version>` pseudo-channel for IT-forced version locks) — pre-release builds and org-specific pins. Selected via the managed `UpdateChannel` key.
 
-Both channels are read **only from the forced MDM domain** (`CFPreferencesAppValueIsForced`) for the security-sensitive keys — `UpdateFeedURL`, `AllowSelfUpdate`, `UpdateChannel` if set alongside them — per invariant #4 and architecture §8.3: a value present only in the user domain is ignored in favor of the compiled-in default and logged as a tamper event. `AllowSelfUpdate=false` disables the channel entirely; updates are then IT-pushed only.
+Both channels are read **only from the signature-verified, inherited org/foundation config** for the security-sensitive keys, `UpdateFeedURL`, `AllowSelfUpdate`, `UpdateChannel` if set alongside them, per invariant #4 and architecture §8.3: a value from an unsigned or tampered local copy is ignored in favor of the compiled-in default and logged as a tamper event. `AllowSelfUpdate=false` disables the channel entirely; the org must publish updates through its own channel/mirror instead.
 
 **Signed/notarized artifact flow** (detail lives in `design-distribution.md` §1/§4 and the threat model; this policy references it, not redesigns it):
 
@@ -107,5 +107,5 @@ Trigger order for a bad self-update:
 2. The stable watchdog (itself never self-updated) launches the staged bundle with `--self-test` and waits for an early liveness heartbeat file.
 3. **No heartbeat within the launch attempt ⇒ automatic rollback**: discard the staged bundle, keep the current (previously-working) version running, mark the failed version poisoned (so the same channel doesn't re-offer it), and notify.
 4. A poisoned version is excluded from that channel until a new build supersedes it — `stable` never re-serves a version its own watchdog rejected.
-5. **IT-forced rollback**: independent of the watchdog's automatic path, `UpdateChannel=pinned:<known-good-version>` (forced domain) lets IT force a downgrade/pin across a fleet without waiting on individual watchdog verdicts — this is the `AllowSelfUpdate=false`-adjacent lever for a fleet that wants to hold at a version regardless of what `stable` currently serves.
-6. **Floor guarantee**: if the watchdog itself is ever the broken part (a bug in the updater breaking updating), the bootstrap install can be re-run from scratch (the same admin-free userland re-materialization the app already guarantees elsewhere), and MDM can force-push a known-good signed `.pkg` over the top — the never-destroy invariant means this reinstall path never touches a dirty personal working tree.
+5. **IT-forced rollback**: independent of the watchdog's automatic path, `UpdateChannel=pinned:<known-good-version>` (set in the signed, inherited org config) lets IT force a downgrade/pin across an org without waiting on individual watchdog verdicts. This is the `AllowSelfUpdate=false`-adjacent lever for an org that wants to hold at a version regardless of what `stable` currently serves.
+6. **Floor guarantee**: if the watchdog itself is ever the broken part (a bug in the updater breaking updating), the bootstrap install can be re-run from scratch (the same admin-free userland re-materialization the app already guarantees elsewhere), and the user (or admin, on their behalf) can reinstall a known-good signed `.dmg` from the org's release page over the top. There is no remote force-push in this model (D4); recovery is a manual reinstall. The never-destroy invariant means this reinstall path never touches a dirty personal working tree.

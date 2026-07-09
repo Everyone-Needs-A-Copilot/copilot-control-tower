@@ -10,7 +10,7 @@ already-built artifact plus org policy.
 
 Admin mode is part of this repository because it is part of the Control Tower
 product: the same open-source app that supervises `cc` also gives IT a guided
-standup, profile-generation, preflight, and fleet-governance surface.
+standup, seed generation, repo/team-grant scaffolding, and preflight surface.
 
 Publisher setup also lives in this repository, but only as release-owner
 tooling under `scripts/` and `docs/07-contributing/`. It is not a customer
@@ -34,13 +34,13 @@ The **publisher** controls release-signing authority:
 The **administrator** controls fleet configuration:
 
 - `ecosystem.yml` seed and repo/access scaffolding.
-- MDM `.mobileconfig` values.
+- GitHub team grants that gate repo access (the entitlement spine).
 - `AdminContact`, update feed, telemetry collector, and rollout scope.
 
 The same person may wear both hats while dogfooding, but the credentials must
-not blur. An admin may need to know the publisher's Team ID for MDM policy; the
-admin should never need the publisher's Developer ID private key or
-notarization credential.
+not blur. An admin may need to know the publisher's Team ID to reference in the
+org's signed inherited config; the admin should never need the publisher's
+Developer ID private key or notarization credential.
 
 ## 1. Create the Developer ID Application certificate
 

@@ -6,12 +6,12 @@ Scope: attack the **app layer** only. The 30 CLI-level gaps in §9 of the archit
 
 ## CRITICAL
 
-### C1 — Managed config missing a required key + `DisableWizard=true` = silent mis-provision
-- **Use case:** UC1 (onboarding, MDM/silent path §3.2)
-- **Failure (step-level):** Silent mode pre-fills W2/W4/W5/W6 from the `com.enac.aviator` profile and **removes the ability to ask**. If `managed.department` (or `managed.org`, or `ecosystem_url`) is absent while the wizard is suppressed, W5 can neither derive nor prompt. The wizard either hangs on a progress bar or completes wired to an empty/wrong department — and then marks the icon **Healthy**. Bob has no idea; IT has no idea (telemetry is off pre-setup, see C5).
+### C1 — Missing/malformed org seed config leaves department discovery silently broken
+- **Use case:** UC1 (onboarding; department discovery + join-by-repo-access, D7.1)
+- **Failure (step-level):** After self-install, the wizard discovers the departments a user is entitled to by checking their GitHub repo access against the org's published `ecosystem_url`/seed config. If that seed config is absent, unreachable, or malformed (typo'd repo path, seed not yet published), there is no field to derive a department list from, and no explicit state is defined for "the discovery step itself is broken" versus "you're not entitled to anything." The wizard can hang on a progress bar, or silently fall through to foundation-only and mark the icon **Healthy** while missing every department the user is actually entitled to. Bob has no idea; the org has no idea (safety-escalation telemetry is off pre-setup, see C5).
 - **Severity:** Critical
-- **Root cause:** Silent mode strips the fallback (asking) without a guarantee that every suppressed field is derivable. No pre-flight validation that the managed profile is *complete* for the silent path.
-- **Fix:** Schema-validate the managed profile before entering silent mode. Any required key missing → fail **closed** into a distinct **"IT configuration incomplete — contact IT"** state (never a guess, never a generic error, never Healthy), and emit an IT-escalation signal (see C5 fix).
+- **Root cause:** No pre-flight validation that the org seed config is *present and well-formed* before entering the discovery step; "zero entitlements found" and "the discovery step itself failed" are not distinguished.
+- **Fix:** Validate the org seed config on load, before entering the discovery step. A missing/malformed required field puts the wizard into a distinct **"can't reach your org's setup — contact your admin"** state (never a guess, never a generic error, never Healthy), and emits an escalation signal (see C5 fix). A **genuinely empty** entitlement list (valid seed, zero repo access) is a different, non-error state, "no departments found for your GitHub account."
 
 ### C2 — Vendored `~/.copilot/bin` binaries are killed by Gatekeeper/quarantine
 - **Use case:** UC1 (cold-machine Bob path, §5.1 vendor-with-fallback)
@@ -28,18 +28,18 @@ Scope: attack the **app layer** only. The 30 CLI-level gaps in §9 of the archit
 - **Fix:** Treat `severity_trailer: security` + `override-stale` as **auto-act + escalate**, not notify-and-hope. Auto-**suspend** the personal override (reversible — Bob can re-affirm) so the fixed version wins immediately, and escalate to IT in parallel. Extend UC11's capability policy so a security-fixed item's override requires explicit re-affirmation. Never let a Bob-facing notification be the *sole* control on a security exposure.
 
 ### C4 — Deprovision defeated by uninstalling the app (or offline leaver)
-- **Use case:** Leaver/deprovision lifecycle (§4), re-opening B-C7
-- **Failure:** §4 makes Aviator/its daemon the thing that observes the MDM `Deprovisioned=true` signal and invokes `copilot deprovision`. A motivated leaver simply **drags Aviator to Trash / unloads the LaunchAgent / stays offline** — the supervisor is gone or never polls, the MDM signal has no local actor, and materialized `.claude/` + org/dept clones persist forever. The CLI "fixed" B-C7, but Aviator re-introduces a *user-removable enforcement agent* as the trigger.
+- **Use case:** Leaver/offboarding lifecycle (§4), re-opening B-C7
+- **Failure:** §4 makes Aviator/its daemon the thing that notices access was revoked and invokes `copilot deprovision` locally. A motivated leaver simply **drags Aviator to Trash / unloads the LaunchAgent / stays offline**, so the supervisor is gone or never polls, and materialized `.claude/` + org/dept clones persist forever on that disk. There is no device-management channel in this model (D4) to reach a machine that isn't running Aviator or isn't online. The CLI "fixed" B-C7, but Aviator re-introduces a *user-removable enforcement agent* as the trigger.
 - **Severity:** Critical
-- **Root cause:** A security-critical wipe is contingent on a user-facing, user-deletable app choosing to run it.
-- **Fix:** Deprovision enforcement must be **MDM-native, not Aviator-contingent** — a Jamf/Intune policy runs `copilot deprovision` as its own managed agent regardless of whether Aviator exists. Aviator remains the *face* (shows "company content removed"); the *trigger* for the wipe is the MDM management channel + **server-side token revocation** (the real backstop: the next online `copilot update` fails-closed and wipes). Document honestly that an offline/powered-off machine cannot be wiped remotely — lean on "no secret ever materialized" (§8.1), not on a wipe guarantee.
+- **Root cause:** A security-critical wipe was framed as contingent on a user-facing, user-deletable app choosing to run it, when the real guarantee has to live server-side.
+- **Fix:** Deprovision enforcement must be **server-side, not Aviator-contingent**. The real backstop, per D4, is **revoking the person's GitHub access and rotating the shared-secret store tokens**, so the next online sync attempt fails-closed regardless of whether Aviator is running. Aviator remains the *face*, showing "company content removed" when it does run and detects the revocation. Document honestly, as an accepted residual (D4): content already synced to an offline or already-uninstalled machine is not remotely wiped. The backstop is "no secret ever materialized locally" (§8.1), not a wipe guarantee. Acceptable for the target: small, trusted orgs.
 
 ### C5 — Safety escalations are gated behind off-by-default telemetry → "IT notified" is a no-op
 - **Use case:** IT setup + UC11/UC12 + escalation ladder §7 (auth-revoked, signature-fail, version-conflict all say "Escalate to IT")
-- **Failure:** §7's preamble: IT escalation "fires only when org telemetry (§6) is on **or** an admin contact is set." §6 telemetry is **opt-in, off by default.** So on a default managed machine, every "Escalate to IT" rung — signature failure, incompatible-version, permanent auth revoke — reaches **no one.** The §6.4 IT dashboard ("is a given Mac healthy?") is empty. IT literally cannot tell a healthy Mac from a bricked one, and Bob's un-actionable-by-him failures die in a local log.
+- **Failure:** §7's preamble: IT escalation "fires only when org telemetry (§6) is on **or** an admin contact is set." §6 telemetry is **opt-in, off by default.** So on a machine that has joined an org/department layer, every "Escalate to IT" rung, signature failure, incompatible-version, permanent auth revoke, reaches **no one.** The §6.4 IT dashboard ("is a given Mac healthy?") is empty. An org admin literally cannot tell a healthy Mac from a bricked one, and Bob's un-actionable-by-him failures die in a local log.
 - **Severity:** Critical
 - **Root cause:** The design fuses *safety escalation* with *analytics telemetry* and inherits analytics' opt-in default for both.
-- **Fix:** Split them. **Safety escalation** (content-free: sig-fail, auth-revoked, policy-conflict, stalled-onboarding) is a **required managed-profile key, on by default for managed machines.** **Analytics** (usage/adoption bytes) stays genuinely opt-in. Make `admin_contact`/escalation endpoint mandatory in the MDM profile so managed machines always have a live IT channel.
+- **Fix:** Split them. **Safety escalation** (content-free: sig-fail, auth-revoked, policy-conflict, stalled-onboarding) is a **required key in the inherited org config, on by default for any machine that has joined an org layer.** **Analytics** (usage/adoption bytes) stays genuinely opt-in. Make `admin_contact`/escalation endpoint mandatory in the org's signed, inherited config (D4) so any machine that joined an org always has a live IT channel.
 
 ---
 
@@ -87,12 +87,12 @@ Scope: attack the **app layer** only. The 30 CLI-level gaps in §9 of the archit
 - **Root cause:** Approval authority is ambiguous — determined by physical proximity to the menu bar, not competence.
 - **Fix:** `ecosystem.yml` declares approver authority. On a managed machine, held-majors are approved **centrally by IT**; Bob sees an informational, non-actionable "an update is waiting on IT," never a decision.
 
-### H12 — IT ships Aviator before publishing `ecosystem.yml` → whole fleet false-Healthy
+### H12 — IT announces Aviator before publishing `ecosystem.yml` → whole cohort false-Healthy
 - **Use case:** IT setup + UC1
-- **Failure:** W6/W7 read `ecosystem.yml` for products and repo resolution. If the `.pkg` is deployed before the org seed exists, every Bob machine's wizard 404s on the org seed simultaneously. With no way to distinguish "seed coming, wait" from "no org (solo)," the fleet either errors en masse or falls to foundation-only and marks **Healthy** while missing all company content.
+- **Failure:** W6/W7 read `ecosystem.yml` for the CSE components and repo resolution. If IT tells the org to self-install before the org seed repo exists, every new hire's wizard 404s on the org seed at roughly the same time. With no way to distinguish "seed coming, wait" from "no org (solo)," each affected machine either errors or falls to foundation-only and marks **Healthy** while missing all company content.
 - **Severity:** High
-- **Root cause:** No ordering guard between app deployment and seed publication; the app can't know the seed is forthcoming.
-- **Fix:** Managed profile carries `ecosystem_url`; wizard distinguishes "org seed not yet published (retry/hold)" from "solo"; enter a "waiting for company setup" state and let the daemon complete when the seed appears. IT runbook gates the push on seed existence; Aviator verifies before claiming Healthy.
+- **Root cause:** No ordering guard between telling users to install and seed publication; the app can't know the seed is forthcoming.
+- **Fix:** Wizard distinguishes "org seed not yet published (retry/hold)" from "solo"; enter a "waiting for company setup" state and let the supervisor complete when the seed appears. IT runbook gates the install announcement on seed existence; Aviator verifies before claiming Healthy.
 
 ### H13 — Bob-actionable alerts nudge once, then go silent forever
 - **Use case:** UC1/UC2 (backup-missing §5.4; auth-expired) — the Bob-agency core
@@ -136,11 +136,11 @@ Scope: attack the **app layer** only. The 30 CLI-level gaps in §9 of the archit
 ---
 
 ## Top 5 must-fix
-1. **C5** — split safety-escalation from analytics; make the IT channel on-by-default for managed machines. Without it, half the escalation ladder and the whole IT dashboard are dead by default.
+1. **C5** — split safety-escalation from analytics; make the IT channel on-by-default for any machine that has joined an org layer. Without it, half the escalation ladder and the whole IT dashboard are dead by default.
 2. **C2** — notarize/de-quarantine the vendored binaries. Otherwise Gatekeeper silently kills every CLI spawn on a cold Bob machine.
 3. **C3** — auto-suspend a security-shadowed personal override (+ escalate); stop relying on a Bob notification as the sole control on an active exposure.
-4. **C4** — move deprovision enforcement to MDM-native + server-side token revocation; a user-deletable app must not be the sole wipe trigger.
-5. **C1** — pre-flight-validate the managed profile; fail-closed on missing keys instead of silently mis-provisioning under `DisableWizard=true`.
+4. **C4** — move deprovision enforcement to server-side GitHub-access revocation + shared-secret-store token rotation; a user-deletable app must not be the sole wipe trigger.
+5. **C1** — pre-flight-validate the org seed config; fail-closed on missing/malformed keys instead of silently mis-provisioning the department-discovery step.
 
 ## The Bob-agency problem — recommendation
 
@@ -149,7 +149,7 @@ Aviator today routes escalations by **event-class** (drift → auto-heal, auth �
 Three lanes:
 
 - **AUTO-ACT (never ask, within policy):** any reversible, disposable-surface change Bob can't meaningfully judge — re-materialize, re-clone read-only mirrors, ff-pull, apply signed patches, **defer (not block) updates while a session is live**, and **auto-suspend a personal override that shadows a security fix** (reversible: Bob re-affirms). This is already the design's default; widen it to cover the security-shadow case (C3).
-- **ESCALATE TO IT (not Bob):** anything Bob is structurally unqualified to decide *or* can't action — held-major approval (H11), capability-policy conflicts (M15), signature failures, version conflicts, **and any Bob-actionable item left un-acted past a deadline** (backup-missing, re-auth → H13). Managed machines must always carry a live, content-free IT channel, on by default (C5).
+- **ESCALATE TO IT (not Bob):** anything Bob is structurally unqualified to decide *or* can't action — held-major approval (H11), capability-policy conflicts (M15), signature failures, version conflicts, **and any Bob-actionable item left un-acted past a deadline** (backup-missing, re-auth → H13). Any machine that has joined an org layer must always carry a live, content-free IT channel, on by default (C5).
 - **ASK BOB (rare — only when he is the *sole competent actor* about *his own data*):** "commit your dirty personal work before I sync" (only Bob knows if that WIP matters) and the single sign-in approve (only Bob holds the credential). Nothing else should interrupt him.
 
 **Principle:** a Bob-facing notification is justified *only* when Bob is the sole competent actor for a non-deferrable, personal-data decision. For everything else the default is **auto-act-if-reversible, else escalate-to-IT** — never "notify Bob and hope." Every alert Bob can't act on (M15) is not just useless; it burns down the credibility of the one alert that matters (C3).

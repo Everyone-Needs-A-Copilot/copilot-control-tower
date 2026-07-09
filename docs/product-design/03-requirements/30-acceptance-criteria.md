@@ -1,3 +1,5 @@
+> **Superseded framing.** This document predates the Copilot Solutioning Ecosystem (CSE) realignment. Its MDM/fleet framing and its use of "product" to mean a CSE tool are superseded. The corrected model is in `docs/reference/copilot-solutioning-ecosystem.md`; the decisions are in `docs/reference/cse-alignment-decisions.md`.
+
 # Acceptance Criteria
 
 > **Provenance.** Every criterion is independently verifiable and traces to a user story

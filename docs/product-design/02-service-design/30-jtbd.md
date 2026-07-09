@@ -1,3 +1,5 @@
+> **Superseded framing.** This document predates the Copilot Solutioning Ecosystem (CSE) realignment. Its MDM/fleet framing and its use of "product" to mean a CSE tool are superseded. The corrected model is in `docs/reference/copilot-solutioning-ecosystem.md`; the decisions are in `docs/reference/cse-alignment-decisions.md`.
+
 # Jobs to Be Done
 
 > **Provenance.** Grounded synthesis from the Phase-1 Discovery set (`00-overview/00-vision.md`

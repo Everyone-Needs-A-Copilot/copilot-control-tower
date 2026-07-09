@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **STATUS** | **Maintainer runbook, 2026-07-07.** Operationalizes the threats ratified in [`threat-model.md`](threat-model.md) and [`credentials-and-boundary.md`](credentials-and-boundary.md), and the findings in [`../04-validation/redteam-platform.md`](../04-validation/redteam-platform.md) / [`redteam-use-cases.md`](../04-validation/redteam-use-cases.md). It does not introduce new controls — every containment/eradication step below cites a mechanism already specified in [`../01-architecture/architecture.md`](../01-architecture/architecture.md) or one of the two documents above. Where a cited mechanism is itself an **open design item** (not yet built, or not yet assigned an owner), that is stated plainly rather than assumed solved — see §6. |
-| **Scope** | Five incident classes: minisign signing-key compromise, malicious/compromised ecosystem content, leaked secret/credential, compromised update feed or MDM config redirect, and coordinated vulnerability disclosure. |
+| **STATUS** | **Maintainer runbook, 2026-07-07.** Operationalizes the threats ratified in [`threat-model.md`](threat-model.md) and [`credentials-and-boundary.md`](credentials-and-boundary.md), and the findings in [`../04-validation/redteam-platform.md`](../04-validation/redteam-platform.md) / [`redteam-use-cases.md`](../04-validation/redteam-use-cases.md). It does not introduce new controls — every containment/eradication step below cites a mechanism already specified in [`../01-architecture/architecture.md`](../01-architecture/architecture.md) or one of the two documents above. Where a cited mechanism is itself an **open design item** (not yet built, or not yet assigned an owner), that is stated plainly rather than assumed solved — see §6. **Conformed 2026-07-09 to `cse-alignment-decisions.md` D4:** MDM is dropped completely; §4's response steps for a redirected update feed/config are recast to a repo-access model (revoke the compromising GitHub identity, rotate the config-signing key), and every other MDM-driven response step (§1's emergency-distribution step, §3's credential revocation) already resolved to revoke-access-plus-rotate-tokens rather than a device-management action. |
+| **Scope** | Five incident classes: minisign signing-key compromise, malicious/compromised ecosystem content, leaked secret/credential, compromised update feed or inherited org-config redirect, and coordinated vulnerability disclosure. |
 | **Non-goal** | This is not a general SOC playbook. It does not cover host-level malware response, physical security, or law-enforcement engagement — those are the receiving org's own IR process once a Control Tower-specific incident is triaged as also being a broader endpoint compromise. |
 | **No time estimates** | Every step below is ordered by trigger and dependency, never by duration. Where the architecture cites a fixed cadence (e.g., the 15-minute freshness-poll floor) that is a *design fact being reasoned about*, not an SLA this runbook imposes. |
 | **Invariant this runbook must never violate** | Per `CLAUDE.md` invariant #4: response actions must never weaken the inherited security posture. No incident response step may recommend `--skip-verify`, `--force`, disabling signature checks, honoring a user-domain override of a security-sensitive key, or any other fail-*open* shortcut — every containment step below is fail-closed by construction, matching the posture it is defending. |
@@ -14,7 +14,7 @@
 
 - **Maintainer(s)** — hold or can invoke access to the release pipeline (CI, signing custody) and this repo.
 - **Key custodian(s)** — hold one half of the two-of-N minisign signing scheme (§7 of `architecture.md`). **Who these people are is an open item — see §6.1.**
-- **Org IT / security team** — the receiving end of the `AdminContact` safety-escalation channel (`architecture.md` §8.3, §9) for a managed fleet; the entity that runs Admin mode's policy-signer key (`architecture.md` §8.1 step 3).
+- **Org IT / security team** — the receiving end of the `AdminContact` safety-escalation channel (`architecture.md` §8.3, §9) for an org that has `AdminContact` configured; the entity that runs Admin mode's policy-signer key (`architecture.md` §8.1 step 3).
 - **Reporter** — an external researcher or user filing a report via the root `SECURITY.md` (§5).
 
 ---
@@ -34,20 +34,20 @@ This is the single highest-*damage* threat in the threat model (`threat-model.md
 
 ### Eradication — rotate keys, and recognize that trust-root rotation requires a *signed app release*, not a config change
 1. **Generate replacement minisign keypair(s) in a fresh, separately-custodied HSM/vault** — never reuse the compromised material, and never regenerate in the same location that was compromised.
-2. **Recognize the bootstrapping constraint:** per `threat-model.md` §1 and `architecture.md` §7, the minisign public key is **compiled-in code, not config** — no managed-domain or user-domain preference can repoint which key the watchdog trusts. This means rotating the trust root is not a config push; it requires building, signing, and shipping a **new Control Tower release** whose binary embeds the new public key(s) and revokes the old one(s).
+2. **Recognize the bootstrapping constraint:** per `threat-model.md` §1 and `architecture.md` §7, the minisign public key is **compiled-in code, not config**; neither the signed inherited org config nor any local config preference can repoint which key the watchdog trusts. This means rotating the trust root is not a config push; it requires building, signing, and shipping a **new Control Tower release** whose binary embeds the new public key(s) and revokes the old one(s).
 3. **Sign this specific emergency release with maximum available assurance**, since it is the release that re-establishes trust: use every uncompromised custodian available (the surviving half of the two-of-N pair, plus, if available, an out-of-band witness — a transparency-log entry or a second maintainer's independent confirmation of the build hash) even if that exceeds the normal two-of-N minimum for routine releases.
-4. **Distribute the emergency release out-of-band from the (potentially still-suspect) normal feed**: for `AllowSelfUpdate=false` managed fleets, push the version-locked CLI+app pair directly via MDM (`architecture.md` §7) rather than relying on the updater to pull it; for unmanaged/solo installs, publish the release through the project's GitHub Releases page with a signed security advisory (§5) stating the build hash and the old key's revocation, so an install can be verified independently of the update feed's own integrity.
+4. **Distribute the emergency release out-of-band from the (potentially still-suspect) normal feed**: for `AllowSelfUpdate=false` installs, distribute the version-locked CLI+app pair directly through an out-of-band channel IT already controls (e.g., an internal download link or the org's own software-distribution tooling; there is no MDM push in this product, D4) rather than relying on the updater to pull it; for solo/unentitled installs, publish the release through the project's GitHub Releases page with a signed security advisory (§5) stating the build hash and the old key's revocation, so an install can be verified independently of the update feed's own integrity.
 5. **Bake the old key's revocation into the new release** (a compiled-in revoked-key list, or equivalent), so no future forged manifest signed with the old private key is ever honored again, even if the attacker retains the stolen private key indefinitely.
 
 ### Recovery
 1. Confirm, via the staged-rollout telemetry and anomaly-halt signal, that the emergency release is adopting cleanly across the fleet.
-2. Cross-reference machine telemetry (or, for unmanaged installs, `doctor --json` output collected via the safety-escalation channel) against the known-malicious release's version marker to identify any machine that installed the attacker's build before containment.
+2. Cross-reference machine telemetry (or, for installs with no analytics telemetry configured, `doctor --json` output collected via the safety-escalation channel) against the known-malicious release's version marker to identify any machine that installed the attacker's build before containment.
 3. Any machine confirmed to have run the malicious build is treated as a **compromised endpoint**, not merely a Control Tower incident: escalate it to the org's own endpoint-security/IR process (out of this runbook's scope) — the live `gh` token and `.claude/` write capability on that machine must be assumed exercised.
 4. Publish a transparency-log entry (or equivalent public record) of the key revocation and the new trust root, independent of the update feed itself, so the revocation is auditable even by someone who never receives the update.
 
 ### Comms
 - Publish a security advisory through the `SECURITY.md` contact channel (§5) disclosing the compromise, the affected release range, the new trust root, and remediation steps for any machine that may have installed the malicious build.
-- Fire the safety-escalation signal (`AdminContact`, content-free per `architecture.md` §9) to every managed fleet's IT channel, flagged as its own incident class distinct from routine sig-fail/auth-revoked signals.
+- Fire the safety-escalation signal (`AdminContact`, content-free per `architecture.md` §9) to every org's IT channel that has `AdminContact` configured, flagged as its own incident class distinct from routine sig-fail/auth-revoked signals.
 - Do not disclose the specific custody arrangement or HSM details in any public advisory — disclose the impact and the fix, not the internal control weaknesses that led to it, beyond what's needed for affected orgs to assess their own exposure.
 
 ---
@@ -67,11 +67,11 @@ This is the single highest-*damage* threat in the threat model (`threat-model.md
 2. Determine the root cause of the publish: if the content was published using a legitimate contributor's credentials that were themselves compromised, treat this as a **leaked-credential incident** as well and run §3 in parallel (revoke that author's push credential via team-membership removal, `credentials-and-boundary.md` §6.3). If the capability-policy signer key itself was compromised rather than an individual author, rotate that policy-signer key (a security-team-held key distinct from push authority, `architecture.md` §8.1) and re-sign a clean policy.
 
 ### Recovery
-1. Confirm via telemetry (or, absent telemetry, via a manual `doctor --json` sweep on managed machines) that the fleet has pulled the corrected/denied policy state.
+1. Confirm via telemetry (or, absent telemetry, via a manual `doctor --json` sweep on affected machines) that the fleet has pulled the corrected/denied policy state.
 2. Confirm any auto-suspended personal override correctly re-affirms only against the corrected content, not the malicious version.
 
 ### Comms
-- Fire the safety-escalation signal (policy-conflict/security class) to the `AdminContact` channel for affected managed fleets.
+- Fire the safety-escalation signal (policy-conflict/security class) to the `AdminContact` channel for every affected org that has one configured.
 - If the malicious content reached the **foundation** (public) tier, this is a supply-chain-relevant disclosure — follow the coordinated-disclosure process in §5, since it affects consumers outside any single org's fleet.
 
 ### Why blast radius is bounded regardless of response speed
@@ -101,30 +101,30 @@ The personal↔shared leakage-wall structural guarantees (`credentials-and-bound
 ### Comms
 - Notify the affected individual directly via the existing re-auth/sign-in prompt path — this doubles as the recovery mechanism and the notification.
 - For a shared-store secret, notify every tier member whose access could be implicated, since the store's own trade-off (`credentials-and-boundary.md` §1.6.5) is a larger blast radius than a per-user credential.
-- Escalate to the org's IT/security channel via the safety-escalation signal if the leak involved a managed-fleet integration.
+- Escalate to the org's IT/security channel via the safety-escalation signal if the leak involved a shared (org/department) integration.
 
 ---
 
-## 4. Compromised update feed or MDM config redirect (B-C5 / the `AdminContact` finding)
+## 4. Compromised update feed or inherited org-config redirect (B-C5 / the `AdminContact` finding)
 
 ### Detection signal
-- A **tamper event** logged when a value for a security-sensitive key present in the user-writable preference domain is rejected because it did not come from the forced/managed domain (`architecture.md` §8.3: `UpdateFeedURL`, `FoundationMirror`, `EcosystemSeedURL`, `HTTPSProxy`, `GitHubHost`, `AuthMode`, `AllowSelfUpdate`, `Deprovisioned`, and — per the fix now folded into §8.3 that closes the threat-model's originally-flagged gap — `AdminContact`). This is the primary detection signal for a **local, non-privileged attacker** attempting the redirect (the B-C5 attack shape).
-- A distinct and more severe case: the **legitimate forced/managed domain itself** is repointed — i.e., an attacker with actual MDM-admin access (or a compromised MDM console) pushes a malicious profile setting `UpdateFeedURL`/`FoundationMirror`/`AdminContact` to an attacker-controlled endpoint. This is **not** caught by the `CFPreferencesAppValueIsForced` check, because the value genuinely does come from the forced domain — detection here is organizational, not app-side: an MDM console audit log entry for an unexpected profile push, or a fleet-wide telemetry anomaly (multiple machines suddenly resolving a different feed/mirror than the fleet norm).
+- A **tamper event** logged when a value for a security-sensitive key present in local, user-editable config is rejected because it was not sourced from the signed, inherited org/foundation config the CLI resolves (`architecture.md` §8.3: `UpdateFeedURL`, `FoundationMirror`, `EcosystemSeedURL`, `HTTPSProxy`, `GitHubHost`, `AuthMode`, `AllowSelfUpdate`, `Deprovisioned`, and — per the fix now folded into §8.3 that closes the threat-model's originally-flagged gap — `AdminContact`). This is the primary detection signal for a **local, non-privileged attacker** attempting the redirect (the B-C5 attack shape).
+- A distinct and more severe case: the **org's own signed inherited config** itself is compromised, i.e. an attacker with legitimate org-config-repo write access (a compromised maintainer credential, or a compromised config-signing key) publishes a maliciously-signed org/foundation config setting `UpdateFeedURL`/`FoundationMirror`/`AdminContact` to an attacker-controlled endpoint. This is **not** caught by the CLI's local-vs-inherited-config gating, because the value genuinely does come from the signed, inherited channel. Detection here is organizational, not app-side: a git-history review turning up an unreviewed or unexpected config-repo commit, an anomaly in the config-signing key's audit trail, or a fleet-wide telemetry anomaly (multiple machines suddenly resolving a different feed/mirror than the org's norm).
 
 ### Containment
-1. **For the user-domain-spoof case:** no action is needed against the app itself — the value is already ignored by construction (`architecture.md` §8.3) and only the *tamper-event log entry* needs review to confirm the rejection occurred and to identify the affected machine for follow-up (the presence of a spoofing attempt may indicate broader compromise of that specific endpoint worth investigating outside this runbook's scope).
-2. **For the forced-domain-compromise case:** treat the MDM console/profile-management system itself as compromised. Revoke or correct the malicious profile at the MDM management console immediately, and force a profile re-push to the fleet. Do **not** rely on the app-provided `AdminContact` channel to coordinate this response if `AdminContact` itself is plausibly the redirected value — use the org's independently known-good IT contact list, not anything the app surfaces, until the profile is confirmed corrected.
+1. **For the local-config-spoof case:** no action is needed against the app itself — the value is already ignored by construction (`architecture.md` §8.3) and only the *tamper-event log entry* needs review to confirm the rejection occurred and to identify the affected machine for follow-up (the presence of a spoofing attempt may indicate broader compromise of that specific endpoint worth investigating outside this runbook's scope).
+2. **For the signed-org-config-compromise case:** treat the org's config-repo write access and/or config-signing key as compromised. Revoke the compromising credential (remove the responsible GitHub identity from the org/config-repo team, and/or rotate the config-signing key), revert the malicious config commit via a normal, auditable `git revert` (never a force-push or history rewrite), and re-sign a clean config. Do **not** rely on the app-provided `AdminContact` channel to coordinate this response if `AdminContact` itself is plausibly the redirected value; use the org's independently known-good IT contact list, not anything the app surfaces, until the config is confirmed corrected.
 
 ### Eradication
-- If the forced-domain redirect resulted in any machine installing a malicious update, this incident converges with §1 (minisign key compromise) or with a malicious-mirror scenario — run the relevant eradication steps from §1 in parallel, since a compromised `FoundationMirror`/`UpdateFeedURL` value pointed at an attacker endpoint is a delivery mechanism for exactly that payload class.
-- Correct the MDM profile at the source; confirm the correction propagates via the next managed-profile refresh.
+- If the signed-config redirect resulted in any machine installing a malicious update, this incident converges with §1 (minisign key compromise) or with a malicious-mirror scenario — run the relevant eradication steps from §1 in parallel, since a compromised `FoundationMirror`/`UpdateFeedURL` value pointed at an attacker endpoint is a delivery mechanism for exactly that payload class.
+- Correct the org config at the source (the config repo); confirm the correction propagates via the next freshness-poll cycle.
 
 ### Recovery
-1. Re-check forced-domain values across the fleet (via the next `doctor --json`/freshness poll) to confirm every machine now reflects the corrected profile.
-2. Review tamper-event logs fleet-wide for the affected window to identify every machine that attempted or received a user-domain spoof during the incident, even if the attempt was rejected.
+1. Re-check the signed inherited-config values across affected machines (via the next `doctor --json`/freshness poll) to confirm every machine now reflects the corrected config.
+2. Review tamper-event logs across affected machines for the affected window to identify every machine that attempted or received a local-config spoof during the incident, even if the attempt was rejected.
 
 ### Comms
-- Notify fleet IT via an out-of-band channel (not the app's own `AdminContact` surface, for the reasons above) if the forced domain itself was implicated.
+- Notify org IT via an out-of-band channel (not the app's own `AdminContact` surface, for the reasons above) if the signed org config itself was implicated.
 - If any machine's actual security posture was degraded (malicious update installed), fold this into the §1 comms process rather than treating it as separate.
 
 ---
