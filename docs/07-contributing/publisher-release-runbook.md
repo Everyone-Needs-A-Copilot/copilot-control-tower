@@ -175,7 +175,10 @@ The UI:
 - writes `.env.release.local` with mode `600`
 - avoids accepting the app-specific password as a shell argument
 - clears the app-specific password from the form after setup
-- replaces the form with a success screen that provides copyable next commands
+- replaces the form with a success screen that can run build/sign/notarize
+  directly
+- shows publishing progress and keeps a copyable log
+- ends on an Admin handoff screen once the signed/notarized artifact exists
 - replaces the form with a failure screen that provides copyable details and
   recovery actions
 
@@ -267,6 +270,14 @@ Do not commit `.env.release.local`, `.p12` files, `.p8` files, app-specific
 passwords, or certificate export passwords.
 
 ## 7. Build, sign, notarize, and staple locally
+
+After Publisher Setup creates the local env file and notary profile, use the
+app's **Build, Sign, and Notarize** button. The app runs the same release
+commands below, shows progress, and keeps a copyable log for failures or
+release notes.
+
+Use the terminal commands only as a fallback for debugging or headless
+publisher machines.
 
 The local build has one important gotcha: the `copilot` CLI may also be
 installed as `cc`, which can shadow the system C compiler. Force the real C
