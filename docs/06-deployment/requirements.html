@@ -161,7 +161,7 @@
 <header class="masthead"><div class="wrap">
   <p class="eyebrow">Copilot Control Tower · Deployment</p>
   <h1>What you actually need to run it</h1>
-  <p class="standfirst">The short version: <b>if you install it, you need nothing.</b> A signed release just runs. Someone who <b>publishes</b> releases signs them once. And the fleet infrastructure — telemetry, MDM, a shared secret store — is <b>optional</b>, and only for organizations that want those features. This page says exactly who needs what.</p>
+  <p class="standfirst">The short version: <b>if you install it, you need nothing.</b> A signed release just runs. Someone who <b>publishes</b> releases signs them once. And the org infrastructure — a telemetry collector, a shared secret store — is <b>optional</b>, and only for organizations that want those features. Access to an org or department is granted through a GitHub repo, not a device push. This page says exactly who needs what.</p>
 </div></header>
 
 <div class="wrap">
@@ -252,11 +252,11 @@
           <td class="center"><span class="chip opt">Optional</span></td>
         </tr>
         <tr>
-          <td class="name">MDM / .mobileconfig<span class="mono">Jamf · Intune · Kandji</span></td>
-          <td class="desc">Pushes managed configuration to company machines for a zero-question, silent setup.</td>
+          <td class="name">Org / department repos<span class="mono">GitHub — the entitlement spine</span></td>
+          <td class="desc">A repo per component per tier. Access to the repo <i>is</i> the entitlement — grant a person a GitHub team seat and they can join that org or department in the app.</td>
           <td class="center"><span class="chip none">Not needed</span></td>
-          <td class="center"><span class="chip none">Not needed</span></td>
-          <td class="center"><span class="chip opt">Optional</span></td>
+          <td class="center"><span class="chip req">Required to share a department</span></td>
+          <td class="center"><span class="chip req">Required</span></td>
         </tr>
       </tbody>
     </table>
@@ -293,7 +293,7 @@
       <p class="sub">IT deploys it across many machines.</p>
       <ul>
         <li><span class="mk">1</span><span>Sign + notarize; add <b>minisign 2-of-N</b> for update integrity.</span></li>
-        <li><span class="mk">2</span><span>Push config via <b>MDM</b> for a silent, zero-question setup.</span></li>
+        <li><span class="mk">2</span><span>Stand up the org/department repos and grant <b>GitHub team access</b> — that's the entitlement.</span></li>
         <li><span class="mk">3</span><span><b>Optional:</b> telemetry collector for the fleet dashboard.</span></li>
       </ul>
     </div>

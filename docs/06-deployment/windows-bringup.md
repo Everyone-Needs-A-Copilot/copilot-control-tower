@@ -1,5 +1,16 @@
 # Windows bringup runbook — turning M9's owner-gated items into a checklist
 
+> **Pending reconciliation with the native-macOS direction (2026-07-08).**
+> Product direction is moving toward a native macOS app, a separate
+> design-thread decision that is not yet fully ratified in this repo's own
+> docs. Until it is, treat Windows as **deprioritized**, not cancelled: this
+> runbook is left as-is (its substance is not rewritten here) but should not
+> be treated as near-term work. It has also been lightly reconciled with
+> [`../reference/cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md)
+> D4 (MDM dropped): the steps that assumed a device-management push have
+> been marked not-applicable below, without rewriting the rest of the
+> checklist.
+
 > **OWNER-GATED, in full.** This runbook exists because M9 (Windows re-skin,
 > `tc task get 80`, Stream-Z close-out) could only ever produce
 > `#[cfg(windows)]`-gated Rust, WiX/MSI config, and a PowerShell signing
@@ -14,9 +25,10 @@
 > owner-gated split this runbook operationalizes).
 
 **Who this is for:** an owner/maintainer with (a) a Windows 10/11 box (a VM is
-fine for most steps; steps 9–10 want a domain-joined/MDM-enrolled machine),
-(b) an EV (Extended Validation) code-signing certificate, and (c) admin
-access to a test Intune or GPO console for the enrollment/notification steps.
+fine for every remaining step; the two steps that used to want a real
+domain-joined/managed test machine and admin console access, step 3 and part
+of step 9, are flagged not-applicable below, pending reconciliation with D4)
+and (b) an EV (Extended Validation) code-signing certificate.
 
 **What "done" looks like:** every row in `windows-parity.md` §5 that currently
 reads "owner must still verify" has that column crossed off, with a dated note
@@ -97,31 +109,19 @@ first real Windows-side data point M9 has ever had.
       these are currently reused, unvalidated macOS constants (ADR-M9-006
       names this explicitly as a placeholder).
 
-## 3. Forced/managed config domain (closes: row 3, ADR-M9-003,
-   sec-reviewed-ACCEPT with one residual)
+## 3. Forced/managed config domain (closes: row 3, ADR-M9-003): NOT APPLICABLE, superseded by D4
 
-- [ ] On an **unmanaged** (not domain-joined, not MDM-enrolled) Windows box:
-      write a value directly to
-      `HKLM\Software\Policies\ENAC\ControlTower` (as a local admin, via
-      `reg add`). Confirm the app treats it as `Absent`, never `Forced` —
-      this is the core ADR-M9-003 guarantee. Check the audit log line
-      (`audit_unenrolled_policy_value_ignored`) actually fires.
-- [ ] On a **real** domain-joined or Intune-MDM-enrolled Windows box: push
-      the same policy via GPO or an Intune configuration profile. Confirm
-      `dsregcmd /status` reports enrolled, and confirm the app now honors the
-      `HKLM\...\Policies` value as genuinely `Forced`.
-- [ ] Test every enrollment state Intune/GPO can actually produce (hybrid
-      Azure AD join, workplace-join-only, GPO-only-no-Azure-AD) — the
-      `dsregcmd`-output parser was authored against documented output shapes,
-      never exercised against real output.
-- [ ] **Known, accepted, NOT-closed residual (sec-reviewed, see
-      `tc wp get 57`):** confirm for yourself that a local admin on an
-      unmanaged/BYOD machine CAN self-service domain-join a lab AD domain or
-      register a free Azure AD tenant, and that `dsregcmd` will legitimately
-      then report "enrolled." This is inherent to what "domain-joined" means
-      as a Windows API answer, not a bug in this code — do not expect this
-      runbook step to "fail" a fixable defect; it is here so the residual is
-      observed once for real, not just reasoned about.
+This step's checklist (write to `HKLM\Software\Policies\ENAC\ControlTower`,
+confirm `Absent` vs. `Forced` behavior, push the same policy via a
+device-management console, test every enrollment state a fleet console can
+produce) mirrored the macOS forced-domain design this repo has since dropped
+in full; see [`../reference/cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md)
+D4. There is no forced/managed config domain in the current deployment model
+(GitHub repo access is the entitlement spine instead), so there is nothing
+here to verify on a real Windows box. Left as a numbered step, not deleted,
+so `m9-owner-gated-split.md` row 3 and `windows-parity.md` §5's cross-references
+still resolve; whoever revisits Windows parity should retire this step
+outright once those are updated.
 
 ## 4. Secrets (closes: row 4, ADR-M9-001, sec-reviewed-ACCEPT)
 
@@ -156,12 +156,13 @@ first real Windows-side data point M9 has ever had.
       protected your PC" interstitial appears (expected for a brand-new
       cert/binary with no reputation yet — this is the SmartScreen gap
       ADR-M9-004 names, not a signing failure).
-- [ ] For the air-gapped-fleet mitigation: push an Intune/GPO
-      `SmartScreenForTrustedAppsEnabled` policy and confirm it actually
-      suppresses the interstitial for this specific signed binary, offline
-      (no network reputation lookup). This is the one empirical claim
-      ADR-M9-004's "recommendation" status rests on and has never been
-      checked.
+- [ ] **Not applicable, superseded by D4:** the air-gapped-fleet mitigation
+      this step used to test (a centrally-pushed `SmartScreenForTrustedAppsEnabled`
+      policy) assumed a device-management console this repo's deployment
+      model no longer has. Whether an equivalent offline-trust mechanism
+      exists under the repo-access model is unresolved, not just unverified
+      — a question for whoever next revisits ADR-M9-004, not something this
+      runbook can close.
 
 ## 6. Tray light/dark icon (closes: row 6, ADR-M9-001)
 
@@ -227,11 +228,14 @@ first real Windows-side data point M9 has ever had.
       wiring (via Tauri's notification plugin) and the "fallback-to-IT-
       channel is primary" conservative-default code path §3 item 4 names as
       a decision but which has no corresponding code yet.
-- [ ] Once that code exists: on a real Intune or GPO test console, attempt
-      to centrally force-enable this app's notification permission for a
-      managed user. This is the specific empirical question §3 item 4 leaves
-      open — record whichever answer you get (yes/no/partial) as a WP, since
-      neither this runbook nor the ADR could determine it without a real
+- [ ] **Not applicable, superseded by D4:** once that code exists, this step
+      used to call for a real device-management test console to attempt
+      centrally force-enabling this app's notification permission. Under the
+      repo-access deployment model there is no such console; the empirical
+      question §3 item 4 leaves open is left unresolved here, not just
+      unverified — record whichever answer you get (yes/no/partial) as a WP
+      if this is revisited, since neither this runbook nor the ADR could
+      determine it without a real
       console.
 
 ## 10. Close the loop

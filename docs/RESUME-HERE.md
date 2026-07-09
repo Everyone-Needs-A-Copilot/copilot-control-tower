@@ -1,11 +1,24 @@
-# RESUME-HERE — Copilot Control Tower (post-build pickup)
+# RESUME-HERE: Copilot Control Tower (post-build pickup)
 
 **Read this first when you come back.** The app is *built*. This document is the
 bridge from "9 milestones of code that renders mocks" to "a signed, live product."
-It supersedes [`HANDOFF.md`](HANDOFF.md) (which was the *build* brief — now done).
+It supersedes [`HANDOFF.md`](HANDOFF.md) (which was the *build* brief, now done).
+
+> **Model note (read before the rest):** after this pause, an audit found the
+> repo's model needed correction: the Copilot Solutioning Ecosystem (CSE). See
+> [`docs/reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md)
+> and [`docs/reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md),
+> which now govern. Two consequences that change the picklist below: MDM is
+> dropped completely as a mechanism (no `.mobileconfig`, no forced/managed
+> domain, no fleet console as Admin's center of gravity); entitlement and
+> deployment are GitHub repo access instead, and the shared-secret-store
+> endpoint travels via inherited org repo config, GitHub-team-gated. The
+> code-level rename of "product" to "component" (the CSE tooling axis) is
+> still pending; it is real work, deferred to the build phase, not done by
+> this doc pass.
 
 > **Kickoff (paste into a fresh Claude Code session in this repo):**
-> *"Read `docs/RESUME-HERE.md` end-to-end. Apple account is approved now — let's continue."*
+> *"Read `docs/RESUME-HERE.md` end-to-end. Apple account is approved now: let's continue."*
 
 Paused **2026-07-08** because Apple Developer Program enrollment is **awaiting
 approval**. Nothing is blocked structurally; we're waiting on that one gate, and
@@ -14,10 +27,10 @@ archaeology dig.
 
 ---
 
-## TL;DR — the state in five lines
+## TL;DR: the state in five lines
 
 - **All 9 milestones are built, sec+qa gated, and pushed.** ~860 tests green on macOS.
-- The app **renders mocks** for everything that needs live infra/credentials. That's by design — the seams exist; only the far ends are stubbed.
+- The app **renders mocks** for everything that needs live infra/credentials. That's by design: the seams exist; only the far ends are stubbed.
 - **The only external blocker is Apple approval** (for signing/notarization). Everything else is a decision or an endpoint *you* own.
 - **I (Claude) can make real progress with zero input from you** on exactly one big front: de-mocking the CLI contract (WS-A) in the `claude-copilot` repo.
 - When you return: do the **Signing** section, then tell me to start **WS-A de-mock**. Those two turn "built" into "real."
@@ -42,49 +55,61 @@ for the web UI is unaffected.
 
 ---
 
-## ▶ WHAT YOU DO WHEN APPLE APPROVES (owner-only — I can't do these)
+## ▶ WHAT YOU DO WHEN APPLE APPROVES (owner-only: I can't do these)
 
 Ordered by leverage. #1 is the whole reason we paused.
 
-### 1. Signing & notarization (unblocks the macOS release path — M4)
+### 1. Signing & notarization (unblocks the macOS release path: M4)
 This is what the Apple approval gates. Once your membership is active:
-- **Developer ID Application certificate** — Developer portal → Certificates → create
+- **Developer ID Application certificate**: Developer portal → Certificates → create
   a *Developer ID Application* cert (this signs a Mac app distributed **outside** the
   App Store, which is us). Export it as a `.p12` + password.
-- **Notarization credential** — App Store Connect → Users and Access → Integrations →
+- **Notarization credential**: App Store Connect → Users and Access → Integrations →
   **App Store Connect API key** (preferred), *or* an app-specific password on your
   Apple ID. `notarytool` uses this to notarize + staple.
 - **Hand me the identity name** (e.g. `Developer ID Application: Your Name (TEAMID)`)
   and I wire the real `codesign` → `notarytool submit` → `stapler` path. The release
   scripts already read the identity from an env var, so this is a config drop, not a
   rewrite.
-- Note: an **Individual** membership is fine for this — certs will carry *your name*,
+- Note: an **Individual** membership is fine for this: certs will carry *your name*,
   not a company's. If you want the org name on the signature instead, that's the
   Terry-Hughes-org path (see [`06-deployment/requirements.html`](06-deployment/requirements.html)).
 
-### 2. Update-signing keys (minisign 2-of-N — M4/M7)
+### 2. Update-signing keys (minisign 2-of-N: M4/M7)
 - **Decide the second key-holder** (who besides you holds a self-update signing key).
   `k ≥ 2` signatures required; roots are compiled-in code, not config.
 - Then I generate the keypair(s); you custody the private keys offline; the public
   roots get compiled in. Until this exists, self-update verifies a placeholder root.
 
-### 3. Infra endpoints (the four URLs — M6/M7)
+### 3. Infra endpoints (M6/M7, plus one new one from the CSE realignment)
 All *your* infrastructure. The app has content-free seams pointed at mocks for each.
 Give me a real URL (or say "later, keep it mocked") per line:
 - **Telemetry ingest** endpoint (opt-in, content-free, default OFF).
-- **Fleet collector** query API (feeds the Admin/fleet dashboard).
 - **IT / AdminContact** delivery channel (where EscalateIt signals go).
 - **Update feed** URL (where the signed self-update manifest is served).
+- **Central shared secret store** (Infisical / OpenBao or similar; new per D6):
+  holds org/department integration keys (Workday, Salesforce, Microsoft,
+  etc.), access gated by GitHub-team membership, endpoint delivered via
+  inherited org repo config. This replaces the fleet-collector line that used
+  to be here: a fleet dashboard is no longer Admin's center of gravity (D4).
 
-### 4. A test-enrolled Mac (MDM — M5)
-To verify the forced-domain gate end-to-end with a real `.mobileconfig`. The
-generator is built and unit-tested; only a live MDM-enrolled machine proves the
-boundary. Owner-gated: needs your MDM (or a test profile installed).
+### 4. Owner-side decisions for the three new CSE surfaces (D7)
+Not MDM enrollment (that mechanism is dropped, see the model note above).
+The corrected model adds three real gaps that need your input once code work
+starts on them:
+- **Department discovery + join:** the CLI verb shape for "which departments
+  can this GitHub account join, and how does selecting one sync that layer."
+- **Entitled shared integrations vs. personal sign-in:** confirm which
+  integrations (Salesforce, Workday, Microsoft) are org/dept-provisioned via
+  the shared secret store above, versus which stay per-person device-flow.
+- **Personal-key multi-machine sync:** the carrier/mechanism for syncing a
+  user's own keys across their own machines (still open per D7.3).
 
-### 5. A real IT person on Admin/fleet (validation — M7)
+### 5. A real IT person on Admin (validation)
 Those surfaces are stamped **UNVALIDATED HYPOTHESIS** (SOUL Founding Decision #9).
-No real operator has touched them. This is a validation gap, not a code gap —
-find one IT admin to walk through it before treating Admin mode as proven.
+No real operator has touched them. This is a validation gap, not a code gap:
+find one IT admin to walk through repo/team standup, the shared secret store,
+and the ecosystem seed before treating Admin mode as proven.
 
 ### 6. Windows (M9)
 Needs a **Windows box + Authenticode cert** to build/sign/test the re-skin. It's
@@ -95,24 +120,33 @@ until macOS ships.
 
 ## ▶ WHAT I START ON RESUME (no input from you needed)
 
-### WS-A CLI de-mock — the single highest-value autonomous track
+### WS-A CLI de-mock: the single highest-value autonomous track
 The app parses a **frozen `--json` contract**; several verbs it renders don't exist
 in the `cc` CLI yet, so the app is built against mocks/fixtures. Implementing the
 real verbs in `claude-copilot` is on-machine work needing nothing from you, and it's
 the thing that most moves this from "renders a mock" to "renders the real CLI":
 
-- **`cc auth` device-flow** (RFC 8628) — the wizard sign-in seam (M3 gap D-3-M3).
-- **`cc layers add`** — the Settings layer-manifest authoring verb (M2 fallback D-1).
-- **Per-layer status field** in `doctor.schema.json` — so the app renders richer
-  per-product/per-layer copy without computing (M1 decision D-1, in memory as a
+- **`cc auth` device-flow** (RFC 8628): the wizard sign-in seam (M3 gap D-3-M3).
+  This is the *personal* sign-in half of D7.2 (entitled shared integrations vs.
+  personal sign-in); keep it a distinct verb from whatever provisions shared
+  integrations from the central secret store.
+- **`cc layers add`**: the Settings layer-manifest authoring verb (M2 fallback D-1).
+  This is also the natural home for department discovery/join (D7.1, CSE gap):
+  confirm whether `cc layers add` should grow a "list what I'm entitled to"
+  read mode, or whether that's a separate verb, before building the UI on top
+  of it.
+- **Per-layer status field** in `doctor.schema.json`: so the app renders richer
+  per-component/per-layer copy without computing (M1 decision D-1, in memory as a
   follow-up).
-- **`telemetry.enabled` / `telemetry.endpoint`** field on the `cc --json` contract —
+- **`telemetry.enabled` / `telemetry.endpoint`** field on the `cc --json` contract:
   resolves the M7 carrier-divergence gap (G-M7-1) so opt-in is read from a trusted
   carrier, never an unsigned/user domain.
 
 Each lands the same way the existing WS-A slices did: schema first (freeze the
 shape), fail-closed parser, then the verb. When these exist, I swap the app's mocks
-for real calls verb-by-verb.
+for real calls verb-by-verb. Not yet scoped as WS-A slices, but tracked per the
+CSE realignment (D7): the entitled-shared-integrations register and personal-key
+multi-machine sync (D7.3). Those need design first, see item 4 above.
 
 **When you're back, just say:** *"Start the WS-A de-mock, beginning with `cc auth`."*
 
@@ -127,14 +161,14 @@ but they're the questions I'll ask when the relevant work comes up:
 - **Real values or "keep mocked"** for the four infra endpoints (item 3).
 - **Stalled-onboarding threshold** and **update retry/backoff** params (M7 defaults).
 - **Merge `app-build` → `main`** now, or keep iterating on the branch.
-- **Individual vs org signing identity** — which name goes on the signature
+- **Individual vs org signing identity**: which name goes on the signature
   (decided partly by whether Terry's org account frees up).
 
 ---
 
-## The map — where everything is documented
+## The map: where everything is documented
 
-- **The invariants (govern everything):** [`CLAUDE.md`](../CLAUDE.md) — the 6 rules, verbatim.
+- **The invariants (govern everything):** [`CLAUDE.md`](../CLAUDE.md): the 6 rules, verbatim.
 - **The soul + feature filter:** [`SOUL.md`](../SOUL.md).
 - **The contract the app parses:** [`01-architecture/schemas/`](01-architecture/schemas/) + [`cli-contract.md`](01-architecture/cli-contract.md) + [`error-taxonomy.md`](01-architecture/error-taxonomy.md).
 - **Signing + infra explainer (role/tier-tiered, HTML):** [`06-deployment/requirements.html`](06-deployment/requirements.html).
@@ -149,12 +183,12 @@ but they're the questions I'll ask when the relevant work comes up:
 
 Every milestone was sec+qa gated with **mutation-tested** invariant fitness tests.
 Verified structurally, not by inspection:
-- **False-Healthy is impossible** — the app can't compute a green state; it only renders CLI verdicts.
-- **Secrets never leak** — inheritance content carries only `requires_secret: <NAME>` references; fail-closed leak-scan on every writable push.
-- **Crash-only never resurrect-always** — launchd `KeepAlive={SuccessfulExit:false}`; Windows Task Scheduler failure-restart-with-cap, never periodic-repeat.
-- **No computed fleet score** — the dashboard renders CLI-computed per-host worst-wins, no "94/100."
+- **False-Healthy is impossible**: the app can't compute a green state; it only renders CLI verdicts.
+- **Secrets never leak**: inheritance content carries only `requires_secret: <NAME>` references; fail-closed leak-scan on every writable push.
+- **Crash-only never resurrect-always**: launchd `KeepAlive={SuccessfulExit:false}`; Windows Task Scheduler failure-restart-with-cap, never periodic-repeat.
+- **No computed fleet score**: the dashboard renders CLI-computed per-host worst-wins, no "94/100."
 - **Telemetry is opt-in, default OFF**, content-free.
-- **Windows code is `#[cfg(windows)]`-gated out** — macOS unregressed; Windows build owner-gated.
+- **Windows code is `#[cfg(windows)]`-gated out**: macOS unregressed; Windows build owner-gated.
 
 Personas were neutralized before pause (Earl / Rosa / Dwayne / Bob / Ada / Mira /
-Pablo) for the OSS launch — no stereotyped placeholder names remain in docs or code.
+Pablo) for the OSS launch: no stereotyped placeholder names remain in docs or code.
