@@ -365,142 +365,496 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
 
 # SURFACE 3: Admin mode (S4)
 
-For **Earl**, the IT operator standing up and governing the ecosystem. Still calm and
-honest, still no raw errors and no jargon dumped on anyone, but Earl is technical enough
-for words like "team", "access", and "pull request". No "MDM" anywhere (it's gone). Two
-sidebar sections: **Onboarding** (do once) and **Governance** (occasional).
+For **Earl**, the technical operator standing up and governing the ecosystem on GitHub.
+Still calm and honest, still no raw errors and no jargon dumped on anyone, but Earl is
+technical enough for "team", "access", "terminal", and "pull request". No "MDM"
+anywhere (it's gone).
+
+Admin is a **baton pass**, not a wizard: the app is the confident briefer and honest
+verifier; Claude Code, over a deterministic script, is the capable driver. The app
+teaches, collects a plain description into a non-secret brief, hands off a copyable
+command, and reads the result back from GitHub. **It fires no GitHub change of its
+own.** Two sidebar sections: **Onboarding** (the once-through progression, eleven
+waypoints) and **Governance** (occasional, five entries).
 
 Window title: `Administration`
 
 ## 3.1 The handoff header (persistent, read-only)
 
+Sits atop the window whenever an Onboarding item is selected.
+
 - Pattern: `<Publisher status> · Setup <version> · Next: <owner>`
 - Example: `Publisher done · Setup v1.4.2 · Next: you (Admin)`
-- When nothing has run yet: `Not started yet`
+- Reveal affordance (trailing): `Reveal setup ›`
+- When nothing has run yet, or the handoff can't be read: `Not started yet`
+- Unreadable holding line (replaces the header chips): `I couldn't read the result of
+  this, so I won't guess.`
 
-## 3.2 Sidebar labels
+## 3.2 Sidebar labels and progression marks
 
-- Section `ONBOARDING`: `Prerequisites` · `Contacts` · `Repositories & teams` ·
-  `Authors & keys` · `Secret store` · `Seed` · `Policy signers` · `Preflight`
-- Section `GOVERNANCE`: `Deprovision` · `Analytics` · `Secret store config`
+Two sections. Onboarding rows carry roadmap marks that show *progress*, never
+*permission*: nothing downstream is ever locked, greyed, or lock-glyphed. The map
+guides; the terminal gates.
 
-## 3.3 Prerequisites
+- Section `ONBOARDING`: `Orientation` · `Prerequisites` · `Contacts` ·
+  `Connect GitHub` · `Describe your organization` · `Integrations` · `Secret store` ·
+  `Review and hand off` · `Handed off` · `Setup check` · `Done`
+- Section `GOVERNANCE`: `Add a department` · `Someone left` ·
+  `Connect the shared store` · `Org setup` · `Analytics`
+- Roadmap marks (shape, never color alone): done · current · upcoming.
+- Connect GitHub advisory partial: while some readiness rows are short, the item shows
+  a neutral partial mark and a plain count, rendered quiet gray, never red or orange,
+  e.g. `Connect GitHub  3/5`. It reaches done only when all five rows are green, but
+  reaching done is never a precondition for anything downstream.
 
+Governance rows carry **no** progression marks; they are occasional entries, not a
+pipeline.
+
+## 3.3 Orientation (teach the ecosystem, then the arc)
+
+Teaches what the ecosystem is before what to do, via progressive disclosure. Collects
+nothing.
+
+- Eyebrow: `ONBOARDING`
+- Title: `Here's what you're building, and the whole path`
+- Intro (what this builds): `Your copilots live in a set of shared spaces on GitHub
+  that build on one another. The open-source foundation sits at the bottom. Your
+  organization adds its own on top. Each department adds what only it needs. Each
+  person adds their own on top of that. Everyone inherits everything beneath them, so
+  you share broad capabilities widely and keep specialized ones narrow.`
+- The arc (three read-only steps): `1. Describe your organization here.` /
+  `2. Claude Code sets it up in your terminal.` / `3. Come back and run the Setup
+  check.`
+- Assurance under the arc: `This app never changes anything on GitHub itself. It gets
+  you ready, hands the work to Claude Code, and checks the result.`
+- Learn-more affordance: `Learn how the ecosystem works ›`
+- Primary button: `Start`
+- Unreadable handoff (degraded): the header reads `Not started yet`, the teach content
+  still renders, and the holding line is `I couldn't read the result of this, so I
+  won't guess.`
+
+### 3.3.1 Learn more (the pushed explainer)
+
+Two explainer views behind a segmented pager, each over a theme-aware inheritance
+diagram. A leading Back returns to the calm overview.
+
+- Eyebrow: `LEARN MORE`
+- Pager segments: `How it works` · `What your team gets`
+- Back button: `Back to the overview`
+- **View 1, how it works:** `Each layer carries three kinds of space: one for
+  instructions and agents (your harness's copilot), one for knowledge (your company's
+  information), and one for integrations (tools that reach outside systems). The org
+  level carries org-level agents, org-level integrations, and org information.`
+- **View 2, what your team gets:** `Every person inherits your organization's agents,
+  skills, knowledge, and integrations, plus their department's, on the open-source
+  foundation. They build their own solutions faster, going broad with what the org
+  shares and narrow with what their department adds.`
+- Diagram alt text (it is content, not decoration): `The four layers, each inheriting
+  everything beneath it: the open-source foundation, then your organization, then each
+  department, then each person.`
+- **The four example skills** (concrete, never abstractions), shown under View 2:
+  - `Org: a skill that writes on-brand documents in your brand voice, and a proposal
+    and SOW builder.`
+  - `Accounting: a month-end reconciliation skill.`
+  - `IT: an onboarding and offboarding access-runbook skill.`
+  - `Sales: a call-prep brief skill.`
+
+## 3.4 Prerequisites (before you begin)
+
+Teaches what must be true before setup can run. Collects nothing. No failure state by
+design: it names the one categorical automation boundary before anything can fail on it.
+
+- Eyebrow: `ONBOARDING`
 - Title: `Before you begin`
-- Intro: `A short checklist of what you'll need on hand to stand up the ecosystem. None
-  of it is done here, this is just so nothing stops you halfway.`
-- Empty / not-started: `Nothing checked yet. Work down the list when you're ready.`
+- Intro: `A few things need to be true before setup can run. None of them happen here.
+  This is just so nothing stops you halfway.`
+- Teach rows:
+  - `Your organization exists on GitHub. Creating one needs billing and a person, so it
+    can't be automated. If it doesn't exist yet, create it at github.com first.` +
+    link `Open github ›`
+  - `You are an owner of it. Only an owner can create the organization's spaces.`
+  - `You have GitHub's command-line tool and Claude Code on this Mac. The next step
+    checks and helps.`
+- Buttons: `Back` / `Continue`
 
-## 3.4 Contacts
+## 3.5 Contacts (who's who)
 
+- Eyebrow: `ONBOARDING`
 - Title: `Who's who`
 - Intro: `Record who owns this setup, so the handoff is never guesswork. These names
   show in the handoff banner and in the setup check.`
 - Field labels: `Publisher` · `Admin` · `Point of contact`
 - Empty: `No contacts yet. Add the people who own this setup.`
 - Save confirmation: `Saved.`
+- Buttons: `Back` / `Continue`
 
-## 3.5 Repositories & teams (the entitlement spine)
+## 3.6 Connect GitHub (readiness, refuse and teach)
 
-- Title: `Departments and access`
-- Intro: `Access is how someone joins a department. Give a team read access and its
-  people can join the department. Give write access and they can author it.`
-- Grant, in plain language (not raw permissions):
-  - read grant: `People on this team can join the Sales department.`
-  - write grant: `These people can author the Sales department.`
-- Add control: `Add a team`
-- Empty (no grants on a department): `No one can join this department yet. Give a team
-  read access to let them in.`
-- Loading: `Applying access...`
-- Error: `Couldn't change access right now. Try again.`
-- Success: `Access updated.`
+Detects local readiness for the terminal session and teaches the one fix where short.
+No mutation. Advisory and strongly guiding, never a hard block; the script is the real
+gate.
 
-## 3.6 Secret store setup
+- Eyebrow: `ONBOARDING`
+- Title: `Get this Mac ready`
+- Intro: `A quick check that this Mac can run the terminal session. This changes
+  nothing. Claude Code checks all of this again when setup runs, and helps you fix
+  anything that's off.`
+- Org field label: `Organization`
+- Closing note under the rows: `This step just gives you a head start. It never blocks
+  the hand-off.`
+- Buttons: `Back` / `Check again`
 
-- Title: `Connect your shared secret store`
-- Intro: `Your organization's shared integrations (Salesforce, Workday, Microsoft) get
-  their keys from one shared store. Connect it once here. You never paste a key into
+**The five readiness rows** (shape and text, never color alone). When passing, each
+reads as a quiet check:
+
+- `GitHub's command-line tool is installed`
+- `You're signed in`
+- `Your account is an owner of acme-co`
+- `Your sign-in has the access setup needs`
+- `Claude Code is installed`
+
+**Not-ready rows, by reason** (each names one fix and its owner; the fix is copyable
+where it's a command; **no bypass, ever**):
+
+- gh not installed: `GitHub's command-line tool isn't on this Mac yet. Setup runs
+  through it.` + copyable `brew install gh` + a download link
+- not signed in: `You're not signed in to GitHub's command-line tool yet.` + copyable
+  `gh auth login`
+- not an owner: `Your GitHub account isn't an owner of this organization, so it can't
+  create its spaces. Ask an owner to run this, or to make you one.`
+- missing access: `Your GitHub sign-in is missing the access setup needs.` + copyable
+  `gh auth refresh -s admin:org -s repo`
+- Claude Code missing: `Claude Code isn't on this Mac yet. Setup runs there, so you'll
+  want it before you hand off.`
+
+**Whole-check states:**
+
+- idle: rows read `Not checked yet.`
+- working: header status `Checking your GitHub access...` (no ETA)
+- ready (all five green): `Your GitHub access can set up acme-co.` and Continue is free
+- degraded (the check itself couldn't run): `Something stopped me from checking your
+  access, so I won't guess.`
+- Copy affordance on any command: `Copy` / confirmed `Copied`
+
+## 3.7 Describe your organization (teach, harness, live plan)
+
+Teaches why departments get their own spaces, asks the harness once org-wide, collects
+identity and departments, and shows the concrete plan by real name. Nothing is created
+here.
+
+- Eyebrow: `ONBOARDING`
+- Title: `Describe your organization`
+- Intro: `Tell setup your organization's name, the harness it builds with, and its
+  departments. As you type, you'll see exactly what will be created. Nothing is created
+  here. This is the plan setup will follow.`
+- **Teach block (why departments get their own spaces):** `Departments get their own
+  spaces so specialized capabilities are tailored to how that department works.
+  Accounting's spaces hold Accounting's skills and knowledge, and each department's
+  people inherit the whole organization's on top.`
+- **Add-later promise (prominent, not a footnote):** `You don't have to add every
+  department now. Adding one later is safe. Setting up again only adds what's new and
+  never touches what's already there.`
+- **Harness question:** `Which development harness does your company build with?` with a
+  two-segment control `Claude Code` | `Codex` (the org-wide default; acme-co is a Codex
+  shop).
+- **Harness reassurance (right under the control):** `This is your organization's
+  default. Anyone can still use the other harness for themselves, on the open-source
+  foundation plus their own personal setup. And you can add the second harness for the
+  whole organization later, as a safe re-run that only adds what's new.`
+- Field labels: `Organization name` · `Departments` (each row removable) · add-row
+  `Add a department`
+- **Invalid-slug refusal (inline, on the offending field):** `Give this department a
+  name using letters, numbers, and dashes.`
+
+**The "What this will create" plan card** (fills live as Earl types; mono repo and team
+names, one per line, grouped by scope; never an abstract summary):
+
+- Card header: `Nothing is created here. This is the plan setup will follow.`
+- Empty prompt (before a valid org name): `Type your organization's name to see the
+  plan.`
+- Org block, opened by `Three shared spaces for your whole organization:` then
+  `acme-co/codex-copilot`, `acme-co/knowledge-copilot`, `acme-co/cli-copilot`, tagged
+  `Private.`
+- Per-department block (Accounting shown), opened by `Three spaces for the Accounting
+  department:` then `acme-co/codex-copilot-accounting`,
+  `acme-co/knowledge-copilot-accounting`, `acme-co/cli-copilot-accounting`, tagged
+  `Private.`, closed by `An Accounting team that can reach them.` (Sales repeats the
+  shape with `-sales`.)
+- Org-wide line: `Your whole organization set to read by default.`
+- Add-later promise repeated at the card's foot: `You don't have to add every
+  department now. Adding one later is safe. Setting up again only adds what's new.`
+- Enumeration grammar: switching the harness re-derives every `<harness>-copilot*` name
+  in one coordinated update; the reassurance copy stays put.
+- Buttons: `Back` / `Continue` (available once a valid org name exists)
+
+## 3.8 Integrations (education only)
+
+Education only. Teaches the integration model and previews how integrations will
+arrive. **Collects nothing.** No declaration form and no secret-shape refusal on this
+surface.
+
+- Eyebrow: `ONBOARDING`
+- Title: `Integrations`
+- Intro: `An integration here is a small command-line tool a developer builds, so a
+  copilot can reach a system like Salesforce or your calendar. It isn't something you
+  switch on.`
+- **Education (two beats):**
+  - `It cascades.` `Built and published for the whole organization, it's inherited by
+    every department. Published for one department, it belongs only there. Published
+    nowhere, it exists for no one.`
+  - `The key lives elsewhere.` `An integration names the key it needs. The key never
+    comes near this app. It lives in the shared store, handed out only to the right
+    team.`
+- **How integrations will arrive (a four-beat lifecycle, read-only):**
+  1. `An engineer on a department builds skills, agents, and integrations inside that
+     department's spaces. Give an engineer write access to a department's team and they
+     can build there.`
+  2. `Each integration is added to a registry, a plain document that lives in the same
+     space and lists what has been built.`
+  3. `Merging that document to the main copy publishes the integration.`
+  4. `From then on, the people entitled to that space see it, and the app your team uses
+     can let them know when a new one arrives.`
+- **The registry preview (a labeled, inert frame with example data only):**
+  - Frame label: `PREVIEW · not live`
+  - Example rows: `acme-co/cli-copilot-sales · registry (example)`, then
+    `salesforce-lookup   needs SALESFORCE_API_KEY` and `calendar-read   needs
+    GOOGLE_CAL_TOKEN`
+  - Caption: `This is what a published registry will look like. It is an example, not
+    your data, and nothing here is clickable.`
+- **Honest ending:** `There's nothing to set up here today. No integrations exist yet,
+  and that's expected. They arrive when your departments' engineers build and publish
+  them.`
+- Buttons: `Back` / `Continue`
+
+## 3.9 Secret store (educate, then connect or defer)
+
+Educates on what a store is and its runtime use, then connects or defers honestly. The
+secret-shape refusal is **retained here**. No hard gate on finishing standup.
+
+- Eyebrow: `ONBOARDING`
+- Title: `Your shared secret store`
+- Intro (educate): `A shared secret store is one service that holds your organization's
+  keys and hands them out by team. Shared integrations need it: an integration names the
+  key it needs, and at runtime the store checks that the person is on the right GitHub
+  team and only then hands over the key. That is why a key never lives in a repo or in
   this app.`
-- Field labels: `Store type` · `Store address` · `Which teams can use it`
-- Store-address help: `This is a web address, not a secret.`
-- **The secret-shape refusal (a hard block, not a warning):**
-  `That looks like a secret. This setting never holds secrets. Secrets live in the
-  store itself, or in your keychain, never here.`
-  (The rejected value is not saved and not logged.)
-- Address validation error: `That doesn't look like a valid address.`
-- Success: `Connected. This will be included when you open your setup pull request.`
+- **Connect a store (form):**
+  - Section label: `Connect a store`
+  - Field labels: `Store type` · `Store address` · `Which teams can use it`
+  - Store-address help: `This is a web address, not a secret.`
+- **No store yet? (connect-or-defer, both honest):**
+  - Section label: `No store yet?`
+  - Truth line: `Shared integrations can't work until you connect a store. You have no
+    integrations yet, so you can finish setting up now and connect a store before your
+    first one is built.`
+  - Pause and go get one: `Pause and go get one. Common shared stores are 1Password,
+    Infisical, and Vault (also called OpenBao). Set one up, then come back with its web
+    address.` + link `How to set one up ›`
+  - Defer and finish (honest, with its consequence): `Skip this for now. You'll be
+    reminded to connect a store before your first shared integration can work.` + button
+    `Skip for now`
+- **Refusals:**
+  - Address invalid (on blur): `That doesn't look like a valid address.`
+  - Secret-shape refusal (a hard block; value blocked, never saved, never logged): `That
+    looks like a secret. This setting never holds secrets. Secrets live in the store
+    itself, or in your keychain, never here.`
+- **Connected:** `Connected. This will be included when you hand off.`
+- Buttons: `Back` / `Continue` (Continue is never gated; deferral is a valid path to
+  Done)
 
-## 3.7 Seed generator
+## 3.10 Review and hand off (the baton pass)
 
-- Title: `Build your setup`
-- Intro: `Fill in the sections below and Control Tower writes the setup file for you,
-  then opens a pull request. You never touch a config file or a terminal.`
-- Section titles: `Copilots` · `Departments` · `Versions` · `Integration references` ·
-  `Policy signers` · `Usage data`
-- Add-row labels: `Add a department` · `Add a signer`
-- Preview heading: `What this will create`
-- Validate button: `Check it over`
-- Validation summary (a count, never a score): `2 things to fix` /
-  `Everything checks out.`
-- Per-field error pattern (plain, attached to the field): `<plain message>` (for
-  example `Give this department a name.`)
-- Open-PR button (enabled only once valid): `Open pull request`
-- Opening: `Opening pull request...`
-- Success: `Opened pull request #123.` + link `Open in browser`
-- Empty (first-time author): `Write your ecosystem setup without touching a config
-  file. Control Tower turns your answers into a valid setup file and opens the pull
-  request for you.` + CTA `Start from your organization`
+Enumerates concretely what will be created, writes the non-secret brief, and generates
+the copyable command. **No "set up my org" mutation.**
 
-## 3.8 Preflight (the setup check)
+- Eyebrow: `ONBOARDING`
+- Title: `Review and hand off`
+- Intro: `Here's everything setup will create. Copy the command below, open your
+  terminal, and paste it. Claude Code walks you through the rest and checks everything
+  with GitHub as it goes.`
+- **Never-destroy promise (pinned above the enumeration):** `This adds and updates. It
+  never deletes or overwrites anything already there.`
+- **What setup will create** (the same real names from Describe):
+  - `Org spaces: acme-co/codex-copilot, acme-co/knowledge-copilot, acme-co/cli-copilot.
+    Private.`
+  - `Accounting: three spaces and an Accounting team.`
+  - `Sales: three spaces and a Sales team.`
+  - `Your organization's setup file (ecosystem.yml).`
+  - `Your whole organization set to read by default.`
+  - `Harness: Codex.` and the store state: `Store: connected.` or `Store: not connected
+    yet.`
+- **The brief-file card:**
+  - `Setup wrote a plain description of your organization you can read:` + mono path
+    `~/…/CopilotControlTower/standup-brief.md` + affordance `Reveal ›`
+  - At a glance: `acme-co · Codex · 2 departments · store connected.`
+  - Honesty line: `It carries no secrets and no integrations.`
+- **The command block:**
+  - One mono line (placeholder shape, a TA contract item): `claude --skill
+    admin-bootstrap <points at the file above>`
+  - Copy affordance (attached to the command): `Copy the setup command` / confirmed
+    `Copied`
+  - What crosses the boundary: `This hands Claude Code a plain description of your
+    organization. It carries no secrets. Claude Code checks it with you, then does the
+    work.`
+  - Return instruction: `When Claude Code says it's done, come back here and run the
+    Setup check.`
+  - Quiet copy-only path: `When you've pasted it, come here to wait ›`
+- **Brief-write failure (retry; the command is withheld):** `I couldn't write the setup
+  file, so I won't hand off a command that points at nothing. Try again.`
+- Footer: `Back` / `Open Terminal` (advances to Handed off). The primary is never "Set
+  up my org."
 
-- Title: `Run the setup check`
-- Intro: `An honest red and green list before you hand this over. Every red names who
-  has to fix it, so you always know who to chase.`
-- Run button: `Run the setup check`
-- Re-run button: `Run it again`
+## 3.11 Handed off (the blind resting state)
+
+An honest blind resting state while the terminal works, and the one way back. **No fake
+spinner, ever;** stillness is the honesty.
+
+- Eyebrow: `ONBOARDING`
+- Title: `Setup is running in your terminal`
+- Intro: `Claude Code is setting up your organization now.`
+- Resting body: `This app can't see your terminal, so it won't guess how it's going.
+  When Claude Code says it's done, run the Setup check and this app will read the result
+  straight from GitHub.`
+- The one action: `Run the Setup check`
+- Close-safe reassurance (always visible): `You can close this. Your organization's
+  setup lives on GitHub, and the Setup check reads it fresh every time.`
+
+## 3.12 Setup check (post-run verification, from GitHub truth)
+
+Post-run verification read from GitHub truth: red and green, owner-named, count never
+score, drift shown honestly. **Computes no verdict.**
+
+- Eyebrow: `ONBOARDING`
+- Title: `The setup check`
+- Intro: `An honest look at what's really on GitHub now. Every red names who has to fix
+  it.`
+- **Drift note (persistent, under the title):** `This reads what's really on GitHub, not
+  what you typed here. If setup did more or less than your plan, you'll see it below.`
 - Row status words (shape and text, never color alone):
   - pass: `Ready`
   - fail: the plain `detail` line for that check
   - unknown (**never green**): `Couldn't check this`
-- Owner tag per red or unknown row: `Publisher` / `Admin` / `You` / `The user`
-- Summary (a plain count, no score, no percentage, no gauge):
-  `2 things must be fixed. 1 couldn't be checked.`
-  When clean: `Everything's ready to hand over.`
-- Drill-in on a red row: expands to the plain `detail` plus a fix affordance:
-  - Admin-owned: `Go fix this` (jumps to the right onboarding step)
-  - Publisher-owned: the plain instruction + the handoff reference
-  - User-owned: the plain description, no dead end
-- Empty (never run): `Run the setup check before you hand this over. It catches
-  blockers before your organization does.` + CTA `Run the setup check`
+- Owner tag per red or unknown row: `Admin` / `GitHub org owner` / `IT infra` / `The
+  foundation (external)`
+- **Beyond-plan present row** (present, not error; no owner, no fix, not counted): a
+  neutral present mark + the item name + caption `This wasn't in your plan. Setup added
+  it, and that's fine.`
+- **Deferred-store row** (a fourth honest state, neutral, never red and never orange,
+  not counted): owner `Admin`, line `Not connected yet. Shared integrations can't work
+  until you connect one. You chose to do this later.` + action `Connect ›` (jumps to
+  Connect the shared store)
+- Summary (a plain count, no score, no percentage, no gauge): `1 thing must be fixed.
+  Nothing couldn't be checked.` When clean: `Everything's ready to hand over.`
+- Working: `Checking what's really on GitHub...` (no ETA)
+- Admin-owned red drill-in: the plain `detail` + `Go fix this` (jumps to the surface
+  that authored the offending input)
+- Empty (never run): `Run the setup check before you hand this over. It catches blockers
+  before your organization does.` + CTA `Run the setup check`
+- Footer: `Run it again` / `Continue` (to Done, when clean)
 
-## 3.9 Governance: Deprovision (IT side)
+## 3.13 Done, and what now
 
+Calm confirmation, then the two forward actions. **No celebration.**
+
+- Eyebrow: `ONBOARDING`
+- Title: `Your organization is set up`
+- Intro: `The spaces exist, the teams can reach them, and your setup file is in place.
+  Two things to do next.`
+- **Invite the team, on GitHub:** `People join a department by being added to its team
+  on GitHub. Add someone to the Sales team and they can join Sales from their own
+  copilot. This app never manages people. GitHub does.` + link `Open your teams ›`
+- **Point users at the app:** `Your team installs Copilot Control Tower themselves, and
+  it sets them up from what you just built. Send them the app, and they'll see the
+  departments they're on.`
+
+---
+
+**GOVERNANCE surfaces** (occasional; no progression marks). The same describe / hand off
+/ verify instrument as standup, plus guidance for the acts that belong on GitHub and in
+the store.
+
+## 3.14 Governance: Add a department (or the second harness)
+
+Entry to steady-state; frames the safe re-run, then routes into Describe (3.7).
+
+- Eyebrow: `GOVERNANCE`
+- Title: `Add a department`
+- Intro: `Add a department here. Setting up again only adds what's new and never touches
+  what's already there.`
+- Existing-state frame: `Your organization already has: Accounting, Sales, on Codex. Add
+  a new department and you'll see the plan for just its three spaces and its team. You
+  can also add Claude Code alongside Codex for the whole organization; it only adds the
+  new claude-copilot spaces and leaves everything else alone.`
+- Primary: `Describe the addition` (opens Describe with existing units pre-filled and
+  locked, only the addition editable; then reuses Review, Handed off, and the Setup
+  check)
+
+## 3.15 Governance: Someone left (guidance, not management)
+
+Instructional guidance for a leaver. Renders the person's teams and the named keys to
+rotate. **Triggers nothing.** No offboard button.
+
+- Eyebrow: `GOVERNANCE`
 - Title: `Someone left`
-- Intro: `When a person's access is revoked, this is what happened on their Mac.
-  Control Tower renders it, it never triggers it.`
-- Outcome line patterns:
-  - `Their access was revoked and their shared keys were rotated.`
-  - Retained work (prominent, the never-destroy reassurance): `Their unsaved work was
-    kept: <list>.` / when empty: `No unsaved personal work was in the way.`
-  - Removed count (neutral, no editorializing): `<N> item(s) removed.`
-- The one case allowed to read as an alarm (honesty outranks calm), when secrets were
-  involved: `Heads up: secrets were involved in this. Your IT team has been told.`
+- Intro: `This app doesn't manage people. When someone leaves, remove them from their
+  teams on GitHub. Then rotate the keys those teams could reach in your shared store, so
+  their old access is worthless.`
+- Lookup field label: `Who left` (with a look-up action)
+- **Teams they were on (remove them on GitHub):** each row is a team name + `Open on
+  GitHub ›` (for example `Accounting team`, `Sales team`)
+- **Keys to rotate (in your shared store):** each row is a key name, its department, and
+  `Open the store ›` (for example `SALESFORCE_API_KEY (Sales)`, `NETSUITE_TOKEN
+  (Accounting)`)
 - Unreadable: `I couldn't read the result of this, so I won't guess.`
 
-## 3.10 Governance: Analytics
+## 3.16 Governance: Connect the shared store (the deferred case)
 
+The governance home for connecting a store, for the org that deferred at standup or is
+adding one before its first integration ships. Reuses the educate-and-connect form; a
+collect surface whose write is authored by the script through a hand-off.
+
+- Eyebrow: `GOVERNANCE`
+- Title: `Connect the shared store`
+- Intro: `Connect the store that holds your organization's shared keys. Your
+  integrations will need it before they can work. A shared secret store hands out keys
+  by GitHub team, so a key never lives in a repo or in this app.`
+- Field labels: `Store type` · `Store address` (help `This is a web address, not a
+  secret.`) · `Which teams can use it`
+- Secret-shape refusal (retained): `That looks like a secret. This setting never holds
+  secrets. Secrets live in the store itself, or in your keychain, never here.`
+- **How this is added (never-destroy, inline):** `This adds your store pointer to your
+  organization's setup. It never deletes or overwrites anything already there. Claude
+  Code makes the change in your terminal, the same way it set up your organization.`
+- Primary: `Copy the command to add it` / confirmed `Copied` (then routes through Handed
+  off and the Setup check, where the store row flips to `Ready`)
+
+## 3.17 Governance: Org setup (read-only summary)
+
+Everything the org distributes, in one read-only place. Merges the old store-config
+panel. Collects nothing.
+
+- Eyebrow: `GOVERNANCE`
+- Title: `Your organization's setup`
+- Intro: `Everything your organization hands out, in one place. This comes from your
+  organization's setup on GitHub. It isn't editable here, by design.`
+- Section `COPILOTS & HARNESS`: `Harness: Codex.` plus the copilots and their versions
+  (`Codex · Knowledge · CLI`)
+- Section `DEPARTMENTS`: `Accounting · Sales`
+- Section `PUBLISHED INTEGRATIONS` (rolled up from the departments' registries), empty:
+  `None published yet.`
+- Section `WHERE YOUR SHARED KEYS COME FROM`:
+  - connected: the store address, read-only, under `Where your shared keys come from`
+  - not connected (deferred): `Not connected yet. Connect one before your first shared
+    integration can work.` + jump `Connect the store ›` (opens 3.16)
+
+## 3.18 Governance: Analytics (off by default)
+
+- Eyebrow: `GOVERNANCE`
 - Title: `Usage data`
-- Switch label: `Share anonymous usage data`
-- Off-by-default note: `Off. Nothing is shared unless you turn this on and your
+- Off-by-default note (intro): `Off. Nothing is shared unless you turn this on and your
   organization signs off on it.`
+- Switch label: `Share anonymous usage data`
 - Read-only "what would be sent" heading: `What this would share`
-
-## 3.11 Governance: Secret store config
-
-- Title: `Shared secret store`
-- Read-only endpoint heading: `Where your shared keys come from`
-- Note: `This comes from your organization's signed setup. It isn't editable here, by
-  design.`
 
 ---
 
@@ -519,7 +873,7 @@ voice stays consistent end to end.
   `UpdateState.message` verbatim; never a raw signature or watchdog string.
 - idle / up-to-date: render nothing.
 
-## 4.2 Deprovision (user side), a quiet Bob-lane notice
+## 4.2 Access turned off, the user side of "Someone left" (a quiet Bob-lane notice)
 
 - `Your access here was turned off. Your unsaved work was kept: <list>.`
 - when empty: `Your access here was turned off. Nothing of yours was in the way.`

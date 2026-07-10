@@ -1,0 +1,1667 @@
+<title>Admin Mode Walkthrough</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, "Cascadia Mono", monospace;
+    --tl-red: #ff5f57; --tl-yellow: #febc2e; --tl-green: #28c840;
+
+    /* Commentary register: hue-biased neutral ground + one restrained accent */
+    --pg-bg: #f3f2ef; --pg-bg2: #eae8e3; --pg-surface: #ffffff;
+    --pg-ink: #1b1b1d; --pg-ink-soft: #55565c; --pg-ink-faint: #8c8c92;
+    --pg-line: #e2e0da; --pg-line-strong: #cfccc4; --pg-accent: #2f5fce;
+    --pg-shadow: 0 1px 2px rgba(30,25,15,.05), 0 8px 24px rgba(30,25,15,.06);
+
+    /* Quiet Instrument register: the mock windows */
+    --qi-window: #ececf0; --qi-card: #ffffff; --qi-field: #f7f7f9; --qi-sidebar: #e4e4ea;
+    --qi-ink: #1d1d1f; --qi-ink-soft: #6b6b70; --qi-ink-faint: #9a9aa0;
+    --qi-sep: rgba(0,0,0,.11); --qi-accent: #0968e5;
+    --qi-green: #1f9d55; --qi-orange: #b25900; --qi-red: #d92c1f; --qi-blue: #0968e5;
+    --qi-shadow: 0 1px 2px rgba(20,20,25,.08), 0 16px 40px rgba(20,20,25,.14);
+
+    /* Terminal: the non-app touchpoint */
+    --term-bg: #1c1c1f; --term-ink: #e7e7ea; --term-dim: #8b8b92; --term-accent: #5fd97a; --term-sep: rgba(255,255,255,.09);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --pg-bg: #16161a; --pg-bg2: #1c1c21; --pg-surface: #1f1f24;
+      --pg-ink: #eeeeef; --pg-ink-soft: #a9a9af; --pg-ink-faint: #77777d;
+      --pg-line: #2c2c32; --pg-line-strong: #3a3a41; --pg-accent: #6f9bff;
+      --pg-shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.4);
+
+      --qi-window: #232327; --qi-card: #1e1e22; --qi-field: #29292f; --qi-sidebar: #27272c;
+      --qi-ink: #f2f2f4; --qi-ink-soft: #a5a5ac; --qi-ink-faint: #77777e;
+      --qi-sep: rgba(255,255,255,.12); --qi-accent: #4a9bff;
+      --qi-green: #34d374; --qi-orange: #ffb454; --qi-red: #ff6b60; --qi-blue: #4a9bff;
+      --qi-shadow: 0 1px 2px rgba(0,0,0,.4), 0 20px 48px rgba(0,0,0,.45);
+
+      --term-bg: #101013; --term-ink: #eaeaec; --term-dim: #7c7c83; --term-accent: #58e07a; --term-sep: rgba(255,255,255,.07);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --pg-bg: #f3f2ef; --pg-bg2: #eae8e3; --pg-surface: #ffffff;
+    --pg-ink: #1b1b1d; --pg-ink-soft: #55565c; --pg-ink-faint: #8c8c92;
+    --pg-line: #e2e0da; --pg-line-strong: #cfccc4; --pg-accent: #2f5fce;
+    --pg-shadow: 0 1px 2px rgba(30,25,15,.05), 0 8px 24px rgba(30,25,15,.06);
+
+    --qi-window: #ececf0; --qi-card: #ffffff; --qi-field: #f7f7f9; --qi-sidebar: #e4e4ea;
+    --qi-ink: #1d1d1f; --qi-ink-soft: #6b6b70; --qi-ink-faint: #9a9aa0;
+    --qi-sep: rgba(0,0,0,.11); --qi-accent: #0968e5;
+    --qi-green: #1f9d55; --qi-orange: #b25900; --qi-red: #d92c1f; --qi-blue: #0968e5;
+    --qi-shadow: 0 1px 2px rgba(20,20,25,.08), 0 16px 40px rgba(20,20,25,.14);
+
+    --term-bg: #1c1c1f; --term-ink: #e7e7ea; --term-dim: #8b8b92; --term-accent: #5fd97a; --term-sep: rgba(255,255,255,.09);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --pg-bg: #16161a; --pg-bg2: #1c1c21; --pg-surface: #1f1f24;
+    --pg-ink: #eeeeef; --pg-ink-soft: #a9a9af; --pg-ink-faint: #77777d;
+    --pg-line: #2c2c32; --pg-line-strong: #3a3a41; --pg-accent: #6f9bff;
+    --pg-shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.4);
+
+    --qi-window: #232327; --qi-card: #1e1e22; --qi-field: #29292f; --qi-sidebar: #27272c;
+    --qi-ink: #f2f2f4; --qi-ink-soft: #a5a5ac; --qi-ink-faint: #77777e;
+    --qi-sep: rgba(255,255,255,.12); --qi-accent: #4a9bff;
+    --qi-green: #34d374; --qi-orange: #ffb454; --qi-red: #ff6b60; --qi-blue: #4a9bff;
+    --qi-shadow: 0 1px 2px rgba(0,0,0,.4), 0 20px 48px rgba(0,0,0,.45);
+
+    --term-bg: #101013; --term-ink: #eaeaec; --term-dim: #7c7c83; --term-accent: #58e07a; --term-sep: rgba(255,255,255,.07);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; overflow-x: hidden; background: var(--pg-bg); color: var(--pg-ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1180px; margin: 0 auto; padding: clamp(20px,4vw,56px) clamp(16px,4vw,40px) 80px; overflow-x: hidden; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } html { scroll-behavior: auto; } }
+
+  /* ---------- page header / commentary type ---------- */
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .13em; text-transform: uppercase; color: var(--pg-ink-faint); margin: 0 0 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pg-accent); flex-shrink: 0; }
+  h1 { font-weight: 680; font-size: clamp(28px,4.6vw,46px); line-height: 1.05; letter-spacing: -.02em; text-wrap: balance; margin: 0 0 16px; }
+  h1 em { font-style: normal; color: var(--pg-accent); }
+  .thesis { font-size: clamp(15.5px,1.9vw,18px); color: var(--pg-ink-soft); max-width: 72ch; margin: 0 0 26px; text-wrap: pretty; }
+  .thesis strong { color: var(--pg-ink); font-weight: 620; }
+
+  nav.toc { display: flex; flex-direction: column; gap: 6px; }
+  .group-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--pg-ink-faint); margin: 14px 0 8px; }
+  .group-label:first-child { margin-top: 0; }
+  .toc-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  .toc-row a { font-family: var(--mono); font-size: 12px; text-decoration: none; color: var(--pg-ink-soft); border: 1px solid var(--pg-line); border-radius: 999px; padding: 5px 12px; background: var(--pg-surface); transition: border-color .15s, color .15s; }
+  .toc-row a:hover { color: var(--pg-accent); border-color: color-mix(in srgb, var(--pg-accent) 45%, var(--pg-line)); }
+  .toc-row a:focus-visible { outline: 2px solid var(--pg-accent); outline-offset: 2px; color: var(--pg-accent); }
+  .toc-row a b { color: var(--pg-accent); margin-right: 2px; }
+
+  /* ---------- section rhythm ---------- */
+  section, .journey-head { margin-top: clamp(40px,5.5vw,64px); scroll-margin-top: 18px; }
+  .screen { margin-top: clamp(46px,6vw,72px); scroll-margin-top: 18px; }
+  .sec-head { display: flex; align-items: baseline; gap: 13px; margin-bottom: 16px; flex-wrap: wrap; }
+  .sec-num { font-family: var(--mono); font-size: 12.5px; font-weight: 650; color: var(--pg-accent); border: 1px solid color-mix(in srgb, var(--pg-accent) 35%, var(--pg-line)); border-radius: 7px; padding: 2px 8px; flex-shrink: 0; }
+  h2 { font-size: clamp(19px,2.6vw,25px); font-weight: 640; letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+  h3.journey-title { font-size: clamp(22px,3vw,29px); font-weight: 660; letter-spacing: -.015em; margin: 0; }
+  .sec-sub { color: var(--pg-ink-soft); font-size: 14.5px; margin: 6px 0 0; max-width: 70ch; flex-basis: 100%; }
+  .journey-head .sec-sub { max-width: 78ch; font-size: 15px; }
+  .journey-head { border-top: 1px solid var(--pg-line-strong); padding-top: 30px; }
+
+  /* ---------- the mock window (Quiet Instrument register) ---------- */
+  .window-wrap { overflow-x: auto; margin: 20px 0 0; padding-bottom: 4px; }
+  .window { width: 100%; min-width: 760px; max-width: 960px; border-radius: 12px; overflow: hidden; border: 1px solid var(--qi-sep); box-shadow: var(--qi-shadow); background: var(--qi-window); font-family: var(--sans); }
+  .win-titlebar { height: 36px; display: flex; align-items: center; padding: 0 14px; gap: 10px; background: var(--qi-sidebar); border-bottom: 1px solid var(--qi-sep); }
+  .traffic { display: flex; gap: 7px; flex-shrink: 0; }
+  .traffic span { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .traffic .r { background: var(--tl-red); } .traffic .y { background: var(--tl-yellow); } .traffic .g { background: var(--tl-green); }
+  .win-titlebar .t { flex: 1; text-align: center; font-size: 12px; font-weight: 600; color: var(--qi-ink-soft); margin-right: 52px; }
+
+  .win-handoff { padding: 9px 16px; background: var(--qi-card); border-bottom: 1px solid var(--qi-sep); font-size: 11.5px; color: var(--qi-ink-soft); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .win-handoff .chip { font-family: var(--mono); font-size: 10.5px; background: var(--qi-sidebar); border: 1px solid var(--qi-sep); border-radius: 5px; padding: 2px 7px; color: var(--qi-ink-soft); }
+  .win-handoff .reveal { margin-left: auto; color: var(--qi-accent); font-weight: 600; font-size: 11.5px; white-space: nowrap; }
+
+  .win-body { display: flex; align-items: stretch; }
+  .win-sidebar { width: 204px; flex-shrink: 0; background: var(--qi-sidebar); border-right: 1px solid var(--qi-sep); padding: 14px 8px; }
+  .sb-section-label { font-family: var(--mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--qi-ink-faint); margin: 14px 8px 6px; font-weight: 650; }
+  .sb-section-label:first-child { margin-top: 2px; }
+  .sb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .sb-item { display: flex; align-items: center; gap: 7px; padding: 5px 9px; border-radius: 6px; font-size: 12px; color: var(--qi-ink); line-height: 1.3; }
+  .sb-item .mark { width: 13px; text-align: center; flex-shrink: 0; font-size: 10.5px; line-height: 1; }
+  .sb-item.done .mark { color: var(--qi-green); }
+  .sb-item.current { background: color-mix(in srgb, var(--qi-accent) 15%, transparent); font-weight: 650; }
+  .sb-item.current .mark { color: var(--qi-accent); }
+  .sb-item.upcoming { color: var(--qi-ink-soft); }
+  .sb-item.upcoming .mark { color: var(--qi-ink-faint); }
+  .sb-item.partial .mark { color: var(--qi-ink-soft); }
+  .sb-item .count { margin-left: auto; font-family: var(--mono); font-size: 9.5px; color: var(--qi-ink-faint); }
+  .sb-item.gov { color: var(--qi-ink-soft); }
+
+  .win-detail { flex: 1; min-width: 0; padding: 22px 26px; background: var(--qi-window); display: flex; flex-direction: column; }
+  .win-eyebrow { font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--qi-accent); font-weight: 700; margin: 0 0 8px; }
+  .win-detail h3 { font-size: 18.5px; font-weight: 700; margin: 0 0 9px; color: var(--qi-ink); letter-spacing: -.01em; }
+  .win-intro { font-size: 12.8px; color: var(--qi-ink-soft); margin: 0 0 16px; max-width: 58ch; line-height: 1.5; }
+  .win-content { flex: 1; }
+  .win-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--qi-sep); font-size: 12px; color: var(--qi-ink-faint); }
+  .win-footer .status { flex: 1; text-align: center; }
+
+  .qi-block { background: var(--qi-card); border: 1px solid var(--qi-sep); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+  .qi-block:last-child { margin-bottom: 0; }
+  .qi-block-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--qi-ink-faint); margin: 0 0 9px; font-weight: 700; }
+  .qi-block p { margin: 0 0 8px; font-size: 12.3px; color: var(--qi-ink-soft); line-height: 1.5; }
+  .qi-block p:last-child { margin-bottom: 0; }
+  .qi-mono { font-family: var(--mono); color: var(--qi-ink); }
+  .qi-note { font-size: 11.8px; color: var(--qi-ink-faint); margin-top: 10px; line-height: 1.5; }
+
+  .qi-field-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12.3px; }
+  .qi-field-row:last-child { margin-bottom: 0; }
+  .qi-field-row label { width: 148px; flex-shrink: 0; color: var(--qi-ink-soft); }
+  .qi-input { flex: 1; border: 1px solid var(--qi-sep); background: var(--qi-field); border-radius: 6px; padding: 5px 9px; color: var(--qi-ink); font-size: 12.3px; font-family: var(--mono); min-width: 0; }
+  .qi-help { display: block; font-size: 11px; color: var(--qi-ink-faint); margin-top: 4px; margin-left: 158px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 12px; font-weight: 650; padding: 5px 13px; border-radius: 6px; border: 1px solid var(--qi-sep); background: var(--qi-card); color: var(--qi-ink); white-space: nowrap; }
+  .btn.primary { background: var(--qi-accent); border-color: var(--qi-accent); color: #fff; }
+  .btn.text { border: none; background: none; color: var(--qi-accent); padding: 4px 2px; font-weight: 650; }
+  .btn.small { font-size: 10.8px; padding: 3px 9px; }
+  .btn.copied { background: var(--qi-green); border-color: var(--qi-green); color: #fff; }
+
+  .qi-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+  .qi-steps li { display: flex; gap: 11px; }
+  .qi-steps .num { width: 21px; height: 21px; border-radius: 50%; background: var(--qi-sidebar); border: 1px solid var(--qi-sep); display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; color: var(--qi-ink-soft); flex-shrink: 0; }
+  .qi-steps .txt b { display: block; font-size: 12.6px; color: var(--qi-ink); margin-bottom: 2px; }
+  .qi-steps .txt span { font-size: 11.8px; color: var(--qi-ink-soft); }
+
+  .qi-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+  .qi-facts li { display: flex; gap: 9px; font-size: 12.3px; color: var(--qi-ink-soft); line-height: 1.5; }
+  .qi-facts li::before { content: "•"; color: var(--qi-ink-faint); flex-shrink: 0; }
+  .qi-facts li b { color: var(--qi-ink); font-weight: 620; }
+
+  .qi-edu { display: flex; flex-direction: column; gap: 11px; }
+  .qi-edu .row { display: grid; grid-template-columns: 148px 1fr; gap: 12px; font-size: 12.3px; }
+  .qi-edu .row .k { font-weight: 650; color: var(--qi-ink); }
+  .qi-edu .row .v { color: var(--qi-ink-soft); line-height: 1.5; }
+
+  .qi-layer { margin-bottom: 14px; }
+  .qi-layer:last-child { margin-bottom: 0; }
+  .qi-layer .lh { font-size: 11.8px; font-weight: 650; color: var(--qi-ink); margin-bottom: 7px; }
+  .qi-layer .empty { font-size: 11.8px; color: var(--qi-ink-soft); margin: 0 0 8px; line-height: 1.5; }
+
+  .qi-form-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; }
+  .qi-form-row label { font-size: 10.8px; color: var(--qi-ink-soft); }
+  .qi-error { color: var(--qi-red); font-size: 11px; margin-top: 4px; display: flex; gap: 5px; align-items: flex-start; line-height: 1.4; }
+
+  .qi-rows { display: flex; flex-direction: column; }
+  .qi-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 0; font-size: 12.3px; }
+  .qi-row + .qi-row { border-top: 1px solid var(--qi-sep); }
+  .qi-row .g { width: 15px; flex-shrink: 0; text-align: center; font-weight: 700; margin-top: 1px; font-size: 11.5px; }
+  .qi-row.ok .g { color: var(--qi-green); }
+  .qi-row.fail .g { color: var(--qi-red); }
+  .qi-row.unknown .g { color: var(--qi-orange); }
+  .qi-row.present .g { color: var(--qi-green); }
+  .qi-row.deferred .g { color: var(--qi-ink-soft); }
+  .qi-row .body2 { flex: 1; color: var(--qi-ink); min-width: 0; }
+  .qi-row .body2 .cap { display: block; color: var(--qi-ink-faint); font-size: 10.8px; margin-top: 3px; line-height: 1.4; }
+  .qi-row .tag { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--qi-ink-soft); background: var(--qi-sidebar); border: 1px solid var(--qi-sep); border-radius: 5px; padding: 2px 6px; margin-left: 6px; white-space: nowrap; flex-shrink: 0; }
+  .qi-row .fix { color: var(--qi-accent); font-weight: 650; font-size: 11.2px; white-space: nowrap; margin-left: 8px; flex-shrink: 0; }
+  .qi-row .ready { color: var(--qi-ink-faint); font-size: 10.8px; margin-left: 8px; white-space: nowrap; flex-shrink: 0; }
+  .qi-row .rowend { display: flex; align-items: center; flex-shrink: 0; }
+
+  .qi-code { background: var(--qi-field); border: 1px solid var(--qi-sep); border-radius: 8px; padding: 9px 12px; font-family: var(--mono); font-size: 11.8px; color: var(--qi-ink); overflow-x: auto; white-space: pre; }
+  .qi-copyrow { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+  /* ---------- Orientation: theme-aware ecosystem diagrams, built from tokens ---------- */
+  .eco-switcher { display: inline-flex; border: 1px solid var(--qi-sep); border-radius: 7px; overflow: hidden; }
+  .eco-switcher span { padding: 5px 14px; font-size: 11.3px; color: var(--qi-ink-soft); background: var(--qi-field); }
+  .eco-switcher span.sel { background: var(--qi-accent); color: #fff; font-weight: 650; }
+  .eco-stack { display: flex; flex-direction: column; gap: 7px; margin: 4px 0 12px; }
+  .eco-band { border-radius: 8px; padding: 9px 13px; border: 1px solid var(--qi-sep); }
+  .eco-band .lbl { font-size: 11.3px; font-weight: 700; color: var(--qi-ink); margin-bottom: 4px; }
+  .eco-band .sub { font-size: 10.8px; color: var(--qi-ink-soft); line-height: 1.4; }
+  .eco-band.personal { background: color-mix(in srgb, var(--qi-accent) 24%, var(--qi-card)); }
+  .eco-band.department { background: color-mix(in srgb, var(--qi-accent) 16%, var(--qi-card)); }
+  .eco-band.org { background: color-mix(in srgb, var(--qi-accent) 9%, var(--qi-card)); }
+  .eco-band.foundation { background: var(--qi-card); }
+  .eco-arrow { text-align: center; font-size: 9.5px; color: var(--qi-ink-faint); font-family: var(--mono); letter-spacing: .03em; }
+  .eco-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .eco-chip { font-size: 10.3px; background: var(--qi-field); border: 1px solid var(--qi-sep); border-radius: 5px; padding: 3px 7px; color: var(--qi-ink-soft); }
+  .eco-kinds { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 0; }
+  .eco-kind { flex: 1 1 140px; background: var(--qi-field); border: 1px solid var(--qi-sep); border-radius: 8px; padding: 9px 11px; }
+  .eco-kind b { display: block; font-size: 11.2px; color: var(--qi-ink); margin-bottom: 3px; }
+  .eco-kind span { font-size: 10.6px; color: var(--qi-ink-soft); line-height: 1.4; }
+
+  /* ---------- Integrations: the inert future-state preview frame ---------- */
+  .preview-frame { border: 1px dashed var(--qi-sep); border-radius: 9px; background: color-mix(in srgb, var(--qi-accent) 4%, var(--qi-field)); padding: 12px 14px; margin: 12px 0; pointer-events: none; }
+  .preview-frame .ribbon { display: inline-block; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--qi-ink-faint); border: 1px solid var(--qi-sep); border-radius: 5px; padding: 2px 7px; margin-bottom: 9px; background: var(--qi-card); }
+  .preview-frame .reg-title { font-family: var(--mono); font-size: 11px; color: var(--qi-ink-soft); margin-bottom: 7px; }
+  .preview-frame .reg-row { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: 11.3px; color: var(--qi-ink); padding: 4px 0; }
+  .preview-frame .reg-row span.need { color: var(--qi-ink-faint); font-size: 10.5px; }
+  .preview-frame .reg-cap { font-size: 11px; color: var(--qi-ink-faint); margin-top: 8px; line-height: 1.5; font-family: var(--sans); }
+  .lifecycle-steps { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; gap: 10px; counter-reset: lc; }
+  .lifecycle-steps li { display: flex; gap: 10px; font-size: 12.3px; color: var(--qi-ink-soft); line-height: 1.5; counter-increment: lc; }
+  .lifecycle-steps li::before { content: counter(lc); flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--qi-sidebar); border: 1px solid var(--qi-sep); color: var(--qi-ink-soft); font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+  /* ---------- inset alternate-state panels ---------- */
+  .inset-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; }
+  .inset { flex: 1 1 300px; min-width: 0; }
+  .inset-caption { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--pg-ink-faint); margin: 0 0 7px; }
+  .inset-win { border: 1px solid var(--qi-sep); border-radius: 9px; background: var(--qi-card); padding: 12px 14px; box-shadow: var(--qi-shadow); }
+
+  /* ---------- annotation cards (commentary register) ---------- */
+  .annot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+  .annot-card { background: var(--pg-surface); border: 1px solid var(--pg-line); border-radius: 10px; padding: 15px 17px; box-shadow: var(--pg-shadow); }
+  .annot-card .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; margin: 0 0 8px; font-weight: 700; }
+  .annot-card.earl { border-left: 3px solid var(--pg-accent); }
+  .annot-card.earl .lbl { color: var(--pg-accent); }
+  .annot-card.actual { border-left: 3px solid var(--pg-ink-faint); }
+  .annot-card.actual .lbl { color: var(--pg-ink-faint); }
+  .annot-card p { margin: 0; font-size: 13px; color: var(--pg-ink-soft); line-height: 1.55; }
+  .annot-card code { font-family: var(--mono); font-size: .92em; background: var(--pg-bg2); padding: 1px 5px; border-radius: 5px; }
+
+  /* ---------- terminal (non-app touchpoint) ---------- */
+  .term-wrap { overflow-x: auto; margin: 18px 0 0; }
+  .terminal { min-width: 660px; width: 100%; max-width: 960px; background: var(--term-bg); color: var(--term-ink); border-radius: 11px; padding: 16px 20px 18px; font-family: var(--mono); font-size: 12.2px; line-height: 1.7; box-shadow: var(--qi-shadow); }
+  .term-titlebar { display: flex; gap: 7px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--term-sep); }
+  .term-titlebar span { width: 10px; height: 10px; border-radius: 50%; opacity: .55; }
+  .term-titlebar .r { background: var(--tl-red); } .term-titlebar .y { background: var(--tl-yellow); } .term-titlebar .g { background: var(--tl-green); }
+  .terminal .ln { white-space: pre-wrap; word-break: break-word; }
+  .terminal .prompt { color: var(--term-accent); }
+  .terminal .dim { color: var(--term-dim); }
+  .terminal .say { color: var(--term-ink); }
+  .terminal .indent { padding-left: 2ch; }
+
+  /* ---------- Journey B table ---------- */
+  .table-wrap { overflow-x: auto; margin-top: 16px; }
+  table.phases { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px; }
+  .phases th, .phases td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--pg-line); vertical-align: top; }
+  .phases th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--pg-ink-faint); font-weight: 650; }
+  .phases td.phase { font-weight: 660; color: var(--pg-ink); white-space: nowrap; }
+  .phases td { color: var(--pg-ink-soft); line-height: 1.5; }
+
+  /* ---------- governance callout + killed strip ---------- */
+  .callout { background: color-mix(in srgb, var(--pg-accent) 7%, var(--pg-surface)); border: 1px solid color-mix(in srgb, var(--pg-accent) 26%, var(--pg-line)); border-radius: 12px; padding: 15px 18px; font-size: 13.5px; color: var(--pg-ink-soft); margin-top: 20px; line-height: 1.55; }
+  .callout b { color: var(--pg-ink); }
+  .callout ul { margin: 9px 0 0; padding-left: 19px; }
+  .callout li { margin-bottom: 5px; }
+
+  .killed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 12px; margin-top: 18px; }
+  .killed-card { background: var(--pg-surface); border: 1px solid var(--pg-line); border-left: 3px solid var(--pg-ink-faint); border-radius: 10px; padding: 13px 15px; box-shadow: var(--pg-shadow); }
+  .killed-card h4 { margin: 0 0 6px; font-size: 13.3px; font-weight: 650; color: var(--pg-ink); }
+  .killed-card p { margin: 0; font-size: 12.3px; color: var(--pg-ink-soft); line-height: 1.48; }
+
+  footer.page-footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--pg-line); font-family: var(--mono); font-size: 11.5px; color: var(--pg-ink-faint); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+  @media (max-width: 760px) {
+    .annot-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<main class="page">
+
+  <header>
+    <p class="eyebrow"><span class="dot"></span> Admin mode walkthrough &middot; redesigned onboarding &amp; governance &middot; 2026-07-10</p>
+    <h1>Admin mode, screen by <em>screen</em></h1>
+    <p class="thesis">
+      Every surface Earl sees while standing up <strong>acme-co</strong>, a Codex shop with Accounting and Sales departments, on GitHub, rendered
+      as a high-fidelity mock in the product's own "Quiet Instrument" visual language. Each screen is paired with what Earl
+      experiences and what the app actually does underneath. <strong>The app teaches, collects, and verifies. Claude Code
+      executes, in the terminal, over a deterministic script. GitHub is the only place anything becomes real.</strong> No
+      screen in this document fires a GitHub mutation.
+    </p>
+    <nav class="toc" aria-label="Screens in this walkthrough">
+      <p class="group-label">Journey A &middot; org standup, in order</p>
+      <div class="toc-row">
+        <a href="#a1"><b>1</b>Orientation</a>
+        <a href="#a2"><b>2</b>Prerequisites</a>
+        <a href="#a3"><b>3</b>Contacts</a>
+        <a href="#a4"><b>4</b>Connect GitHub</a>
+        <a href="#a5"><b>5</b>Describe your org</a>
+        <a href="#a6"><b>6</b>Integrations</a>
+        <a href="#a7"><b>7</b>Secret store</a>
+        <a href="#a8"><b>8</b>Review &amp; hand off</a>
+        <a href="#term"><b>&middot;</b>Terminal</a>
+        <a href="#a9"><b>9</b>Handed off</a>
+        <a href="#a10"><b>10</b>Setup check</a>
+        <a href="#a11"><b>11</b>Done</a>
+      </div>
+      <p class="group-label">Journey B &middot; integrations lifecycle</p>
+      <div class="toc-row">
+        <a href="#b"><b>B</b>The six phases</a>
+      </div>
+      <p class="group-label">Journey C &middot; governance, steady state</p>
+      <div class="toc-row">
+        <a href="#c1"><b>C1</b>Add a department</a>
+        <a href="#c2"><b>C2</b>Someone left</a>
+        <a href="#c3"><b>C3</b>Connect the store</a>
+        <a href="#c4"><b>C4</b>Org setup</a>
+        <a href="#c5"><b>C5</b>Analytics</a>
+      </div>
+      <p class="group-label">Review</p>
+      <div class="toc-row">
+        <a href="#killed"><b>&middot;</b>What was killed</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- =================================================================== -->
+  <!-- JOURNEY A                                                          -->
+  <!-- =================================================================== -->
+  <div class="journey-head" id="journey-a">
+    <h3 class="journey-title">Journey A. Org standup</h3>
+    <p class="sec-sub">Eleven onboarding waypoints, done once and revisitable. Earl describes his organization, the app hands
+      a plain-language brief to Claude Code, and the app verifies the result straight from GitHub. Every sidebar below shows
+      the same eleven-item progression: a green check for done, a filled ring for the current screen, a hollow ring for
+      what's ahead, and a half-filled ring with a count for Connect GitHub, which stays advisory rather than gating anything
+      downstream.</p>
+  </div>
+
+  <!-- ---------------- A1 Orientation ---------------- -->
+  <section id="a1" class="screen" aria-labelledby="h-a1">
+    <div class="sec-head">
+      <span class="sec-num">1</span>
+      <h2 id="h-a1">Orientation</h2>
+      <p class="sec-sub">Teaches the ecosystem from zero, then the whole arc, via progressive disclosure: a calm main view with a Learn more affordance behind which the real depth lives. Renders the handoff object. Collects nothing.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item current"><span class="mark">&#9673;</span>Orientation</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Prerequisites</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Contacts</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Connect GitHub</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Describe your org</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Secret store</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Review &amp; hand off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Here's what you're building, and the whole path</h3>
+          <p class="win-intro">Your copilots live in a set of shared spaces on GitHub that build on one another. The open-source foundation sits at the bottom. Your organization adds its own on top. Each department adds what only it needs. Each person adds their own on top of that. Everyone inherits everything beneath them, so you share broad capabilities widely and keep specialized ones narrow.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <ol class="qi-steps">
+                <li><span class="num">1</span><span class="txt"><b>Describe your organization here.</b></span></li>
+                <li><span class="num">2</span><span class="txt"><b>Claude Code sets it up in your terminal.</b></span></li>
+                <li><span class="num">3</span><span class="txt"><b>Come back and run the Setup check.</b></span></li>
+              </ol>
+              <p class="qi-note">This app never changes anything on GitHub itself. It gets you ready, hands the work to Claude Code, and checks the result.</p>
+              <p style="margin:10px 0 0;"><span class="btn text small">&#8618; Learn how the ecosystem works &rsaquo;</span></p>
+            </div>
+          </div>
+          <div class="win-footer"><span></span><span class="status"></span><span class="btn primary">Start</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Learn more, pushed explainer, view 1: How it works</p>
+        <div class="inset-win">
+          <div class="eco-switcher"><span class="sel">How it works</span><span>What your team gets</span></div>
+          <div class="eco-stack" style="margin-top:12px;">
+            <div class="eco-band personal"><div class="lbl">Personal</div><div class="sub">Each person adds their own on top.</div></div>
+            <div class="eco-arrow">&#9650; inherits everything beneath</div>
+            <div class="eco-band department"><div class="lbl">Department</div><div class="sub">Each department adds what only it needs.</div></div>
+            <div class="eco-arrow">&#9650; inherits everything beneath</div>
+            <div class="eco-band org"><div class="lbl">Organization</div><div class="sub">Your organization adds its own on top.</div></div>
+            <div class="eco-arrow">&#9650; inherits everything beneath</div>
+            <div class="eco-band foundation"><div class="lbl">Foundation (open source)</div><div class="sub">Sits at the bottom. Everyone starts here.</div></div>
+          </div>
+          <p style="margin:0 0 6px;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Each layer carries three kinds of space:</p>
+          <div class="eco-kinds">
+            <div class="eco-kind"><b>Instructions &amp; agents</b><span>your harness's copilot</span></div>
+            <div class="eco-kind"><b>Knowledge</b><span>your company's information</span></div>
+            <div class="eco-kind"><b>Integrations</b><span>tools that reach outside systems</span></div>
+          </div>
+          <p style="margin:10px 0 0;font-size:11.5px;color:var(--qi-ink-faint);">The org level carries org-level agents, org-level integrations, and org information and knowledge.</p>
+          <p style="margin:10px 0 0;"><span class="btn small">&lsaquo; Back to the overview</span></p>
+        </div>
+      </div>
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Learn more, pushed explainer, view 2: What your team gets</p>
+        <div class="inset-win">
+          <div class="eco-switcher"><span>How it works</span><span class="sel">What your team gets</span></div>
+          <div class="eco-stack" style="margin-top:12px;">
+            <div class="eco-band personal"><div class="lbl">Personal</div><div class="sub">Your own, on top of everything below.</div></div>
+            <div class="eco-band department">
+              <div class="lbl">Department</div>
+              <div class="sub">Concrete skills, ratified examples:</div>
+              <div class="eco-chips">
+                <span class="eco-chip">Accounting: month-end reconciliation</span>
+                <span class="eco-chip">IT: onboarding and offboarding access runbook</span>
+                <span class="eco-chip">Sales: call-prep brief</span>
+              </div>
+            </div>
+            <div class="eco-band org">
+              <div class="lbl">Organization</div>
+              <div class="sub">Concrete skills, ratified examples:</div>
+              <div class="eco-chips">
+                <span class="eco-chip">On-brand document writer</span>
+                <span class="eco-chip">Proposal and SOW builder</span>
+              </div>
+            </div>
+            <div class="eco-band foundation"><div class="lbl">Foundation (open source)</div><div class="sub">Everyone builds on this.</div></div>
+          </div>
+          <p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Every person inherits your organization's agents, skills, knowledge, and integrations, plus their department's, on the open-source foundation. They build their own solutions faster, going broad with what the org shares and narrow with the department.</p>
+          <p style="margin:10px 0 0;"><span class="btn small">&lsaquo; Back to the overview</span></p>
+        </div>
+      </div>
+    </div>
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: handoff unreadable</p>
+        <div class="inset-win">
+          <p style="margin:0;font-size:12.3px;color:var(--qi-ink-soft);line-height:1.5;">Header swaps to <span class="qi-mono">Not started yet</span>. Holding line: "I couldn't read the result of this, so I won't guess." Start stays available. Teach content and diagrams never depend on live state, so they always render.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl, who may know nothing about the ecosystem, lands on a calm one-paragraph explanation of what he's building (shared spaces on GitHub that build on one another) and the three-step path, told plainly the app never touches GitHub. If he wants depth, Learn more opens two illustrated views: how inheritance works and the three kinds of space, then what his team actually gets, grounded in concrete skills like a month-end reconciliation skill and a call-prep brief. He returns to the calm overview and clicks Start.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app reads the Publisher-to-Admin handoff object and renders it; the diagrams are static explainer assets redrawn per theme (light and dark, built from the page's own tokens), rendering no live state. Nothing is read from or written to GitHub. If the handoff object is unreadable, the header shows <span class="qi-mono">Not started yet</span> and the honest holding line; the teach content and diagrams never depend on live state, so they always render.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A2 Prerequisites ---------------- -->
+  <section id="a2" class="screen" aria-labelledby="h-a2">
+    <div class="sec-head">
+      <span class="sec-num">2</span>
+      <h2 id="h-a2">Prerequisites and reality check</h2>
+      <p class="sec-sub">Teaches what must be true before setup can run. Pure teach, deliberately: this surface never also asks.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Prerequisites</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Contacts</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Connect GitHub</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Describe your org</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Secret store</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Review &amp; hand off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Before you begin</h3>
+          <p class="win-intro">A few things need to be true before setup can run. None of them happen here. This is just so nothing stops you halfway.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <ul class="qi-facts">
+                <li><b>Your organization exists on GitHub.</b> Creating one needs billing and a person, so it can't be automated. If it doesn't exist yet, create it at github.com first, then come back. <span class="btn text small">Open github &rsaquo;</span></li>
+                <li><b>You are an owner of it.</b> Only an owner can create the organization's spaces.</li>
+                <li><b>You have GitHub's command-line tool and Claude Code on this Mac.</b> The next step checks and helps.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl reads a short, honest list of what must already be true, told plainly that none of it happens here. If his org already exists and he's an owner, he feels competent and continues. If not, he learns the one thing to do first (create the org at github.com, which needs billing and a person) before he's stranded halfway.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Pure render of a static teach checklist. No detection runs here (detection is Connect GitHub, screen 4). The app writes nothing and reads nothing beyond its own copy. The Open github affordance is a deep link out; the app does not check whether the org exists, that honest check lives in Connect GitHub and, authoritatively, in the terminal.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A3 Contacts ---------------- -->
+  <section id="a3" class="screen" aria-labelledby="h-a3">
+    <div class="sec-head">
+      <span class="sec-num">3</span>
+      <h2 id="h-a3">Contacts</h2>
+      <p class="sec-sub">Records who owns this setup, feeding the handoff header and the Setup check's owner names. Metadata, not user management.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Contacts</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Connect GitHub</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Describe your org</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Secret store</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Review &amp; hand off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Who's who</h3>
+          <p class="win-intro">Record who owns this setup, so the handoff is never guesswork. These names show in the handoff banner and in the setup check.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <div class="qi-field-row"><label>Publisher</label><span class="qi-input">Jordan Vale</span></div>
+              <div class="qi-field-row"><label>Admin</label><span class="qi-input">Earl Reyes</span></div>
+              <div class="qi-field-row"><label>Point of contact</label><span class="qi-input">Priya Shah</span></div>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status">Saved.</span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl types the names of the people who own this setup. He understands these are just labels that will show up in the handoff banner and next to any red in the Setup check, so nothing is ever an anonymous "someone."</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app collects three name strings into local setup metadata that feeds the handoff header chips and the owner labels the Setup check renders. Nothing here is user management and nothing is written to GitHub; these names never grant or change access.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A4 Connect GitHub ---------------- -->
+  <section id="a4" class="screen" aria-labelledby="h-a4">
+    <div class="sec-head">
+      <span class="sec-num">4</span>
+      <h2 id="h-a4">Connect GitHub</h2>
+      <p class="sec-sub">Local, read-only readiness detection. Advisory and strongly guiding, never a hard block: the script re-checks everything and is the real gate.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Contacts</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Connect GitHub</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Describe your org</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Secret store</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Review &amp; hand off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Get this Mac ready</h3>
+          <p class="win-intro">A quick check that this Mac can run the terminal session. This changes nothing. Claude Code checks all of this again when setup runs, and helps you fix anything that's off.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <div class="qi-field-row" style="margin-bottom:12px;"><label>Organization</label><span class="qi-input">acme-co</span></div>
+              <div class="qi-rows">
+                <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">GitHub's command-line tool is installed</span></div>
+                <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">You're signed in</span></div>
+                <div class="qi-row fail"><span class="g">&#10007;</span><span class="body2">Your account is an owner of acme-co</span><span class="fix">Ask an owner &rsaquo;</span></div>
+                <div class="qi-row fail"><span class="g">&#10007;</span><span class="body2">Your sign-in has the access setup needs<span class="cap qi-mono">gh auth refresh -s admin:org -s repo</span></span><span class="rowend"><span class="btn small">Copy</span></span></div>
+                <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">Claude Code is installed</span></div>
+              </div>
+              <p class="qi-note">This step just gives you a head start. It never blocks the hand off.</p>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status">Checking&hellip;</span><span class="btn primary">Check again</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Refusal: gh not installed</p>
+        <div class="inset-win">
+          <div class="qi-rows">
+            <div class="qi-row fail"><span class="g">&#10007;</span><span class="body2">GitHub's command-line tool isn't on this Mac yet. Setup runs through it.<span class="cap qi-mono">brew install gh</span><span class="cap">Download gh instead &rsaquo;</span></span></div>
+          </div>
+          <div class="qi-copyrow"><span class="btn small">Copy</span><span class="btn small primary">Check again</span></div>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Refusal: missing scope</p>
+        <div class="inset-win">
+          <div class="qi-rows">
+            <div class="qi-row fail"><span class="g">&#10007;</span><span class="body2">Your GitHub sign-in is missing the access setup needs.<span class="cap qi-mono">gh auth refresh -s admin:org -s repo</span><span class="cap">No bypass. Claude Code re-checks this too.</span></span></div>
+          </div>
+          <div class="qi-copyrow"><span class="btn small">Copy</span><span class="btn small primary">Check again</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl sees a short list of plain readiness rows. Green ones reassure; a not-ready row tells him exactly one thing to do (a copy-paste command, or "ask an owner") and offers Check again. Nothing here blocks him; the copy says Claude Code will re-check and help anyway. A missing scope reads as copy-paste-and-continue, not a dead end.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app runs local, read-only detection only (<code>gh auth status</code>, version probes for gh and Claude Code, an owner-and-scope check) and renders the rows. It computes no authoritative verdict and mutates nothing; the script re-checks everything in the terminal and is the real gate. The copyable commands are clipboard text the app hands over, not commands it executes.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A5 Describe your organization ---------------- -->
+  <section id="a5" class="screen" aria-labelledby="h-a5">
+    <div class="sec-head">
+      <span class="sec-num">5</span>
+      <h2 id="h-a5">Describe your organization</h2>
+      <p class="sec-sub">The strongest positive moment of truth in the journey: a live, concrete plan by real name. Nothing is created here.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Contacts</li>
+            <li class="sb-item partial"><span class="mark">&#9684;</span>Connect GitHub<span class="count">3/5</span></li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Describe your org</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Secret store</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Review &amp; hand off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Describe your organization</h3>
+          <p class="win-intro">Tell setup your organization's name, the harness it builds with, and its departments. As you type, you'll see exactly what will be created. Nothing is created here. This is the plan setup will follow.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Why departments get their own spaces</p>
+              <p>Departments get their own spaces so specialized capabilities are tailored to how that department actually works. Accounting's spaces hold Accounting's skills and knowledge, Sales's hold Sales's, and each department's people inherit the whole organization's on top.</p>
+              <p style="font-weight:620;color:var(--qi-ink);">You don't have to add every department now. Adding one later is safe. Setting up again only adds what's new and never touches what's already there.</p>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Which development harness does your company build with?</p>
+              <div class="eco-switcher" style="margin-bottom:10px;"><span>Claude Code</span><span class="sel">Codex</span></div>
+              <p>This is your organization's default. Anyone can still use the other harness for themselves, on the open-source foundation plus their own personal setup. And you can add the second harness for the whole organization later, as a safe re-run that only adds what's new.</p>
+            </div>
+            <div class="qi-block">
+              <div class="qi-field-row"><label>Organization name</label><span class="qi-input">acme-co</span></div>
+              <div class="qi-field-row"><label>Departments</label><span class="qi-input">Accounting</span><span class="btn small">&minus;</span></div>
+              <div class="qi-field-row"><label></label><span class="qi-input">Sales</span><span class="btn small">&minus;</span></div>
+              <div class="qi-field-row"><label></label><span class="btn text small">+ Add a department</span></div>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">What this will create</p>
+              <p>Nothing is created here. This is the plan setup will follow.</p>
+              <p><b style="color:var(--qi-ink)">Three shared spaces for your whole organization:</b><br>
+                <span class="qi-mono">acme-co/codex-copilot</span><br>
+                <span class="qi-mono">acme-co/knowledge-copilot</span><br>
+                <span class="qi-mono">acme-co/cli-copilot</span> Private.</p>
+              <p><b style="color:var(--qi-ink)">Three spaces for the Accounting department:</b><br>
+                <span class="qi-mono">acme-co/codex-copilot-accounting</span><br>
+                <span class="qi-mono">acme-co/knowledge-copilot-accounting</span><br>
+                <span class="qi-mono">acme-co/cli-copilot-accounting</span> Private.<br>
+                An Accounting team that can reach them.</p>
+              <p><b style="color:var(--qi-ink)">Three spaces for the Sales department:</b><br>
+                <span class="qi-mono">acme-co/codex-copilot-sales</span><br>
+                <span class="qi-mono">acme-co/knowledge-copilot-sales</span><br>
+                <span class="qi-mono">acme-co/cli-copilot-sales</span> Private.<br>
+                A Sales team that can reach them.</p>
+              <p>Your whole organization set to read by default.</p>
+              <p class="qi-note">You don't have to add every department now. Adding one later is safe. Setting up again only adds what's new.</p>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl reads why departments get their own spaces and, prominently, that he can add more later safely. He picks his org's development harness once (Codex, for acme-co), reassured that individuals can still use the other one personally and the org can add the second later. He types his org name and departments, and the "What this will create" card fills with the exact spaces and teams by real name, <code>acme-co/codex-copilot-accounting</code> and a named Accounting team, updating live if he switches harness.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app collects the harness choice, org slug, and department list, validates each slug, and derives the display names by the same convention the script enforces (three spaces per layer, <code>&lt;harness&gt;-copilot</code> / <code>knowledge-copilot</code> / <code>cli-copilot</code> at org, each suffixed <code>-&lt;unit&gt;</code>, where <code>&lt;harness&gt;</code> is the chosen claude or codex), purely for legibility. It renders the plan; it creates nothing and writes nothing yet (the description, including the harness choice, is written to the brief only at Review). The script, in the terminal, is the authority that actually creates the spaces and teams.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A6 Integrations ---------------- -->
+  <section id="a6" class="screen" aria-labelledby="h-a6">
+    <div class="sec-head">
+      <span class="sec-num">6</span>
+      <h2 id="h-a6">Integrations</h2>
+      <p class="sec-sub">Education only. The admin declares nothing here, ever: no declaration form, no secret-shape refusal. This is also the screen Journey B (below) points back to.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Contacts</li>
+            <li class="sb-item partial"><span class="mark">&#9684;</span>Connect GitHub<span class="count">3/5</span></li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Describe your org</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Secret store</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Review &amp; hand off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Integrations</h3>
+          <p class="win-intro">An integration here is a small command-line tool a developer builds, so a copilot can reach a system like Salesforce or your calendar. It isn't something you switch on.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">How integrations work</p>
+              <div class="qi-edu">
+                <div class="row"><span class="k">It cascades</span><span class="v">Built and published for the whole organization, it's inherited by every department. Published for one department, it belongs only there. Published nowhere, it exists for no one.</span></div>
+                <div class="row"><span class="k">The key lives elsewhere</span><span class="v">An integration names the key it needs. The key never comes near this app. It lives in the shared store, handed out only to the right team.</span></div>
+              </div>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">How integrations will arrive, a lifecycle preview</p>
+              <ol class="lifecycle-steps">
+                <li>An engineer on a department builds skills, agents, and integrations inside that department's spaces. Give an engineer write access to a department's team and they can build there.</li>
+                <li>Each integration is added to a registry, a plain document that lives in the same space and lists what has been built.</li>
+                <li>Merging that document to the main copy publishes the integration.</li>
+                <li>From then on, the people entitled to that space see it, and the app your team uses can let them know when a new one arrives.</li>
+              </ol>
+              <div class="preview-frame" aria-hidden="false">
+                <span class="ribbon">Preview &middot; not live &middot; nothing here is a control</span>
+                <p class="reg-title">acme-co/cli-copilot-sales &middot; registry (example)</p>
+                <div class="reg-row"><span>salesforce-lookup</span><span class="need">needs SALESFORCE_API_KEY</span></div>
+                <div class="reg-row"><span>calendar-read</span><span class="need">needs GOOGLE_CAL_TOKEN</span></div>
+                <p class="reg-cap">This is what a published registry will look like. It is an example, not your data, and nothing here is clickable.</p>
+              </div>
+              <p class="qi-note">There's nothing to set up here today. No integrations exist yet, and that's expected. They arrive when your departments' engineers build and publish them.</p>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl learns what an integration is (a small tool a developer builds, not a switch), how publishing at the org level cascades to every department, and where the key lives. He sees a four-step preview of how integrations will arrive later: an engineer builds one in a department's repos, adds it to a registry document, merging to main publishes it, and entitled people then see it, plus a clearly-labeled mock of what a published registry will look like. It ends honestly: nothing to set up here today, and that's expected.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Pure render. This surface collects nothing and writes nothing to the brief; the declaration form and its secret-shape refusal are gone entirely. The org setup file carries no integration declarations; existence lives in per-repo registries, gated by entitlement (a user sees only the registries of the spaces they can reach). The lifecycle preview and registry mock are static explainer content rendering no live data.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A7 Secret store ---------------- -->
+  <section id="a7" class="screen" aria-labelledby="h-a7">
+    <div class="sec-head">
+      <span class="sec-num">7</span>
+      <h2 id="h-a7">Secret store</h2>
+      <p class="sec-sub">Educate first, then connect or defer honestly. This supersedes "required": no integrations exist yet, so a store is not needed to finish standup, never a hard gate.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Contacts</li>
+            <li class="sb-item partial"><span class="mark">&#9684;</span>Connect GitHub<span class="count">3/5</span></li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Describe your org</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Integrations</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Secret store</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Review &amp; hand off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Your shared secret store</h3>
+          <p class="win-intro">A shared secret store is one service that holds your organization's keys and hands them out by team. Shared integrations need it: an integration names the key it needs, and at runtime the store checks that the person is on the right GitHub team and only then hands over the key. That is why a key never lives in a repo or in this app.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Connect a store</p>
+              <div class="qi-field-row"><label>Store type</label><span class="qi-input">Infisical &#9662;</span></div>
+              <div class="qi-field-row"><label>Store address</label><span class="qi-input">https://vault.acme-co.com</span></div>
+              <span class="qi-help">This is a web address, not a secret.</span>
+              <div class="qi-field-row" style="margin-top:12px;"><label>Which teams can use it</label><span class="qi-input">Accounting &rarr; acct scope &#9662;</span></div>
+              <div class="qi-field-row"><label></label><span class="qi-input">Sales &rarr; sales scope &#9662;</span></div>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">No store yet?</p>
+              <p>Shared integrations can't work until you connect a store. You have no integrations yet, so you can finish setting up now and connect a store before your first one is built.</p>
+              <ul class="qi-facts">
+                <li><b>Pause and go get one.</b> Common shared stores are 1Password, Infisical, and Vault (also called OpenBao). Set one up, then come back with its web address. <span class="btn text small">How to set one up &rsaquo;</span></li>
+                <li><b>Skip this for now.</b> You'll be reminded to connect a store before your first shared integration can work. <span class="btn small">Skip for now</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Refusal: secret-shape value</p>
+        <div class="inset-win">
+          <div class="qi-form-row"><label>Store address</label><span class="qi-input" style="color:var(--qi-red)">sk_live_9f8a2b7c1d4e</span>
+            <div class="qi-error"><span aria-hidden="true">&#9995;</span><span>That looks like a secret. This setting never holds secrets. Secrets live in the store itself, or in your keychain, never here.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">No-store: pause and go get one</p>
+        <div class="inset-win">
+          <p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Common shared stores are 1Password, Infisical, and Vault (also called OpenBao). Set one up, then come back with its web address. <span class="btn text small">How to set one up &rsaquo;</span> The app waits.</p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">No-store: defer and finish</p>
+        <div class="inset-win">
+          <p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Skip this for now. You'll be reminded to connect a store before your first shared integration can work. Deferring routes this step to its governance home, <a href="#c3">Connect the shared store</a>.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl first reads what a shared secret store is and how it's used at runtime (it hands out keys by GitHub team membership, which is why keys never live in a repo or this app). If he has one, he connects it with a short form and never pastes a key. If he doesn't, he's told the plain truth (shared integrations can't work without one, but he has none yet) and offered two honest choices: pause to go get one, with named options, or skip for now and finish, with a clear note that he'll be reminded and where to connect it later.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>If he connects, the app collects the endpoint URL and team-to-scope mapping into the brief as the non-secret store pointer; the secret-shape refusal guards every field. If he defers, the brief carries no store pointer and the org setup file simply has none yet. Continue is never gated (deferral is a valid path to Done); a connected-but-unreachable store surfaces honestly in the Setup check (IT infra named), and a deferred store surfaces there as an honest "not connected yet," not a failure.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A8 Review and hand off ---------------- -->
+  <section id="a8" class="screen" aria-labelledby="h-a8">
+    <div class="sec-head">
+      <span class="sec-num">8</span>
+      <h2 id="h-a8">Review and hand off</h2>
+      <p class="sec-sub">The pivotal moment of truth. Never-destroy first, the concrete plan, the brief Earl can read, and one copyable command. No "set up my org" mutation.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Contacts</li>
+            <li class="sb-item partial"><span class="mark">&#9684;</span>Connect GitHub<span class="count">3/5</span></li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Describe your org</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Integrations</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Secret store</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Review &amp; hand off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Review and hand off</h3>
+          <p class="win-intro">Here's everything setup will create. Copy the command below, open your terminal, and paste it. Claude Code walks you through the rest and checks everything with GitHub as it goes.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p style="margin:0;font-size:12.6px;font-weight:650;color:var(--qi-ink);">This adds and updates. It never deletes or overwrites anything already there.</p>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">What setup will create</p>
+              <p>Org spaces: <span class="qi-mono">acme-co/codex-copilot</span>, <span class="qi-mono">knowledge-copilot</span>, <span class="qi-mono">cli-copilot</span>. Private.</p>
+              <p>Accounting: three spaces and an Accounting team.</p>
+              <p>Sales: three spaces and a Sales team.</p>
+              <p>Your organization's setup file (<span class="qi-mono">ecosystem.yml</span>).</p>
+              <p>Your whole organization set to read by default.</p>
+              <p>Harness: Codex. Store: not connected yet.</p>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">The file setup wrote for you</p>
+              <p>Setup wrote a plain description of your organization you can read.</p>
+              <p><span class="qi-mono">~/Documents/CopilotControlTower/standup-brief.md</span> <span class="btn text small">Reveal &rsaquo;</span></p>
+              <p>At a glance: acme-co &middot; Codex &middot; 2 departments &middot; store not connected yet. It carries no secrets and no integrations.</p>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">The setup command</p>
+              <div class="qi-code">claude --skill admin-bootstrap ~/Documents/CopilotControlTower/standup-brief.md</div>
+              <div class="qi-copyrow"><span class="btn primary small">Copy the setup command</span></div>
+              <p>This hands Claude Code a plain description of your organization. It carries no secrets. Claude Code checks it with you, then does the work.</p>
+              <p class="qi-note">When Claude Code says it's done, come back here and run the Setup check. When you've pasted it, come here to wait &rsaquo;</p>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary">Open Terminal</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Copied confirmation</p>
+        <div class="inset-win">
+          <div class="qi-code">claude --skill admin-bootstrap ~/Documents/CopilotControlTower/standup-brief.md</div>
+          <div class="qi-copyrow"><span class="btn copied small">Copied</span></div>
+          <p style="margin:8px 0 0;font-size:11.6px;color:var(--qi-ink-faint);">Fades back to "Copy the setup command" after a couple seconds. Re-copyable any number of times.</p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Refusal: brief could not be written</p>
+        <div class="inset-win">
+          <p style="margin:0;font-size:12.3px;color:var(--qi-ink-soft);line-height:1.5;">"I couldn't write the setup file, so I won't hand off a command that points at nothing. Try again." The command block is withheld entirely.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl sees the full, concrete list of what will be created, topped by a promise that setup only adds and never deletes. He sees the app wrote a plain file describing his org that he can open and read, carrying no secrets and no integrations. He copies one command, opens his terminal, and reads that Claude Code will check everything with him and with GitHub. It reads like a confident pass to a capable teammate.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app assembles the collected inputs and writes the non-secret standup brief to a known path as a markdown file (org slug, harness choice, department list, and, if connected, the store endpoint and team-to-scope mapping; no integration declarations and no secrets). It generates a copy-to-clipboard command that starts Claude Code with the admin-bootstrap skill pointed at that brief. The app fires zero GitHub mutations. The brief is a starting point, not a contract: the skill re-confirms with Earl and may diverge; GitHub truth wins and the Setup check reveals drift. If the brief cannot be written, the app withholds the command.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- TERMINAL INTERSTITIAL ---------------- -->
+  <section id="term" class="screen" aria-labelledby="h-term">
+    <div class="sec-head">
+      <span class="sec-num">&middot;</span>
+      <h2 id="h-term">The terminal, in between</h2>
+      <p class="sec-sub">A non-app touchpoint, visually distinct on purpose. This is where the standup actually runs, driven by Claude Code over the deterministic idempotent script, while the app itself sits at the honest, blind Handed off screen below. Nothing here is a Control Tower surface; the app cannot see any of this, and does not narrate it.</p>
+    </div>
+
+    <div class="term-wrap"><div class="terminal">
+      <div class="term-titlebar" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="ln prompt">$ claude --skill admin-bootstrap ~/Documents/CopilotControlTower/standup-brief.md</div>
+      <div class="ln say">Claude Code: Reading your setup brief. Organization acme-co, building with Codex, two departments: Accounting and Sales. Store not connected yet, you chose to do that later. Does this still look right?</div>
+      <div class="ln dim">Earl: yes, go ahead</div>
+      <div class="ln say">Claude Code: Checking your GitHub access before I start.</div>
+      <div class="ln indent dim">gh auth status ................ ok, signed in as earlr</div>
+      <div class="ln indent dim">admin:org, repo scopes ......... ok</div>
+      <div class="ln indent dim">acme-co owner .................. ok</div>
+      <div class="ln say">Claude Code: Starting the standup. I will only add or update. Nothing already there gets deleted or overwritten.</div>
+      <div class="ln indent dim">acme-co, read by default ....... already there</div>
+      <div class="ln indent dim">acme-co/codex-copilot .......... created</div>
+      <div class="ln indent dim">acme-co/knowledge-copilot ...... created</div>
+      <div class="ln indent dim">acme-co/cli-copilot ............ created</div>
+      <div class="ln indent dim">Accounting team ................ created</div>
+      <div class="ln indent dim">acme-co/codex-copilot-accounting     created</div>
+      <div class="ln indent dim">acme-co/knowledge-copilot-accounting created</div>
+      <div class="ln indent dim">acme-co/cli-copilot-accounting ...... created</div>
+      <div class="ln say">Claude Code: Looks like Sales was set up by hand before. I'll only add what's missing there.</div>
+      <div class="ln indent dim">Sales team ...................... already there</div>
+      <div class="ln indent dim">acme-co/codex-copilot-sales ..... already there</div>
+      <div class="ln indent dim">acme-co/knowledge-copilot-sales . already there</div>
+      <div class="ln indent dim">acme-co/cli-copilot-sales ....... created</div>
+      <div class="ln say">Claude Code: Writing your organization's setup file. It carries your components, departments, and harness choice. No integrations, no secrets.</div>
+      <div class="ln indent dim">acme-co/codex-copilot: ecosystem.yml ... created</div>
+      <div class="ln say">Claude Code: Checking the setup file for anything that looks like a secret before it goes anywhere.</div>
+      <div class="ln indent" style="color:var(--term-accent)">leak scan ....................... clean, no secret-shaped values found</div>
+      <div class="ln say">Claude Code: Done. Go back to Control Tower and run the Setup check. It reads this straight from GitHub. Remember to connect a shared store before your first integration needs one.</div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card actual" style="grid-column: 1 / -1;"><p class="lbl">What actually happens</p><p>The script, not the model, makes every check-then-act decision: it re-confirms the plan conversationally, re-checks readiness, then works down the ordered, additive, idempotent GitHub sequence, narrating <code>created</code> or <code>already there</code> per step and refusing plainly on a missing scope or a secret-shaped value in the setup file, with a fail-closed leak scan before anything is written. Because Claude Code converses, mess (a partial prior run, a scope gap) is absorbed in dialogue rather than met with a rigid refusal screen. This is where the old flow's streamed "Created / Already there" craft now lives, spoken rather than rendered as GUI rows.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A9 Handed off ---------------- -->
+  <section id="a9" class="screen" aria-labelledby="h-a9">
+    <div class="sec-head">
+      <span class="sec-num">9</span>
+      <h2 id="h-a9">Handed off</h2>
+      <p class="sec-sub">The honest blind resting state, while the terminal above does the work. No fake spinner, ever: stillness is the honesty.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Contacts</li>
+            <li class="sb-item partial"><span class="mark">&#9684;</span>Connect GitHub<span class="count">3/5</span></li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Describe your org</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Integrations</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Secret store</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Review &amp; hand off</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Handed off</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Setup is running in your terminal</h3>
+          <p class="win-intro">Claude Code is setting up your organization now.</p>
+          <div class="win-content">
+            <div class="qi-block" style="text-align:center; padding:26px 18px;">
+              <p style="max-width:44ch;margin:0 auto 16px;font-size:12.8px;color:var(--qi-ink-soft);line-height:1.55;">This app can't see your terminal, so it won't guess how it's going. When Claude Code says it's done, run the Setup check and this app will read the result straight from GitHub.</p>
+              <span class="btn primary">Run the Setup check</span>
+              <p style="max-width:44ch;margin:16px auto 0;font-size:11.6px;color:var(--qi-ink-faint);line-height:1.5;">You can close this. Your organization's setup lives on GitHub, and the Setup check reads it fresh every time.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl is back in the app while Claude Code works in his terminal. The app doesn't pretend to watch over its shoulder; it says plainly that it can't see the terminal and won't guess, and it points at the one true way to know: run the Setup check when Claude Code says it's done. He's told he can close the app safely because the truth lives on GitHub.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app renders a static resting state and executes nothing; it cannot and must not read the terminal's report. Meanwhile the script, driven by Claude Code, runs the ordered, additive, idempotent GitHub sequence in the terminal, narrating created or already-there per step and refusing plainly on a missing scope or a secret-shaped value. The app's only collected intent here is "verify," which shells the read-only verify verb on the next screen.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A10 Setup check ---------------- -->
+  <section id="a10" class="screen" aria-labelledby="h-a10">
+    <div class="sec-head">
+      <span class="sec-num">10</span>
+      <h2 id="h-a10">Setup check</h2>
+      <p class="sec-sub">Post-run verification from GitHub truth. Red and green, owner-named, count never score. A mixed result: one true fix, one thing GitHub has that the plan didn't ask for, and the deferred store's honest neutral row, never red and never orange.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Contacts</li>
+            <li class="sb-item partial"><span class="mark">&#9684;</span>Connect GitHub<span class="count">3/5</span></li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Describe your org</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Integrations</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Secret store</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Review &amp; hand off</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Handed off</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Setup check</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>The setup check</h3>
+          <p class="win-intro">An honest look at what's really on GitHub now. Every red names who has to fix it.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p style="margin:0 0 12px;font-size:12px;color:var(--qi-ink-faint);">This reads what's really on GitHub, not what you typed here. If setup did more or less than your plan, you'll see it below.</p>
+              <div class="qi-rows">
+                <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">Your org's three spaces exist, read-only by default</span><span class="ready">Ready</span></div>
+                <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">Accounting: three spaces exist</span><span class="ready">Ready</span></div>
+                <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">Sales: three spaces exist</span><span class="ready">Ready</span></div>
+                <div class="qi-row fail"><span class="g">&#10007;</span><span class="body2">Sales team can reach its spaces</span><span class="tag">Admin</span><span class="fix">Go fix this &rsaquo;</span></div>
+                <div class="qi-row present"><span class="g">&#9679;</span><span class="body2">IT: three spaces exist<span class="cap">This wasn't in your plan. Setup added it, and that's fine.</span></span></div>
+                <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">Your organization's setup file reads cleanly</span><span class="ready">Ready</span></div>
+                <div class="qi-row deferred"><span class="g">&#9680;</span><span class="body2">Shared store<span class="cap">Not connected yet. Shared integrations can't work until you connect one. You chose to do this later.</span></span><span class="tag">Admin</span><span class="fix">Connect &rsaquo;</span></div>
+              </div>
+              <p style="margin:12px 0 0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">1 thing must be fixed. Nothing couldn't be checked.</p>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Run it again</span><span class="status"></span><span class="btn primary">Continue &rarr; Done</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl runs the Setup check and gets an honest red and green list of what's really on GitHub now, one row per thing, each red naming who has to fix it. A note tells him this reads GitHub, not what he typed, so a department Claude Code added in conversation shows up as present and fine, not an error. A store he deferred reads as "not connected yet, you chose to do this later," with a Connect jump, never a red failure. A plain count replaces any score, and a re-run reads green.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app shells a read-only verify verb that reads GitHub truth and the store's reachability and emits <code>{check, status, detail, owner}</code> rows. The app renders; it computes no verdict. The verify verb compares what the brief declared (org, harness, departments, and, if set, the store pointer) against GitHub truth: declared-but-missing is red (owner named), present-beyond-plan is shown as present, and a deferred store (no pointer in the brief) is a neutral not-connected row, not a failure. Owners named: Admin for repos, grants, and connecting a deferred store; GitHub org owner for base permission; IT infra for a connected store that won't answer.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- A11 Done ---------------- -->
+  <section id="a11" class="screen" aria-labelledby="h-a11">
+    <div class="sec-head">
+      <span class="sec-num">11</span>
+      <h2 id="h-a11">Done, and what now</h2>
+      <p class="sec-sub">A calm confirmation, not a celebration, followed by the two real next things. This is the terminus: no progression footer.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-handoff"><span aria-hidden="true">&#8644;</span><span class="chip">Publisher done</span><span class="chip">Setup v1.4.2</span><span class="chip">Next: you (Admin)</span><span class="reveal">Reveal setup &rsaquo;</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Orientation</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Prerequisites</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Contacts</li>
+            <li class="sb-item partial"><span class="mark">&#9684;</span>Connect GitHub<span class="count">3/5</span></li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Describe your org</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Integrations</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Secret store</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Review &amp; hand off</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Handed off</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Setup check</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Onboarding</p>
+          <h3>Your organization is set up</h3>
+          <p class="win-intro">The spaces exist, the teams can reach them, and your setup file is in place. Two things to do next.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Invite the team, on GitHub</p>
+              <p>People join a department by being added to its team on GitHub. Add someone to the Sales team and they can join Sales from their own copilot. This app never manages people. GitHub does.</p>
+              <span class="btn text small">Open your teams &rsaquo;</span>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Point users at the app</p>
+              <p>Your team installs Copilot Control Tower themselves, and it sets them up from what you just built. Send them the app, and they'll see the departments they're on.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl gets a calm confirmation, not a trophy: the spaces exist and the teams can reach them. Then the two real next things: invite people by adding them to teams on GitHub (with a link straight there), and hand his team the app, which will set each person up from what he built.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Pure render, plus deep links out to the org's teams on github.com. The app triggers nothing and manages no people; adding and removing people is GitHub's surface, by design.</p></div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- JOURNEY B                                                          -->
+  <!-- =================================================================== -->
+  <div class="journey-head" id="journey-b">
+    <h3 class="journey-title">Journey B. Integrations lifecycle</h3>
+    <p class="sec-sub">The admin's role in this journey is education only. Integrations are built and published by department engineers, in the departments' own repos; the app never declares, collects, or configures one. The engine, and the org setup file, know nothing about specific integrations; existence lives in per-repo registries, gated by entitlement. The app's one surface for this is the Integrations screen above (<a href="#a6">screen 6</a>); this section is the corrected lifecycle it sits inside.</p>
+  </div>
+
+  <section id="b" class="screen" aria-labelledby="h-b">
+    <div class="sec-head">
+      <span class="sec-num">B</span>
+      <h2 id="h-b">The corrected phases, and the admin's role in each</h2>
+      <p class="sec-sub">Most of Journey B happens outside the app. The admin's job is to understand and to point engineers at the model, not to configure a catalog.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table class="phases">
+        <thead>
+          <tr><th>Phase</th><th>What happens</th><th>Where</th><th>The admin's / app's role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="phase">Understand</td><td>An admin, or an engineer, learns that an integration here is a small CLI tool a developer builds, not a native switch, that it names a key but never carries one, and that existence is a published registry entry, gated by who can reach the repo.</td><td>App (the Integrations education surface).</td><td><b>Education only.</b> The app teaches the model and previews the lifecycle. It collects nothing.</td></tr>
+          <tr><td class="phase">Build</td><td>An engineer with write access to a department's team builds skills, agents, and the integration inside that department's spaces, using the org's harness (Claude Code or Codex) and the owner's published patterns.</td><td>The department's repos, for example <code>acme-co/cli-copilot-accounting</code>.</td><td><b>Outside the app.</b> The app's copy advises assigning an engineer per department and points at GitHub team write access. It never collects engineer names.</td></tr>
+          <tr><td class="phase">Publish</td><td>The engineer adds the integration to a registry manifest, a plain document that lives in the repo and lists what has been built. Merging it to main publishes the integration.</td><td>The department's repo on GitHub, a registry document plus a merge to main.</td><td><b>Renders the concept</b> (the lifecycle preview and the registry mock). It does not perform the merge.</td></tr>
+          <tr><td class="phase">Discover / inherit</td><td>Entitled users' machines resolve the union of the registries across the spaces they can reach; the user-face app renders what is available and can notify when a new one arrives. Published for the org, it is inherited by every department; published for one department, it belongs only there; published nowhere, it exists for no one.</td><td>The resolver plus the user-face app, on each user's machine.</td><td><b>Not the admin's surface.</b> This is the user experience; the admin's app renders that registries exist, in the read-only Org setup summary.</td></tr>
+          <tr><td class="phase">Provision the secret</td><td>The named key is placed in the shared store, scoped to the team that should reach it. At runtime the store checks GitHub-team membership and hands over the key. Users never set up their own key for a shared integration.</td><td>The store's own UI, plus the store pointer set at standup or in governance.</td><td><b>Never touches the key.</b> The store hands it out by entitlement; the value lives only in the store.</td></tr>
+          <tr><td class="phase">Evolve / retire</td><td>Changing an integration is editing its registry entry and re-merging; retiring one is removing its registry entry and rotating its key in the store.</td><td>The department's repo (registry edit and merge) plus the store's UI (key rotation).</td><td><b>Renders</b> what exists now. Every change is an in-repo edit plus a store action, never an in-app mutation.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout"><b>What Journey B is not:</b> there is no integrations tab, no config surface, no declaration act, no catalog to toggle, and no admin-maintained list. <code>ecosystem.yml</code> carries no integration declarations at all, only components, departments, the harness choice, and the store pointer. The app teaches the model and renders that registries exist; it never manages integrations.</div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- JOURNEY C                                                          -->
+  <!-- =================================================================== -->
+  <div class="journey-head" id="journey-c">
+    <h3 class="journey-title">Journey C. Governance, steady state</h3>
+    <p class="sec-sub">Occasional, calm, and mostly instructional: the same describe, hand off, verify instrument as standup, plus guidance for the acts that belong on GitHub and in the store. Governance entries carry no progression marks; they are entries, not a pipeline.</p>
+  </div>
+
+  <!-- ---------------- C1 Add a department ---------------- -->
+  <section id="c1" class="screen" aria-labelledby="h-c1">
+    <div class="sec-head">
+      <span class="sec-num">C1</span>
+      <h2 id="h-c1">Add a department</h2>
+      <p class="sec-sub">A safe re-run. Re-enters Describe for just the new unit, or the second harness, then reuses Review, the terminal, and the Setup check.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Orientation</li>
+            <li class="sb-item gov">Prerequisites</li>
+            <li class="sb-item gov">Contacts</li>
+            <li class="sb-item gov">Connect GitHub</li>
+            <li class="sb-item gov">Describe your org</li>
+            <li class="sb-item gov">Integrations</li>
+            <li class="sb-item gov">Secret store</li>
+            <li class="sb-item gov">Review &amp; hand off</li>
+            <li class="sb-item gov">Handed off</li>
+            <li class="sb-item gov">Setup check</li>
+            <li class="sb-item gov">Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item current"><span class="mark">&#9673;</span>Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Governance</p>
+          <h3>Add a department</h3>
+          <p class="win-intro">Add a department here. Setting up again only adds what's new and never touches what's already there.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p>Your organization already has: Accounting, Sales, on Codex. Add a new department and you'll see the plan for just its three spaces and its team. You can also add Claude Code alongside Codex for the whole organization. It only adds the new claude-copilot spaces and leaves everything else alone.</p>
+            </div>
+          </div>
+          <div class="win-footer"><span></span><span class="status"></span><span class="btn primary">Describe the addition</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Re-entering Describe: the new unit only</p>
+        <div class="inset-win">
+          <p style="margin:0 0 8px;font-size:11.8px;color:var(--qi-ink-faint);">Accounting and Sales are already there and locked; only IT is editable.</p>
+          <p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);"><b style="color:var(--qi-ink)">Three spaces for the IT department:</b><br>
+            <span class="qi-mono">acme-co/codex-copilot-it</span><br>
+            <span class="qi-mono">acme-co/knowledge-copilot-it</span><br>
+            <span class="qi-mono">acme-co/cli-copilot-it</span> Private.<br>
+            An IT team that can reach them.</p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">The re-run: Setup check, mostly green</p>
+        <div class="inset-win">
+          <div class="qi-rows">
+            <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">Accounting, Sales: unchanged, still Ready</span><span class="ready">Ready</span></div>
+            <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">IT: three spaces exist</span><span class="ready">Ready</span></div>
+            <div class="qi-row ok"><span class="g">&#10003;</span><span class="body2">IT team can reach its spaces</span><span class="ready">Ready</span></div>
+          </div>
+          <p style="margin:10px 0 0;font-size:12.2px;font-weight:650;color:var(--qi-ink);">Everything's ready to hand over.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl returns to add "IT," or to add Claude Code alongside Codex for the whole org. He's told plainly that setting up again only adds what's new and never touches what's already there. He describes just the addition, sees the plan for its spaces (and team, for a department), and hands off exactly as before. The green re-run answers the "will this break what works?" fear after the fact.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app frames the safe re-run and routes into Describe for the addition, writing an updated brief. The same idempotent script runs; everything already present narrates as already-there, and only the new unit's spaces, team, grant, and setup-file entry, or the second harness's codex-copilot* or claude-copilot* spaces, are created. The Setup check afterward reads green for the existing org and green for the addition.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- C2 Someone left ---------------- -->
+  <section id="c2" class="screen" aria-labelledby="h-c2">
+    <div class="sec-head">
+      <span class="sec-num">C2</span>
+      <h2 id="h-c2">Someone left</h2>
+      <p class="sec-sub">Instructional guidance, not management. No offboard button; the app names exactly what to do and where.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Orientation</li>
+            <li class="sb-item gov">Prerequisites</li>
+            <li class="sb-item gov">Contacts</li>
+            <li class="sb-item gov">Connect GitHub</li>
+            <li class="sb-item gov">Describe your org</li>
+            <li class="sb-item gov">Integrations</li>
+            <li class="sb-item gov">Secret store</li>
+            <li class="sb-item gov">Review &amp; hand off</li>
+            <li class="sb-item gov">Handed off</li>
+            <li class="sb-item gov">Setup check</li>
+            <li class="sb-item gov">Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Governance</p>
+          <h3>Someone left</h3>
+          <p class="win-intro">This app doesn't manage people. When someone leaves, remove them from their teams on GitHub. Then rotate the keys those teams could reach in your shared store, so their old access is worthless.</p>
+          <div class="win-content">
+            <div class="qi-field-row" style="margin-bottom:14px;"><label>Who left</label><span class="qi-input">octocat</span><span class="btn small">Look up</span></div>
+            <div class="qi-block">
+              <p class="qi-block-label">Teams they were on (remove them on GitHub)</p>
+              <div class="qi-rows">
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">Accounting team</span><span class="fix">Open on GitHub &rsaquo;</span></div>
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">Sales team</span><span class="fix">Open on GitHub &rsaquo;</span></div>
+              </div>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Keys to rotate (in your shared store)</p>
+              <div class="qi-rows">
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">SALESFORCE_API_KEY <span class="cap">Sales</span></span><span class="fix">Open the store &rsaquo;</span></div>
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">NETSUITE_TOKEN <span class="cap">Accounting</span></span><span class="fix">Open the store &rsaquo;</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl looks up the person who left. The app shows exactly which teams they were on and which named keys those teams could reach, with links straight to GitHub and to the store. There is no "offboard" button, because the app can't and shouldn't reach in and remove a person; instead it names precisely what to do and where, so nothing is missed.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app reads the person's team membership and, to name the keys to rotate, reads the registries of the spaces those teams could reach together with the store's team-to-scope mapping. It triggers nothing. The acts happen elsewhere: team removal on github.com, key rotation in the store's own UI. Content already on a departed person's disk is not remotely wiped (an accepted residual); the guarantee is revoked access plus rotated keys, which make old copies worthless.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- C3 Connect the shared store (new) ---------------- -->
+  <section id="c3" class="screen" aria-labelledby="h-c3">
+    <div class="sec-head">
+      <span class="sec-num">C3</span>
+      <h2 id="h-c3">Connect the shared store</h2>
+      <p class="sec-sub">New governance surface: the deferred / later home for connecting a store. Reuses the standup educate-and-connect form. A write, authored by the script through a small re-run hand-off, deliberately separate from the read-only Org setup summary.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Orientation</li>
+            <li class="sb-item gov">Prerequisites</li>
+            <li class="sb-item gov">Contacts</li>
+            <li class="sb-item gov">Connect GitHub</li>
+            <li class="sb-item gov">Describe your org</li>
+            <li class="sb-item gov">Integrations</li>
+            <li class="sb-item gov">Secret store</li>
+            <li class="sb-item gov">Review &amp; hand off</li>
+            <li class="sb-item gov">Handed off</li>
+            <li class="sb-item gov">Setup check</li>
+            <li class="sb-item gov">Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Governance</p>
+          <h3>Connect the shared store</h3>
+          <p class="win-intro">Connect the store that holds your organization's shared keys. Your integrations will need it before they can work. A shared secret store hands out keys by GitHub team, so a key never lives in a repo or in this app.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <div class="qi-field-row"><label>Store type</label><span class="qi-input">Infisical &#9662;</span></div>
+              <div class="qi-field-row"><label>Store address</label><span class="qi-input">https://vault.acme-co.com</span></div>
+              <span class="qi-help">This is a web address, not a secret.</span>
+              <div class="qi-field-row" style="margin-top:12px;"><label>Which teams can use it</label><span class="qi-input">Accounting &rarr; acct scope &#9662;</span></div>
+              <div class="qi-field-row"><label></label><span class="qi-input">Sales &rarr; sales scope &#9662;</span></div>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">How this is added</p>
+              <p>This adds your store pointer to your organization's setup. It never deletes or overwrites anything already there. Claude Code makes the change in your terminal, the same way it set up your organization.</p>
+            </div>
+          </div>
+          <div class="win-footer"><span></span><span class="status"></span><span class="btn primary">Copy the command to add it</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl, who deferred the store, or is adding one before the first integration ships, sees the exact same educate-and-connect form he'd have seen during standup, so there's one mental model. He fills it in, copies a command, and hands off. The change is small (just the store pointer) and additive, and the Setup check confirms the store now answers.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app collects the store type, address, and team-to-scope mapping (secret-shape refusal on every field) into a small re-run brief and hands off to the script, which adds the store pointer to the org setup file additively. The app authors nothing directly; connecting is a write, which is why this is its own surface and not folded into the read-only Org setup summary.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- C4 Org setup ---------------- -->
+  <section id="c4" class="screen" aria-labelledby="h-c4">
+    <div class="sec-head">
+      <span class="sec-num">C4</span>
+      <h2 id="h-c4">Org setup, read-only</h2>
+      <p class="sec-sub">Everything the organization hands out, in one place. Merges the old store-config panel. Inherited, never editable here.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Orientation</li>
+            <li class="sb-item gov">Prerequisites</li>
+            <li class="sb-item gov">Contacts</li>
+            <li class="sb-item gov">Connect GitHub</li>
+            <li class="sb-item gov">Describe your org</li>
+            <li class="sb-item gov">Integrations</li>
+            <li class="sb-item gov">Secret store</li>
+            <li class="sb-item gov">Review &amp; hand off</li>
+            <li class="sb-item gov">Handed off</li>
+            <li class="sb-item gov">Setup check</li>
+            <li class="sb-item gov">Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Org setup</li>
+            <li class="sb-item gov">Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Governance</p>
+          <h3>Your organization's setup</h3>
+          <p class="win-intro">Everything your organization hands out, in one place. This comes from your organization's setup on GitHub. It isn't editable here, by design.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Copilots &amp; harness</p>
+              <p>Harness: Codex. Codex &middot; Knowledge &middot; CLI <span class="qi-mono" style="color:var(--qi-ink-faint)">(versions shown)</span></p>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Departments</p>
+              <p>Accounting &middot; Sales</p>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Published integrations (from the departments' registries)</p>
+              <p>None published yet.</p>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Where your shared keys come from</p>
+              <p>Not connected yet. Connect one before your first shared integration can work. <span class="btn text small">Connect the store &rsaquo;</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl sees one read-only place with everything his organization distributes: its copilots and the harness it builds with (Codex), its departments, any integrations its engineers have published, and where its shared keys come from, or that no store is connected yet, with a jump to connect one. It's plainly labeled as coming from GitHub and not editable here.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app renders the parsed org setup file (<code>ecosystem.yml</code>, which carries components, harness, departments, versions, and the store pointer only) plus a read-only roll-up of the per-repo registries. Nothing is editable; security-sensitive config is honored only from inherited signed org config, never re-pointed from the app. Connecting a store from here is a jump to the dedicated write surface, not an edit in this read-only view.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- C5 Analytics ---------------- -->
+  <section id="c5" class="screen" aria-labelledby="h-c5">
+    <div class="sec-head">
+      <span class="sec-num">C5</span>
+      <h2 id="h-c5">Analytics</h2>
+      <p class="sec-sub">Off by default usage data with a read-only "what would share." No dark pattern.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Administration</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Onboarding</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Orientation</li>
+            <li class="sb-item gov">Prerequisites</li>
+            <li class="sb-item gov">Contacts</li>
+            <li class="sb-item gov">Connect GitHub</li>
+            <li class="sb-item gov">Describe your org</li>
+            <li class="sb-item gov">Integrations</li>
+            <li class="sb-item gov">Secret store</li>
+            <li class="sb-item gov">Review &amp; hand off</li>
+            <li class="sb-item gov">Handed off</li>
+            <li class="sb-item gov">Setup check</li>
+            <li class="sb-item gov">Done</li>
+          </ul>
+          <div class="sb-section-label">Governance</div>
+          <ul class="sb-list">
+            <li class="sb-item gov">Add a department</li>
+            <li class="sb-item gov">Someone left</li>
+            <li class="sb-item gov">Connect the store</li>
+            <li class="sb-item gov">Org setup</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Analytics</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Governance</p>
+          <h3>Usage data</h3>
+          <p class="win-intro">Off. Nothing is shared unless you turn this on and your organization signs off on it.</p>
+          <div class="win-content">
+            <div class="qi-field-row" style="margin-bottom:14px;"><label></label><span class="qi-input">&#9675; Share anonymous usage data</span></div>
+            <div class="qi-block">
+              <p class="qi-block-label">What this would share</p>
+              <p>Feature-usage counts by screen name, no organization name, no department names, no repository names, no person's name.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl sees a plain switch, off by default, with an honest read-only list of exactly what would be shared if he turned it on. Nothing is hidden and nothing nudges him toward on.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app collects the opt-in switch state locally and renders the "what would share" list. Off by default; nothing is shared unless Earl turns it on and the org signs off. No dark pattern, no pre-checked default.</p></div>
+    </div>
+  </section>
+
+  <div class="callout">
+    <b>What governance no longer contains.</b> Stated explicitly, because the removals are the design.
+    <ul>
+      <li><b>No user management.</b> No members panel, no add or offboard control that touches a person. People join and leave via GitHub teams.</li>
+      <li><b>No policy signing.</b> Deferred entirely from v1. No panel, no user-facing concept. V1 relies on GitHub protections (private repos, branch protection, required reviews) that the script configures automatically.</li>
+      <li><b>No integration management.</b> No declaration act, no catalog, no admin-maintained list. Integrations are built and published by department engineers (Journey B); governance only renders what their registries have published.</li>
+      <li><b>No store editing.</b> Connecting a store is a deliberate, additive write authored by the script through the hand-off (Connect the shared store, above); the store endpoint shown in the Org setup summary is read-only and inherited, and is never re-pointed from local user config.</li>
+    </ul>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- KILLED                                                             -->
+  <!-- =================================================================== -->
+  <section id="killed" class="screen" aria-labelledby="h-killed">
+    <div class="sec-head">
+      <span class="sec-num">&middot;</span>
+      <h2 id="h-killed">What was killed, and why</h2>
+      <p class="sec-sub">For review completeness: the surfaces the old build had that this redesign removes outright, not merely restyles.</p>
+    </div>
+    <div class="killed-grid">
+      <div class="killed-card"><h4>The members panel</h4><p>GitHub is the only user-management surface. Onboarding creates a team and a grant that makes joining possible; it never adds or removes a person. That act, and its undo, lives on GitHub.</p></div>
+      <div class="killed-card"><h4>The seed YAML form</h4><p>The deterministic script writes <code>ecosystem.yml</code> from the plain-language brief. The seed is demystified in Orientation and shown concretely in Review, never hand-authored in a form.</p></div>
+      <div class="killed-card"><h4>Policy signers</h4><p>Deferred entirely from v1. No panel, no user-facing concept. V1 relies on the GitHub protections the script configures automatically.</p></div>
+      <div class="killed-card"><h4>The in-app run button</h4><p>The app fires no mutation and streams nothing. Review and hand off enumerates, writes the non-secret brief, and generates a copyable command; the old streamed rows relocate to Claude Code's terminal narration.</p></div>
+      <div class="killed-card"><h4>Deprovision, by button</h4><p>Restructured into Someone left: instructional guidance naming GitHub teams to remove and store keys to rotate. The app renders what to do and where; it triggers nothing.</p></div>
+      <div class="killed-card"><h4>The integration declaration form</h4><p>Killed because integrations are created and published at the repo level, by department engineers, never registered in the admin. The admin's Integrations screen teaches and previews; it declares nothing.</p></div>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <span>docs/03-design/admin-experience-interaction-design.md &middot; admin-experience-service-design.md &middot; control-tower-visual-system.md</span>
+    <span>uid walkthrough &middot; 16 app surfaces, screens 1 to 11 in sequence, 12 to 16 as governance entries</span>
+  </footer>
+
+</main>
