@@ -117,8 +117,27 @@ slug() {
 # A test can force ANY call against a given endpoint to fail with a genuine
 # (non-404) error by touching $ST/inject-error/<slug(endpoint)>. This is how
 # tests prove a real gh/network failure surfaces honestly (failed/unknown)
-# instead of being silently treated as "not set" or "doesn't exist yet".
-if [[ -f "$ST/inject-error/$(slug "$endpoint")" ]]; then
+# instead of being silently treated as "not set" or "doesn't exist yet". A
+# plain touch (empty file) yields a generic HTTP 500; writing the literal
+# text "403" into the marker file yields a faithful HTTP 403 instead (e.g.
+# to simulate GitHub's free-plan branch-protection-on-private-repos limit).
+#
+# A method-specific marker, $ST/inject-error/<METHOD>__<slug(endpoint)>, is
+# checked first and wins over the method-agnostic marker above — needed for
+# endpoints hit with two different methods for two different purposes (e.g.
+# branch protection: GET to check for existing protection, PUT to set it),
+# where only one of the two calls should be made to fail.
+inject_file="$ST/inject-error/${method}__$(slug "$endpoint")"
+if [[ ! -f "$inject_file" ]]; then
+  inject_file="$ST/inject-error/$(slug "$endpoint")"
+fi
+if [[ -f "$inject_file" ]]; then
+  inject_status="$(cat "$inject_file" 2>/dev/null || true)"
+  if [[ "$inject_status" == "403" ]]; then
+    echo '{"message":"Upgrade to GitHub Pro or make this repository public to enable this feature."}'
+    echo 'gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)' >&2
+    exit 1
+  fi
   echo '{"message":"Internal Server Error"}'
   echo 'gh: Internal Server Error (HTTP 500)' >&2
   exit 1

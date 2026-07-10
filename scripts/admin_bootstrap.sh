@@ -520,12 +520,29 @@ _ensure_branch_protection() {
     return
   fi
 
+  local protect_err
+  protect_err="$(mktemp)"
   if echo '{"required_pull_request_reviews":{"required_approving_review_count":1},"enforce_admins":true,"required_status_checks":null,"restrictions":null}' \
-    | gh api -X PUT "repos/$org/$reponame/branches/$default_branch/protection" --input - >/dev/null 2>&1; then
+    | gh api -X PUT "repos/$org/$reponame/branches/$default_branch/protection" --input - >/dev/null 2>"$protect_err"; then
+    rm -f "$protect_err"
     emit_step "$step" "updated" "Set $org/$reponame to require review before merge."
-  else
-    fail_step "$step" "Could not set branch protection on $org/$reponame."
+    return
   fi
+
+  # Detected on HTTP status alone, never on GitHub's error message text: by
+  # this point preflight already confirmed the actor is an org owner with
+  # admin:org + repo, so a 403 specifically on the branch-protection endpoint
+  # is overwhelmingly the free-plan limitation (protection on private repos
+  # is a paid-only feature), not a permissions gap of ours; matching an exact
+  # message string would be brittle since GitHub rewords those over time.
+  if grep -qi 'HTTP 403' "$protect_err" 2>/dev/null; then
+    rm -f "$protect_err"
+    emit_step "$step" "skipped" "Review protection needs a paid GitHub plan for private repositories. Your spaces are set up. Upgrade the plan and run setup again to add it."
+    return
+  fi
+
+  rm -f "$protect_err"
+  fail_step "$step" "Could not set branch protection on $org/$reponame."
 }
 
 _ensure_team() {

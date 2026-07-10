@@ -958,6 +958,57 @@ test_no_em_dash_in_emitted_output() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 19: a free-plan org's HTTP 403 on branch protection (private-repo
+# review protection is a paid-only GitHub feature) completes the run instead
+# of halting it — the step renders skipped with the canonical detail.
+# ---------------------------------------------------------------------------
+
+test_free_plan_branch_protection_403_skips_gracefully() {
+  local st brief log
+  st="$(new_org_state free-plan-403)"
+  brief="$WORKDIR/brief-free-plan-403.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/free-plan-403.log"
+
+  mkdir -p "$st/inject-error"
+  printf '403' > "$st/inject-error/PUT__repos__acme-co__codex-copilot__branches__main__protection"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test19: a free-plan 403 on branch protection still completes the run" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  local step_result step_detail
+  step_result="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot") | .result')"
+  step_detail="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot") | .detail')"
+
+  assert_eq "test19: the protection step renders skipped, not failed" "skipped" "$step_result"
+  assert_eq "test19: the skipped detail is the canonical free-plan message, verbatim" \
+    "Review protection needs a paid GitHub plan for private repositories. Your spaces are set up. Upgrade the plan and run setup again to add it." \
+    "$step_detail"
+}
+
+# ---------------------------------------------------------------------------
+# Test 20: a NON-403 error on the same branch-protection PUT still halts the
+# run — proves the 403 leniency didn't over-broaden to every failure.
+# ---------------------------------------------------------------------------
+
+test_non_403_branch_protection_error_still_fails() {
+  local st brief log
+  st="$(new_org_state free-plan-500)"
+  brief="$WORKDIR/brief-free-plan-500.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/free-plan-500.log"
+
+  mkdir -p "$st/inject-error"
+  touch "$st/inject-error/PUT__repos__acme-co__codex-copilot__branches__main__protection"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test20: a non-403 branch-protection error still halts the run" "1" "$RUN_EXIT"
+  assert_contains "test20: stdout carries a failed branch-protection step" "$RUN_STDOUT" '"step":"branch-protection:codex-copilot","result":"failed"'
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -979,6 +1030,8 @@ test_foundation_pin_no_match_fails
 test_foundation_pin_injected_error_unknown
 test_stale_branch_content_gets_updated_not_already_present
 test_no_em_dash_in_emitted_output
+test_free_plan_branch_protection_403_skips_gracefully
+test_non_403_branch_protection_error_still_fails
 
 echo
 echo "-----------------------------------------"

@@ -475,6 +475,10 @@ design: it names the one categorical automation boundary before anything can fai
   - `You are an owner of it. Only an owner can create the organization's spaces.`
   - `You have GitHub's command-line tool and Claude Code on this Mac. The next step
     checks and helps.`
+  - `Review protection needs a paid GitHub plan. Setup asks GitHub to require a review
+    before your shared setup files change. For private repositories, GitHub only offers
+    that on a paid plan. On the free plan, setup still finishes and your spaces are
+    created, they just won't have review protection until you upgrade.`
 - Buttons: `Back` / `Continue`
 
 ## 3.5 Contacts (who's who)

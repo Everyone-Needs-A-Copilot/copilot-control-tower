@@ -1290,6 +1290,10 @@ extension AdminRootView {
                         Text("•").foregroundColor(Color(nsColor: .secondaryLabelColor))
                         Text("You have GitHub's command-line tool and Claude Code on this Mac. The next step checks and helps.")
                     }
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•").foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        Text("Review protection needs a paid GitHub plan. Setup asks GitHub to require a review before your shared setup files change. For private repositories, GitHub only offers that on a paid plan. On the free plan, setup still finishes and your spaces are created, they just won't have review protection until you upgrade.")
+                    }
                 }
                 .font(.body)
                 .foregroundColor(Color(nsColor: .labelColor))
