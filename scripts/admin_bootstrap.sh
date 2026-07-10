@@ -19,7 +19,20 @@ set -euo pipefail
 BRIEF_SCHEMA_VERSION="1.0"
 VERIFY_SCHEMA_VERSION="1.0"
 ECOSYSTEM_SCHEMA_VERSION="2.0"
-FOUNDATION_REF_DEFAULT="^5.x"
+# The pin the script applies (admin-standup-contract.md §4/§6 — Earl chooses no
+# version in v1). This must be a fully-specified caret range (^MAJOR.MINOR.PATCH)
+# so it can actually be resolved against real tags; the contract's own "^5.x"
+# illustration is a shape example, not valid semver (an "x" minor/patch can't be
+# compared), so the script picks a concrete floor here.
+FOUNDATION_REF_DEFAULT="^5.13.0"
+# The public GitHub org that owns every foundation component repo
+# (<component>-copilot), read over anonymous HTTPS — no credential assumptions.
+FOUNDATION_ORG="Everyone-Needs-A-Copilot"
+# Fixed, deterministic work-branch name for content-bearing ecosystem.yml
+# changes (admin-standup-contract.md §6 step 5). Never timestamped, never
+# force-pushed: the same branch is reused and fast-forwarded across re-runs so
+# a second run adds no duplicate commits or pull requests.
+WORK_BRANCH="copilot-standup"
 DEFAULT_BRIEF_PATH="${HOME}/Library/Application Support/CopilotControlTower/standup-brief.md"
 
 # Brief-derived state, populated by _load_brief.
@@ -588,6 +601,112 @@ _team_can_reach() {
 }
 
 # ---------------------------------------------------------------------------
+# Semver caret-range resolution (foundation pin, admin-standup-contract.md §3/§6)
+# ---------------------------------------------------------------------------
+#
+# Accepted tag shapes: "vX.Y.Z" or "X.Y.Z" (three numeric components, no
+# pre-release/build suffix). Any other tag (a pre-release like "v5.13.0-rc1",
+# a moving alias like "latest", a two-part "v5.13") is silently skipped when
+# scanning for the highest match — it never crashes the scan and never counts
+# as a candidate, since a caret range's contract only reasons about exact
+# X.Y.Z triplets.
+#
+# Caret-range semantics (the npm/semver definition): ^X.Y.Z allows any version
+# >= X.Y.Z that does not change the *first nonzero* component: for X > 0 that
+# is <(X+1).0.0; for X == 0, Y > 0 that is <0.(Y+1).0; for X == Y == 0 that is
+# <0.0.(Z+1). Every foundation pin the script applies has X > 0 in practice,
+# but the zero-major cases are implemented too, for correctness.
+
+# _parse_version_tag TAG — sets _V_MAJOR/_V_MINOR/_V_PATCH if TAG is exactly
+# "vX.Y.Z" or "X.Y.Z"; returns 1 (leaving them unset) for anything else.
+_parse_version_tag() {
+  local raw="$1" v
+  v="${raw#v}"
+  if [[ "$v" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    _V_MAJOR="${BASH_REMATCH[1]}"
+    _V_MINOR="${BASH_REMATCH[2]}"
+    _V_PATCH="${BASH_REMATCH[3]}"
+    return 0
+  fi
+  return 1
+}
+
+# _version_key MAJOR MINOR PATCH — a zero-padded, lexicographically-sortable
+# key so plain bash string comparison (`<`/`>` inside [[ ]]) behaves as
+# numeric comparison, without needing bc/awk for version math.
+_version_key() {
+  printf '%05d%05d%05d' "$1" "$2" "$3"
+}
+
+# _caret_range_bounds RANGE — parses a "^X.Y.Z" range into inclusive-min /
+# exclusive-max keys (_RANGE_MIN_KEY, _RANGE_MAX_KEY). Returns 1 for anything
+# that isn't a well-formed caret range over an X.Y.Z triplet.
+_caret_range_bounds() {
+  local range="$1" body maj min pat
+  [[ "$range" == \^* ]] || return 1
+  body="${range#^}"
+  [[ "$body" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || return 1
+  maj="${BASH_REMATCH[1]}"; min="${BASH_REMATCH[2]}"; pat="${BASH_REMATCH[3]}"
+  _RANGE_MIN_KEY="$(_version_key "$maj" "$min" "$pat")"
+  if [[ "$maj" != "0" ]]; then
+    _RANGE_MAX_KEY="$(_version_key "$((maj + 1))" 0 0)"
+  elif [[ "$min" != "0" ]]; then
+    _RANGE_MAX_KEY="$(_version_key 0 "$((min + 1))" 0)"
+  else
+    _RANGE_MAX_KEY="$(_version_key 0 0 "$((pat + 1))")"
+  fi
+  return 0
+}
+
+# _resolve_foundation_pin REPO RANGE — resolves RANGE against REPO's tags in
+# $FOUNDATION_ORG (anonymous HTTPS, public repo, no credential assumptions).
+# Sets _RESOLVE_STATUS to one of:
+#   "ok"       — _RESOLVED_TAG is the highest tag satisfying RANGE.
+#   "no-match" — tags were read fine, but none satisfy RANGE.
+#   "unreadable" — the tags read itself failed (network/API error); never
+#                  treated as "no-match" — see the fail-closed rule (§3.2).
+#   "bad-range"  — RANGE itself isn't a caret range this script understands.
+_resolve_foundation_pin() {
+  local repo="$1" range="$2" names name best_key="" best_tag=""
+
+  if ! _caret_range_bounds "$range"; then
+    _RESOLVE_STATUS="bad-range"
+    return 1
+  fi
+
+  local err_file
+  err_file="$(mktemp)"
+  if ! names="$(gh api "repos/$FOUNDATION_ORG/$repo/tags" --paginate --jq '.[].name' 2>"$err_file")"; then
+    rm -f "$err_file"
+    _RESOLVE_STATUS="unreadable"
+    return 1
+  fi
+  rm -f "$err_file"
+
+  while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    if _parse_version_tag "$name"; then
+      local key
+      key="$(_version_key "$_V_MAJOR" "$_V_MINOR" "$_V_PATCH")"
+      if [[ "$key" > "$_RANGE_MIN_KEY" || "$key" == "$_RANGE_MIN_KEY" ]] && [[ "$key" < "$_RANGE_MAX_KEY" ]]; then
+        if [[ -z "$best_key" || "$key" > "$best_key" ]]; then
+          best_key="$key"
+          best_tag="$name"
+        fi
+      fi
+    fi
+  done <<< "$names"
+
+  if [[ -z "$best_tag" ]]; then
+    _RESOLVE_STATUS="no-match"
+    return 1
+  fi
+  _RESOLVE_STATUS="ok"
+  _RESOLVED_TAG="$best_tag"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # ecosystem.yml — additive read/render/merge (v-next, schema 2.0)
 # ---------------------------------------------------------------------------
 
@@ -715,16 +834,141 @@ _leak_scan() {
   return 0
 }
 
+_repo_default_branch_and_commits() {
+  # Sets _DEFAULT_BRANCH and _REPO_HAS_COMMITS ("true"/"false"). Calls
+  # fail_step (never returns) on a genuine read error — by this point in
+  # either orchestration path the repo has already been confirmed to exist,
+  # so a failure here is never a legitimate "doesn't exist yet".
+  local org="$1" repo="$2" step="$3"
+  if _gh_read "repos/$org/$repo" '.default_branch // empty'; then
+    _DEFAULT_BRANCH="$_GH_READ_VALUE"
+  else
+    fail_step "$step" "Could not read $org/$repo, so I won't guess whether it has content yet. It's safe to run this again."
+  fi
+  _REPO_HAS_COMMITS="false"
+  if [[ -n "$_DEFAULT_BRANCH" ]]; then
+    if _gh_read "repos/$org/$repo/branches/$_DEFAULT_BRANCH" '.name // empty'; then
+      _REPO_HAS_COMMITS="true"
+    elif [[ "$_GH_READ_STATUS" == "not-found" ]]; then
+      _REPO_HAS_COMMITS="false"
+    else
+      fail_step "$step" "Could not check whether $org/$repo has any commits yet, so I won't guess. It's safe to run this again."
+    fi
+  fi
+}
+
+# _find_pr ORG REPO BRANCH BASE — checks for an open pull request from BRANCH
+# into BASE. Sets _PR_NUMBER (empty if none found; only meaningful when this
+# returns 0). Returns 1 on a genuine read error (never collapsed into "none
+# found" — see _gh_read's rationale).
+_find_pr() {
+  local org="$1" repo="$2" branch="$3" base="$4" out err_file rc
+  err_file="$(mktemp)"
+  if out="$(gh api -X GET "repos/$org/$repo/pulls" -f head="$org:$branch" -f base="$base" -f state=open --jq '.[0].number // empty' 2>"$err_file")"; then
+    _PR_NUMBER="$out"
+    rc=0
+  else
+    _PR_NUMBER=""
+    rc=1
+  fi
+  rm -f "$err_file"
+  return $rc
+}
+
+# _ensure_ecosystem_pr ORG REPO BASE NEW_CONTENT STEP — the content-bearing-
+# repo path (admin-standup-contract.md §6 step 5): land NEW_CONTENT on the
+# fixed work branch (never a direct push to BASE) and open a PR to BASE.
+# Idempotent: a same-content re-run pushes no duplicate commit and opens no
+# duplicate PR (never-destroy #3, applied to branches and pull requests).
+_ensure_ecosystem_pr() {
+  local org="$1" repo="$2" base="$3" new_content="$4" step="$5"
+  local branch="$WORK_BRANCH" branch_exists="false"
+
+  if _gh_read "repos/$org/$repo/branches/$branch" '.name // empty'; then
+    branch_exists="true"
+  elif [[ "$_GH_READ_STATUS" == "not-found" ]]; then
+    branch_exists="false"
+  else
+    fail_step "$step" "Could not check whether $org/$repo already has a $branch branch, so I won't guess. It's safe to run this again."
+  fi
+
+  if [[ "$branch_exists" == "false" ]]; then
+    local base_sha
+    if _gh_read "repos/$org/$repo/branches/$base" '.commit.sha // empty'; then
+      base_sha="$_GH_READ_VALUE"
+    else
+      fail_step "$step" "Could not read $org/$repo's $base branch, so I won't guess. It's safe to run this again."
+    fi
+    if ! gh api -X POST "repos/$org/$repo/git/refs" -f ref="refs/heads/$branch" -f sha="$base_sha" >/dev/null 2>&1; then
+      fail_step "$step" "Could not create the $branch branch on $org/$repo."
+    fi
+  fi
+
+  local branch_get="" branch_sha="" branch_content="" pushed_update="false"
+  if branch_get="$(gh api -X GET "repos/$org/$repo/contents/ecosystem.yml" -f ref="$branch" 2>/dev/null)"; then
+    branch_sha="$(echo "$branch_get" | jq -r '.sha')"
+    branch_content="$(printf '%s' "$(echo "$branch_get" | jq -r '.content')" | _b64_decode)"
+  fi
+
+  if [[ "$branch_content" != "$new_content" ]]; then
+    local encoded
+    encoded="$(printf '%s' "$new_content" | base64 | tr -d '\n')"
+    if [[ -n "$branch_sha" ]]; then
+      if ! gh api -X PUT "repos/$org/$repo/contents/ecosystem.yml" -f message="Update ecosystem.yml" -f content="$encoded" -f branch="$branch" -f sha="$branch_sha" >/dev/null 2>&1; then
+        fail_step "$step" "Could not push ecosystem.yml to $org/$repo's $branch branch."
+      fi
+    else
+      if ! gh api -X PUT "repos/$org/$repo/contents/ecosystem.yml" -f message="Update ecosystem.yml" -f content="$encoded" -f branch="$branch" >/dev/null 2>&1; then
+        fail_step "$step" "Could not push ecosystem.yml to $org/$repo's $branch branch."
+      fi
+    fi
+    pushed_update="true"
+  fi
+
+  if ! _find_pr "$org" "$repo" "$branch" "$base"; then
+    fail_step "$step" "Could not check for an existing pull request on $org/$repo, so I won't guess. It's safe to run this again."
+  fi
+
+  if [[ -n "$_PR_NUMBER" ]]; then
+    if [[ "$pushed_update" == "true" ]]; then
+      # A real commit just landed on the branch (stale content caught up to
+      # a new desired state) — narrate `updated`, not `already-present`,
+      # so the stream never claims nothing happened when something did.
+      emit_step "$step" "updated" "Pushed new ecosystem.yml changes to $org/$repo's open pull request (#$_PR_NUMBER). Review and merge it when ready."
+    else
+      emit_step "$step" "already-present" "$org/$repo already has an open pull request (#$_PR_NUMBER) updating ecosystem.yml. Review and merge it when ready."
+    fi
+    return
+  fi
+
+  local pr_out
+  if pr_out="$(gh api -X POST "repos/$org/$repo/pulls" -f title="Update ecosystem.yml" -f head="$branch" -f base="$base" -f body="Additive ecosystem.yml changes from the admin standup. Never merged automatically: review and merge when ready." 2>/dev/null)"; then
+    local pr_number
+    pr_number="$(echo "$pr_out" | jq -r '.number')"
+    emit_step "$step" "created" "Opened pull request #$pr_number to update $org/$repo's ecosystem.yml. Review and merge it when ready."
+  else
+    fail_step "$step" "Could not open a pull request to update $org/$repo's ecosystem.yml."
+  fi
+}
+
 _write_ecosystem_yml() {
   local org="$1"
   local target_repo="${HARNESS_LIST[0]}-copilot"
   local step="ecosystem-yml"
-  local get_out="" sha="" existing_b64="" existing_content=""
+  local sha="" existing_content=""
 
+  # Empty repo vs. content-bearing repo is a distinct question from "does
+  # ecosystem.yml exist yet" — a repo can carry other content (a README, a
+  # prior manual commit) with no ecosystem.yml at all. This is the fork the
+  # contract's step 5 hinges on: an empty repo gets the initial-commit path
+  # unchanged; a content-bearing repo never gets a direct push, PR or not.
+  _repo_default_branch_and_commits "$org" "$target_repo" "$step"
+  local default_branch="$_DEFAULT_BRANCH" repo_has_commits="$_REPO_HAS_COMMITS"
+
+  local get_out
   if get_out="$(gh api "repos/$org/$target_repo/contents/ecosystem.yml" 2>/dev/null)"; then
     sha="$(echo "$get_out" | jq -r '.sha')"
-    existing_b64="$(echo "$get_out" | jq -r '.content')"
-    existing_content="$(printf '%s' "$existing_b64" | _b64_decode)"
+    existing_content="$(printf '%s' "$(echo "$get_out" | jq -r '.content')" | _b64_decode)"
   fi
 
   MERGE_HARNESS=()
@@ -771,26 +1015,38 @@ _write_ecosystem_yml() {
     return
   fi
 
+  # The leak-scan runs before ANY push — direct or branch — per the contract's
+  # fail-closed rule (#6): this is the single gate both paths below share.
   if ! _leak_scan "$new_content"; then
     refuse "leak-scan" "ecosystem.yml would have carried a secret-shaped value, so I stopped before pushing anything. Remove the secret and use a store reference instead."
   fi
 
-  local encoded
-  encoded="$(printf '%s' "$new_content" | base64 | tr -d '\n')"
-
-  if [[ -z "$existing_content" ]]; then
-    if gh api -X PUT "repos/$org/$target_repo/contents/ecosystem.yml" -f message="Initial ecosystem.yml" -f content="$encoded" >/dev/null 2>&1; then
-      emit_step "$step" "created" "Wrote the initial ecosystem.yml to $org/$target_repo."
+  if [[ "$repo_has_commits" == "false" ]]; then
+    # Empty repo: unchanged initial-commit-then-protect path (there is no
+    # default branch/CODEOWNERS to PR against yet; admin-agentic-setup.md §5
+    # open decision 4). This never happens once the repo carries content.
+    local encoded
+    encoded="$(printf '%s' "$new_content" | base64 | tr -d '\n')"
+    if [[ -z "$existing_content" ]]; then
+      if gh api -X PUT "repos/$org/$target_repo/contents/ecosystem.yml" -f message="Initial ecosystem.yml" -f content="$encoded" >/dev/null 2>&1; then
+        emit_step "$step" "created" "Wrote the initial ecosystem.yml to $org/$target_repo."
+      else
+        fail_step "$step" "Could not write ecosystem.yml to $org/$target_repo."
+      fi
     else
-      fail_step "$step" "Could not write ecosystem.yml to $org/$target_repo."
+      if gh api -X PUT "repos/$org/$target_repo/contents/ecosystem.yml" -f message="Update ecosystem.yml" -f content="$encoded" -f sha="$sha" >/dev/null 2>&1; then
+        emit_step "$step" "updated" "Added new entries to $org/$target_repo's ecosystem.yml."
+      else
+        fail_step "$step" "Could not update ecosystem.yml in $org/$target_repo."
+      fi
     fi
-  else
-    if gh api -X PUT "repos/$org/$target_repo/contents/ecosystem.yml" -f message="Update ecosystem.yml" -f content="$encoded" -f sha="$sha" >/dev/null 2>&1; then
-      emit_step "$step" "updated" "Added new entries to $org/$target_repo's ecosystem.yml."
-    else
-      fail_step "$step" "Could not update ecosystem.yml in $org/$target_repo."
-    fi
+    return
   fi
+
+  # Content-bearing repo: never a direct push. Land the change on the fixed
+  # work branch and open a PR to the default branch instead — merging is a
+  # human review act this engine never performs itself.
+  _ensure_ecosystem_pr "$org" "$target_repo" "$default_branch" "$new_content" "$step"
 }
 
 # ---------------------------------------------------------------------------
@@ -1003,13 +1259,51 @@ _check_undeclared_departments() {
   done <<< "$names"
 }
 
+# _check_ecosystem_drift_row ORG REPO DEFAULT_BRANCH PLAIN_DETAIL — the row
+# for "the default branch's ecosystem.yml doesn't yet reflect the brief"
+# (missing entirely, or drifted). Content-bearing repos land ecosystem.yml
+# changes via a PR, never a direct push (admin-standup-contract.md §6 step
+# 5), so this state can mean either "nothing has happened yet" or "a pull
+# request is open, awaiting a human review and merge" — two very different
+# things for the admin to hear.
+#
+# DECISION: render `fail`, never `unknown` and never `pass`, in both cases —
+# justified per §3.2's own definitions: `unknown` means "the check itself
+# could not run," which isn't true here (it ran and got a definite answer:
+# not on the default branch); `pass` would mean "verified true on GitHub,"
+# which is false (the resolver users' CLI actually reads only the default
+# branch — a pending PR is not yet in effect). `fail` is still honest and
+# not misleading, because the *detail* — not the status — is what carries
+# "nothing done" vs. "pending review": when an open PR exists, the detail
+# names it explicitly, so a red row here never reads as if no work happened.
+_check_ecosystem_drift_row() {
+  local org="$1" repo="$2" default_branch="$3" plain_detail="$4"
+  if _find_pr "$org" "$repo" "$WORK_BRANCH" "$default_branch"; then
+    if [[ -n "$_PR_NUMBER" ]]; then
+      _check_row "ecosystem-file" "fail" "$plain_detail Pull request #$_PR_NUMBER is open with this change: review and merge it." "Admin" "describe"
+    else
+      _check_row "ecosystem-file" "fail" "$plain_detail" "Admin" "describe"
+    fi
+  else
+    _check_row "ecosystem-file" "unknown" "$plain_detail I also couldn't check for a pending pull request, so I won't guess further." "Admin" "describe"
+  fi
+}
+
 _check_ecosystem_file() {
-  local org="$1" target_repo="${HARNESS_LIST[0]}-copilot" info b64 content err_file
+  local org="$1" target_repo="${HARNESS_LIST[0]}-copilot" info b64 content err_file default_branch
+
+  if _gh_read "repos/$org/$target_repo" '.default_branch // empty'; then
+    default_branch="$_GH_READ_VALUE"
+  else
+    _check_row "ecosystem-file" "unknown" "I couldn't read $org/$target_repo, so I won't guess about its ecosystem.yml." "Admin" "describe"
+    return
+  fi
+
   err_file="$(mktemp)"
   if ! info="$(gh api "repos/$org/$target_repo/contents/ecosystem.yml" 2>"$err_file")"; then
     if grep -qi 'HTTP 404' "$err_file" 2>/dev/null; then
       rm -f "$err_file"
-      _check_row "ecosystem-file" "fail" "$org/$target_repo has no ecosystem.yml yet." "Admin" "describe"
+      _check_ecosystem_drift_row "$org" "$target_repo" "$default_branch" "$org/$target_repo has no ecosystem.yml yet."
     else
       rm -f "$err_file"
       _check_row "ecosystem-file" "unknown" "I couldn't read $org/$target_repo's ecosystem.yml, so I won't guess." "Admin" "describe"
@@ -1034,7 +1328,8 @@ _check_ecosystem_file() {
   if [[ "${#missing_h[@]}" -eq 0 && "${#missing_u[@]}" -eq 0 ]]; then
     _check_row "ecosystem-file" "pass" "$org/$target_repo's ecosystem.yml matches your plan." "" "none"
   else
-    _check_row "ecosystem-file" "fail" "$org/$target_repo's ecosystem.yml is missing: $(_join_comma "${missing_h[@]+"${missing_h[@]}"}" "${missing_u[@]+"${missing_u[@]}"}")." "Admin" "describe"
+    _check_ecosystem_drift_row "$org" "$target_repo" "$default_branch" \
+      "$org/$target_repo's ecosystem.yml is missing: $(_join_comma "${missing_h[@]+"${missing_h[@]}"}" "${missing_u[@]+"${missing_u[@]}"}")."
   fi
 }
 
@@ -1071,12 +1366,28 @@ _check_store() {
 }
 
 _check_foundation_pin() {
-  local h="${HARNESS_LIST[0]}" repo="${h}-copilot"
-  if gh api "repos/Everyone-Needs-A-Copilot/${repo}" >/dev/null 2>&1; then
-    _check_row "foundation-pin" "pass" "The foundation reference for $h resolves." "" "none"
-  else
-    _check_row "foundation-pin" "unknown" "I couldn't reach the public foundation reference for $h, so I won't guess." "ENAC/external" "external"
+  # Two separate local statements, deliberately: `local a=X b="$a-y"` in a
+  # single statement evaluates every RHS against the *pre-existing* value of
+  # each name, not the sibling just assigned earlier in the same statement —
+  # a real bash gotcha, not sequential assignment. Chaining them here would
+  # silently resolve `repo` against an empty `h`.
+  local h="${HARNESS_LIST[0]}"
+  local repo="${h}-copilot" range="$FOUNDATION_REF_DEFAULT"
+  if _resolve_foundation_pin "$repo" "$range"; then
+    _check_row "foundation-pin" "pass" "The foundation reference for $h resolves to $_RESOLVED_TAG (satisfies $range)." "" "none"
+    return
   fi
+  case "$_RESOLVE_STATUS" in
+    no-match)
+      _check_row "foundation-pin" "fail" "No published tag of $FOUNDATION_ORG/$repo satisfies $range." "ENAC/external" "external"
+      ;;
+    bad-range)
+      _check_row "foundation-pin" "fail" "The foundation pin \"$range\" isn't a caret range I understand." "ENAC/external" "external"
+      ;;
+    *)
+      _check_row "foundation-pin" "unknown" "I couldn't read $FOUNDATION_ORG/$repo's published tags, so I won't guess whether $range resolves." "ENAC/external" "external"
+      ;;
+  esac
 }
 
 run_verify() {

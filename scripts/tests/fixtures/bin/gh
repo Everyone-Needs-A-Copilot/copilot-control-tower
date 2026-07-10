@@ -28,6 +28,7 @@ fields=()
 jq_expr=""
 include_headers=false
 has_input=false
+paginate=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -35,7 +36,7 @@ while [[ $# -gt 0 ]]; do
     -f|--raw-field|-F|--field) fields+=("$2"); shift 2 ;;
     -q|--jq) jq_expr="$2"; shift 2 ;;
     --input) has_input=true; shift 2 ;;
-    --paginate) shift ;;
+    --paginate) paginate=true; shift ;;
     -i|--include) include_headers=true; shift ;;
     --silent) shift ;;
     -*) shift ;;
@@ -50,16 +51,21 @@ if $has_input; then
 fi
 
 # gh's real default: GET normally, POST if any fields were added and no
-# explicit method was given.
+# explicit method was given. This inference uses only the real `-f`/`-F`
+# fields, never the synthetic `paginate=true` marker recorded below — that
+# marker exists purely so a test can prove `--paginate` was requested; it
+# must never itself flip a plain GET into a POST.
 if [[ -z "$method" ]]; then
   if [[ "${#fields[@]}" -gt 0 ]]; then method="POST"; else method="GET"; fi
 fi
 
 # --- record the call (normalized: METHOD<TAB>ENDPOINT<TAB>sorted,fields) ----
 {
+  record_fields=("${fields[@]:-}")
+  $paginate && record_fields+=("paginate=true")
   fields_csv=""
-  if [[ "${#fields[@]}" -gt 0 ]]; then
-    fields_csv="$(printf '%s\n' "${fields[@]}" | sort | paste -sd, -)"
+  if [[ "${#record_fields[@]}" -gt 0 ]]; then
+    fields_csv="$(printf '%s\n' "${record_fields[@]}" | sort | paste -sd, -)"
   fi
   printf '%s\t%s\t%s\n' "$method" "$endpoint" "$fields_csv"
 } >> "$GH_MOCK_LOG"
@@ -225,12 +231,110 @@ if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)$ ]]; then
   exit 0
 fi
 
-# GET /repos/{org}/{repo}/branches/{branch}
+# GET /repos/{org}/{repo}/branches/{branch} — exists for the default branch
+# once it has commits (has_commits marker); exists for any other named branch
+# once it's been explicitly created via POST git/refs below (a work branch,
+# e.g. copilot-standup). The sha is a deterministic pseudo-value (a hash of
+# org/repo/branch) — this mock never models real git objects, only existence
+# and content, which is all admin_bootstrap.sh's callers ever inspect.
 if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/branches/([^/]+)$ ]]; then
   org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"; branch="${BASH_REMATCH[3]}"
   repo_dir="$ST/repos/$org/$repo"
-  if [[ ! -f "$repo_dir/has_commits" ]]; then not_found; fi
-  emit "{\"name\": \"$branch\"}"
+  default_branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo main)"
+  exists=false
+  if [[ "$branch" == "$default_branch" ]]; then
+    [[ -f "$repo_dir/has_commits" ]] && exists=true
+  else
+    [[ -d "$repo_dir/refs/$branch" ]] && exists=true
+  fi
+  if ! $exists; then not_found; fi
+  sha="$(printf '%s' "$org/$repo/$branch" | shasum -a 1 | awk '{print $1}')"
+  emit "{\"name\": \"$branch\", \"commit\": {\"sha\": \"$sha\"}}"
+  exit 0
+fi
+
+# POST /repos/{org}/{repo}/git/refs — create a branch ref (the work-branch
+# creation step of the PR path, admin-standup-contract.md §6 step 5).
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/git/refs$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  ref_field="$(field_value ref || echo "")"
+  branch="${ref_field#refs/heads/}"
+  repo_dir="$ST/repos/$org/$repo"
+  ref_dir="$repo_dir/refs/$branch"
+  if [[ -d "$ref_dir" ]]; then
+    echo '{"message":"Reference already exists"}' >&2
+    exit 1
+  fi
+  mkdir -p "$ref_dir"
+  sha="$(printf '%s' "$org/$repo/$branch" | shasum -a 1 | awk '{print $1}')"
+  emit "{\"ref\": \"refs/heads/$branch\", \"object\": {\"sha\": \"$sha\"}}"
+  exit 0
+fi
+
+# GET (list, filtered by head/base/state)/POST (create) /repos/{org}/{repo}/pulls
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/pulls$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  prs_dir="$repo_dir/prs"
+  if [[ "$method" == "POST" ]]; then
+    head_field="$(field_value head || echo "")"
+    base_field="$(field_value base || echo "")"
+    # Real GitHub stores/lists a PR's head as "org:branch"; creation only
+    # takes the bare branch name for a same-repo PR, so normalize here to
+    # keep the create/list shapes consistent (mirrors the real API).
+    head_branch="${head_field#*:}"
+    mkdir -p "$prs_dir"
+    seq_file="$repo_dir/_pr_seq"
+    n=0
+    [[ -f "$seq_file" ]] && n="$(cat "$seq_file")"
+    n=$((n + 1))
+    echo "$n" > "$seq_file"
+    mkdir -p "$prs_dir/$n"
+    echo "$org:$head_branch" > "$prs_dir/$n/head"
+    echo "$base_field" > "$prs_dir/$n/base"
+    echo "open" > "$prs_dir/$n/state"
+    emit "{\"number\": $n, \"html_url\": \"https://github.com/$org/$repo/pull/$n\", \"state\": \"open\"}"
+    exit 0
+  fi
+  # GET — gh passes GET-time filters as querystring fields; the mock receives
+  # them the same way it receives POST fields (via -f), since both are
+  # collected into the same `fields` array during arg parsing.
+  head_val="$(field_value head || echo "")"
+  base_val="$(field_value base || echo "")"
+  state_val="$(field_value state || echo "open")"
+  results="[]"
+  if [[ -d "$prs_dir" ]]; then
+    for pr_dir in "$prs_dir"/*/; do
+      [[ -d "$pr_dir" ]] || continue
+      num="$(basename "$pr_dir")"
+      pr_head="$(cat "$pr_dir/head" 2>/dev/null || echo "")"
+      pr_base="$(cat "$pr_dir/base" 2>/dev/null || echo "")"
+      pr_state="$(cat "$pr_dir/state" 2>/dev/null || echo "open")"
+      if [[ "$pr_head" == "$head_val" && "$pr_base" == "$base_val" && "$pr_state" == "$state_val" ]]; then
+        results="$(echo "$results" | jq --argjson n "$num" '. + [{number: $n}]')"
+      fi
+    done
+  fi
+  emit "$results"
+  exit 0
+fi
+
+# GET /repos/{org}/{repo}/tags — the foundation-pin's semver source of truth
+# (admin-standup-contract.md §3). Real GitHub paginates this at 30/page; the
+# mock returns the whole fixture list in one shot (exactly what a `--paginate`
+# caller sees after gh transparently walks every page), and separately
+# records that `--paginate` was requested (see the fields_csv recording
+# above) so a test can prove the caller asked for the complete tag set.
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/tags$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  if [[ -f "$ST/foundation/$org/$repo/missing" ]]; then not_found; fi
+  tags_file="$ST/tags/$org/$repo"
+  if [[ ! -f "$tags_file" ]]; then
+    emit '[]'
+    exit 0
+  fi
+  arr="$(jq -R -s 'split("\n") | map(select(length > 0)) | map({name: .})' < "$tags_file")"
+  emit "$arr"
   exit 0
 fi
 
@@ -296,17 +400,32 @@ if [[ "$endpoint" =~ ^orgs/([^/]+)/teams/([^/]+)/repos/([^/]+)/([^/]+)$ ]]; then
   exit 0
 fi
 
-# GET/PUT /repos/{org}/{repo}/contents/ecosystem.yml
+# GET/PUT /repos/{org}/{repo}/contents/ecosystem.yml — GET honors an optional
+# `ref` field (read a specific branch's copy, e.g. the copilot-standup work
+# branch); PUT honors an optional `branch` field (write to a specific branch
+# instead of the default). Content is stored per-branch so the default
+# branch and the work branch never collide. Writing to the *default* branch
+# specifically is what flips has_commits — that's the empty-repo initial
+# commit; a write to any other branch (the PR path) never touches it.
 if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/contents/ecosystem\.yml$ ]]; then
   org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
   repo_dir="$ST/repos/$org/$repo"
-  file="$repo_dir/ecosystem.yml"
+  default_branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo main)"
+  if [[ "$method" == "PUT" ]]; then
+    target_ref="$(field_value branch || echo "$default_branch")"
+  else
+    target_ref="$(field_value ref || echo "$default_branch")"
+  fi
+  file="$repo_dir/refs/$target_ref/ecosystem.yml"
   if [[ "$method" == "PUT" ]]; then
     content_b64="$(field_value content || echo "")"
-    mkdir -p "$repo_dir"
+    mkdir -p "$(dirname "$file")"
     printf '%s' "$content_b64" | tr -d '\n' | base64 --decode > "$file" 2>/dev/null \
       || printf '%s' "$content_b64" | tr -d '\n' | base64 -d > "$file" 2>/dev/null
-    touch "$repo_dir/has_commits"
+    if [[ "$target_ref" == "$default_branch" ]]; then
+      mkdir -p "$repo_dir"
+      touch "$repo_dir/has_commits"
+    fi
     sha="$(shasum -a 1 "$file" 2>/dev/null | awk '{print $1}')"
     emit "{\"content\": {\"sha\": \"$sha\"}}"
     exit 0
