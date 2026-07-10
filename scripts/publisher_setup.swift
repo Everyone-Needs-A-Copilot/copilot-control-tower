@@ -669,7 +669,7 @@ final class PublisherSetupModel: ObservableObject {
     /// resolves `tauri.conf.json`: repo-relative, resolved against the current working
     /// directory (the launcher `cd`s to the repo root before exec).
     nonisolated fileprivate static func loadBrandIcon() -> NSImage? {
-        let path = "docs/reference/control-tower.svg"
+        let path = "docs/10-reference/control-tower.svg"
         let url = URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).standardizedFileURL
         guard let image = NSImage(contentsOfFile: url.path) else { return nil }
         if image.size == .zero {

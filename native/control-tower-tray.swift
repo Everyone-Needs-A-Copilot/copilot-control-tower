@@ -1,4 +1,3 @@
-#!/usr/bin/env swift
 //
 // Copilot Control Tower — native macOS menu-bar prototype ("Quiet Instrument").
 //
@@ -15,9 +14,12 @@
 //     HeaderView — mirrored below, `ProductView.product` renamed to
 //     `ComponentView.component` per decision D2)
 //
-// Single-file SwiftUI app compiled to a `.app`-less binary via `swiftc`,
-// mirroring `scripts/publisher_setup.swift`'s pattern (see
-// `scripts/control-tower-tray.command`).
+// This file is the app's entry point (`@main`) plus the tray/popover UI. It is
+// compiled together with `native/models.swift` (shared data model) and
+// `native/wizard.swift` (the S2 first-run wizard window) into ONE `.app`-less
+// binary via `swiftc native/*.swift -o ...` (see
+// `scripts/control-tower-tray.command`), the same no-Xcode-project pattern
+// `scripts/publisher_setup.swift` uses for its own single-file build.
 //
 // This is a MOCK-BACKED PROTOTYPE: `copilot doctor`/`copilot layers --json`
 // are not shelled out to (the component-currency CLI contract verb is not
@@ -39,269 +41,12 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Data model (mirrors src/types.ts)
-
-/// The 12-token shape-first badge vocabulary (`src/types.ts` `BadgeState`,
-/// `control-tower-visual-system.md` §4). Shape is the primary encoder; color
-/// (`symbolAndColor` below) is always a second channel.
-enum BadgeState: String, CaseIterable {
-    case pass
-    case ring
-    case key
-    case update
-    case triangle
-    case wrench
-    case clock
-    case cloudSlash = "cloud-slash"
-    case bang
-    case spinner
-    case hollow
-    case none
-
-    /// SF Symbol + system color per the closed §4 badge table. `nil` means
-    /// "draw nothing" (the bare/`none` glyph — silence is the success state).
-    var symbolAndColor: (symbol: String, color: NSColor)? {
-        switch self {
-        case .none: return nil
-        case .pass: return ("circle.fill", .systemGreen)
-        case .hollow: return ("circle", .secondaryLabelColor)
-        case .wrench: return ("wrench.adjustable", .secondaryLabelColor)
-        case .clock: return ("clock", .secondaryLabelColor)
-        case .cloudSlash: return ("cloud.slash", .secondaryLabelColor)
-        case .ring: return ("arrow.triangle.2.circlepath", .labelColor)
-        case .key: return ("key.fill", .systemBlue)
-        case .update: return ("arrow.down.circle", .systemBlue)
-        case .triangle: return ("exclamationmark.triangle.fill", .systemOrange)
-        case .spinner: return ("square.and.arrow.down", .secondaryLabelColor)
-        case .bang: return ("exclamationmark.circle.fill", .systemRed)
-        }
-    }
-}
-
-enum Severity: String {
-    case pass, warn, fail
-
-    /// Fixed, non-judgmental presentation mapping from an already CLI-computed
-    /// `worst_severity` (invariant #1: the severity itself is never derived
-    /// here) to one of the closed 12 badge shapes, for the component
-    /// disclosure row's own trailing worst-wins mark (`ProductView` carries
-    /// `worst_severity` but no separate row-level `badge_state` field, unlike
-    /// `LayerView`, which already carries its own `badge_state` straight from
-    /// the contract — see `LayerView` below).
-    var displayBadge: BadgeState {
-        switch self {
-        case .pass: return .pass
-        case .warn: return .hollow
-        case .fail: return .triangle
-        }
-    }
-}
-
-enum LayerSeverity: String {
-    case pass, warn, fail, none
-}
-
-/// The four inheritance layers (`src/types.ts` `Layer`), in the fixed
-/// foundation -> org -> department -> personal order used everywhere in the
-/// design docs.
-enum Layer: String, CaseIterable, Identifiable {
-    case foundation, org, dept, personal
-    var id: String { rawValue }
-
-    /// Lower-case display name, matching the tree ASCII in
-    /// `control-tower-visual-system.md` §7.1/§7.2 verbatim.
-    var label: String {
-        switch self {
-        case .foundation: return "foundation"
-        case .org: return "org"
-        case .dept: return "department"
-        case .personal: return "personal"
-        }
-    }
-}
-
-/// Mirrors `src/types.ts` `LayerView` field-for-field.
-struct LayerView: Identifiable {
-    var id: Layer { layer }
-    let layer: Layer
-    let severity: LayerSeverity
-    let badgeState: BadgeState
-    let detail: String?
-}
-
-/// Mirrors `src/types.ts` `ProductView`, renamed `product -> component` per
-/// decision D2 (`docs/reference/cse-alignment-decisions.md`): the popover
-/// renders CSE components (Knowledge / CLI / Claude / Codex Copilot) across
-/// entitled layers, never a product catalog.
-struct ComponentView: Identifiable {
-    var id: String { component }
-    let component: String
-    let worstSeverity: Severity
-    let layers: [LayerView]
-}
-
-/// Mirrors `src/types.ts` `HeaderView`.
-struct HeaderView {
-    /// Same badge vocabulary as the tray glyph — worst state across all
-    /// components x layers.
-    let glyphState: BadgeState
-    /// The one honest status sentence. Never fabricated, never reworded.
-    let sentence: String
-}
-
-enum ClientState: String {
-    case ok
-    case cliUnreadable = "cli_unreadable"
-}
-
-/// The app-owned 11th reason (`src/types.ts` `CliUnreadableReason`) — never
-/// CLI-emitted, chosen only from I/O/schema failure.
-enum CliUnreadableReason: String {
-    case ioError = "io_error"
-    case parseError = "parse_error"
-    case schemaOutOfRange = "schema_out_of_range"
-    case missingSecurityField = "missing_security_field"
-    case exit2 = "exit_2"
-    case invalidContent = "invalid_content"
-}
-
-/// The 10 CLI-emitted status values (`src/types.ts` `CliStatus`). Carried for
-/// fidelity with the contract; this prototype's rendering decisions are
-/// driven by `HeaderView`/`ComponentView` directly, same as the real UI would
-/// be (`status` is descriptive, not itself branched on for layout).
-enum CliStatus: String {
-    case setupNeeded = "setup-needed"
-    case itConfigIncomplete = "it-config-incomplete"
-    case healthy
-    case syncing
-    case updateAvailable = "update-available"
-    case needsAttention = "needs-attention"
-    case signedOut = "signed-out"
-    case offline
-    case waitingForNetwork = "waiting-for-network"
-    case updatingApp = "updating-app"
-}
-
-/// Mirrors `src/types.ts` `RenderState` (the fields this prototype slice
-/// renders; `auth_issues` is omitted — the S12/S5 integration registers are
-/// out of scope for this first slice, see the summary in the launcher
-/// `.command` header).
-struct RenderState {
-    let clientState: ClientState
-    let cliUnreadableReason: CliUnreadableReason?
-    let host: String?
-    let status: CliStatus?
-    let offline: Bool
-    let header: HeaderView
-    let components: [ComponentView]
-}
-
-/// Mock-only placeholder. `copilot layers --json` (the real source for
-/// Region 3's "Join available" row) is not yet a frozen contract verb
-/// (native-experience-architecture.md §6, open decision 3) — `src/types.ts`
-/// has no DTO for it today, so this struct is this prototype's own stand-in
-/// shape, not a mirror of a real contract type.
-struct JoinableDepartment: Identifiable {
-    let id = UUID()
-    let name: String
-}
-
-// MARK: - Mock fixtures (the three states the owner judges)
-
-extension RenderState {
-    private static var allPassLayers: [LayerView] {
-        Layer.allCases.map { LayerView(layer: $0, severity: .pass, badgeState: .pass, detail: nil) }
-    }
-
-    private static func component(_ name: String, layers: [LayerView], worst: Severity = .pass) -> ComponentView {
-        ComponentView(component: name, worstSeverity: worst, layers: layers)
-    }
-
-    /// (a) Current / healthy: every component, every entitled layer at
-    /// `pass`. Tray glyph bare, popover shows Regions 1-2 only (§7.1).
-    static let healthy = RenderState(
-        clientState: .ok,
-        cliUnreadableReason: nil,
-        host: "This Mac",
-        status: .healthy,
-        offline: false,
-        header: HeaderView(glyphState: .none, sentence: "Everything is set up."),
-        components: [
-            component("Claude Copilot", layers: allPassLayers),
-            component("CLI Copilot", layers: allPassLayers),
-            component("Codex Copilot", layers: allPassLayers),
-            component("Knowledge Copilot", layers: allPassLayers),
-        ]
-    )
-
-    /// (b) Join available: a department the user is entitled to but has not
-    /// joined. Per §2.4/§7.2 this does NOT badge the tray (glyph stays
-    /// `none`, bare) — it is a quiet Region 3 row only, never an alarm.
-    static let joinAvailable = RenderState(
-        clientState: .ok,
-        cliUnreadableReason: nil,
-        host: "This Mac",
-        status: .healthy,
-        offline: false,
-        header: HeaderView(glyphState: .none, sentence: "Everything on this Mac is set up."),
-        components: [
-            component("Claude Copilot", layers: allPassLayers),
-            component(
-                "CLI Copilot",
-                layers: [
-                    LayerView(layer: .foundation, severity: .pass, badgeState: .pass, detail: nil),
-                    LayerView(layer: .org, severity: .pass, badgeState: .pass, detail: nil),
-                    LayerView(layer: .dept, severity: .warn, badgeState: .hollow, detail: "Entitled, not yet joined"),
-                    LayerView(layer: .personal, severity: .pass, badgeState: .pass, detail: nil),
-                ],
-                worst: .warn
-            ),
-            component("Codex Copilot", layers: allPassLayers),
-            component("Knowledge Copilot", layers: allPassLayers),
-        ]
-    )
-
-    /// (c) CLI-unreadable / "bang": the honest "versions don't match, won't
-    /// guess" degrade. Per §2.4 the tree and Join row are both hidden; the
-    /// only red in the product.
-    static let cliUnreadable = RenderState(
-        clientState: .cliUnreadable,
-        cliUnreadableReason: .parseError,
-        host: nil,
-        status: nil,
-        offline: false,
-        header: HeaderView(
-            glyphState: .bang,
-            sentence: "I can't read the setup right now, so I won't guess."
-        ),
-        components: []
-    )
-}
-
-/// The three judgeable states, switched via the tray's right-click menu
-/// (dev-only — see `StatusBarController.buildMenu()`).
-enum DevScenario: String, CaseIterable, Identifiable {
-    case healthy = "Healthy"
-    case joinAvailable = "Join available"
-    case cliUnreadable = "CLI unreadable"
-    var id: String { rawValue }
-
-    var state: RenderState {
-        switch self {
-        case .healthy: return .healthy
-        case .joinAvailable: return .joinAvailable
-        case .cliUnreadable: return .cliUnreadable
-        }
-    }
-
-    /// Only the Join-available scenario has anything for Region 3 to show.
-    var joinableDepartments: [JoinableDepartment] {
-        switch self {
-        case .joinAvailable: return [JoinableDepartment(name: "Sales")]
-        default: return []
-        }
-    }
-}
+// Data model (BadgeState, Layer, ComponentView, RenderState, DevScenario, ...) and
+// the shared `AviatorGlyph`/`ControlTowerGlyph` asset loaders now live in
+// `native/models.swift`, compiled together with this file (see
+// `scripts/control-tower-tray.command`: `swiftc native/*.swift -o ...`). They moved
+// there when `native/wizard.swift` landed so both this tray and the wizard window
+// build against one set of type mirrors instead of two drifting copies.
 
 // MARK: - View model
 
@@ -345,18 +90,25 @@ struct GlyphView: View {
     let badgeState: BadgeState
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image(systemName: "eyeglasses")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundColor(Color(nsColor: .labelColor))
+        // Owner directive: the aviators glyph is menu-bar-tray-ONLY (see
+        // `AviatorGlyph`'s doc comment in `native/models.swift`) — this popover
+        // header must never draw it. The obvious swap-in, the full-color
+        // `ControlTowerGlyph` illustration, was tried and rejected: rasterized
+        // at this header's ~20pt scale its detail collapses into an
+        // unreadable colored blob (verified during this change), which is
+        // worse than no brand image at all. So this view draws ONLY the
+        // status badge mark (`symbolAndColor`) — nothing when the state is
+        // `.none`, consistent with the badge vocabulary's own "silence is the
+        // success state" rule (see `BadgeState.symbolAndColor`'s doc comment)
+        // and this app's "Quiet Instrument" design intent.
+        ZStack {
             if let mark = badgeState.symbolAndColor {
                 Image(systemName: mark.symbol)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(nsColor: mark.color))
-                    .offset(x: 3, y: 3)
             }
         }
-        .frame(width: 20, height: 20, alignment: .topLeading)
+        .frame(width: 20, height: 20, alignment: .center)
         .accessibilityHidden(true)
     }
 }
@@ -421,6 +173,11 @@ struct ComponentRow: View {
 
 struct PopoverContentView: View {
     @ObservedObject var model: TrayModel
+    /// Opens the first-run wizard window (S2). Provided by `StatusBarController`
+    /// so this view stays a pure render of `TrayModel` plus this one navigation
+    /// callback, the same "view owns no AppKit state itself" shape the rest of
+    /// this file already uses.
+    let onOpenWizard: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -512,11 +269,18 @@ struct PopoverContentView: View {
         .padding(.horizontal, 12)
     }
 
-    // Region 5 — action row (Sync now, Settings). Mock no-ops in this slice;
-    // both stay live (cli-unreadable renders "Sync now" as its one retry
+    // Region 5 — action row (Set up, Sync now, Settings). "Set up" opens the
+    // first-run wizard window (S2) on demand — the interaction spec's second
+    // entry point into it, alongside the dev-only tray menu item
+    // (`StatusBarController.buildMenu()`). "Sync now" and "Settings" stay mock
+    // no-ops in this slice (cli-unreadable renders "Sync now" as its one retry
     // action, per §2.4).
     private var actionRow: some View {
         HStack(spacing: 8) {
+            Button("Set up") {
+                onOpenWizard()
+            }
+            .buttonStyle(.bordered)
             Button("Sync now") {
                 // Mock-only: no `copilot doctor --sync`-style verb wired yet.
             }
@@ -549,7 +313,7 @@ final class StatusBarController: NSObject {
 
     private func configureStatusItem() {
         guard let button = statusItem.button else { return }
-        button.image = Self.loadTemplateGlyph()
+        button.image = AviatorGlyph.load(targetHeight: 16)
         button.imagePosition = .imageOnly
         button.target = self
         button.action = #selector(statusItemClicked(_:))
@@ -560,35 +324,17 @@ final class StatusBarController: NSObject {
     private func configurePopover() {
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = NSHostingController(rootView: PopoverContentView(model: model))
+        popover.contentViewController = NSHostingController(
+            rootView: PopoverContentView(model: model, onOpenWizard: { [weak self] in self?.openWizard() })
+        )
     }
 
-    // MARK: Glyph loading (repo-relative, resolved against the working dir —
-    // the launcher `.command` `cd`s to the repo root before exec, same
-    // convention `publisher_setup.swift`'s `readAppVersion()`/
-    // `loadBrandIcon()` use for `tauri.conf.json` / the brand SVG).
+    // MARK: Wizard (S2) — the popover's "Set up" action, the second entry point
+    // besides the dev-only menu item below (`buildMenu()`).
 
-    nonisolated private static func loadTemplateGlyph() -> NSImage {
-        let relativePath = "src-tauri/icons/aviators.svg"
-        let cwd = FileManager.default.currentDirectoryPath
-        let url = URL(fileURLWithPath: relativePath, relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
-
-        if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
-            let targetHeight: CGFloat = 16
-            let aspect = svg.size.width / svg.size.height
-            svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
-            svg.isTemplate = true
-            return svg
-        }
-
-        // Fallback: an SF Symbol keeps the tray alive even if the SVG can't be
-        // resolved (e.g. launched from an unexpected working directory).
-        let fallback = NSImage(
-            systemSymbolName: "eyeglasses",
-            accessibilityDescription: "Copilot Control Tower"
-        ) ?? NSImage()
-        fallback.isTemplate = true
-        return fallback
+    private func openWizard() {
+        popover.performClose(nil)
+        WizardWindowController.shared.show()
     }
 
     // MARK: Badge overlay (section 4 shape composited bottom-trailing on the
@@ -670,6 +416,24 @@ final class StatusBarController: NSObject {
         }
 
         menu.addItem(.separator())
+        // DEV-ONLY: a second, always-available entry point to the wizard (S2),
+        // alongside the popover's "Set up" action — lets the owner open it on
+        // demand for review without waiting for a setup-needed scenario.
+        let openWizardItem = NSMenuItem(title: "Open Wizard (dev)", action: #selector(openWizardMenuAction), keyEquivalent: "")
+        openWizardItem.target = self
+        menu.addItem(openWizardItem)
+
+        // Admin mode (S4, `native/admin.swift`) — ADM-0 entry. Copy deck §1.9
+        // gates this row on `admin_capable`; this build ratifies the flow
+        // doc's open decision 6 as "always-available" (path 2b: every
+        // unmanaged user is their own admin), per this task's own ratified
+        // default, so the item is unconditional here rather than reading a
+        // gating fact. Revisit if the owner later ratifies path 2a instead.
+        let openAdminItem = NSMenuItem(title: "Open Administration...", action: #selector(openAdminMenuAction), keyEquivalent: "")
+        openAdminItem.target = self
+        menu.addItem(openAdminItem)
+
+        menu.addItem(.separator())
         let about = NSMenuItem(title: "About Copilot Control Tower", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -685,6 +449,17 @@ final class StatusBarController: NSObject {
         guard let scenario = sender.representedObject as? DevScenario else { return }
         model.select(scenario)
         refreshGlyph()
+    }
+
+    @objc private func openWizardMenuAction() {
+        openWizard()
+    }
+
+    // MARK: Admin (S4) — the Admin face's ADM-0 entry point.
+
+    @objc private func openAdminMenuAction() {
+        popover.performClose(nil)
+        AdminWindowController.shared.show()
     }
 
     @objc private func showAbout() {
@@ -705,9 +480,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         statusBarController = StatusBarController()
+
+        // DEV/SMOKE-TEST ONLY: opens the wizard window immediately at launch when
+        // `CT_OPEN_WIZARD=1` is set, so a headless smoke test can prove the wizard
+        // view itself doesn't crash without needing a live click. Env-gated so a
+        // normal launch is completely unaffected (no window, accessory-only, same
+        // as before this existed).
+        if ProcessInfo.processInfo.environment["CT_OPEN_WIZARD"] == "1" {
+            WizardWindowController.shared.show()
+        }
+
+        // DEV/SMOKE-TEST ONLY: mirrors `CT_OPEN_WIZARD` above, but for the
+        // Admin face (`native/admin.swift`) — opens Administration immediately
+        // at launch when `CT_OPEN_ADMIN=1` is set, so a headless smoke test
+        // can prove the Admin path doesn't crash without a live click.
+        if ProcessInfo.processInfo.environment["CT_OPEN_ADMIN"] == "1" {
+            AdminWindowController.shared.show()
+        }
     }
 }
 
+// `@main`, not a top-level `ControlTowerTrayApp.main()` call: this app is now
+// compiled as three files together (`swiftc native/*.swift`, see
+// `scripts/control-tower-tray.command`), and Swift only permits top-level
+// executable statements in a lone file named `main.swift` in a multi-file,
+// non-single-file compilation — `@main` is the portable entry-point spelling
+// that works whether this file is compiled alone or alongside
+// `models.swift`/`wizard.swift`.
+@main
 struct ControlTowerTrayApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
@@ -720,8 +520,3 @@ struct ControlTowerTrayApp: App {
         }
     }
 }
-
-// Script-mode top-level file (shebang above): `@main` cannot be used
-// alongside top-level statements, so invoke `.main()` explicitly, the same
-// convention `scripts/publisher_setup.swift` ends with.
-ControlTowerTrayApp.main()
