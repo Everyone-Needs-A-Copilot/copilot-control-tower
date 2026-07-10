@@ -1,142 +1,246 @@
 //
-// Copilot Control Tower — Admin mode (S4): the org-standup + governance
-// window ("drive-the-agent"). Two faces, one binary: `control-tower-tray.swift`
-// is the user face (Bob); this file is the Admin face (Earl). Reached via the
-// tray's right-click menu ("Open Administration...") or `CT_OPEN_ADMIN=1` at
-// launch (mirrors `CT_OPEN_WIZARD=1` for the wizard, see AppDelegate there).
+// Copilot Control Tower — Admin mode (the 16-surface baton-pass rebuild).
+// Two faces, one binary: `control-tower-tray.swift` is the user face (Bob);
+// this file (+ `native/admin-support.swift`) is the Admin face (Earl).
+// Reached via the tray's right-click menu ("Open Administration...") or
+// `CT_OPEN_ADMIN=1` at launch — both call `AdminWindowController.shared.show()`,
+// the one seam `control-tower-tray.swift` depends on; nothing else there
+// changed for this rebuild.
 //
-// Ground truth, read together:
-//   - docs/03-design/control-tower-admin-flow.md — THE flow this file builds
-//     (surface inventory ADM-0..ADM-9/ADM-G*, per-screen states, the
-//     drive-and-render seam per screen).
-//   - docs/03-design/admin-agentic-setup.md — the engine/seam this UI drives
-//     (`copilot admin bootstrap --json`, the GitHub sequence, integration-
-//     per-layer, idempotent/additive/never-destroy).
-//   - docs/03-design/control-tower-copy-deck.md Surface 3 — verbatim strings.
-//   - docs/03-design/control-tower-visual-system.md — "Quiet Instrument".
+// Ground truth, read together (see docs/HANDOFF-ADMIN-MODE-BUILD.md for the
+// fuller map):
+//   - docs/03-design/admin-experience-interaction-design.md — THE per-surface
+//     spec this file implements screen-for-screen (16 surfaces, states,
+//     refusals, the new sidebar IA).
+//   - docs/03-design/control-tower-copy-deck.md Surface 3 (§3.1-3.18) —
+//     verbatim strings. Every user-facing string in this file is either lifted
+//     verbatim from there or marked `[cw]` in a comment where the design doc
+//     flagged it as new/finalized-here.
+//   - docs/01-architecture/admin-standup-contract.md — the real machine seams:
+//     the brief file format (§1), the handoff command (§2), the verify verb
+//     JSON (§3). `scripts/admin_bootstrap.sh` (owned by a parallel agent; NOT
+//     touched by this file) implements the engine side of that contract.
+//   - docs/03-design/control-tower-visual-system.md — the "Quiet Instrument"
+//     language (shape-first status, `surface.field` for code/handoff blocks,
+//     no raw error strings, no time estimates, no em-dashes).
 //
-// MOCK-BACKED, same status as `wizard.swift`: `copilot admin bootstrap --json`
-// does not exist yet (WS-A unstarted). Review & run (ADM-8) simulates the
-// engine's streamed `{step, result, detail}` with Swift structured
-// concurrency (`Task { ... try? await Task.sleep(...) }`) advancing an
-// ordered checklist in place — the UI computes nothing; it renders exactly
-// what a real engine feed would send. Every other Configure surface (ADM-4..7)
-// only assembles local state; nothing mutates GitHub until Review & run fires.
+// REAL vs HONESTLY-DEGRADED (no mocks pretending to be real):
+//   - Connect GitHub (this file, below) shells real, read-only local checks:
+//     `gh --version`, `gh auth status` (parsed for sign-in + scopes), and
+//     `command -v claude`. The ONE thing NOT locally checkable from the
+//     sanctioned detection set is GitHub org ownership (no `gh api` call is
+//     sanctioned here) — that row is honestly rendered as a permanent "can't
+//     check this from here" (`// CONTRACT SEAM` below), never a fabricated
+//     pass.
+//   - The Setup check (`native/admin-support.swift`) shells the real
+//     `scripts/admin_bootstrap.sh --verify --brief <path> --json` and renders
+//     its rows verbatim; if the engine or `gh` is missing, it renders the
+//     honest degraded state (`unknown`, never a fabricated green).
+//   - The brief writer and skill materializer (`native/admin-support.swift`)
+//     perform real file I/O against the paths the contract names.
+//   - Surfaces with no real backing seam yet (Someone left's team/key listing,
+//     Org setup's live `ecosystem.yml` fetch) render their designed
+//     empty/degraded state honestly and are marked `// CONTRACT SEAM:` —
+//     never invented mock data.
 //
-// Parse-never-compute (invariant #1): this file contains NO `gh` call, no
-// GitHub API call, no existence check, no idempotency decision, and no
-// red/green verdict logic beyond the mock stand-in for what the engine would
-// have already decided. The mock functions below (`resolveOutcome`,
-// `computePreflightChecks`) exist ONLY because there is no real engine to
-// shell out to yet — they are flagged as the seam a real `copilot admin
-// bootstrap --json` response will replace verbatim, exactly like
-// `WizardModel`'s own mock transitions in `wizard.swift`.
+// CRITICAL SwiftUI/AppKit ordering constraint (a real prior crash — see
+// `.claude/memory`): no blocking `Process`/file I/O may run during a SwiftUI
+// `@State`/`@StateObject` `init()` or first layout. `AdminModel.init()` does
+// no I/O. Every shell-out and file operation below runs from a `.task {}` or
+// a user action, off the main thread (`ShellRunner`/`AdminIO`), delivering
+// back on `@MainActor` (`AdminModel` itself is `@MainActor`-isolated, same
+// convention as `WizardModel` in `wizard.swift`).
 //
-// CRITICAL SwiftUI/AppKit ordering constraint (see `.claude/memory` and the
-// same discipline in `wizard.swift`/`control-tower-tray.swift`): no blocking
-// `Process`/file I/O may run during a SwiftUI `@State`/`@StateObject` `init()`.
-// `AdminModel.init()` is the implicit memberwise default (every `@Published`
-// property has a literal default) — nothing here runs I/O or a subprocess at
-// initialization time. All mock "engine" work is scheduled from a user action
-// via `Task { ... await Task.sleep(...) }`, never from a property initializer.
+// File split: this file holds the process/file I/O primitives, the shared
+// secret-shape guard, the sidebar inventory, `AdminModel`, the window chrome
+// (handoff header + sidebar + root shell), and surfaces 1-8 (Orientation
+// through Review and hand off). `native/admin-support.swift` holds surfaces
+// 9-16 (Handed off through the five Governance surfaces), the verify/brief/
+// skill plumbing, and `AdminWindowController`. Both compile into the same
+// module (`swiftc native/*.swift`), so types split freely across the two.
 
 import AppKit
 import SwiftUI
 
-// MARK: - Sidebar item inventory (ADM-0's window; ADM-1..ADM-9 + ADM-G1..G3
-// are the sidebar rows — ADM-0/ADM-3 are the entry + the gate, not rows of
-// their own beyond Connect GitHub).
+// MARK: - Process runner (real, read-only shell-outs only)
 
-enum AdminSection: String {
-    case onboarding = "ONBOARDING"
-    case governance = "GOVERNANCE"
-}
-
-/// TEMPORARY REVIEW OVERRIDE (Change 3): normally every downstream Admin
-/// screen stays locked (`AdminItem.requiresGitHubGate`) until Connect GitHub
-/// passes (`AdminModel.githubGateOpen`) — see `AdminSidebar.row(_:)` below,
-/// the one call site that reads this. For review, every sidebar screen is
-/// reachable regardless of connection state so all Admin surfaces can be
-/// judged in one pass. The real gating logic (`requiresGitHubGate`,
-/// `githubGateOpen`) is untouched; this only bypasses it. Flip back to
-/// `false` to restore the real entitlement gating.
-let allScreensUnlockedForReview = true
-
-/// One row in the Admin sidebar. Order matches the admin-flow doc's own
-/// surface inventory (§2) and nav diagram (§3): the two NEW spine surfaces
-/// (Connect GitHub, Review & run) sit in reading-order position so the
-/// sidebar itself reads as the drive-the-agent pipeline.
-enum AdminItem: Int, CaseIterable, Identifiable {
-    case prerequisites, contacts, connectGitHub, departmentsAccess, secretStore
-    case seed, policySigners, reviewRun, preflight
-    case addOffboard, analytics, secretStoreConfig
-    var id: Int { rawValue }
-
-    static let onboarding: [AdminItem] = [
-        .prerequisites, .contacts, .connectGitHub, .departmentsAccess,
-        .secretStore, .seed, .policySigners, .reviewRun, .preflight,
-    ]
-    static let governance: [AdminItem] = [.addOffboard, .analytics, .secretStoreConfig]
-
-    var section: AdminSection { AdminItem.onboarding.contains(self) ? .onboarding : .governance }
-
-    /// Copy deck §3.2 sidebar labels, verbatim, with the two NEW spine labels
-    /// from the admin-flow doc's surface inventory (§2) slotted in.
-    var sidebarLabel: String {
-        switch self {
-        case .prerequisites: return "Prerequisites"
-        case .contacts: return "Contacts"
-        case .connectGitHub: return "Connect GitHub"
-        case .departmentsAccess: return "Repositories & teams"
-        case .secretStore: return "Secret store"
-        case .seed: return "Seed"
-        case .policySigners: return "Policy signers"
-        case .reviewRun: return "Review & run"
-        case .preflight: return "Preflight"
-        case .addOffboard: return "Add / offboard"
-        case .analytics: return "Analytics"
-        case .secretStoreConfig: return "Secret store config"
-        }
+/// Runs a command inside the user's own login shell so PATH resolution
+/// matches what Earl would see in his own Terminal (Homebrew, asdf, etc.),
+/// the same reasoning `scripts/publisher_setup.swift`'s `runStreamingCommand`
+/// documents for its own `/bin/bash -lc` calls. Always off the main thread;
+/// never called from a SwiftUI `init()` (see this file's header).
+enum ShellRunner {
+    struct Output {
+        let exitCode: Int32
+        let stdout: String
+        let stderr: String
     }
 
-    /// "Connect GitHub gates everything downstream: Review & run is inert
-    /// until the auth+scope preflight passes" (admin-flow §3). Preflight
-    /// itself stays reachable even ungated (it is a read-only check that
-    /// honestly renders "never run" until something exists to verify).
-    var requiresGitHubGate: Bool {
-        switch self {
-        case .departmentsAccess, .secretStore, .seed, .policySigners, .reviewRun: return true
-        default: return false
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .prerequisites: return "checklist"
-        case .contacts: return "person.text.rectangle"
-        case .connectGitHub: return "point.3.connected.trianglepath.dotted"
-        case .departmentsAccess: return "person.2.badge.key.fill"
-        case .secretStore: return "lock.doc"
-        case .seed: return "doc.badge.gearshape"
-        case .policySigners: return "signature"
-        case .reviewRun: return "play.circle"
-        case .preflight: return "checklist.checked"
-        case .addOffboard: return "person.badge.minus"
-        case .analytics: return "chart.bar.doc.horizontal"
-        case .secretStoreConfig: return "lock.doc"
+    static func run(_ command: String) async -> Output {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+                process.executableURL = URL(fileURLWithPath: shell)
+                process.arguments = ["-lc", command]
+                let outPipe = Pipe()
+                let errPipe = Pipe()
+                process.standardOutput = outPipe
+                process.standardError = errPipe
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(returning: Output(exitCode: -1, stdout: "", stderr: error.localizedDescription))
+                    return
+                }
+                process.waitUntilExit()
+                let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+                let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                continuation.resume(returning: Output(
+                    exitCode: process.terminationStatus,
+                    stdout: String(data: outData, encoding: .utf8) ?? "",
+                    stderr: String(data: errData, encoding: .utf8) ?? ""
+                ))
+            }
         }
     }
 }
 
-// MARK: - Shared secret-shape refusal (§6.3, the load-bearing safety
-// interaction reused across every configure field on every Admin surface)
+/// Local, non-blocking-at-init file I/O. Every call here runs off the main
+/// thread; callers await the result from a user-triggered `Task`.
+enum AdminIO {
+    static func writeFile(contents: String, to path: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    let url = URL(fileURLWithPath: path)
+                    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try contents.write(to: url, atomically: true, encoding: .utf8)
+                    continuation.resume(returning: true)
+                } catch {
+                    continuation.resume(returning: false)
+                }
+            }
+        }
+    }
 
-/// A small, deliberately conservative, fail-closed heuristic. This is a
-/// UI-side input guard only (invariant #1 is not at stake here: this never
-/// decides ecosystem state, it only decides "does this look like a secret
-/// so I refuse to store it locally"). The real backstop is the engine's
-/// step-5 leak-scan (`admin-agentic-setup.md` §1.3 step 5); this is the
-/// field-level defense-in-depth companion (§6.3).
+    /// Idempotent overwrite-on-newer copy (admin-standup-contract.md §2.1):
+    /// replaces the destination only when the source is missing at the
+    /// destination, or newer than what's there.
+    static func materializeIfNewer(source: String, destination: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                let fm = FileManager.default
+                guard fm.fileExists(atPath: source) else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                let sourceDate = (try? fm.attributesOfItem(atPath: source)[.modificationDate] as? Date) ?? nil
+                let destExists = fm.fileExists(atPath: destination)
+                let destDate = destExists ? ((try? fm.attributesOfItem(atPath: destination)[.modificationDate] as? Date) ?? nil) : nil
+                let shouldCopy: Bool
+                if !destExists {
+                    shouldCopy = true
+                } else if let sourceDate, let destDate {
+                    shouldCopy = sourceDate > destDate
+                } else {
+                    shouldCopy = true
+                }
+                guard shouldCopy else {
+                    continuation.resume(returning: true)
+                    return
+                }
+                do {
+                    let destURL = URL(fileURLWithPath: destination)
+                    try fm.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    if destExists {
+                        try fm.removeItem(atPath: destination)
+                    }
+                    try fm.copyItem(atPath: source, toPath: destination)
+                    continuation.resume(returning: true)
+                } catch {
+                    continuation.resume(returning: false)
+                }
+            }
+        }
+    }
+
+    static func revealInFinder(_ path: String) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+}
+
+// MARK: - Fixed paths (the seams named in admin-standup-contract.md)
+
+enum AdminPaths {
+    /// §1.1: the single, fixed, app-owned brief path. Never inside a git
+    /// working tree; never timestamped, so it stays the Setup check's stable
+    /// drift baseline across every re-run.
+    static var briefPath: String {
+        NSHomeDirectory() + "/Library/Application Support/CopilotControlTower/standup-brief.md"
+    }
+
+    /// CONTRACT SEAM: the interim engine's path, injectable in this one place
+    /// so the WS-A freeze swap to `copilot admin bootstrap --verify --json`
+    /// (contract §8) only touches this constant. Resolved relative to the
+    /// working directory, the same convention `AviatorGlyph`/`ControlTowerGlyph`
+    /// use in `models.swift` (the launcher `cd`s to the repo root first).
+    static var enginePath: String {
+        let cwd = FileManager.default.currentDirectoryPath
+        return URL(fileURLWithPath: "scripts/admin_bootstrap.sh", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL.path
+    }
+
+    /// §2.1: the bundled OSS skill this prototype ships repo-relative, and the
+    /// fixed user-scope location Review-and-hand-off materializes it to.
+    static var bundledSkillSourcePath: String {
+        let cwd = FileManager.default.currentDirectoryPath
+        return URL(fileURLWithPath: ".claude/skills/admin-bootstrap/SKILL.md", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL.path
+    }
+
+    static var materializedSkillDestPath: String {
+        NSHomeDirectory() + "/.claude/skills/admin-bootstrap/SKILL.md"
+    }
+
+    /// Display-only, abbreviated the same way the copy deck shows it
+    /// (`~/…/CopilotControlTower/standup-brief.md`).
+    static var briefPathDisplay: String {
+        "~/…/CopilotControlTower/standup-brief.md"
+    }
+}
+
+// MARK: - Slug derivation (app-side legibility only; the engine never
+// silently transforms a value — see scripts/admin_bootstrap.sh's own
+// `_valid_slug`/`_suggest_slug` comments. This app-side helper is what lets
+// Earl type "Accounting" and see `-accounting` in the live plan card.)
+
+enum AdminSlug {
+    /// Lowercases, replaces runs of non `[a-z0-9]` with a single `-`, and
+    /// trims leading/trailing dashes. Empty input (or input that carries no
+    /// letters/digits at all) derives to an empty string, which the caller
+    /// treats as "give this a name" refusal.
+    static func derive(_ raw: String) -> String {
+        let lowered = raw.lowercased()
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
+        var result = ""
+        var pendingDash = false
+        for scalar in lowered.unicodeScalars {
+            if allowed.contains(scalar) {
+                if pendingDash && !result.isEmpty {
+                    result.append("-")
+                }
+                pendingDash = false
+                result.unicodeScalars.append(scalar)
+            } else {
+                pendingDash = true
+            }
+        }
+        return result
+    }
+}
+
+// MARK: - The one hard block reused on every field that could carry a store
+// value (copy deck §3.6/3.9/3.16; interaction-design invariant #4).
+
 enum SecretShapeCheck {
     private static let knownPrefixes = [
         "sk-", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "xox", "AKIA", "AIza", "eyJ",
@@ -164,9 +268,9 @@ enum SecretShapeCheck {
     }
 }
 
-/// The one hard block reused on every configure field (copy deck §3.6).
-/// Rejects inline; the rejected value is never written into the bound
-/// `value` (not stored, not logged) — a constraint, not a warning dialog.
+/// A labeled field that runs the secret-shape refusal inline on every
+/// keystroke: a refused value is never written into the bound `value` (not
+/// stored, not logged). Copy deck §3.9/§3.16 wording, verbatim.
 struct SecretGuardedField: View {
     let label: String
     @Binding var value: String
@@ -218,737 +322,26 @@ struct SecretGuardedField: View {
     }
 }
 
-// MARK: - ADM-3 Connect GitHub
+// MARK: - Small shared chrome (cards, chips, copyable code)
 
-enum GitHubRefusalReason: String, CaseIterable, Identifiable {
-    case unauthenticated, notOwner, missingScope, orgMissing
-    var id: String { rawValue }
+/// `surface.card` grouped block (visual-system §2.1), reused by every
+/// onboarding surface's teach/plan/enumeration blocks.
+struct AdminCard<Content: View>: View {
+    var title: String? = nil
+    let content: Content
 
-    func line(org: String) -> String {
-        switch self {
-        case .unauthenticated:
-            return "You're not signed in to GitHub yet, so I can't set up your organization."
-        case .notOwner:
-            return "Your GitHub account isn't an owner of \(org), so it can't create the org's spaces. Ask an owner to run this, or to make you one."
-        case .missingScope:
-            return "Your GitHub sign-in is missing the access it needs to set up your organization."
-        case .orgMissing:
-            return "I can't find the \(org) organization on GitHub. It has to be created on github.com first (that needs billing and a person)."
-        }
+    init(title: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
     }
-
-    var command: String? { self == .missingScope ? "gh auth refresh -s admin:org -s repo" : nil }
-
-    var fixOwnerLine: String {
-        switch self {
-        case .unauthenticated: return "Run gh auth login, then check again."
-        case .notOwner: return "This is owned by your GitHub org owner."
-        case .missingScope: return "Run the command above, then check again."
-        case .orgMissing: return "Create the organization on github.com, then check again."
-        }
-    }
-
-    /// Dev-only label for the mock outcome picker below (never shown to a
-    /// real operator; the real engine would never expose a picker here).
-    var devLabel: String {
-        switch self {
-        case .unauthenticated: return "Not signed in"
-        case .notOwner: return "Not an org owner"
-        case .missingScope: return "Missing scope"
-        case .orgMissing: return "Org doesn't exist"
-        }
-    }
-}
-
-enum GitHubCheckState: Equatable {
-    case notChecked
-    case checking
-    case passed
-    case refused(GitHubRefusalReason)
-    case degraded
-}
-
-/// Dev-only picker selection (`GitHubCheckState` carries an associated value
-/// on `.refused` and is deliberately not `Hashable` — this flat enum is only
-/// the picker's own tag type, mapped to `GitHubCheckState` at use).
-enum GitHubDevOutcome: String, CaseIterable, Identifiable {
-    case passed, unauthenticated, notOwner, missingScope, orgMissing, degraded
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .passed: return "Pass"
-        case .unauthenticated: return GitHubRefusalReason.unauthenticated.devLabel
-        case .notOwner: return GitHubRefusalReason.notOwner.devLabel
-        case .missingScope: return GitHubRefusalReason.missingScope.devLabel
-        case .orgMissing: return GitHubRefusalReason.orgMissing.devLabel
-        case .degraded: return "Degraded"
-        }
-    }
-
-    var checkState: GitHubCheckState {
-        switch self {
-        case .passed: return .passed
-        case .unauthenticated: return .refused(.unauthenticated)
-        case .notOwner: return .refused(.notOwner)
-        case .missingScope: return .refused(.missingScope)
-        case .orgMissing: return .refused(.orgMissing)
-        case .degraded: return .degraded
-        }
-    }
-}
-
-// MARK: - ADM-4 Departments & access (org identity, departments-as-you-go,
-// integration-per-layer, member/team grants)
-
-struct IntegrationDeclaration: Identifiable, Equatable {
-    let id = UUID()
-    var integrationID: String
-    var requiresSecret: String
-    var storeScope: String
-}
-
-enum GrantRole: String, CaseIterable, Identifiable {
-    case read, write
-    var id: String { rawValue }
-    var label: String { self == .read ? "Read (can join)" : "Write (can author)" }
-}
-
-struct MemberGrant: Identifiable, Equatable {
-    let id = UUID()
-    var username: String
-    var role: GrantRole
-}
-
-struct AdminDepartment: Identifiable, Equatable {
-    static func == (lhs: AdminDepartment, rhs: AdminDepartment) -> Bool { lhs.id == rhs.id }
-    let id: String
-    var name: String
-    var integrations: [IntegrationDeclaration] = []
-    var members: [MemberGrant] = []
-}
-
-/// Known-classified integrations (open decision 5, `admin-agentic-setup.md`
-/// §5.5) — a constrained picker where classification exists, with the
-/// "add custom" free-text escape everywhere else (`IntegrationPickerField`).
-/// Workday is deliberately IN this catalog but never pre-declared anywhere:
-/// declaring it nowhere is the entire "absence = non-existence" mechanism
-/// (engine §2) — the picker offers it, the seed simply never carries it.
-enum IntegrationCatalog {
-    static let known = ["salesforce", "microsoft365", "hubspot", "slack", "workday", "zendesk"]
-
-    static func displayName(_ id: String) -> String {
-        switch id {
-        case "salesforce": return "Salesforce"
-        case "microsoft365": return "Microsoft 365"
-        case "hubspot": return "HubSpot"
-        case "slack": return "Slack"
-        case "workday": return "Workday"
-        case "zendesk": return "Zendesk"
-        default: return id.isEmpty ? "" : id.prefix(1).uppercased() + id.dropFirst()
-        }
-    }
-}
-
-/// A constrained picker with an "add custom" escape (the ratified default:
-/// "covers picker + free-text"). `id` is a picker from the classified
-/// catalog; choosing "Add custom..." reveals a guarded free-text field.
-struct IntegrationPickerField: View {
-    @Binding var integrationID: String
-    @State private var customMode: Bool = false
 
     var body: some View {
-        if customMode || (!integrationID.isEmpty && !IntegrationCatalog.known.contains(integrationID)) {
-            HStack(spacing: 8) {
-                SecretGuardedField(label: "", value: $integrationID, placeholder: "Integration name")
-                Button("Choose from list") {
-                    customMode = false
-                    if !IntegrationCatalog.known.contains(integrationID) {
-                        integrationID = IntegrationCatalog.known[0]
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            }
-        } else {
-            Picker("", selection: Binding(
-                get: { integrationID.isEmpty ? IntegrationCatalog.known[0] : integrationID },
-                set: { newValue in
-                    if newValue == "__custom__" {
-                        customMode = true
-                        integrationID = ""
-                    } else {
-                        integrationID = newValue
-                    }
-                }
-            )) {
-                ForEach(IntegrationCatalog.known, id: \.self) { known in
-                    Text(IntegrationCatalog.displayName(known)).tag(known)
-                }
-                Text("Add custom...").tag("__custom__")
-            }
-            .labelsHidden()
-            .frame(maxWidth: 200)
-        }
-    }
-}
-
-// MARK: - ADM-8 Review & run (the trigger-and-render checklist)
-
-/// Result tokens the engine emits, mapped to the plain row words (admin-flow
-/// §7.2 table). `ready` is this build's own word for the two read-only
-/// checks (step 0 auth, step 5 leak-scan, step 6 verify) that resolve to a
-/// single pass reading rather than created/already-present.
-enum RunOutcome: Equatable {
-    case ready
-    case created
-    case alreadyPresent
-    case stopped(detail: String, owner: String)
-    case failed(detail: String, owner: String)
-
-    var word: String {
-        switch self {
-        case .ready: return "Ready"
-        case .created: return "Created"
-        case .alreadyPresent: return "Already there"
-        case .stopped: return "Stopped"
-        case .failed(let detail, _): return detail
-        }
-    }
-
-    /// `already-present` and the other calm outcomes are never rendered in
-    /// an error color (never-destroy made legible, admin-flow §7.2).
-    var isCalm: Bool {
-        switch self {
-        case .ready, .created, .alreadyPresent: return true
-        case .stopped, .failed: return false
-        }
-    }
-
-    var detail: String? {
-        switch self {
-        case .stopped(let detail, _), .failed(let detail, _): return detail
-        default: return nil
-        }
-    }
-
-    var owner: String? {
-        switch self {
-        case .stopped(_, let owner), .failed(_, let owner): return owner
-        default: return nil
-        }
-    }
-}
-
-enum RunRowState: Equatable {
-    case waiting
-    case working
-    case resolved(RunOutcome)
-}
-
-struct RunStepRow: Identifiable, Equatable {
-    let id: String
-    let title: String
-    var state: RunRowState = .waiting
-}
-
-enum RunPhase: Equatable {
-    case idle
-    case working
-    case done
-    case degraded
-    case refused
-}
-
-// MARK: - ADM-9 Preflight (setup check, red/green, unknown-never-green, owner-named)
-
-enum PreflightStatus { case pass, fail, unknown }
-
-struct PreflightCheck: Identifiable {
-    let id = UUID()
-    let name: String
-    let status: PreflightStatus
-    let detail: String
-    let owner: String?
-}
-
-enum PreflightRunState: Equatable { case neverRun, running, done }
-
-// MARK: - ADM-G1 Deprovision (rendered, never triggered)
-
-struct DeprovisionEvent {
-    let personName: String
-    let retainedWork: [String]
-    let removedCount: Int
-    let secretsInvolved: Bool
-}
-
-// MARK: - The Admin model
-
-/// One model backing the whole Admin window, same "one big observable model"
-/// shape `WizardModel` uses. Nothing here runs I/O at `init()` — every mock
-/// transition is scheduled from a user action via `Task { ... }`.
-@MainActor
-final class AdminModel: ObservableObject {
-    // Navigation
-    @Published var selected: AdminItem = .prerequisites
-
-    /// ADM-0's own overview screen (Change 1). Shown once per window open,
-    /// same rhythm as `WizardModel`'s Welcome -> Get Started. Nothing here
-    /// runs I/O; it is a plain flag flipped by a user action, never by
-    /// `init()` (this file's own AttributeGraph constraint, see header).
-    @Published var showingWelcome = true
-
-    func getStarted() {
-        showingWelcome = false
-    }
-
-    // Handoff header (admin-flow §4; copy deck §3.1)
-    struct HandoffInfo { let publisherStatus: String; let setupVersion: String; let nextOwner: String }
-    @Published var handoff: HandoffInfo? = HandoffInfo(
-        publisherStatus: "Publisher done", setupVersion: "v1.4.2", nextOwner: "you (Admin)"
-    )
-    var handoffLine: String {
-        guard let handoff else { return "Not started yet" }
-        return "\(handoff.publisherStatus) · Setup \(handoff.setupVersion) · Next: \(handoff.nextOwner)"
-    }
-
-    // ADM-1 Prerequisites (a checklist to work down by hand; nothing here is
-    // itself performed by the app — copy deck §3.3: "None of it is done
-    // here". These specific list items are this build's own invented content
-    // (not in the copy deck, which only gives title/intro/empty) — plain,
-    // Earl-appropriate language, flagged here for a cw pass.)
-    struct PrerequisiteItem: Identifiable { let id = UUID(); let text: String; var checked = false }
-    @Published var prerequisites: [PrerequisiteItem] = [
-        PrerequisiteItem(text: "You can sign in to GitHub with an account that can become an org owner."),
-        PrerequisiteItem(text: "Your organization exists on GitHub, or you know who will create it."),
-        PrerequisiteItem(text: "You know who owns billing for that organization."),
-        PrerequisiteItem(text: "You have a person in mind for each department you plan to set up."),
-    ]
-
-    // ADM-2 Contacts (copy deck §3.4)
-    @Published var publisherContact = ""
-    @Published var adminContact = ""
-    @Published var pointOfContact = ""
-    @Published var contactsSaved = false
-
-    // ADM-3 Connect GitHub
-    @Published var orgName = "acme-co"
-    @Published var githubState: GitHubCheckState = .notChecked
-    /// Dev-only: which mock outcome the next "Check access" resolves to.
-    @Published var devGitHubOutcome: GitHubDevOutcome = .passed
-
-    var githubGateOpen: Bool { githubState == .passed }
-
-    func checkGitHubAccess() {
-        githubState = .checking
-        Task { [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            guard case .checking = self.githubState else { return }
-            self.githubState = self.devGitHubOutcome.checkState
-        }
-    }
-
-    // ADM-4 Departments & access
-    @Published var orgIntegrations: [IntegrationDeclaration] = [
-        IntegrationDeclaration(integrationID: "salesforce", requiresSecret: "SALESFORCE_API_KEY", storeScope: "org"),
-        IntegrationDeclaration(integrationID: "microsoft365", requiresSecret: "MS365_TOKEN", storeScope: "org"),
-    ]
-    @Published var departments: [AdminDepartment] = [
-        AdminDepartment(
-            id: "sales", name: "Sales",
-            integrations: [IntegrationDeclaration(integrationID: "hubspot", requiresSecret: "HUBSPOT_KEY", storeScope: "dept/sales")],
-            members: [MemberGrant(username: "asha", role: .read), MemberGrant(username: "morgan", role: .write)]
-        ),
-        AdminDepartment(id: "engineering", name: "Engineering"),
-    ]
-    @Published var newDepartmentName = ""
-
-    func addDepartment() {
-        let trimmed = newDepartmentName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        let slug = trimmed.lowercased().replacingOccurrences(of: " ", with: "-")
-        guard !departments.contains(where: { $0.id == slug }) else { newDepartmentName = ""; return }
-        departments.append(AdminDepartment(id: slug, name: trimmed))
-        newDepartmentName = ""
-    }
-
-    func removeDepartment(_ id: String) {
-        departments.removeAll { $0.id == id }
-    }
-
-    // ADM-5 Secret store (copy deck §3.6)
-    @Published var storeType = "Infisical"
-    @Published var storeAddress = ""
-    @Published var storeAddressError: String?
-    @Published var storeTeamScopes: [(id: UUID, team: String, scope: String)] = []
-    @Published var storeConnected = false
-    @Published var newScopeTeam = ""
-
-    func connectSecretStore() {
-        guard SecretShapeCheck.looksLikeURL(storeAddress) else {
-            storeAddressError = "That doesn't look like a valid address."
-            return
-        }
-        storeAddressError = nil
-        storeConnected = true
-    }
-
-    // ADM-6 Seed (copy deck §3.7)
-    enum SeedPRState: Equatable { case idle, opening, opened(ref: String) }
-    @Published var seedValidated = false
-    @Published var seedIssueCount = 0
-    @Published var seedPRState: SeedPRState = .idle
-    @Published var usageDataOptIn = false
-
-    func validateSeed() {
-        var issues = 0
-        if orgName.trimmingCharacters(in: .whitespaces).isEmpty { issues += 1 }
-        if departments.isEmpty { issues += 1 }
-        if policySigners.isEmpty { issues += 1 }
-        seedIssueCount = issues
-        seedValidated = issues == 0
-    }
-
-    func openSeedPullRequest() {
-        guard seedValidated else { return }
-        seedPRState = .opening
-        Task { [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            self.seedPRState = .opened(ref: "#123")
-        }
-    }
-
-    // ADM-7 Policy signers
-    struct PolicySigner: Identifiable, Equatable { let id = UUID(); var name: String }
-    @Published var policySigners: [PolicySigner] = [PolicySigner(name: "asha")]
-    @Published var newSignerName = ""
-
-    func addSigner() {
-        let trimmed = newSignerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !SecretShapeCheck.looksLikeSecret(trimmed) else { newSignerName = ""; return }
-        policySigners.append(PolicySigner(name: trimmed))
-        newSignerName = ""
-    }
-
-    func removeSigner(_ id: UUID) {
-        policySigners.removeAll { $0.id == id }
-    }
-
-    // ADM-8 Review & run
-    @Published var runPhase: RunPhase = .idle
-    @Published var runRows: [RunStepRow] = []
-    private var runCount = 0
-    private var materializedDepartmentIDs: Set<String> = []
-    private var orgSpaceMaterialized = false
-    /// Dev-only: forces one row to resolve `Stopped` (the leak-scan refusal,
-    /// §7.3) so the refused state can be judged without a real engine.
-    @Published var devForceStopStep: String? = nil
-
-    func departmentID(fromStepID stepID: String) -> String? {
-        for dept in departments {
-            if stepID.hasPrefix("\(dept.id)-") { return dept.id }
-        }
-        return nil
-    }
-
-    private func buildRunRows() -> [RunStepRow] {
-        var rows: [RunStepRow] = [
-            RunStepRow(id: "auth", title: "Checked your access"),
-            RunStepRow(id: "base-perm", title: "Set the org to read-only by default"),
-            RunStepRow(id: "org-repo", title: "Created your organization space"),
-        ]
-        for dept in departments {
-            rows.append(RunStepRow(id: "\(dept.id)-repo", title: "Setting up the \(dept.name) department"))
-            rows.append(RunStepRow(id: "\(dept.id)-team", title: "\(dept.name) team"))
-            rows.append(RunStepRow(id: "\(dept.id)-grant", title: "Who can join \(dept.name)"))
-            rows.append(RunStepRow(id: "\(dept.id)-members", title: "Add people to \(dept.name)"))
-        }
-        rows.append(RunStepRow(id: "seed", title: "Write your setup file"))
-        rows.append(RunStepRow(id: "leak-scan", title: "Safety check"))
-        rows.append(RunStepRow(id: "verify", title: "Setup check"))
-        return rows
-    }
-
-    private func resolveOutcome(for stepID: String) -> RunOutcome {
-        if devForceStopStep == stepID {
-            return .stopped(
-                detail: "I stopped before pushing because something in your setup looked like a secret. Setup files never carry secrets. Fix it and run again.",
-                owner: "Admin"
-            )
-        }
-        switch stepID {
-        case "auth": return .ready
-        case "base-perm": return .alreadyPresent
-        case "org-repo": return orgSpaceMaterialized ? .alreadyPresent : .created
-        case "seed": return runCount > 0 ? .alreadyPresent : .created
-        case "leak-scan": return .ready
-        case "verify": return .ready
-        default:
-            if let deptID = departmentID(fromStepID: stepID) {
-                return materializedDepartmentIDs.contains(deptID) ? .alreadyPresent : .created
-            }
-            return .created
-        }
-    }
-
-    /// Fires the single trigger. Mocks the engine's streamed
-    /// `{step, result, detail}` with structured concurrency — real code will
-    /// replace this method's body with a line-by-line read of
-    /// `copilot admin bootstrap --json`'s stdout, resolving each row from the
-    /// parsed line instead of a local guess (the row/summary rendering below
-    /// does not change).
-    func runBootstrap() {
-        guard runPhase != .working else { return }
-        runRows = buildRunRows()
-        runPhase = .working
-        Task { [weak self] in
-            await self?.streamRun()
-        }
-    }
-
-    private func streamRun() async {
-        for index in runRows.indices {
-            runRows[index].state = .working
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            let outcome = resolveOutcome(for: runRows[index].id)
-            runRows[index].state = .resolved(outcome)
-            if case .stopped = outcome {
-                runPhase = .refused
-                return
-            }
-            if case .failed = outcome {
-                runPhase = .refused
-                return
-            }
-        }
-        orgSpaceMaterialized = true
-        materializedDepartmentIDs.formUnion(departments.map { $0.id })
-        runCount += 1
-        devForceStopStep = nil
-        runPhase = .done
-    }
-
-    /// Dev-only: simulates the stream becoming unreadable mid-run (§7.2
-    /// degraded state) so it can be judged without a real broken engine.
-    func simulateDegradedRun() {
-        guard !runRows.isEmpty else { return }
-        runPhase = .working
-        Task { [weak self] in
-            guard let self else { return }
-            for index in self.runRows.indices.prefix(2) {
-                self.runRows[index].state = .working
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                self.runRows[index].state = .resolved(self.resolveOutcome(for: self.runRows[index].id))
-            }
-            self.runPhase = .degraded
-        }
-    }
-
-    var runSummary: String {
-        let resolved: [RunOutcome] = runRows.compactMap {
-            if case .resolved(let outcome) = $0.state { return outcome }
-            return nil
-        }
-        guard !resolved.isEmpty else { return "" }
-        let createdCount = resolved.filter { $0 == .created }.count
-        let alreadyCount = resolved.filter { $0 == .alreadyPresent }.count
-        let allResolved = runRows.allSatisfy {
-            if case .resolved = $0.state { return true }
-            return false
-        }
-        if allResolved, createdCount == 0, alreadyCount > 0, resolved.allSatisfy({ $0.isCalm }) {
-            return "Nothing to redo. Everything's already in place."
-        }
-        var parts: [String] = []
-        if createdCount > 0 { parts.append("\(createdCount) created") }
-        if alreadyCount > 0 { parts.append("\(alreadyCount) already there") }
-        var summary = parts.isEmpty ? "0 changes" : parts.joined(separator: ", ") + "."
-        if runPhase == .working { summary += " Still working." }
-        return summary
-    }
-
-    // ADM-9 Preflight
-    @Published var preflightState: PreflightRunState = .neverRun
-    @Published var preflightChecks: [PreflightCheck] = []
-
-    func runPreflight() {
-        guard preflightState != .running else { return }
-        preflightState = .running
-        Task { [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            self.preflightChecks = self.computePreflightChecks()
-            self.preflightState = .done
-        }
-    }
-
-    private func computePreflightChecks() -> [PreflightCheck] {
-        let orgReady = orgSpaceMaterialized
-        let deptReady = !departments.isEmpty && departments.allSatisfy { materializedDepartmentIDs.contains($0.id) }
-        let grantsReady = departments.allSatisfy { !$0.members.isEmpty }
-        let membersReady = departments.contains { !$0.members.isEmpty }
-        let seedReady = seedValidated && !policySigners.isEmpty
-        let storeReady = storeConnected
-
-        return [
-            PreflightCheck(
-                name: "Your organization's shared space", status: orgReady ? .pass : .fail,
-                detail: orgReady ? "Ready" : "Run Review & run to create your organization's shared space.",
-                owner: orgReady ? nil : "Admin"
-            ),
-            PreflightCheck(
-                name: "Department spaces", status: deptReady ? .pass : .fail,
-                detail: deptReady ? "Ready" : "One or more department spaces haven't been set up yet.",
-                owner: deptReady ? nil : "Admin"
-            ),
-            PreflightCheck(
-                name: "Team access", status: grantsReady ? .pass : .fail,
-                detail: grantsReady ? "Ready" : "One or more departments have no one who can join yet.",
-                owner: grantsReady ? nil : "Admin"
-            ),
-            PreflightCheck(
-                name: "People added", status: membersReady ? .pass : .unknown,
-                detail: membersReady ? "Ready" : "Couldn't check this. No one has been added to a department yet.",
-                owner: membersReady ? nil : "Admin"
-            ),
-            PreflightCheck(
-                name: "Your setup file", status: seedReady ? .pass : .fail,
-                detail: seedReady ? "Ready" : "Your setup file hasn't been checked over and signed yet.",
-                owner: seedReady ? nil : "Admin / Policy signer"
-            ),
-            PreflightCheck(
-                name: "Shared secret store", status: storeReady ? .pass : .unknown,
-                detail: storeReady ? "Ready" : "Couldn't check this. Connect your shared secret store first.",
-                owner: storeReady ? nil : "IT infra"
-            ),
-            PreflightCheck(
-                name: "Foundation reference", status: .pass,
-                detail: "Ready", owner: nil
-            ),
-        ]
-    }
-
-    // ADM-G1 Add / offboard
-    @Published var lastDeprovision: DeprovisionEvent? = DeprovisionEvent(
-        personName: "Jordan Reyes", retainedWork: ["Sales onboarding notes.docx"], removedCount: 3, secretsInvolved: false
-    )
-
-    func simulateDeprovision(secretsInvolved: Bool) {
-        lastDeprovision = DeprovisionEvent(
-            personName: "Jordan Reyes",
-            retainedWork: secretsInvolved ? [] : ["Sales onboarding notes.docx"],
-            removedCount: secretsInvolved ? 5 : 3,
-            secretsInvolved: secretsInvolved
-        )
-    }
-
-    // ADM-G2 Analytics
-    @Published var analyticsEnabled = false
-
-    // Dev-only restart, mirrors `WizardModel.restart()`.
-    func restart() {
-        selected = .prerequisites
-        showingWelcome = true
-        handoff = HandoffInfo(publisherStatus: "Publisher done", setupVersion: "v1.4.2", nextOwner: "you (Admin)")
-        githubState = .notChecked
-        runPhase = .idle
-        runRows = []
-        runCount = 0
-        materializedDepartmentIDs = []
-        orgSpaceMaterialized = false
-        devForceStopStep = nil
-        preflightState = .neverRun
-        preflightChecks = []
-        contactsSaved = false
-        seedValidated = false
-        seedPRState = .idle
-    }
-}
-
-// MARK: - Reusable small views
-
-/// A firm, distinct card for the load-bearing refuse-not-weaken moment
-/// (ADM-3's refusal and ADM-8's `Stopped` row share this language). Never
-/// offers a bypass, `--force`, or `--skip-verify` — only the honest fix and
-/// **Check again** / **Run again**.
-struct RefusalCard: View {
-    let line: String
-    let command: String?
-    let fixOwnerLine: String
-    let actionLabel: String
-    let action: () -> Void
-    @State private var copied = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "xmark.octagon.fill")
-                    .foregroundColor(Color(nsColor: .systemRed))
-                    .accessibilityHidden(true)
-                Text(line)
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .labelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let command {
-                HStack {
-                    Text(command)
-                        .font(.body.monospaced())
-                        .textSelection(.enabled)
-                        .foregroundColor(Color(nsColor: .labelColor))
-                    Spacer()
-                    Button(copied ? "Copied" : "Copy") {
-                        let board = NSPasteboard.general
-                        board.clearContents()
-                        board.setString(command, forType: .string)
-                        copied = true
-                        Task {
-                            try? await Task.sleep(nanoseconds: 1_500_000_000)
-                            copied = false
-                        }
-                    }
-                    .buttonStyle(.borderless)
-                }
-                .padding(10)
-                .background(Color(nsColor: .textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-
-            Text(fixOwnerLine)
-                .font(.callout)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-
-            Button(actionLabel, action: action)
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-        }
-        .padding(16)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(nsColor: .systemRed).opacity(0.35), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("GitHub access, not ready, and how to fix it")
-    }
-}
-
-struct AdminSectionCard<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if !title.isEmpty {
+        VStack(alignment: .leading, spacing: 10) {
+            if let title {
                 Text(title)
-                    .font(.title3.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .labelColor))
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .textCase(.uppercase)
             }
             content
         }
@@ -959,1227 +352,1608 @@ struct AdminSectionCard<Content: View>: View {
     }
 }
 
-/// One row of the ADM-8 streamed checklist. Shape + word carry the state
-/// (never color alone); `already-present` reads calm, never as an error.
-struct RunRowView: View {
-    let row: RunStepRow
+/// `surface.field` mono block (visual-system §2.1: "code / handoff blocks"),
+/// with a Copy affordance that reads "Copied" for ~2s, never a toast.
+struct CopyableCodeBlock: View {
+    let text: String
+    var copyLabel: String = "Copy"
+    @State private var copied = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            icon
-            Text(row.title)
-                .font(.body)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(text)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
                 .foregroundColor(Color(nsColor: .labelColor))
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer()
-            trailing
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(row.title), \(accessibilityWord)")
-        .accessibilityAddTraits(.updatesFrequently)
-    }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-    @ViewBuilder private var icon: some View {
-        switch row.state {
-        case .waiting:
-            Image(systemName: "circle")
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-        case .working:
-            ProgressView().controlSize(.small)
-        case .resolved(let outcome):
-            if outcome.isCalm {
-                Image(systemName: "checkmark.circle")
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            } else {
-                Image(systemName: "exclamationmark.octagon.fill")
-                    .foregroundColor(Color(nsColor: .systemRed))
-            }
-        }
-        EmptyView().accessibilityHidden(true)
-    }
-
-    @ViewBuilder private var trailing: some View {
-        switch row.state {
-        case .waiting:
-            Text("Waiting").font(.caption).foregroundColor(Color(nsColor: .tertiaryLabelColor))
-        case .working:
-            Text("Working").font(.caption).foregroundColor(Color(nsColor: .secondaryLabelColor))
-        case .resolved(let outcome):
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(outcome.word)
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(Color(nsColor: outcome.isCalm ? .secondaryLabelColor : .systemRed))
-                if let owner = outcome.owner {
-                    Text(owner)
-                        .font(.caption2)
-                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            Button {
+                let board = NSPasteboard.general
+                board.clearContents()
+                board.setString(text, forType: .string)
+                copied = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    copied = false
                 }
+            } label: {
+                Text(copied ? "Copied" : copyLabel)
             }
-        }
-    }
-
-    private var accessibilityWord: String {
-        switch row.state {
-        case .waiting: return "waiting"
-        case .working: return "working"
-        case .resolved(let outcome): return outcome.word.lowercased()
+            .buttonStyle(.borderedProminent)
+            .accessibilityLabel(copyLabel)
         }
     }
 }
 
-/// One row of the ADM-9 Preflight checklist: shape + color + text, never
-/// color alone; `unknown` is rendered distinctly and is NEVER green.
-struct PreflightRowView: View {
-    let check: PreflightCheck
+/// The plain owner tag (`Admin` / `GitHub org owner` / `IT infra` /
+/// `The foundation (external)`), radius-6 chip, per visual-system §6.8.
+struct OwnerChip: View {
+    let owner: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            icon
-            VStack(alignment: .leading, spacing: 2) {
-                Text(check.name)
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Text(check.status == .pass ? "Ready" : check.detail)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            if let owner = check.owner {
-                Text(owner)
-                    .font(.caption2.weight(.medium))
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color(nsColor: .separatorColor).opacity(0.3))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-        }
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(check.name), \(accessibilityStatus), \(check.owner ?? "")")
+        Text(owner)
+            .font(.caption.weight(.semibold))
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color(nsColor: .separatorColor).opacity(0.35))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
+}
 
-    @ViewBuilder private var icon: some View {
-        switch check.status {
-        case .pass:
-            Image(systemName: "checkmark.circle.fill").foregroundColor(Color(nsColor: .systemGreen))
-        case .fail:
-            Image(systemName: "xmark.circle.fill").foregroundColor(Color(nsColor: .systemRed))
-        case .unknown:
-            Image(systemName: "questionmark.circle").foregroundColor(Color(nsColor: .systemOrange))
+// MARK: - Sidebar inventory (interaction-design §1, copy deck §3.2)
+
+enum AdminOnboardingStage: Int, CaseIterable, Identifiable {
+    case orientation, prerequisites, contacts, connectGitHub, describeOrg
+    case integrations, secretStore, review, handedOff, setupCheck, done
+    var id: Int { rawValue }
+
+    var sidebarLabel: String {
+        switch self {
+        case .orientation: return "Orientation"
+        case .prerequisites: return "Prerequisites"
+        case .contacts: return "Contacts"
+        case .connectGitHub: return "Connect GitHub"
+        case .describeOrg: return "Describe your organization"
+        case .integrations: return "Integrations"
+        case .secretStore: return "Secret store"
+        case .review: return "Review and hand off"
+        case .handedOff: return "Handed off"
+        case .setupCheck: return "Setup check"
+        case .done: return "Done"
         }
     }
 
-    private var accessibilityStatus: String {
-        switch check.status {
-        case .pass: return "ready"
-        case .fail: return check.detail
-        case .unknown: return "couldn't check this"
+    var icon: String {
+        switch self {
+        case .orientation: return "map"
+        case .prerequisites: return "checklist"
+        case .contacts: return "person.text.rectangle"
+        case .connectGitHub: return "point.3.connected.trianglepath.dotted"
+        case .describeOrg: return "building.2"
+        case .integrations: return "puzzlepiece.extension"
+        case .secretStore: return "lock.doc"
+        case .review: return "arrow.left.arrow.right.circle"
+        case .handedOff: return "terminal"
+        case .setupCheck: return "checklist.checked"
+        case .done: return "checkmark.seal"
         }
     }
 }
 
-// MARK: - Admin sidebar
+enum AdminGovernanceStage: Int, CaseIterable, Identifiable {
+    case addDepartment, someoneLeft, connectStore, orgSetup, analytics
+    var id: Int { rawValue }
+
+    var sidebarLabel: String {
+        switch self {
+        case .addDepartment: return "Add a department"
+        case .someoneLeft: return "Someone left"
+        case .connectStore: return "Connect the shared store"
+        case .orgSetup: return "Org setup"
+        case .analytics: return "Analytics"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .addDepartment: return "person.badge.plus"
+        case .someoneLeft: return "person.badge.minus"
+        case .connectStore: return "key.viewfinder"
+        case .orgSetup: return "list.bullet.rectangle"
+        case .analytics: return "chart.bar.doc.horizontal"
+        }
+    }
+}
+
+enum AdminSelection: Hashable {
+    case onboarding(AdminOnboardingStage)
+    case governance(AdminGovernanceStage)
+}
+
+/// The roadmap grammar (interaction-design §1.3): done / current / upcoming,
+/// plus the one new advisory token (partial + count) for Connect GitHub.
+enum AdminProgressMark: Equatable {
+    case done
+    case current
+    case upcoming
+    case partial(done: Int, total: Int)
+}
+
+// MARK: - Domain types
+
+enum Harness: String, CaseIterable, Identifiable {
+    case claude, codex
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .claude: return "Claude Code"
+        case .codex: return "Codex"
+        }
+    }
+    /// The `<harness>-copilot*` naming token the plan card and the brief both
+    /// use (admin-standup-contract.md §1.3/§4).
+    var repoToken: String { rawValue }
+}
+
+struct DepartmentEntry: Identifiable, Equatable {
+    let id = UUID()
+    var name: String = ""
+    var slug: String { AdminSlug.derive(name) }
+}
+
+enum StoreConnectionStatus: Equatable {
+    case undecided
+    case connected
+    case deferred
+}
+
+enum StoreKind: String, CaseIterable, Identifiable {
+    case onePassword = "1Password"
+    case infisical = "Infisical"
+    case vault = "Vault"
+    var id: String { rawValue }
+}
+
+/// Connect GitHub's five readiness rows (interaction-design Surface 4; copy
+/// deck §3.6). `owner` (row 3) is a `// CONTRACT SEAM`: the sanctioned local
+/// detection set (gh presence/version, `gh auth status` sign-in + scopes,
+/// Claude Code presence) has no real check for GitHub org ownership, so this
+/// row can never honestly reach `.pass` here — it renders a permanent,
+/// truthful "can't check this from here" rather than a fabricated green.
+enum ReadinessStatus: Equatable {
+    case notChecked
+    case checking
+    case pass
+    case fail
+    case cannotCheckLocally
+}
+
+struct ReadinessRow: Identifiable {
+    enum Kind: String, CaseIterable, Identifiable {
+        case ghInstalled, signedIn, owner, scopes, claudeInstalled
+        var id: String { rawValue }
+    }
+
+    var id: Kind { kind }
+    let kind: Kind
+    var status: ReadinessStatus = .notChecked
+    var detail: String = ""
+    var copyCommand: String? = nil
+
+    func baseTitle(org: String) -> String {
+        switch kind {
+        case .ghInstalled: return "GitHub's command-line tool is installed"
+        case .signedIn: return "You're signed in"
+        case .owner: return "Your account is an owner of \(org.isEmpty ? "your organization" : org)"
+        case .scopes: return "Your sign-in has the access setup needs"
+        case .claudeInstalled: return "Claude Code is installed"
+        }
+    }
+}
+
+extension Array where Element == ReadinessRow {
+    subscript(kind: ReadinessRow.Kind) -> ReadinessRow {
+        get { first(where: { $0.kind == kind }) ?? ReadinessRow(kind: kind) }
+        set {
+            if let idx = firstIndex(where: { $0.kind == kind }) {
+                self[idx] = newValue
+            }
+        }
+    }
+}
+
+/// The verify verb's row shape (admin-standup-contract.md §3.1), rendered,
+/// never computed, by the Setup check (`native/admin-support.swift`).
+struct VerifyRow: Identifiable {
+    let id = UUID()
+    let check: String
+    let status: String
+    let detail: String
+    let owner: String
+    let fixSurface: String
+}
+
+enum WriteState: Equatable {
+    case idle
+    case working
+    case success
+    case failure
+}
+
+// MARK: - AdminModel
+
+@MainActor
+final class AdminModel: ObservableObject {
+    // Navigation
+    @Published var selection: AdminSelection = .onboarding(.orientation)
+    @Published var completedOnboarding: Set<AdminOnboardingStage> = []
+
+    static let onboardingOrder: [AdminOnboardingStage] = AdminOnboardingStage.allCases
+
+    // Surface 1: Orientation
+    @Published var showingLearnMore = false
+    @Published var learnMorePage = 0
+    @Published var handoffReadable = false // CONTRACT SEAM: see admin-support.swift's handoffHeader
+
+    // Surface 3: Contacts
+    @Published var contactPublisher = ""
+    @Published var contactAdmin = ""
+    @Published var contactPointOfContact = ""
+    @Published var contactsSaved = false
+
+    // Surface 4: Connect GitHub (shared org identity with Describe, below)
+    @Published var orgNameInput = ""
+    @Published var readinessRows: [ReadinessRow] = ReadinessRow.Kind.allCases.map { ReadinessRow(kind: $0) }
+    @Published var githubChecking = false
+    @Published var githubCheckDegraded = false
+    @Published var copiedCommandID: String? = nil
+
+    var orgSlug: String { AdminSlug.derive(orgNameInput) }
+
+    // Surface 5: Describe your organization
+    @Published var harness: Harness = .codex
+    @Published var departments: [DepartmentEntry] = []
+    @Published var orgSlugTouched = false
+
+    // Surface 7: Secret store
+    @Published var storeKind: StoreKind = .infisical
+    @Published var storeAddress = ""
+    @Published var storeAddressTouchedInvalid = false
+    @Published var storeScopeByDepartment: [UUID: String] = [:]
+    @Published var storeStatus: StoreConnectionStatus = .undecided
+
+    // Surface 8: Review and hand off. `lastWrittenBriefFingerprint` (not a
+    // one-shot "already generated" flag) is what gates re-writing the brief:
+    // going Back from Review, editing any brief-feeding input, and returning
+    // must rewrite the brief and re-gate the command block (QA fix), while
+    // simply re-visiting Review without changing anything must not spuriously
+    // rewrite. See `AdminModel.briefFingerprint` in native/admin-support.swift.
+    @Published var briefWriteState: WriteState = .idle
+    @Published var skillMaterializeState: WriteState = .idle
+    @Published var lastWrittenBriefFingerprint: String? = nil
+
+    // Surface 10: Setup check
+    @Published var verifyState: WriteState = .idle // idle == never run
+    @Published var verifyRows: [VerifyRow] = []
+    @Published var verifyMustFix = 0
+    @Published var verifyUnknown = 0
+    @Published var verifyDegradedLine: String? = nil
+
+    // Surface 16: Analytics
+    @Published var analyticsEnabled = false
+
+    // Governance: Someone left (CONTRACT SEAM: no real lookup, see
+    // native/admin-support.swift's someoneLeftView)
+    @Published var someoneLeftLookup = ""
+    @Published var someoneLeftLookedUp = false
+
+    // Governance: Connect the shared store
+    @Published var governanceStoreCommandReady = false
+
+    // MARK: Navigation helpers
+
+    func markComplete(_ stage: AdminOnboardingStage) {
+        completedOnboarding.insert(stage)
+    }
+
+    func advance(from stage: AdminOnboardingStage) {
+        markComplete(stage)
+        guard let idx = Self.onboardingOrder.firstIndex(of: stage), idx + 1 < Self.onboardingOrder.count else { return }
+        selection = .onboarding(Self.onboardingOrder[idx + 1])
+    }
+
+    func goBack(from stage: AdminOnboardingStage) {
+        guard let idx = Self.onboardingOrder.firstIndex(of: stage), idx > 0 else { return }
+        selection = .onboarding(Self.onboardingOrder[idx - 1])
+    }
+
+    func progressMark(for stage: AdminOnboardingStage) -> AdminProgressMark {
+        if case .onboarding(let current) = selection, current == stage { return .current }
+        if stage == .connectGitHub {
+            let passCount = readinessRows.filter { $0.status == .pass }.count
+            if passCount == readinessRows.count { return .done }
+            return .partial(done: passCount, total: readinessRows.count)
+        }
+        return completedOnboarding.contains(stage) ? .done : .upcoming
+    }
+
+    // MARK: Contacts
+
+    func saveContacts() {
+        contactsSaved = true
+        advance(from: .contacts)
+    }
+
+    // MARK: Connect GitHub (real, read-only, sanctioned detection only)
+
+    func checkGitHubReadiness() {
+        Task { await runGitHubReadinessCheck() }
+    }
+
+    private func runGitHubReadinessCheck() async {
+        githubChecking = true
+        githubCheckDegraded = false
+        for i in readinessRows.indices { readinessRows[i].status = .checking }
+
+        let ghVersion = await ShellRunner.run("gh --version")
+        let ghPresent = ghVersion.exitCode == 0 && !ghVersion.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        if ghPresent {
+            var row = readinessRows[.ghInstalled]
+            row.status = .pass
+            row.detail = ""
+            row.copyCommand = nil
+            readinessRows[.ghInstalled] = row
+        } else {
+            var row = readinessRows[.ghInstalled]
+            row.status = .fail
+            row.detail = "GitHub's command-line tool isn't on this Mac yet. Setup runs through it."
+            row.copyCommand = "brew install gh"
+            readinessRows[.ghInstalled] = row
+        }
+
+        if ghPresent {
+            let auth = await ShellRunner.run("gh auth status 2>&1")
+            let combined = auth.stdout + auth.stderr
+            let signedIn = combined.lowercased().contains("logged in to")
+
+            var signedInRow = readinessRows[.signedIn]
+            if signedIn {
+                signedInRow.status = .pass
+                signedInRow.detail = ""
+                signedInRow.copyCommand = nil
+            } else {
+                signedInRow.status = .fail
+                signedInRow.detail = "You're not signed in to GitHub's command-line tool yet."
+                signedInRow.copyCommand = "gh auth login"
+            }
+            readinessRows[.signedIn] = signedInRow
+
+            var scopesRow = readinessRows[.scopes]
+            if signedIn {
+                let hasAdminOrg = combined.contains("admin:org")
+                let hasRepo = combined.contains("'repo'") || combined.contains("\"repo\"")
+                if hasAdminOrg && hasRepo {
+                    scopesRow.status = .pass
+                    scopesRow.detail = ""
+                    scopesRow.copyCommand = nil
+                } else {
+                    scopesRow.status = .fail
+                    scopesRow.detail = "Your GitHub sign-in is missing the access setup needs."
+                    scopesRow.copyCommand = "gh auth refresh -s admin:org -s repo"
+                }
+            } else {
+                scopesRow.status = .cannotCheckLocally
+                scopesRow.detail = "Can't check this until you're signed in."
+                scopesRow.copyCommand = nil
+            }
+            readinessRows[.scopes] = scopesRow
+        } else {
+            var signedInRow = readinessRows[.signedIn]
+            signedInRow.status = .cannotCheckLocally
+            signedInRow.detail = "Can't check this until GitHub's command-line tool is installed."
+            readinessRows[.signedIn] = signedInRow
+
+            var scopesRow = readinessRows[.scopes]
+            scopesRow.status = .cannotCheckLocally
+            scopesRow.detail = "Can't check this until GitHub's command-line tool is installed."
+            readinessRows[.scopes] = scopesRow
+        }
+
+        // CONTRACT SEAM: org ownership has no sanctioned local check (it would
+        // need a live `gh api orgs/<org>/memberships/<user>` read, which is
+        // outside the sanctioned detection set for this surface). Render this
+        // honestly: never fabricated green, never a hard block either.
+        var ownerRow = readinessRows[.owner]
+        ownerRow.status = .cannotCheckLocally
+        ownerRow.detail = "This app can't check organization ownership from this Mac. If setup later says you're not one, ask an owner to run this, or to make you one."
+        readinessRows[.owner] = ownerRow
+
+        let claude = await ShellRunner.run("command -v claude")
+        var claudeRow = readinessRows[.claudeInstalled]
+        if claude.exitCode == 0 && !claude.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            claudeRow.status = .pass
+            claudeRow.detail = ""
+        } else {
+            claudeRow.status = .fail
+            claudeRow.detail = "Claude Code isn't on this Mac yet. Setup runs there, so you'll want it before you hand off."
+        }
+        readinessRows[.claudeInstalled] = claudeRow
+
+        githubChecking = false
+    }
+
+    func copyToClipboard(_ text: String, id: String) {
+        let board = NSPasteboard.general
+        board.clearContents()
+        board.setString(text, forType: .string)
+        copiedCommandID = id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            if self?.copiedCommandID == id {
+                self?.copiedCommandID = nil
+            }
+        }
+    }
+
+    // MARK: Describe your organization
+
+    func addDepartment() {
+        departments.append(DepartmentEntry())
+    }
+
+    func removeDepartment(_ id: UUID) {
+        departments.removeAll { $0.id == id }
+        storeScopeByDepartment.removeValue(forKey: id)
+    }
+
+    var orgSlugIsValid: Bool { !orgSlug.isEmpty }
+
+    /// The live "What this will create" plan card content, derived (never
+    /// computed as ecosystem state — this is legibility only; the engine is
+    /// the authority that actually creates anything). Copy deck §3.7.
+    var planCardLines: [String] {
+        guard orgSlugIsValid else { return [] }
+        var lines: [String] = []
+        let org = orgSlug
+        let token = harness.repoToken
+        lines.append("Three shared spaces for your whole organization:")
+        lines.append("\(org)/\(token)-copilot")
+        lines.append("\(org)/knowledge-copilot")
+        lines.append("\(org)/cli-copilot   Private.")
+        for dept in departments where !dept.slug.isEmpty {
+            let display = dept.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            lines.append("")
+            lines.append("Three spaces for the \(display) department:")
+            lines.append("\(org)/\(token)-copilot-\(dept.slug)")
+            lines.append("\(org)/knowledge-copilot-\(dept.slug)")
+            lines.append("\(org)/cli-copilot-\(dept.slug)   Private.")
+            // Rephrased to avoid an a/an article choice on an arbitrary typed
+            // name (QA fix: "an Sales team" mis-articled a consonant name).
+            lines.append("A team for \(display) that can reach them.")
+        }
+        lines.append("")
+        lines.append("Your whole organization set to read by default.")
+        return lines
+    }
+
+    // MARK: Secret store
+
+    func scopeBinding(for dept: DepartmentEntry) -> Binding<String> {
+        Binding(
+            get: { self.storeScopeByDepartment[dept.id] ?? "dept/\(dept.slug)" },
+            set: { self.storeScopeByDepartment[dept.id] = $0 }
+        )
+    }
+
+    var storeAddressLooksValid: Bool {
+        storeAddress.isEmpty || SecretShapeCheck.looksLikeURL(storeAddress)
+    }
+
+    func finishSecretStore(connect: Bool) {
+        if connect, !storeAddress.isEmpty, SecretShapeCheck.looksLikeURL(storeAddress) {
+            storeStatus = .connected
+        } else if !connect {
+            storeStatus = .deferred
+        } else if storeAddress.isEmpty {
+            storeStatus = .deferred
+        }
+        advance(from: .secretStore)
+    }
+
+    var storeAtAGlance: String {
+        switch storeStatus {
+        case .connected: return "store connected"
+        case .deferred, .undecided: return "store not connected yet"
+        }
+    }
+
+    /// The `store.type` slug `buildBriefContents()` (native/admin-support.swift)
+    /// writes to the brief. Shared (not `private`) so both files can use the
+    /// one mapping instead of drifting duplicates.
+    var storeKindSlug: String {
+        switch storeKind {
+        case .onePassword: return "1password"
+        case .infisical: return "infisical"
+        case .vault: return "vault"
+        }
+    }
+
+    /// Every valid (non-empty-slug) department, the shape both the plan card
+    /// and the brief writer iterate over.
+    var validDepartments: [DepartmentEntry] {
+        departments.filter { !$0.slug.isEmpty }
+    }
+
+    /// A cheap, order-stable fingerprint of every field that feeds
+    /// `buildBriefContents()`, contacts included. Compared against
+    /// `lastWrittenBriefFingerprint` to decide whether Review needs to
+    /// rewrite the brief (QA fix: a stale fingerprint used to let Back +
+    /// edit + return show an out-of-date command).
+    var briefFingerprint: String {
+        var parts: [String] = [orgSlug, harness.rawValue]
+        parts.append(contentsOf: validDepartments.map { $0.slug })
+        switch storeStatus {
+        case .connected:
+            parts.append("connected")
+            parts.append(storeKindSlug)
+            parts.append(storeAddress)
+            for dept in validDepartments {
+                parts.append(storeScopeByDepartment[dept.id] ?? "dept/\(dept.slug)")
+            }
+        case .deferred, .undecided:
+            parts.append("deferred")
+        }
+        parts.append(contactPublisher)
+        parts.append(contactAdmin)
+        parts.append(contactPointOfContact)
+        return parts.joined(separator: "\u{1}")
+    }
+}
+
+// MARK: - Window chrome: handoff header + two-section sidebar + root shell
+
+/// Persistent, read-only banner atop the window whenever an Onboarding item
+/// is selected (interaction-design §1.1; copy deck §3.1). CONTRACT SEAM: the
+/// Publisher-to-Admin handoff object has no frozen schema anywhere in this
+/// repo yet (no `docs/01-architecture/schemas/*handoff*`), so this always
+/// renders the honest "can't read it" state rather than a fabricated one —
+/// exactly the degraded state the design itself specifies for this case.
+struct AdminHandoffHeader: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.left.arrow.right")
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .accessibilityHidden(true)
+            Text("Not started yet")
+                .font(.callout)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Handoff status: not started yet")
+    }
+}
 
 struct AdminSidebar: View {
     @ObservedObject var model: AdminModel
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("HANDOFF")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                    Text(model.handoffLine)
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
+        List(selection: Binding(
+            get: { model.selection },
+            set: { if let newValue = $0 { model.selection = newValue } }
+        )) {
+            Section("ONBOARDING") {
+                ForEach(AdminOnboardingStage.allCases) { stage in
+                    row(label: stage.sidebarLabel, icon: stage.icon, mark: model.progressMark(for: stage))
+                        .tag(AdminSelection.onboarding(stage))
                 }
-                .padding(.vertical, 4)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Handoff status: \(model.handoffLine)")
             }
-
-            Section {
-                ForEach(AdminItem.onboarding) { item in row(item) }
-            } header: {
-                Text(AdminSection.onboarding.rawValue)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            }
-
-            Section {
-                ForEach(AdminItem.governance) { item in row(item) }
-            } header: {
-                Text(AdminSection.governance.rawValue)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Section("GOVERNANCE") {
+                ForEach(AdminGovernanceStage.allCases) { stage in
+                    row(label: stage.sidebarLabel, icon: stage.icon, mark: nil)
+                        .tag(AdminSelection.governance(stage))
+                }
             }
         }
         .listStyle(.sidebar)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Administration")
     }
 
-    private func row(_ item: AdminItem) -> some View {
-        let locked = !allScreensUnlockedForReview && item.requiresGitHubGate && !model.githubGateOpen
-        let isCurrent = model.selected == item
-
-        return Button {
-            guard !locked else { return }
-            model.selected = item
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: item.icon)
-                    .foregroundColor(isCurrent ? Color(nsColor: .controlAccentColor) : Color(nsColor: .secondaryLabelColor))
-                    .frame(width: 16)
-                Text(item.sidebarLabel)
-                    .font(.body.weight(isCurrent ? .medium : .regular))
-                    .foregroundColor(locked ? Color(nsColor: .tertiaryLabelColor) : Color(nsColor: isCurrent ? .labelColor : .secondaryLabelColor))
-                Spacer()
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 8)
-            .background(isCurrent ? Color(nsColor: .controlAccentColor).opacity(0.12) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .disabled(locked)
-        .help(locked ? "Not available yet. Connect GitHub first." : "")
-        .accessibilityLabel(item.sidebarLabel)
-        .accessibilityValue(locked ? "not available yet, connect GitHub first" : (isCurrent ? "current" : ""))
-    }
-}
-
-// MARK: - ADM-0 Welcome (NEW, Change 1): the Admin face's own overview
-// screen, styled and structured after scripts/publisher_setup.swift's
-// Welcome (hero -> why this matters -> what's required) so the two native
-// apps read as one family. Shown once per window open, ahead of the
-// existing Prerequisites checklist; "Get Started" hands off to it, the same
-// rhythm as the wizard's Welcome -> Get Started -> Detect.
-struct AdminWelcomeView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 28) {
-                    heroImage
-
-                    VStack(spacing: 12) {
-                        Text("Welcome, Admin.")
-                            .font(.largeTitle.weight(.semibold))
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(Color(nsColor: .labelColor))
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Text("You're standing up your organization's Copilot Solutioning Ecosystem on GitHub: the organization and department repositories, teams, access grants, a shared secret store connection, and the seed config everything else reads from. Once it's in place, everyone on your team inherits the right tools automatically.")
-                            .font(.body)
-                            .lineSpacing(2)
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    AdminSectionCard(title: "Why this matters") {
-                        VStack(alignment: .leading, spacing: 14) {
-                            infoRow(symbol: "person.2.badge.key.fill", text: "Everyone's machine stays current with exactly the tools they're entitled to, nothing more.")
-                            infoRow(symbol: "checkmark.shield", text: "Access is decided by GitHub repository membership, not by anything typed into this app.")
-                            infoRow(symbol: "arrow.triangle.2.circlepath", text: "Nothing here is ever destroyed. Running this again only adds what's new and leaves everything else untouched.")
-                        }
-                    }
-
-                    AdminSectionCard(title: "What you'll need") {
-                        VStack(alignment: .leading, spacing: 14) {
-                            infoRow(symbol: "person.badge.key", text: "A GitHub account with admin:org access on your organization.")
-                            infoRow(symbol: "building.2", text: "Your organization already created on github.com. This never creates the organization itself, that needs billing and a person.")
-                            infoRow(symbol: "list.bullet", text: "A rough list of the departments and integrations you want set up. You can always add more later.")
-                        }
-                    }
-
-                    Text("The secret store never receives a key here, only a reference to where your keys already live.")
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: 640)
-                .padding(.horizontal, 32)
-                .padding(.top, 48)
-                .padding(.bottom, 24)
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
-
-            Divider()
-
-            HStack(spacing: 12) {
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    Text("Quit")
-                }
-                .buttonStyle(.bordered)
-                .keyboardShortcut(.cancelAction)
-
-                Spacer()
-
-                Button {
-                    model.getStarted()
-                } label: {
-                    Text("Get Started")
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-            }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 16)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    /// Illustration reads only at ~40pt+ (below that its detail collapses
-    /// into an unreadable blob, see `ControlTowerGlyph`'s own doc comment)
-    /// — 76pt matches the wizard's own Welcome hero exactly.
-    private var heroImage: some View {
-        Image(nsImage: ControlTowerGlyph.load(targetHeight: 76))
-            .resizable()
-            .interpolation(.high)
-            .aspectRatio(contentMode: .fit)
-            .frame(width: 76, height: 76)
-            .accessibilityLabel("Copilot Control Tower")
-    }
-
-    private func infoRow(symbol: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol)
-                .symbolRenderingMode(.hierarchical)
-                .foregroundColor(Color(nsColor: .systemBlue))
-                .imageScale(.large)
-                .frame(width: 20)
+    @ViewBuilder
+    private func row(label: String, icon: String, mark: AdminProgressMark?) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .frame(width: 16)
                 .accessibilityHidden(true)
-            Text(text)
-                .font(.callout)
+            Text(label)
+                .font(.body)
                 .foregroundColor(Color(nsColor: .labelColor))
-                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            if let mark {
+                markView(mark)
+            }
         }
-        .accessibilityElement(children: .combine)
+        .padding(.vertical, 2)
+        .accessibilityLabel("\(label)\(mark.map { ", " + accessibilityWord($0) } ?? "")")
+    }
+
+    @ViewBuilder
+    private func markView(_ mark: AdminProgressMark) -> some View {
+        switch mark {
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(Color(nsColor: .systemGreen))
+        case .current:
+            Image(systemName: "circle.inset.filled")
+                .foregroundColor(Color(nsColor: .controlAccentColor))
+        case .upcoming:
+            Image(systemName: "circle")
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+        case .partial(let done, let total):
+            HStack(spacing: 4) {
+                Image(systemName: "circle.lefthalf.filled")
+                Text("\(done)/\(total)")
+                    .font(.caption)
+            }
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        }
+    }
+
+    private func accessibilityWord(_ mark: AdminProgressMark) -> String {
+        switch mark {
+        case .done: return "done"
+        case .current: return "current"
+        case .upcoming: return "upcoming"
+        case .partial(let done, let total): return "\(done) of \(total) ready"
+        }
     }
 }
-
-// MARK: - Admin root view
 
 struct AdminRootView: View {
     @ObservedObject var model: AdminModel
 
     var body: some View {
-        if model.showingWelcome {
-            AdminWelcomeView(model: model)
-                .frame(minWidth: 900, idealWidth: 1080, minHeight: 640, idealHeight: 760)
-        } else {
-            NavigationSplitView {
-                AdminSidebar(model: model)
-                    .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 280)
-            } detail: {
-                ScrollView {
-                    detail
-                        .frame(maxWidth: 640, alignment: .leading)
-                        .padding(.horizontal, 32)
-                        .padding(.top, 24)
-                        .padding(.bottom, 32)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        NavigationSplitView {
+            AdminSidebar(model: model)
+                .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
+        } detail: {
+            VStack(spacing: 0) {
+                if isOnboardingSelected {
+                    AdminHandoffHeader()
                 }
-                .background(Color(nsColor: .windowBackgroundColor))
+                detail
             }
-            .navigationSplitViewStyle(.balanced)
-            .frame(minWidth: 900, idealWidth: 1080, minHeight: 640, idealHeight: 760)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 1000, idealWidth: 1080, minHeight: 680, idealHeight: 760)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var isOnboardingSelected: Bool {
+        if case .onboarding = model.selection { return true }
+        return false
     }
 
     @ViewBuilder
     private var detail: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text(model.selected.section.rawValue)
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: .systemBlue))
-                .textCase(.uppercase)
+        switch model.selection {
+        case .onboarding(let stage):
+            onboardingDetail(stage)
+        case .governance(let stage):
+            governanceDetail(stage)
+        }
+    }
 
-            switch model.selected {
-            case .prerequisites: PrerequisitesView(model: model)
-            case .contacts: ContactsView(model: model)
-            case .connectGitHub: ConnectGitHubView(model: model)
-            case .departmentsAccess: DepartmentsAccessView(model: model)
-            case .secretStore: SecretStoreView(model: model)
-            case .seed: SeedView(model: model)
-            case .policySigners: PolicySignersView(model: model)
-            case .reviewRun: ReviewRunView(model: model)
-            case .preflight: PreflightView(model: model)
-            case .addOffboard: AddOffboardView(model: model)
-            case .analytics: AnalyticsView(model: model)
-            case .secretStoreConfig: SecretStoreConfigView(model: model)
+    @ViewBuilder
+    private func onboardingDetail(_ stage: AdminOnboardingStage) -> some View {
+        switch stage {
+        case .orientation: orientationView
+        case .prerequisites: prerequisitesView
+        case .contacts: contactsView
+        case .connectGitHub: connectGitHubView
+        case .describeOrg: describeOrgView
+        case .integrations: integrationsView
+        case .secretStore: secretStoreView
+        case .review: reviewView
+        case .handedOff: handedOffView
+        case .setupCheck: setupCheckView
+        case .done: doneView
+        }
+    }
+
+    @ViewBuilder
+    private func governanceDetail(_ stage: AdminGovernanceStage) -> some View {
+        switch stage {
+        case .addDepartment: addDepartmentView
+        case .someoneLeft: someoneLeftView
+        case .connectStore: connectStoreGovernanceView
+        case .orgSetup: orgSetupView
+        case .analytics: analyticsView
+        }
+    }
+
+    // MARK: Shared footer buttons
+
+    func backButton(_ action: @escaping () -> Void) -> some View {
+        Button { action() } label: { Text("Back") }
+            .buttonStyle(.bordered)
+    }
+
+    func primaryButton(_ title: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
+        Button { action() } label: { Text(title) }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+            .disabled(!enabled)
+    }
+}
+
+// MARK: - Surface 1: Orientation
+
+extension AdminRootView {
+    var orientationView: some View {
+        Group {
+            if model.showingLearnMore {
+                learnMoreView
+            } else {
+                orientationMainView
             }
+        }
+    }
+
+    private var orientationMainView: some View {
+        StepShell(
+            eyebrow: "ONBOARDING",
+            title: "Here's what you're building, and the whole path",
+            intro: "Your copilots live in a set of shared spaces on GitHub that build on one another. The open-source foundation sits at the bottom. Your organization adds its own on top. Each department adds what only it needs. Each person adds their own on top of that. Everyone inherits everything beneath them, so you share broad capabilities widely and keep specialized ones narrow."
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                AdminCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("1. Describe your organization here.")
+                        Text("2. Claude Code sets it up in your terminal.")
+                        Text("3. Come back and run the Setup check.")
+                    }
+                    .font(.body)
+                    .foregroundColor(Color(nsColor: .labelColor))
+                }
+
+                Text("This app never changes anything on GitHub itself. It gets you ready, hands the work to Claude Code, and checks the result.")
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    model.showingLearnMore = true
+                    model.learnMorePage = 0
+                } label: {
+                    Text("Learn how the ecosystem works ›")
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .controlAccentColor))
+                .accessibilityLabel("Learn how the ecosystem works, opens an explainer")
+            }
+        } leadingActions: {
+            EmptyView()
+        } primaryAction: {
+            primaryButton("Start") {
+                model.advance(from: .orientation)
+            }
+        }
+    }
+
+    var learnMoreView: some View {
+        StepShell(
+            eyebrow: "LEARN MORE",
+            title: model.learnMorePage == 0 ? "How it works" : "What your team gets",
+            intro: nil
+        ) {
+            VStack(alignment: .leading, spacing: 20) {
+                Picker("", selection: $model.learnMorePage) {
+                    Text("How it works").tag(0)
+                    Text("What your team gets").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                EcosystemDiagram()
+                    .frame(maxWidth: 480)
+                    .accessibilityLabel("The four layers, each inheriting everything beneath it: the open-source foundation, then your organization, then each department, then each person.")
+
+                if model.learnMorePage == 0 {
+                    Text("Each layer carries three kinds of space: one for instructions and agents (your harness's copilot), one for knowledge (your company's information), and one for integrations (tools that reach outside systems). The org level carries org-level agents, org-level integrations, and org information.")
+                        .font(.body)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Every person inherits your organization's agents, skills, knowledge, and integrations, plus their department's, on the open-source foundation. They build their own solutions faster, going broad with what the org shares and narrow with what their department adds.")
+                        .font(.body)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    AdminCard {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Org: a skill that writes on-brand documents in your brand voice, and a proposal and SOW builder.")
+                            Text("Accounting: a month-end reconciliation skill.")
+                            Text("IT: an onboarding and offboarding access-runbook skill.")
+                            Text("Sales: a call-prep brief skill.")
+                        }
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                }
+            }
+        } leadingActions: {
+            Button {
+                model.showingLearnMore = false
+            } label: {
+                Text("‹ Back to the overview")
+            }
+            .buttonStyle(.bordered)
+        } primaryAction: {
+            EmptyView()
         }
     }
 }
 
-// MARK: - ADM-1 Prerequisites (copy deck §3.3)
-
-struct PrerequisitesView: View {
-    @ObservedObject var model: AdminModel
+/// A theme-aware, native (never raster) rendering of the four inheriting
+/// layers (interaction-design Surface 1's "Learn more" diagram). Colors are
+/// all dynamic `NSColor`s, so light/dark redraw is instant and automatic.
+struct EcosystemDiagram: View {
+    private let rows: [(title: String, subtitle: String)] = [
+        ("Personal", "this Mac"),
+        ("Department", "e.g. Accounting"),
+        ("Organization", "your company"),
+        ("Foundation", "open source"),
+    ]
 
     var body: some View {
-        Text("Before you begin")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("A short checklist of what you'll need on hand to stand up the ecosystem. None of it is done here, this is just so nothing stops you halfway.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "") {
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach($model.prerequisites) { $item in
-                    Toggle(isOn: $item.checked) {
-                        Text(item.text)
-                            .font(.body)
-                            .foregroundColor(Color(nsColor: .labelColor))
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                layerRow(row.title, subtitle: row.subtitle, isTop: index == 0)
+                if index < rows.count - 1 {
+                    HStack {
+                        Spacer()
+                        Image(systemName: "chevron.up")
+                            .font(.caption2)
+                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                        Text("inherits")
+                            .font(.caption2)
+                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                        Spacer()
                     }
-                    .toggleStyle(.checkbox)
                 }
             }
         }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func layerRow(_ title: String, subtitle: String, isTop: Bool) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body.weight(.medium))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
-// MARK: - ADM-2 Contacts (copy deck §3.4)
+// MARK: - Surface 2: Prerequisites
 
-struct ContactsView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Who's who")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("Record who owns this setup, so the handoff is never guesswork. These names show in the handoff banner and in the setup check.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "") {
-            VStack(alignment: .leading, spacing: 14) {
-                SecretGuardedField(label: "Publisher", value: $model.publisherContact)
-                SecretGuardedField(label: "Admin", value: $model.adminContact)
-                SecretGuardedField(label: "Point of contact", value: $model.pointOfContact)
+extension AdminRootView {
+    var prerequisitesView: some View {
+        StepShell(
+            eyebrow: "ONBOARDING",
+            title: "Before you begin",
+            intro: "A few things need to be true before setup can run. None of them happen here. This is just so nothing stops you halfway."
+        ) {
+            AdminCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•").foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Your organization exists on GitHub. Creating one needs billing and a person, so it can't be automated. If it doesn't exist yet, create it at github.com first.")
+                            Button {
+                                NSWorkspace.shared.open(URL(string: "https://github.com/account/organizations/new")!)
+                            } label: {
+                                Text("Open github ›")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                        }
+                    }
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•").foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        Text("You are an owner of it. Only an owner can create the organization's spaces.")
+                    }
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•").foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        Text("You have GitHub's command-line tool and Claude Code on this Mac. The next step checks and helps.")
+                    }
+                }
+                .font(.body)
+                .foregroundColor(Color(nsColor: .labelColor))
+                .fixedSize(horizontal: false, vertical: true)
             }
+        } leadingActions: {
+            backButton { model.goBack(from: .prerequisites) }
+        } primaryAction: {
+            primaryButton("Continue") { model.advance(from: .prerequisites) }
         }
+    }
+}
 
-        HStack {
-            Button("Save") {
-                model.contactsSaved = true
+// MARK: - Surface 3: Contacts
+
+extension AdminRootView {
+    var contactsView: some View {
+        StepShell(
+            eyebrow: "ONBOARDING",
+            title: "Who's who",
+            intro: "Record who owns this setup, so the handoff is never guesswork. These names show in the handoff banner and in the setup check."
+        ) {
+            AdminCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    labeledField("Publisher", text: $model.contactPublisher)
+                    labeledField("Admin", text: $model.contactAdmin)
+                    labeledField("Point of contact", text: $model.contactPointOfContact)
+                }
             }
-            .buttonStyle(.borderedProminent)
-
+        } leadingActions: {
+            backButton { model.goBack(from: .contacts) }
             if model.contactsSaved {
                 Text("Saved.")
                     .font(.callout)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
+        } primaryAction: {
+            primaryButton("Continue") { model.saveContacts() }
+        }
+    }
+
+    // Contacts feed `buildBriefContents()`'s `contacts:` block verbatim (as
+    // quoted YAML strings), so they run the same secret-shape refusal as the
+    // store fields (QA fix: every free-text field bound into the brief must
+    // be guarded, not just the two store-collecting surfaces).
+    private func labeledField(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            SecretGuardedField(label: "", value: text)
         }
     }
 }
 
-// MARK: - ADM-3 Connect GitHub
+// MARK: - Surface 4: Connect GitHub
 
-struct ConnectGitHubView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Connect GitHub")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("Before anything changes, I check your GitHub access can do the job. This never touches your organization, it only reads.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "") {
-            SecretGuardedField(label: "Organization", value: $model.orgName, placeholder: "acme-co")
-        }
-
-        Group {
-            switch model.githubState {
-            case .notChecked:
-                idleCard(text: "Not checked yet.")
-            case .checking:
-                workingCard(text: "Checking your GitHub access...")
-            case .passed:
-                passedCard
-            case .refused(let reason):
-                RefusalCard(
-                    line: reason.line(org: model.orgName),
-                    command: reason.command,
-                    fixOwnerLine: reason.fixOwnerLine,
-                    actionLabel: "Check again",
-                    action: { model.checkGitHubAccess() }
-                )
-            case .degraded:
-                degradedCard
-            }
-        }
-
-        devOutcomePicker
-    }
-
-    private func idleCard(text: String) -> some View {
-        AdminSectionCard(title: "") {
-            HStack {
-                Text(text)
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Spacer()
-                Button("Check access") { model.checkGitHubAccess() }
-                    .buttonStyle(.borderedProminent)
-            }
-        }
-    }
-
-    private func workingCard(text: String) -> some View {
-        AdminSectionCard(title: "") {
-            HStack(spacing: 10) {
-                ProgressView().controlSize(.small)
-                Text(text)
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            }
-        }
-    }
-
-    private var passedCard: some View {
-        AdminSectionCard(title: "") {
-            HStack(spacing: 10) {
-                Image(systemName: "checkmark.circle")
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Text("Your GitHub access can set up \(model.orgName).")
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Spacer()
-                Button("Check again") { model.checkGitHubAccess() }
-                    .buttonStyle(.bordered)
-            }
-        }
-    }
-
-    private var degradedCard: some View {
-        AdminSectionCard(title: "") {
-            HStack {
-                Text("Something stopped me from checking your access, so I won't guess.")
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button("Check again") { model.checkGitHubAccess() }
-                    .buttonStyle(.borderedProminent)
-            }
-        }
-    }
-
-    /// DEV-ONLY: picks which mock outcome the next "Check access" resolves
-    /// to, so every refusal reason (and the degraded state) can be judged
-    /// without a real `gh` credential. Same convention as the tray's own
-    /// "Preview state (dev only)" menu.
-    private var devOutcomePicker: some View {
-        HStack(spacing: 8) {
-            Text("Dev preview outcome:")
-                .font(.caption2)
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-            Picker("", selection: $model.devGitHubOutcome) {
-                ForEach(GitHubDevOutcome.allCases) { outcome in
-                    Text(outcome.label).tag(outcome)
-                }
-            }
-            .labelsHidden()
-            .frame(maxWidth: 200)
-        }
-    }
-}
-
-// MARK: - ADM-4 Departments & access (copy deck §3.5)
-
-struct DepartmentsAccessView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Departments and access")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("Access is how someone joins a department. Give a team read access and its people can join the department. Give write access and they can author it.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "Departments") {
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(model.departments) { dept in
-                    HStack {
-                        Text(dept.name).font(.body).foregroundColor(Color(nsColor: .labelColor))
-                        Spacer()
-                        Button {
-                            model.removeDepartment(dept.id)
-                        } label: {
-                            Image(systemName: "minus.circle")
-                        }
-                        .buttonStyle(.plain)
+extension AdminRootView {
+    var connectGitHubView: some View {
+        StepShell(
+            eyebrow: "ONBOARDING",
+            title: "Get this Mac ready",
+            intro: "A quick check that this Mac can run the terminal session. This changes nothing. Claude Code checks all of this again when setup runs, and helps you fix anything that's off."
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Organization")
+                        .font(.caption.weight(.semibold))
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .accessibilityLabel("Remove \(dept.name)")
+                    SecretGuardedField(label: "", value: $model.orgNameInput, placeholder: "acme-co")
+                        .frame(maxWidth: 320)
+                }
+
+                AdminCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(ReadinessRow.Kind.allCases) { kind in
+                            readinessRow(model.readinessRows[kind])
+                            if kind != ReadinessRow.Kind.allCases.last {
+                                Divider()
+                            }
+                        }
                     }
                 }
-                HStack {
-                    SecretGuardedField(label: "", value: $model.newDepartmentName, placeholder: "Department name")
-                    Button("Add a department") { model.addDepartment() }
-                        .buttonStyle(.bordered)
+
+                Text("This step just gives you a head start. It never blocks the hand-off.")
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+        } leadingActions: {
+            backButton { model.goBack(from: .connectGitHub) }
+            if model.githubChecking {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Checking your GitHub access...")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
             }
-        }
-
-        Text("Adding a department here only adds what's new when you next run Review and run. It never touches anything already there.")
-            .font(.callout)
-            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "Shared integrations at your organization") {
-            integrationList(binding: $model.orgIntegrations, emptyText: "No shared integrations at your organization yet.")
-        }
-
-        ForEach($model.departments) { $dept in
-            AdminSectionCard(title: "Shared integrations at \(dept.name)") {
-                integrationList(binding: $dept.integrations, emptyText: "No shared integrations at \(dept.name) yet.")
-            }
-        }
-
-        ForEach($model.departments) { $dept in
-            AdminSectionCard(title: "Who can join \(dept.name)") {
-                membersSection(dept: $dept)
+        } primaryAction: {
+            primaryButton("Check again") {
+                model.checkGitHubReadiness()
             }
         }
     }
 
-    private func integrationList(binding: Binding<[IntegrationDeclaration]>, emptyText: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if binding.wrappedValue.isEmpty {
-                Text(emptyText)
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+    private func readinessRow(_ row: ReadinessRow) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 10) {
+                readinessGlyph(row.status)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(row.baseTitle(org: model.orgSlug))
+                        .font(.body)
+                        .foregroundColor(Color(nsColor: .labelColor))
+                    if row.status == .fail || row.status == .cannotCheckLocally, !row.detail.isEmpty {
+                        Text(row.detail)
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let command = row.copyCommand {
+                        CopyableCodeBlock(text: command)
+                            .frame(maxWidth: 360)
+                    }
+                }
+                Spacer()
             }
-            ForEach(binding) { $entry in
-                HStack(spacing: 10) {
-                    IntegrationPickerField(integrationID: $entry.integrationID)
-                    SecretGuardedField(label: "", value: $entry.requiresSecret, placeholder: "requires_secret name")
-                        .frame(maxWidth: 200)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.baseTitle(org: model.orgSlug)), \(accessibilityWord(row.status))\(row.detail.isEmpty ? "" : ", " + row.detail)")
+    }
+
+    private func readinessGlyph(_ status: ReadinessStatus) -> some View {
+        Group {
+            switch status {
+            case .notChecked:
+                Image(systemName: "circle").foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            case .checking:
+                ProgressView().controlSize(.small)
+            case .pass:
+                Image(systemName: "checkmark.circle.fill").foregroundColor(Color(nsColor: .systemGreen))
+            case .fail:
+                Image(systemName: "xmark.circle.fill").foregroundColor(Color(nsColor: .systemRed))
+            case .cannotCheckLocally:
+                Image(systemName: "questionmark.circle").foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func accessibilityWord(_ status: ReadinessStatus) -> String {
+        switch status {
+        case .notChecked: return "not checked yet"
+        case .checking: return "checking"
+        case .pass: return "ready"
+        case .fail: return "not ready"
+        case .cannotCheckLocally: return "can't be checked from here"
+        }
+    }
+}
+
+// MARK: - Surface 5: Describe your organization
+
+extension AdminRootView {
+    var describeOrgView: some View {
+        StepShell(
+            eyebrow: "ONBOARDING",
+            title: "Describe your organization",
+            intro: "Tell setup your organization's name, the harness it builds with, and its departments. As you type, you'll see exactly what will be created. Nothing is created here. This is the plan setup will follow."
+        ) {
+            VStack(alignment: .leading, spacing: 20) {
+                AdminCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Departments get their own spaces so specialized capabilities are tailored to how that department works. Accounting's spaces hold Accounting's skills and knowledge, and each department's people inherit the whole organization's on top.")
+                        Text("You don't have to add every department now. Adding one later is safe. Setting up again only adds what's new and never touches what's already there.")
+                            .font(.body.weight(.medium))
+                    }
+                    .font(.body)
+                    .foregroundColor(Color(nsColor: .labelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Which development harness does your company build with?")
+                        .font(.body)
+                        .foregroundColor(Color(nsColor: .labelColor))
+                    Picker("", selection: $model.harness) {
+                        ForEach(Harness.allCases) { h in
+                            Text(h.displayName).tag(h)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 320)
+                    .accessibilityLabel("Development harness, \(model.harness.displayName) selected, your organization's default")
+
+                    Text("This is your organization's default. Anyone can still use the other harness for themselves, on the open-source foundation plus their own personal setup. And you can add the second harness for the whole organization later, as a safe re-run that only adds what's new.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Organization name")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    SecretGuardedField(label: "", value: $model.orgNameInput, placeholder: "acme-co")
+                        .frame(maxWidth: 320)
+                        .onChange(of: model.orgNameInput) { model.orgSlugTouched = true }
+                    if model.orgSlugTouched, !model.orgNameInput.isEmpty, !model.orgSlugIsValid {
+                        Text("Give your organization a name using letters, numbers, and dashes.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemRed))
+                    }
+                }
+
+                departmentsEditor
+
+                planCard
+            }
+        } leadingActions: {
+            backButton { model.goBack(from: .describeOrg) }
+        } primaryAction: {
+            primaryButton("Continue", enabled: model.orgSlugIsValid) {
+                model.advance(from: .describeOrg)
+            }
+        }
+    }
+
+    private var departmentsEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Departments")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            ForEach(model.departments.indices, id: \.self) { idx in
+                HStack(spacing: 8) {
+                    SecretGuardedField(
+                        label: "",
+                        value: Binding(
+                            get: { model.departments[idx].name },
+                            set: { model.departments[idx].name = $0 }
+                        ),
+                        placeholder: "e.g. Accounting"
+                    )
+                    .frame(maxWidth: 260)
+
+                    if !model.departments[idx].name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && model.departments[idx].slug.isEmpty {
+                        Text("Give this department a name using letters, numbers, and dashes.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemRed))
+                    }
+
                     Button {
-                        binding.wrappedValue.removeAll { $0.id == entry.id }
+                        model.removeDepartment(model.departments[idx].id)
                     } label: {
                         Image(systemName: "minus.circle")
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .accessibilityLabel("Remove department")
                 }
             }
-            Button("Add an integration") {
-                binding.wrappedValue.append(IntegrationDeclaration(integrationID: IntegrationCatalog.known[0], requiresSecret: "", storeScope: "org"))
+            Button {
+                model.addDepartment()
+            } label: {
+                Label("Add a department", systemImage: "plus")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.plain)
+            .foregroundColor(Color(nsColor: .controlAccentColor))
         }
     }
 
-    private func membersSection(dept: Binding<AdminDepartment>) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            let readNames = dept.wrappedValue.members.filter { $0.role == .read }.map(\.username)
-            let writeNames = dept.wrappedValue.members.filter { $0.role == .write }.map(\.username)
-
-            if dept.wrappedValue.members.isEmpty {
-                Text("No one can join this department yet. Give a team read access to let them in.")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-            } else {
-                if !readNames.isEmpty {
-                    Text("People on this team can join the \(dept.wrappedValue.name) department: \(readNames.joined(separator: ", ")).")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if !writeNames.isEmpty {
-                    Text("These people can author the \(dept.wrappedValue.name) department: \(writeNames.joined(separator: ", ")).")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            AddMemberRow(dept: dept)
-        }
-    }
-}
-
-private struct AddMemberRow: View {
-    @Binding var dept: AdminDepartment
-    @State private var username = ""
-    @State private var role: GrantRole = .read
-
-    var body: some View {
-        HStack(spacing: 10) {
-            SecretGuardedField(label: "", value: $username, placeholder: "GitHub username")
-            Picker("", selection: $role) {
-                ForEach(GrantRole.allCases) { Text($0.label).tag($0) }
-            }
-            .labelsHidden()
-            .frame(maxWidth: 180)
-            Button("Add") {
-                let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return }
-                dept.members.append(MemberGrant(username: trimmed, role: role))
-                username = ""
-            }
-            .buttonStyle(.bordered)
-        }
-    }
-}
-
-// MARK: - ADM-5 Secret store (copy deck §3.6)
-
-struct SecretStoreView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Connect your shared secret store")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("Your organization's shared integrations (Salesforce, Workday, Microsoft) get their keys from one shared store. Connect it once here. You never paste a key into this app.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "") {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Store type").font(.caption.weight(.semibold)).foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    Picker("", selection: $model.storeType) {
-                        Text("Infisical").tag("Infisical")
-                        Text("OpenBao").tag("OpenBao")
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: 200)
-                }
-
-                SecretGuardedField(
-                    label: "Store address", value: $model.storeAddress, placeholder: "https://secrets.acme-co.internal",
-                    helpText: "This is a web address, not a secret."
-                )
-                if let error = model.storeAddressError {
-                    Text(error).font(.caption).foregroundColor(Color(nsColor: .systemRed))
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Which teams can use it").font(.caption.weight(.semibold)).foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    ForEach(model.storeTeamScopes, id: \.id) { scope in
-                        Text("\(scope.team) → \(scope.scope)")
-                            .font(.callout)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    }
-                    HStack {
-                        SecretGuardedField(label: "", value: $model.newScopeTeam, placeholder: "team name")
-                        Button("Add a team") {
-                            let trimmed = model.newScopeTeam.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !trimmed.isEmpty else { return }
-                            model.storeTeamScopes.append((id: UUID(), team: trimmed, scope: "org"))
-                            model.newScopeTeam = ""
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-
-                HStack {
-                    Button("Connect") { model.connectSecretStore() }
-                        .buttonStyle(.borderedProminent)
-                    if model.storeConnected {
-                        Text("Connected. This will be included when you open your setup pull request.")
-                            .font(.callout)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - ADM-6 Seed (copy deck §3.7)
-
-struct SeedView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Build your setup")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("Fill in the sections below and Control Tower writes the setup file for you, then opens a pull request. You never touch a config file or a terminal.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "What this will create") {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Copilots: Claude Copilot, CLI Copilot, Codex Copilot, Knowledge Copilot")
-                Text("Departments: \(model.departments.map(\.name).joined(separator: ", "))")
-                Text("Integration references: \((model.orgIntegrations + model.departments.flatMap(\.integrations)).map { IntegrationCatalog.displayName($0.integrationID) }.joined(separator: ", "))")
-                Text("Policy signers: \(model.policySigners.map(\.name).joined(separator: ", "))")
-                Text("Usage data: \(model.usageDataOptIn ? "on" : "off")")
-            }
-            .font(.body.monospaced())
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-        }
-
-        Toggle("Share anonymous usage data", isOn: $model.usageDataOptIn)
-            .toggleStyle(.switch)
-
-        HStack {
-            Button("Check it over") { model.validateSeed() }
-                .buttonStyle(.bordered)
-            Text(model.seedIssueCount == 0 && model.seedValidated ? "Everything checks out." : (model.seedIssueCount > 0 ? "\(model.seedIssueCount) things to fix" : ""))
-                .font(.callout)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-        }
-
-        HStack {
-            Button("Open pull request") { model.openSeedPullRequest() }
-                .buttonStyle(.borderedProminent)
-                .disabled(!model.seedValidated || model.seedPRState == .opening)
-
-            switch model.seedPRState {
-            case .idle: EmptyView()
-            case .opening:
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Opening pull request...").font(.callout).foregroundColor(Color(nsColor: .secondaryLabelColor))
-                }
-            case .opened(let ref):
-                Text("Opened pull request \(ref).").font(.callout).foregroundColor(Color(nsColor: .secondaryLabelColor))
-            }
-        }
-    }
-}
-
-// MARK: - ADM-7 Policy signers
-
-struct PolicySignersView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Policy signers")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("Signers sign your setup file and set who can approve changes to it. Add the people who own that responsibility.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "") {
+    private var planCard: some View {
+        AdminCard {
             VStack(alignment: .leading, spacing: 10) {
-                if model.policySigners.isEmpty {
-                    Text("No signers yet. Add the people who own this responsibility.")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                }
-                ForEach(model.policySigners) { signer in
-                    HStack {
-                        Image(systemName: "signature").foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        Text(signer.name).font(.body).foregroundColor(Color(nsColor: .labelColor))
-                        Spacer()
-                        Button {
-                            model.removeSigner(signer.id)
-                        } label: {
-                            Image(systemName: "minus.circle")
+                Text("Nothing is created here. This is the plan setup will follow.")
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+
+                if model.orgSlugIsValid {
+                    ForEach(Array(model.planCardLines.enumerated()), id: \.offset) { _, line in
+                        if line.isEmpty {
+                            Spacer().frame(height: 6)
+                        } else if line.hasPrefix("Three ") || line.hasPrefix("Your whole organization") || line.hasPrefix("An ") {
+                            Text(line)
+                                .font(.body)
+                                .foregroundColor(Color(nsColor: .labelColor))
+                        } else {
+                            Text(line)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         }
-                        .buttonStyle(.plain)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     }
-                }
-                HStack {
-                    SecretGuardedField(label: "", value: $model.newSignerName, placeholder: "GitHub username")
-                    Button("Add a signer") { model.addSigner() }
-                        .buttonStyle(.bordered)
+
+                    Text("You don't have to add every department now. Adding one later is safe. Setting up again only adds what's new.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .padding(.top, 4)
+                } else {
+                    Text("Type your organization's name to see the plan.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("What this will create, preview")
     }
 }
 
-// MARK: - ADM-8 Review & run (the trigger-and-render moment)
+// MARK: - Surface 6: Integrations (education only, collects nothing)
 
-struct ReviewRunView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Review & run")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("This is where your organization actually gets set up. You'll fire one setup and watch each repository, team, and grant land as it happens. Nothing here deletes or overwrites anything already there, so running it again is always safe.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        if model.runPhase == .idle {
-            reviewCard
-        }
-
-        if !model.runRows.isEmpty {
-            checklistCard
-        }
-
-        if model.runPhase == .degraded {
-            AdminSectionCard(title: "") {
-                HStack {
-                    Text("I couldn't read the rest of that, so I won't guess.")
-                        .font(.body)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                    Button("Run again") { model.runBootstrap() }
-                        .buttonStyle(.borderedProminent)
-                }
-            }
-        }
-
-        if model.runPhase == .done {
-            Button("Run the setup check") { model.selected = .preflight }
-                .buttonStyle(.borderedProminent)
-        }
-
-        Text("Prefer to run this from the terminal? The same setup is available as an open-source command.")
-            .font(.caption)
-            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-
-        devControls
-    }
-
-    private var reviewCard: some View {
-        AdminSectionCard(title: "") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("About to set up: \(model.orgName) · \(model.departments.count) department\(model.departments.count == 1 ? "" : "s") (\(model.departments.map(\.name).joined(separator: ", ")))")
+extension AdminRootView {
+    var integrationsView: some View {
+        StepShell(
+            eyebrow: "ONBOARDING",
+            title: "Integrations",
+            intro: "An integration here is a small command-line tool a developer builds, so a copilot can reach a system like Salesforce or your calendar. It isn't something you switch on."
+        ) {
+            VStack(alignment: .leading, spacing: 20) {
+                AdminCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("It cascades.").font(.body.weight(.semibold))
+                            Text("Built and published for the whole organization, it's inherited by every department. Published for one department, it belongs only there. Published nowhere, it exists for no one.")
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("The key lives elsewhere.").font(.body.weight(.semibold))
+                            Text("An integration names the key it needs. The key never comes near this app. It lives in the shared store, handed out only to the right team.")
+                        }
+                    }
                     .font(.body)
                     .foregroundColor(Color(nsColor: .labelColor))
                     .fixedSize(horizontal: false, vertical: true)
-
-                let integrationNames = (model.orgIntegrations + model.departments.flatMap(\.integrations))
-                    .map { IntegrationCatalog.displayName($0.integrationID) }
-                if !integrationNames.isEmpty {
-                    Text(integrationNames.joined(separator: ", ") + " at your organization")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
 
-                Text("This adds and updates. It never deletes or overwrites anything already there.")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack {
-                    Spacer()
-                    triggerButton
-                }
-            }
-        }
-    }
-
-    @ViewBuilder private var triggerButton: some View {
-        if model.runPhase == .working {
-            Button {} label: {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Setting up your organization...")
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(true)
-        } else {
-            Button("Set up my org") { model.runBootstrap() }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!model.githubGateOpen)
-        }
-    }
-
-    private var checklistCard: some View {
-        AdminSectionCard(title: "") {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(model.runRows.enumerated()), id: \.element.id) { index, row in
-                    RunRowView(row: row)
-                    if index < model.runRows.count - 1 { Divider() }
-                }
-                if !model.runSummary.isEmpty {
-                    Divider().padding(.vertical, 8)
-                    Text("Summary: \(model.runSummary)")
-                        .font(.callout.weight(.medium))
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("How integrations will arrive")
+                        .font(.callout.weight(.semibold))
                         .foregroundColor(Color(nsColor: .labelColor))
-                        .accessibilityAddTraits(.updatesFrequently)
+                    Text("1. An engineer on a department builds skills, agents, and integrations inside that department's spaces. Give an engineer write access to a department's team and they can build there.")
+                    Text("2. Each integration is added to a registry, a plain document that lives in the same space and lists what has been built.")
+                    Text("3. Merging that document to the main copy publishes the integration.")
+                    Text("4. From then on, the people entitled to that space see it, and the app your team uses can let them know when a new one arrives.")
                 }
-                if model.runPhase == .done {
-                    HStack {
-                        Spacer()
-                        Button("Run again") { model.runBootstrap() }
-                            .buttonStyle(.bordered)
-                    }
-                    .padding(.top, 8)
-                }
-            }
-        }
-    }
-
-    /// DEV-ONLY: forces the `Stopped` row / a mid-stream degrade so both
-    /// states can be judged without a real leak-scan or a broken feed.
-    private var devControls: some View {
-        HStack(spacing: 12) {
-            Button("Simulate a stopped step (dev)") {
-                model.devForceStopStep = "leak-scan"
-                model.runBootstrap()
-            }
-            Button("Simulate stream lost (dev)") { model.simulateDegradedRun() }
-        }
-        .buttonStyle(.plain)
-        .font(.caption)
-        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-    }
-}
-
-// MARK: - ADM-9 Preflight (copy deck §3.8)
-
-struct PreflightView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Run the setup check")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("An honest red and green list before you hand this over. Every red names who has to fix it, so you always know who to chase.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        switch model.preflightState {
-        case .neverRun:
-            AdminSectionCard(title: "") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Run the setup check before you hand this over. It catches blockers before your organization does.")
-                        .font(.body)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("Run the setup check") { model.runPreflight() }
-                        .buttonStyle(.borderedProminent)
-                }
-            }
-        case .running:
-            AdminSectionCard(title: "") {
-                HStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
-                    Text("Checking your setup...")
-                        .font(.body)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                }
-            }
-        case .done:
-            AdminSectionCard(title: "") {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(model.preflightChecks.enumerated()), id: \.offset) { index, check in
-                        PreflightRowView(check: check)
-                        if index < model.preflightChecks.count - 1 { Divider() }
-                    }
-                    Divider().padding(.vertical, 8)
-                    Text(preflightSummary)
-                        .font(.callout.weight(.medium))
-                        .foregroundColor(Color(nsColor: .labelColor))
-                    Button("Run it again") { model.runPreflight() }
-                        .buttonStyle(.bordered)
-                        .padding(.top, 8)
-                }
-            }
-        }
-    }
-
-    private var preflightSummary: String {
-        let failing = model.preflightChecks.filter { $0.status == .fail }.count
-        let unknown = model.preflightChecks.filter { $0.status == .unknown }.count
-        if failing == 0 && unknown == 0 { return "Everything's ready to hand over." }
-        var parts: [String] = []
-        if failing > 0 { parts.append("\(failing) thing\(failing == 1 ? "" : "s") must be fixed") }
-        if unknown > 0 { parts.append("\(unknown) couldn't be checked") }
-        return parts.joined(separator: ". ") + "."
-    }
-}
-
-// MARK: - ADM-G1 Add / offboard (copy deck §3.9, add-department re-run reused)
-
-struct AddOffboardView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Add / offboard")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("Add a department or a person here. Setting up again only adds what's new and never touches what's already there.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        Button("Go add a department") { model.selected = .departmentsAccess }
-            .buttonStyle(.bordered)
-
-        Divider()
-
-        Text("Someone left")
-            .font(.title2.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("When a person's access is revoked, this is what happened on their Mac. Control Tower renders it, it never triggers it.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        if let event = model.lastDeprovision {
-            AdminSectionCard(title: "") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Their access was revoked and their shared keys were rotated.")
-                        .font(.body)
-                        .foregroundColor(Color(nsColor: .labelColor))
-                    if event.retainedWork.isEmpty {
-                        Text("No unsaved personal work was in the way.")
-                            .font(.callout)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    } else {
-                        Text("Their unsaved work was kept: \(event.retainedWork.joined(separator: ", ")).")
-                            .font(.callout.weight(.medium))
-                            .foregroundColor(Color(nsColor: .labelColor))
-                    }
-                    Text("\(event.removedCount) item(s) removed.")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    if event.secretsInvolved {
-                        Text("Heads up: secrets were involved in this. Your IT team has been told.")
-                            .font(.callout.weight(.medium))
-                            .foregroundColor(Color(nsColor: .systemRed))
-                    }
-                }
-            }
-        } else {
-            Text("I couldn't read the result of this, so I won't guess.")
                 .font(.body)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
-        }
+                .fixedSize(horizontal: false, vertical: true)
 
-        HStack(spacing: 12) {
-            Button("Simulate offboarding (dev)") { model.simulateDeprovision(secretsInvolved: false) }
-            Button("Simulate with secrets touched (dev)") { model.simulateDeprovision(secretsInvolved: true) }
-        }
-        .buttonStyle(.plain)
-        .font(.caption)
-        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-    }
-}
+                registryPreview
 
-// MARK: - ADM-G2 Analytics (copy deck §3.10)
-
-struct AnalyticsView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Usage data")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("A plain switch for whether anonymous usage data leaves this Mac. It's off by default, and only changes if you turn it on.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        Toggle("Share anonymous usage data", isOn: $model.analyticsEnabled)
-            .toggleStyle(.switch)
-
-        Text(model.analyticsEnabled
-            ? "What this would share"
-            : "Off. Nothing is shared unless you turn this on and your organization signs off on it.")
-            .font(.callout)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-// MARK: - ADM-G3 Secret store config (copy deck §3.11)
-
-struct SecretStoreConfigView: View {
-    @ObservedObject var model: AdminModel
-
-    var body: some View {
-        Text("Shared secret store")
-            .font(.title.weight(.semibold))
-            .foregroundColor(Color(nsColor: .labelColor))
-
-        Text("A read-only look at where your organization's shared secret keys come from. It's set once in your organization's signed setup, never edited here.")
-            .font(.body)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .fixedSize(horizontal: false, vertical: true)
-
-        AdminSectionCard(title: "Where your shared keys come from") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(model.storeConnected ? model.storeAddress : "Not connected yet.")
-                    .font(.body.monospaced())
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Text("This comes from your organization's signed setup. It isn't editable here, by design.")
+                Text("There's nothing to set up here today. No integrations exist yet, and that's expected. They arrive when your departments' engineers build and publish them.")
                     .font(.callout)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        } leadingActions: {
+            backButton { model.goBack(from: .integrations) }
+        } primaryAction: {
+            primaryButton("Continue") { model.advance(from: .integrations) }
+        }
+    }
+
+    /// A fully inert, clearly-labeled future-state mock (interaction-design
+    /// Surface 6): no tab stops, no hover, no cursor change, example data only.
+    private var registryPreview: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("PREVIEW · not live")
+                .font(.caption2.weight(.bold))
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            VStack(alignment: .leading, spacing: 6) {
+                Text("acme-co/cli-copilot-sales · registry (example)")
+                    .font(.system(.callout, design: .monospaced))
+                Text("salesforce-lookup   needs SALESFORCE_API_KEY")
+                    .font(.system(.callout, design: .monospaced))
+                Text("calendar-read   needs GOOGLE_CAL_TOKEN")
+                    .font(.system(.callout, design: .monospaced))
+            }
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Text("This is what a published registry will look like. It is an example, not your data, and nothing here is clickable.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+        )
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Preview, example only, not interactive")
+    }
+}
+
+// MARK: - Surface 7: Secret store
+
+extension AdminRootView {
+    var secretStoreView: some View {
+        StepShell(
+            eyebrow: "ONBOARDING",
+            title: "Your shared secret store",
+            intro: "A shared secret store is one service that holds your organization's keys and hands them out by team. Shared integrations need it: an integration names the key it needs, and at runtime the store checks that the person is on the right GitHub team and only then hands over the key. That is why a key never lives in a repo or in this app."
+        ) {
+            VStack(alignment: .leading, spacing: 20) {
+                AdminCard(title: "Connect a store") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Store type")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            Picker("", selection: $model.storeKind) {
+                                ForEach(StoreKind.allCases) { kind in
+                                    Text(kind.rawValue).tag(kind)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: 220)
+                        }
+
+                        SecretGuardedField(
+                            label: "Store address",
+                            value: $model.storeAddress,
+                            placeholder: "https://vault.acme-co.com",
+                            helpText: "This is a web address, not a secret."
+                        )
+                        .frame(maxWidth: 360)
+                        .onChange(of: model.storeAddress) { model.storeAddressTouchedInvalid = true }
+
+                        if model.storeAddressTouchedInvalid, !model.storeAddressLooksValid {
+                            Text("That doesn't look like a valid address.")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .systemRed))
+                        }
+
+                        if !model.departments.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Which teams can use it")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                ForEach(model.departments) { dept in
+                                    if !dept.slug.isEmpty {
+                                        HStack {
+                                            Text(dept.name)
+                                                .frame(width: 120, alignment: .leading)
+                                            Text("→")
+                                                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                                            SecretGuardedField(
+                                                label: "",
+                                                value: model.scopeBinding(for: dept),
+                                                placeholder: "dept/\(dept.slug)"
+                                            )
+                                            .frame(maxWidth: 220)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if model.storeStatus == .connected {
+                            Text("Connected. This will be included when you hand off.")
+                                .font(.callout)
+                                .foregroundColor(Color(nsColor: .systemGreen))
+                        }
+                    }
+                }
+
+                AdminCard(title: "No store yet?") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Shared integrations can't work until you connect a store. You have no integrations yet, so you can finish setting up now and connect a store before your first one is built.")
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Pause and go get one. Common shared stores are 1Password, Infisical, and Vault (also called OpenBao). Set one up, then come back with its web address.")
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button {
+                                NSWorkspace.shared.open(URL(string: "https://github.com/Everyone-Needs-A-Copilot")!)
+                            } label: {
+                                Text("How to set one up ›")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                        }
+
+                        HStack {
+                            Text("Skip this for now. You'll be reminded to connect a store before your first shared integration can work.")
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer()
+                            Button {
+                                model.finishSecretStore(connect: false)
+                            } label: {
+                                Text("Skip for now")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    .font(.body)
+                    .foregroundColor(Color(nsColor: .labelColor))
+                }
+            }
+        } leadingActions: {
+            backButton { model.goBack(from: .secretStore) }
+        } primaryAction: {
+            primaryButton("Continue") {
+                model.finishSecretStore(connect: true)
             }
         }
     }
 }
 
-// MARK: - Admin window controller
+// MARK: - Surface 8: Review and hand off
 
-/// Owns the Admin window + its `AdminModel` for the app's lifetime, same
-/// singleton shape as `WizardWindowController`. `isReleasedWhenClosed =
-/// false` so closing the window never deallocates it — the next `show()`
-/// reopens with whatever state it was last in (admin-flow §4: "Admin state
-/// persists ... nothing is lost by closing mid-pipeline").
-final class AdminWindowController: NSWindowController {
-    static let shared = AdminWindowController()
+extension AdminRootView {
+    var reviewView: some View {
+        StepShell(
+            eyebrow: "ONBOARDING",
+            title: "Review and hand off",
+            intro: "Here's everything setup will create. Copy the command below, open your terminal, and paste it. Claude Code walks you through the rest and checks everything with GitHub as it goes."
+        ) {
+            VStack(alignment: .leading, spacing: 20) {
+                AdminCard {
+                    Text("This adds and updates. It never deletes or overwrites anything already there.")
+                        .font(.body.weight(.medium))
+                        .foregroundColor(Color(nsColor: .labelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-    private let model = AdminModel()
+                AdminCard(title: "What setup will create") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Org spaces: \(model.orgSlug)/\(model.harness.repoToken)-copilot, \(model.orgSlug)/knowledge-copilot, \(model.orgSlug)/cli-copilot. Private.")
+                        ForEach(model.departments.filter { !$0.slug.isEmpty }) { dept in
+                            Text("\(dept.name): three spaces and a team for \(dept.name) that can reach them.")
+                        }
+                        Text("Your organization's setup file (ecosystem.yml).")
+                        Text("Your whole organization set to read by default.")
+                        Text("Harness: \(model.harness.displayName).")
+                        Text(model.storeStatus == .connected ? "Store: connected." : "Store: not connected yet.")
+                    }
+                    .font(.body)
+                    .foregroundColor(Color(nsColor: .labelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                }
 
-    private convenience init() {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1080, height: 760),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Administration"
-        window.isReleasedWhenClosed = false
-        window.center()
-        self.init(window: window)
-        window.contentViewController = NSHostingController(rootView: AdminRootView(model: model))
+                briefCard
+
+                commandCard
+            }
+        } leadingActions: {
+            backButton { model.goBack(from: .review) }
+        } primaryAction: {
+            primaryButton("Open Terminal") {
+                openTerminalAndAdvance()
+            }
+        }
+        .task {
+            await performReviewWriteIfNeeded()
+        }
     }
 
-    func show() {
-        NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
+    private var briefCard: some View {
+        AdminCard(title: "The file setup wrote for you") {
+            VStack(alignment: .leading, spacing: 8) {
+                switch model.briefWriteState {
+                case .idle, .working:
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Writing your setup file...")
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                case .failure:
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("I couldn't write the setup file, so I won't hand off a command that points at nothing. Try again.")
+                            .foregroundColor(Color(nsColor: .systemRed))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Try again") {
+                            Task { await performReviewWrite() }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                case .success:
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Setup wrote a plain description of your organization you can read:")
+                            .fixedSize(horizontal: false, vertical: true)
+                        HStack {
+                            Text(AdminPaths.briefPathDisplay)
+                                .font(.system(.callout, design: .monospaced))
+                                .foregroundColor(Color(nsColor: .labelColor))
+                            Button {
+                                AdminIO.revealInFinder(AdminPaths.briefPath)
+                            } label: {
+                                Text("Reveal ›")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .controlAccentColor))
+                        }
+                        Text("At a glance: \(model.orgSlug) · \(model.harness.displayName) · \(model.departments.filter { !$0.slug.isEmpty }.count) departments · \(model.storeAtAGlance).")
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        Text("It carries no secrets and no integrations.")
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                }
+            }
+        }
+    }
+
+    private var commandCard: some View {
+        AdminCard(title: "The setup command") {
+            if model.briefWriteState == .success && model.skillMaterializeState == .success {
+                VStack(alignment: .leading, spacing: 10) {
+                    CopyableCodeBlock(text: model.handoffCommand, copyLabel: "Copy the setup command")
+                    Text("This hands Claude Code a plain description of your organization. It carries no secrets. Claude Code checks it with you, then does the work.")
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("When Claude Code says it's done, come back here and run the Setup check.")
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        model.advance(from: .review)
+                    } label: {
+                        Text("When you've pasted it, come here to wait ›")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Color(nsColor: .controlAccentColor))
+                }
+                .font(.callout)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            } else if model.skillMaterializeState == .failure {
+                Text("I couldn't get the setup skill ready on this Mac, so I won't hand off a command that can't run. Try again.")
+                    .foregroundColor(Color(nsColor: .systemRed))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Getting the setup skill ready...")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                }
+            }
+        }
+    }
+
+    private func openTerminalAndAdvance() {
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
+        model.advance(from: .review)
+    }
+
+    /// Rewrites the brief only when something that feeds it actually
+    /// changed since the last write (`AdminModel.briefFingerprint`), so
+    /// re-visiting Review unchanged never spuriously rewrites, but Back +
+    /// edit + return always does (QA fix: this used to be a one-shot
+    /// `reviewCommandGenerated` flag that left a stale brief/command in
+    /// place after an edit).
+    private func performReviewWriteIfNeeded() async {
+        guard model.lastWrittenBriefFingerprint != model.briefFingerprint else { return }
+        await performReviewWrite()
+    }
+
+    private func performReviewWrite() async {
+        let fingerprint = model.briefFingerprint
+        await model.writeBriefAndMaterializeSkill()
+        if model.briefWriteState == .success {
+            model.lastWrittenBriefFingerprint = fingerprint
+        }
     }
 }
