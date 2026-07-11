@@ -571,8 +571,13 @@ here.
   whole organization later, as a safe re-run that only adds what's new.`
 - Field labels: `Organization name` · `Departments` (each row removable) · add-row
   `Add a department`
-- **Invalid-slug refusal (inline, on the offending field):** `Give this department a
-  name using letters, numbers, and dashes.`
+- **Invalid-org refusal (inline, on the organization name field):** the org name is an
+  EXISTING GitHub identifier, used verbatim, case preserved, never lowercased or
+  slugified; the refusal enforces GitHub's own organization-name rule instead of the
+  department-name slug rule below: `That doesn't look like a GitHub organization name.
+  Use letters, numbers, and single dashes.`
+- **Invalid-slug refusal (inline, on the offending department field):** `Give this
+  department a name using letters, numbers, and dashes.`
 
 **The "What this will create" plan card** (fills live as Earl types; mono repo and team
 names, one per line, grouped by scope; never an abstract summary):

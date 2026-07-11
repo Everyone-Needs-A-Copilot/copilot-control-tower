@@ -146,6 +146,19 @@ _valid_slug() {
   [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]
 }
 
+# _valid_org VALUE — true if VALUE is a real GitHub org/user login: GitHub's
+# actual rule is ASCII letters (either case), digits, and single hyphens,
+# never leading/trailing or doubled, 1-39 characters. Unlike _valid_slug,
+# uppercase IS allowed here: an org is an EXISTING GitHub identifier this
+# engine must never transform (only departments are slugs this engine
+# itself generates, so those alone are forced lowercase). The org's real
+# case is used verbatim in every gh api path and repo full-name; it is
+# never lowercased.
+_valid_org() {
+  local v="$1"
+  [[ "$v" =~ ^[A-Za-z0-9](-?[A-Za-z0-9])*$ ]] && [[ "${#v}" -le 39 ]]
+}
+
 # _suggest_slug VALUE FALLBACK — a display-only suggestion for a refusal
 # message. Never used to name or create anything; the engine never silently
 # transforms a value it was given.
@@ -323,8 +336,8 @@ _load_brief() {
   if [[ -z "$ORG" ]]; then
     refuse "brief" "The brief at $path is missing an organization name, so I won't guess."
   fi
-  if ! _valid_slug "$ORG"; then
-    refuse "validate-slug" "Organization name \"$ORG\" can't be used on GitHub. Use letters, numbers, and dashes, like $(_suggest_slug "$ORG" "your-org"), and update the brief."
+  if ! _valid_org "$ORG"; then
+    refuse "validate-slug" "That doesn't look like a GitHub organization name. Use letters, numbers, and single dashes, and update the brief."
   fi
 
   HARNESS_LIST=()

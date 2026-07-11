@@ -516,8 +516,8 @@ EOF
   run_engine "$st" "$log" --brief "$brief"
 
   assert_eq "test8: invalid org slug exits 2" "2" "$RUN_EXIT"
-  assert_contains "test8: stderr names the offending organization value" "$RUN_STDERR" 'Organization name "Acme Co!"'
-  assert_contains "test8: stderr suggests letters, numbers, and dashes" "$RUN_STDERR" "letters, numbers, and dashes"
+  assert_contains "test8: stderr names the rule, not a guessed transform of the value" "$RUN_STDERR" "That doesn't look like a GitHub organization name."
+  assert_contains "test8: stderr says letters, numbers, and single dashes" "$RUN_STDERR" "letters, numbers, and single dashes"
 
   local mutating
   mutating="$(count_mutating_calls "$log")"
@@ -1076,6 +1076,141 @@ test_engine_runs_cwd_independent_from_outside_repo() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 22: GitHub's real org-name rule allows uppercase (the live-org bug:
+# github.com/Acme-Copilot). The org is an EXISTING GitHub identifier this
+# engine must never transform, so its real, mixed-case login is used
+# verbatim in every repo/team path, never lowercased.
+# ---------------------------------------------------------------------------
+
+test_org_verbatim_mixed_case_accepted() {
+  local st brief log
+  st="$WORKDIR/state-mixed-case-org"
+  rm -rf "$st"
+  mkdir -p "$st/orgs/Acme-Copilot"
+  echo "earladmin" > "$st/user_login"
+  echo "repo, admin:org, read:org" > "$st/user_scopes"
+  echo "admin" > "$st/orgs/Acme-Copilot/membership_earladmin"
+  echo "admin" > "$st/orgs/Acme-Copilot/default_permission"
+  mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
+  printf 'v5.13.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
+
+  brief="$WORKDIR/brief-mixed-case-org.md"
+  cat > "$brief" <<'EOF'
+---
+schema_version: "1.0"
+org: Acme-Copilot
+harness:
+  - codex
+departments:
+  - accounting
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+
+# Standup brief for Acme-Copilot (mixed-case org fixture)
+EOF
+  log="$WORKDIR/mixed-case-org.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test22: a mixed-case org name (Acme-Copilot) is accepted" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  local repo_count_verbatim repo_count_lowercased team_count_verbatim
+  repo_count_verbatim="$(count_calls "$log" '^POST$' '^orgs/Acme-Copilot/repos$')"
+  repo_count_lowercased="$(count_calls "$log" '^POST$' '^orgs/acme-copilot/repos$')"
+  team_count_verbatim="$(count_calls "$log" '^POST$' '^orgs/Acme-Copilot/teams$')"
+
+  assert_true "test22: at least one repo is created under the verbatim org path" \
+    "$([[ "$repo_count_verbatim" -gt 0 ]]; echo $?)" "count=$repo_count_verbatim"
+  assert_eq "test22: no repo is ever created under a lowercased org path" "0" "$repo_count_lowercased"
+  assert_true "test22: the department team is created under the verbatim org path" \
+    "$([[ "$team_count_verbatim" -gt 0 ]]; echo $?)" "count=$team_count_verbatim"
+  assert_contains "test22: the created harness repo is reported under the verbatim path" "$RUN_STDOUT" "Created Acme-Copilot/codex-copilot, private."
+  assert_contains "test22: the created department repo is reported under the verbatim path" "$RUN_STDOUT" "Created Acme-Copilot/codex-copilot-accounting, private."
+}
+
+# ---------------------------------------------------------------------------
+# Test 23: every shape GitHub's real org-name rule actually rejects still
+# refuses at preflight, with zero mutating calls.
+# ---------------------------------------------------------------------------
+
+test_invalid_org_values_refuse_at_preflight() {
+  local bad_orgs=("-acme" "acme-" "ac--me" "acme copilot" "acme@x" "$(printf 'a%.0s' $(seq 1 40))")
+  local i=0 bad_org
+  for bad_org in "${bad_orgs[@]}"; do
+    i=$((i + 1))
+    local st brief log
+    st="$(new_org_state "bad-org-$i")"
+    brief="$WORKDIR/brief-bad-org-$i.md"
+    cat > "$brief" <<EOF
+---
+schema_version: "1.0"
+org: $bad_org
+harness:
+  - codex
+departments:
+  - accounting
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+
+# Standup brief for an invalid org fixture (case $i)
+EOF
+    log="$WORKDIR/bad-org-$i.log"
+
+    run_engine "$st" "$log" --brief "$brief"
+
+    assert_eq "test23: org #$i (\"$bad_org\") is refused (exit 2)" "2" "$RUN_EXIT"
+    assert_contains "test23: org #$i refusal names the rule" "$RUN_STDERR" "That doesn't look like a GitHub organization name."
+
+    local mutating
+    mutating="$(count_mutating_calls "$log")"
+    assert_eq "test23: org #$i refusal makes zero mutating calls" "0" "$mutating"
+  done
+}
+
+# ---------------------------------------------------------------------------
+# Test 24: departments still enforce the strict lowercase slug rule,
+# unchanged — an uppercase-only department (no other invalid character)
+# still refuses, proving the org fix didn't loosen department validation.
+# ---------------------------------------------------------------------------
+
+test_department_case_only_still_refuses() {
+  local st brief log
+  st="$(new_org_state dept-case-only)"
+  brief="$WORKDIR/brief-dept-case-only.md"
+  cat > "$brief" <<'EOF'
+---
+schema_version: "1.0"
+org: acme-co
+harness:
+  - codex
+departments:
+  - Accounting
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+
+# Standup brief for acme-co (department case-only fixture: uppercase, otherwise valid)
+EOF
+  log="$WORKDIR/dept-case-only.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test24: an uppercase-only department (Accounting) still refuses" "2" "$RUN_EXIT"
+  assert_contains "test24: stderr names the offending department value" "$RUN_STDERR" 'Department name "Accounting"'
+
+  local mutating
+  mutating="$(count_mutating_calls "$log")"
+  assert_eq "test24: zero mutating calls before the refusal" "0" "$mutating"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1100,6 +1235,9 @@ test_no_em_dash_in_emitted_output
 test_free_plan_branch_protection_403_skips_gracefully
 test_non_403_branch_protection_error_still_fails
 test_engine_runs_cwd_independent_from_outside_repo
+test_org_verbatim_mixed_case_accepted
+test_invalid_org_values_refuse_at_preflight
+test_department_case_only_still_refuses
 
 echo
 echo "-----------------------------------------"

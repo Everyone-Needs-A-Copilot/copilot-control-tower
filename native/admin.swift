@@ -244,6 +244,32 @@ enum AdminSlug {
         }
         return result
     }
+
+    /// GitHub's real organization-name rule, used ONLY for the org identity
+    /// (never for department names, which stay app-derived slugs). Must
+    /// exactly match the engine's `_valid_org` (scripts/admin_bootstrap.sh,
+    /// owned by a parallel agent): ASCII letters/digits and single hyphens,
+    /// no leading/trailing hyphen, no consecutive hyphens, length 1 to 39.
+    /// Case is significant on GitHub (an org's slug keeps the case it was
+    /// created with, e.g. `Acme-Copilot`), so this never lowercases or
+    /// otherwise transforms the value it validates.
+    static func isValidGitHubOrgName(_ value: String) -> Bool {
+        guard !value.isEmpty, value.count <= 39 else { return false }
+        let chars = Array(value)
+        var previousWasHyphen = false
+        for (index, ch) in chars.enumerated() {
+            if ch == "-" {
+                if index == 0 || index == chars.count - 1 || previousWasHyphen { return false }
+                previousWasHyphen = true
+                continue
+            }
+            let isAsciiLetter = ch.isASCII && ch.isLetter
+            let isAsciiDigit = ch.isASCII && ch.isNumber
+            guard isAsciiLetter || isAsciiDigit else { return false }
+            previousWasHyphen = false
+        }
+        return true
+    }
 }
 
 // MARK: - The one hard block reused on every field that could carry a store
@@ -619,7 +645,14 @@ final class AdminModel: ObservableObject {
     @Published var githubCheckDegraded = false
     @Published var copiedCommandID: String? = nil
 
-    var orgSlug: String { AdminSlug.derive(orgNameInput) }
+    /// The org identity is an EXISTING GitHub organization name, not a value
+    /// this app derives or slugifies: it is used verbatim (trimmed of
+    /// surrounding whitespace only), case preserved, so an org actually
+    /// named `Acme-Copilot` is never silently lowercased to `acme-copilot`
+    /// in the plan card, the brief, or the Setup check. Departments stay
+    /// app-derived slugs (`AdminSlug.derive`), unchanged, since their repo
+    /// names are generated, not an existing identifier.
+    var orgSlug: String { orgNameInput.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     // Surface 5: Describe your organization
     @Published var harness: Harness = .codex
@@ -817,7 +850,7 @@ final class AdminModel: ObservableObject {
         storeScopeByDepartment.removeValue(forKey: id)
     }
 
-    var orgSlugIsValid: Bool { !orgSlug.isEmpty }
+    var orgSlugIsValid: Bool { AdminSlug.isValidGitHubOrgName(orgSlug) }
 
     /// The live "What this will create" plan card content, derived (never
     /// computed as ecosystem state — this is legibility only; the engine is
@@ -1515,7 +1548,7 @@ extension AdminRootView {
                         .frame(maxWidth: 320)
                         .onChange(of: model.orgNameInput) { model.orgSlugTouched = true }
                     if model.orgSlugTouched, !model.orgNameInput.isEmpty, !model.orgSlugIsValid {
-                        Text("Give your organization a name using letters, numbers, and dashes.")
+                        Text("That doesn't look like a GitHub organization name. Use letters, numbers, and single dashes.")
                             .font(.caption)
                             .foregroundColor(Color(nsColor: .systemRed))
                     }

@@ -112,9 +112,9 @@ The **deferred** store renders as `store: { status: deferred }` in front-matter 
 | Field | Type | Notes |
 |---|---|---|
 | `schema_version` | string `MAJOR.MINOR[.PATCH]` | `"1.0"`. Range-gated; a brief outside the app's floor/ceiling is refused, not guessed. |
-| `org` | string (GitHub slug) | Validated at collection; a half-valid slug never reaches the brief. |
+| `org` | string (GitHub organization login, verbatim) | The **existing** GitHub org's real login, case-preserving: GitHub's own org/username rule (ASCII letters of either case, digits, single hyphens, never leading/trailing/doubled, 1-39 chars) is validated at collection, but the value itself is never transformed (never lowercased, never slugified) — it names something that already exists on GitHub, unlike `departments` below. |
 | `harness` | list of `claude` \| `codex` | Org-wide harness choice(s). One entry at standup; the second-harness re-run appends the other. Drives every repo name. |
-| `departments` | list of slugs | The **full current** expected set (a re-run rewrites the whole list). |
+| `departments` | list of slugs | The **full current** expected set (a re-run rewrites the whole list). Unlike `org`, these are slugs the engine itself **generates** repo names from, so they are forced lowercase (`_valid_slug`), distinct from `org`'s case-preserving `_valid_org` rule. |
 | `store.status` | `connected` \| `deferred` | Deferred is a first-class, honest value, never an omission. |
 | `store.type` / `store.endpoint` | string / URL | Present only when connected. Endpoint is not a secret (access stays gated at the store by GitHub-team membership). |
 | `store.team_scopes[]` | `{team, scope}` | Non-secret mapping; present only when connected. |
