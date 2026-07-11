@@ -475,6 +475,10 @@ design: it names the one categorical automation boundary before anything can fai
   - `You are an owner of it. Only an owner can create the organization's spaces.`
   - `You have GitHub's command-line tool and Claude Code on this Mac. The next step
     checks and helps.`
+  - `Setup needs permission to work in your GitHub organization. It creates your shared
+    repositories and sets up your teams and their access, so the GitHub command-line
+    tool needs two permissions, called scopes: repo and admin:org. The next step checks
+    for these and gives you the exact command to grant them if they are missing.`
   - `Review protection needs a paid GitHub plan. Setup asks GitHub to require a review
     before your shared setup files change. For private repositories, GitHub only offers
     that on a paid plan. On the free plan, setup still finishes and your spaces are

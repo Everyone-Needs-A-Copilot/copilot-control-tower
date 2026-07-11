@@ -4,6 +4,8 @@ This repo holds Control Tower's spec + design, and (in a sibling repo) the CLI e
 
 **Start from the corrected model:** [`reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md) (the canonical CSE model) and [`reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md) (the decisions that align this repo to it).
 
+**Standing up an organization?** Read [`06-deployment/admin-prerequisites.md`](06-deployment/admin-prerequisites.md) first: what has to be true before setup can run, and the exact GitHub access it needs (and why).
+
 ## Where we are
 
 - **Spec + design are complete.** The hardened [`architecture`](01-architecture/architecture.md) (§10 = 25 red-team fixes), the parallel [`PRD`](02-prd/prd.md), the full **Product Creation Copilot design package** ([`product-design/`](product-design/), Phases 1–5) and a **RATIFIED [`SOUL.md`](../SOUL.md) v1.3** at repo root, plus versioned `--json` schemas, threat model, test plan, and launch docs.
