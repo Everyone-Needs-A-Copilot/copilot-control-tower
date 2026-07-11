@@ -145,7 +145,7 @@ Architecture/PRD context: `docs/01-architecture/architecture.md`, `docs/02-prd/p
 - Persist `product/tier/role` in the lock **write path** (`lockfile.py` has the capability; `update.py`/`materialize.py` don't call it yet).
 - Freeze-time confirmations: policy-gate production default (block-all-unverified vs. provisional-trusted-mirror once the signature verifier lands); deprovision soft/hard default + whether it deletes `copilot.lock.json`; per-verb exit-code tables for `update`/`deprovision` (not in `cli-contract.md` yet); `repair` shape (speculative, confirm or drop); `publish` scope (build the separate subsystem or defer).
 - **Binary name:** built as `cc`; the contract prose says `copilot`; alias/confirm at freeze.
-- **Upstream reconciliation:** the authoritative WS-A contract also lives in `claude-copilot/docs/80-initiatives/01-ecosystem-extensions/{05-control-tower.md,06-control-tower-prd.md}`; `publish` must be added to that PRD; reconcile the schemas into one source of truth at freeze.
+- **Upstream reconciliation:** the authoritative WS-A contract also lives in `claude-copilot/docs/40-initiatives/01-ecosystem-extensions/{05-control-tower.md,06-control-tower-prd.md}`; `publish` must be added to that PRD; reconcile the schemas into one source of truth at freeze.
 
 **Design / product:**
 - The first-run wizard's "Claude / Codex / Both" step is still host-framed; re-frame component-first.
