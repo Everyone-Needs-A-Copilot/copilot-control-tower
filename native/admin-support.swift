@@ -128,9 +128,10 @@ extension AdminModel {
         guard wrote else { return }
 
         skillMaterializeState = .working
-        let materialized = await AdminIO.materializeIfNewer(
+        let materialized = await AdminIO.materializeSkill(
             source: AdminPaths.bundledSkillSourcePath,
-            destination: AdminPaths.materializedSkillDestPath
+            destination: AdminPaths.materializedSkillDestPath,
+            enginePath: AdminPaths.enginePath
         )
         skillMaterializeState = materialized ? .success : .failure
     }

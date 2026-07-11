@@ -124,39 +124,47 @@ enum AdminIO {
         }
     }
 
-    /// Idempotent overwrite-on-newer copy (admin-standup-contract.md §2.1):
-    /// replaces the destination only when the source is missing at the
-    /// destination, or newer than what's there.
-    static func materializeIfNewer(source: String, destination: String) async -> Bool {
+    /// Materializes the bundled skill (admin-standup-contract.md §2.1), but
+    /// NOT as a byte-for-byte copy: the operator runs the materialized copy
+    /// from an arbitrary terminal `cwd` (their home directory, not the repo),
+    /// so every repo-relative `bash scripts/admin_bootstrap.sh` run command
+    /// in the source is rewritten to `bash "<absolute enginePath>"` (quoted,
+    /// so a path containing spaces still works) before it's written to
+    /// `destination`. The repo copy at `source` is never touched, so a
+    /// clone-and-run of the skill straight from the repository keeps the
+    /// repo-relative form and runs from the repository root.
+    ///
+    /// Idempotent by content, not mtime: writes only when the transformed
+    /// text actually differs from what's already at `destination` (covers
+    /// both "not materialized yet" and "the bundled skill or the engine path
+    /// changed since the last materialize").
+    static func materializeSkill(source: String, destination: String, enginePath: String) async -> Bool {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 let fm = FileManager.default
-                guard fm.fileExists(atPath: source) else {
+                guard let sourceData = fm.contents(atPath: source),
+                      let sourceText = String(data: sourceData, encoding: .utf8)
+                else {
                     continuation.resume(returning: false)
                     return
                 }
-                let sourceDate = (try? fm.attributesOfItem(atPath: source)[.modificationDate] as? Date) ?? nil
-                let destExists = fm.fileExists(atPath: destination)
-                let destDate = destExists ? ((try? fm.attributesOfItem(atPath: destination)[.modificationDate] as? Date) ?? nil) : nil
-                let shouldCopy: Bool
-                if !destExists {
-                    shouldCopy = true
-                } else if let sourceDate, let destDate {
-                    shouldCopy = sourceDate > destDate
-                } else {
-                    shouldCopy = true
-                }
-                guard shouldCopy else {
+
+                let transformed = sourceText.replacingOccurrences(
+                    of: "bash scripts/admin_bootstrap.sh",
+                    with: "bash \"\(enginePath)\""
+                )
+
+                if let existingData = fm.contents(atPath: destination),
+                   let existingText = String(data: existingData, encoding: .utf8),
+                   existingText == transformed {
                     continuation.resume(returning: true)
                     return
                 }
+
                 do {
                     let destURL = URL(fileURLWithPath: destination)
                     try fm.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    if destExists {
-                        try fm.removeItem(atPath: destination)
-                    }
-                    try fm.copyItem(atPath: source, toPath: destination)
+                    try transformed.write(to: destURL, atomically: true, encoding: .utf8)
                     continuation.resume(returning: true)
                 } catch {
                     continuation.resume(returning: false)

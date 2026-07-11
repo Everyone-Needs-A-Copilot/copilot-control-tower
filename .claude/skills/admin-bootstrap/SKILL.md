@@ -125,6 +125,12 @@ engine from the repository this skill ships in:
 bash scripts/admin_bootstrap.sh --brief "<brief path>"
 ```
 
+(When Control Tower materializes this skill to `~/.claude/skills/admin-bootstrap/`,
+it stamps every `scripts/admin_bootstrap.sh` reference below with the engine's
+absolute path, so the commands run correctly from any working directory. A
+clone-and-run of this skill straight from the repository keeps the
+repo-relative path shown here and runs from the repository root.)
+
 - If the operator is adding one department to a standing org (a governance
   re-run, not a fresh standup), use:
   ```bash

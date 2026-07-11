@@ -1009,6 +1009,73 @@ test_non_403_branch_protection_error_still_fails() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 21: the engine, invoked by absolute path with an absolute --brief path,
+# completes correctly from a cwd entirely outside the repository. This is the
+# shape Control Tower's materialized skill actually runs in: the operator's
+# `claude "/admin-bootstrap ..."` session has cwd = wherever their terminal
+# was (their home directory, never this repo). No earlier test in this suite
+# exercised that layer; every other test's cwd is implicitly the repo tree.
+# ---------------------------------------------------------------------------
+
+test_engine_runs_cwd_independent_from_outside_repo() {
+  local st brief log scratch_cwd out err rc verify_out verify_err
+
+  st="$(new_org_state cwd-independent)"
+  brief="$WORKDIR/brief-cwd-independent.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/cwd-independent-verify.log"
+  : > "$log"
+
+  scratch_cwd="$(mktemp -d "${TMPDIR:-/tmp}/admin-bootstrap-cwd-independent.XXXXXX")"
+
+  # Sanity: the scratch cwd really is outside the repository, so a future
+  # refactor can't make this pass by accident.
+  case "$scratch_cwd" in
+    "$REPO_ROOT"*)
+      not_ok "test21: scratch cwd setup" "scratch cwd [$scratch_cwd] is inside the repo [$REPO_ROOT]"
+      rm -rf "$scratch_cwd"
+      return
+      ;;
+  esac
+
+  out="$WORKDIR/cwd-independent.out"
+  err="$WORKDIR/cwd-independent.err"
+  (
+    cd "$scratch_cwd" || exit 99
+    # $ENGINE and $brief are both absolute (see their construction above);
+    # $MOCK_BIN is already on PATH from the top of this file, so the mock
+    # `gh` still resolves correctly from this unrelated cwd too.
+    GH_MOCK_STATE_DIR="$st" GH_MOCK_LOG="$log" bash "$ENGINE" --verify --brief "$brief" --json
+  ) >"$out" 2>"$err"
+  rc=$?
+  verify_out="$(cat "$out")"
+  verify_err="$(cat "$err")"
+  rm -rf "$scratch_cwd"
+
+  assert_eq "test21: --verify --json exits 0 from a non-repo cwd (absolute engine + brief paths)" "0" "$rc" "$verify_err"
+
+  local is_valid_json=1
+  if echo "$verify_out" | jq -e . >/dev/null 2>&1; then is_valid_json=0; fi
+  assert_true "test21: output from a non-repo cwd is still valid JSON" "$is_valid_json" "$verify_out"
+
+  local schema_ok=1
+  if echo "$verify_out" | jq -e '
+      (.schema_version | type == "string") and
+      (.checks | type == "array") and
+      (.checks | length > 0) and
+      (.summary.must_fix | type == "number") and
+      (.summary.unknown | type == "number")
+    ' >/dev/null 2>&1; then
+    schema_ok=0
+  fi
+  assert_true "test21: schema still matches when run from a non-repo cwd" "$schema_ok" "$verify_out"
+
+  local verify_mutating
+  verify_mutating="$(count_mutating_calls "$log")"
+  assert_eq "test21: --verify from a non-repo cwd makes zero mutating calls" "0" "$verify_mutating"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1032,6 +1099,7 @@ test_stale_branch_content_gets_updated_not_already_present
 test_no_em_dash_in_emitted_output
 test_free_plan_branch_protection_403_skips_gracefully
 test_non_403_branch_protection_error_still_fails
+test_engine_runs_cwd_independent_from_outside_repo
 
 echo
 echo "-----------------------------------------"
