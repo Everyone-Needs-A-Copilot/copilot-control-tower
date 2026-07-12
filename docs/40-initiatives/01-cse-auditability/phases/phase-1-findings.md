@@ -428,7 +428,8 @@ be able to *see itself* — and today it cannot.
 
 ## Limitations — stated, not buried
 
-1. **Not pre-registered.** Definitions chosen after seeing the data.
+1. **Not pre-registered.** Definitions chosen after seeing the data. **Every
+   verdict in this document is therefore provisional.**
 2. **No pre-intervention data.** Nothing here is causal.
 3. **The corpus is five weeks old** (from 2026-06-09). Every "never" means "never
    in a five-week window."
@@ -442,6 +443,36 @@ be able to *see itself* — and today it cannot.
    unresolvable by regex and are excluded from all headline counts.
 8. **The probe audited the ecosystem; nobody has audited the probe.** Its
    operational definitions deserve the same skepticism it applied to the CSE.
+   → Being addressed: [`phase-1-review-handoff.md`](phase-1-review-handoff.md).
+
+### Two known holes, found while preparing the review handoff (2026-07-12)
+
+These are **unclosed defects in this document**, recorded rather than quietly
+fixed, because they bear directly on two headline numbers.
+
+- **H-1 — `~/.zsh_history` was never mined.** F-16 concludes CLI Copilot's usage
+  is *unknown* because shell invocations leave no transcript. But shell history
+  exists, very likely spans months **before the transcript corpus begins**, and
+  was simply not looked at. **It could settle F-16 outright and could overturn
+  the "14 dead services" claim.** This is the single largest unexploited data
+  source in the probe.
+- **H-2 — Bash-mediated reads may be uncounted, inflating F-11.** The 95.6%
+  never-read figure counts **`Read` tool calls** against knowledge paths. But the
+  archaeology also established that **no native `Grep`/`Glob` calls exist anywhere
+  in the corpus — file search happens via `Bash`.** If an agent ran `cat`, `grep`,
+  `rg`, or `head` against a knowledge file, that read may never have been counted.
+  **F-11's headline number is therefore an upper bound on "dead knowledge," not a
+  measurement.**
+
+Also corrected: F-2's denominator of **27** is 26 real `.claude/agents/`
+directories plus 1 symlink (`research-copilot` → `knowledge-copilot`). A
+`find -type d` returns 25 and is wrong. The ratio — **exactly 1 wired** — is
+unaffected.
+
+Confirmed clean while checking the above: there is **no global `PreToolUse` hook**
+(`~/.claude/settings.json` carries only `Stop` and `UserPromptSubmit`), and
+`/Users/pabs/Sites/COPILOT` and `/Volumes/Dev/Sites/COPILOT` are **the same tree**
+via a symlink — an earlier pass nearly double-counted every repo.
 
 ## The open fork — not a recommendation
 
