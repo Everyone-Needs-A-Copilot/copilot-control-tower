@@ -1,0 +1,123 @@
+
+==============================================================================
+0. CORPUS COVERAGE
+==============================================================================
+Main session files: 113
+Earliest session start: 2026-06-09T18:50:56.175000+00:00
+Latest session start:   2026-07-11T15:29:34.007000+00:00
+Hook-ship date (from git log, see below): 2026-04-22
+
+*** NO PRE-INTERVENTION RAW TRANSCRIPTS EXIST ON DISK ***
+Earliest surviving session is 48 days AFTER the hook-ship date.
+An interrupted-time-series comparison of delegation rate / protocol-
+declaration rate using raw transcripts is IMPOSSIBLE from this corpus.
+(Likely cause: local session-transcript retention/cleanup — the CLI or
+the user's own housekeeping does not keep JSONL transcripts indefinitely.)
+
+==============================================================================
+1-2. DELEGATION RATE & PROTOCOL-DECLARATION RATE (post-hook period only)
+==============================================================================
+Delegation rate (tool-share, primary defn): n=95 median=40.5% IQR=[0.0%, 85.2%] mean=41.1%
+Delegation rate (event-share, alt defn): n=95 median=3.1% IQR=[0.0%, 14.4%] mean=9.6%
+Protocol declaration rate (all main-session turns): n=101 median=0.8% IQR=[0.0%, 4.5%] mean=3.6%
+Protocol declaration rate (first assistant msg per user turn): n=78 median=0.0% IQR=[0.0%, 0.0%] mean=0.2%
+
+April diagnostic reference values: delegation rate 6%, protocol rate 3.5%
+These CANNOT be recomputed for the pre-hook period (no raw transcripts).
+The values above describe ONLY sessions from the post-hook period on this machine.
+
+==============================================================================
+3-4. TURNS/SESSION & MODEL MIX (post-hook period only, raw corpus)
+==============================================================================
+Turns/session (hook-equivalent 'real user prompt' count): n=113 median=6.0 IQR=[3.0, 16.0] mean=12.5
+April diagnostic reference: 671 turns/session (pre-hook, untestable here for comparison)
+Model family share — MAIN SESSION ONLY (n=16816 assistant msgs): opus=92.5%, other=7.5%
+Model family share — MAIN + SUBAGENT COMBINED (n=64228 assistant msgs): sonnet=57.7%, opus=33.9%, other=5.5%, haiku=2.9%
+Claim under test (line 172/282 of restructure doc): "Sonnet for ~94% of work"
+
+==============================================================================
+5. TOKEN USAGE (main session, post-hook period)
+==============================================================================
+Cache-read share of context tokens (main session): n=99 median=93.6% IQR=[86.4%, 96.7%]
+Context tokens per turn (main session): n=113 median=831743 IQR=[179009, 2674876]
+Claims under test: "~94% less context" / "~70% less context" (restructure doc framing).
+No pre-hook baseline exists to compare against — this section is descriptive only.
+
+==============================================================================
+6. WEEKLY TREND, post-hook raw corpus (delegation rate + protocol rate)
+==============================================================================
+ISO week      n  turns/sess  deleg.rate  protocol%
+2026-W24     18         6.0       39.1%       1.7%
+2026-W25     29         4.0        0.0%       0.5%
+2026-W26     29         5.0       50.5%       1.4%
+2026-W27     20         7.0       52.4%       0.0%
+2026-W28     17        19.0       84.8%       1.2%
+
+No step-change is attributable to the intervention here: this entire window
+is post-hook. Any trend visible is drift WITHIN the post period, not a
+pre/post comparison.
+
+==============================================================================
+7. LONG-HORIZON TREND (stats-cache.json, spans the April 22 cutover)
+==============================================================================
+
+pre-hook (Jan21-Apr21): 70 days, 725 session-days, 191271 messages, 79318 tool calls
+  messages/session-day:   median=203.4 mean=281.2 (n=52 days)
+  tool-calls/session-day: median=123.3 mean=156.8 (n=52 days)
+  Sonnet token share:     median=16.1% mean=25.5% (n=70 days)
+
+post-hook (Apr22-Jul09): 60 days, 308 session-days, 79010 messages, 69380 tool calls
+  messages/session-day:   median=240.0 mean=311.4 (n=59 days)
+  tool-calls/session-day: median=171.3 mean=317.4 (n=59 days)
+  Sonnet token share:     median=20.5% mean=31.9% (n=60 days)
+
+CAVEAT: sessionCount is daily-*active*-session count, not sessions-started;
+multi-day sessions are counted once per active day, biasing messages/session
+and tool-calls/session downward on both sides of the cutover (see module docstring).
+This is the only artifact that actually straddles the intervention date — treat
+its 'messages/session' trend as the closest available (imperfect) proxy for the
+671-turns/session claim, NOT as a recomputation of the same metric.
+
+==============================================================================
+8. NATURAL CONTROL GROUP: mechanical-hooks-active vs hooks-inactive projects
+==============================================================================
+Projects with mechanical hooks REGISTERED in .claude/settings.json (PreToolUse -> pretool-check.sh):
+  - /Volumes/Dev/Sites/COPILOT/claude-copilot  (matcher covers: Bash ONLY)
+
+Agents-present-but-NO-mechanical-hooks projects: 17
+No-framework-at-all projects: 6
+
+HOOKS-ACTIVE sessions (mechanical enforcement wired up): n_sessions=8
+  delegation rate: median=84.4% IQR=[0.0%,92.5%] (n=8)
+  protocol rate:   median=1.4% IQR=[0.0%,4.8%] (n=8)
+
+AGENTS-ONLY sessions (framework agents present, hooks NOT wired up): n_sessions=89
+  delegation rate: median=27.8% IQR=[0.0%,84.8%] (n=75)
+  protocol rate:   median=0.5% IQR=[0.0%,4.3%] (n=80)
+
+NO-FRAMEWORK sessions (no .claude/agents at all): n_sessions=16
+  delegation rate: median=53.1% IQR=[0.0%,80.6%] (n=12)
+  protocol rate:   median=2.0% IQR=[0.0%,14.1%] (n=13)
+
+This is a CROSS-SECTIONAL comparison within the same post-hook-ship-date
+period (all sessions in this corpus start after 2026-06-09) — it is not a
+before/after comparison. It substitutes for the missing temporal control.
+Composition caveat: the hooks-active group is entirely claude-copilot's own
+dev repo (meta-work building the framework) — a different task mix than the
+product repos in the other two groups. Do not read a causal hook effect into
+this without controlling for that confound.
+
+==============================================================================
+9. SPECIALIST vs GENERIC delegation (is 'delegation' crediting the framework fairly?)
+==============================================================================
+group            n_sessions  delegating>=1  named calls  generic calls  named share
+agents-only              89             43          405             68        85.6%
+hooks-active              8              5          103             22        82.4%
+no-framework             16              8            2             44         4.3%
+
+Interpretation: a 'no-framework' project has zero named specialists to route to by
+construction, yet still shows delegation-tool-call volume in section 8 — that volume
+is Claude Code's built-in Explore/general-purpose agents, not framework routing. Any
+delegation-rate number that doesn't separate this out (including the primary metric in
+section 1-2, which does NOT separate it) overstates what the FRAMEWORK specifically
+caused, in favor of the framework, by construction.

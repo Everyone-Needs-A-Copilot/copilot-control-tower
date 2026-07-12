@@ -6,4 +6,4 @@
 
 | Folder | Title | Status | Owner | Note |
 | --- | --- | --- | --- | --- |
-| `01-cse-auditability/` | CSE Auditability — Make Every Claim Falsifiable | discovery | Pablo Alejo | Claim-surface investigation complete; claims register not yet written, so nothing downstream can be planned. |
+| `01-cse-auditability/` | CSE Auditability — Make Every Claim Falsifiable | active | Pablo Alejo | Phase 1 probe produced 4 FALSIFIED verdicts (hook disabled on ship day, enforcement in 1 of 27 repos, model-tier claim false, protocol rate never recovered). Register still unwritten; retention is the urgent action. |

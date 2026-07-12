@@ -1,8 +1,8 @@
 ---
 initiative: 01-cse-auditability
 title: CSE Auditability — Make Every Claim Falsifiable
-status: discovery
-status_note: Claim-surface investigation complete; claims register not yet written, so nothing downstream can be planned.
+status: active
+status_note: Phase 1 probe produced 4 FALSIFIED verdicts (hook disabled on ship day, enforcement in 1 of 27 repos, model-tier claim false, protocol rate never recovered). Register still unwritten; retention is the urgent action.
 owner: Pablo Alejo
 created: 2026-07-11
 execution_context:
@@ -150,20 +150,30 @@ nothing durable.
 
 ## Phase Index
 
-`phases/` does not exist yet. Phase documents are written when a phase is
-planned, not scaffolded ahead of it.
-
 | Phase | Goal | Complexity | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| Phase 0 | **The Claims Register** — one machine-readable table of every claim | Medium | — | Proposed |
-| Phase 1 | **The Falsification Probe** — did the April hooks actually work? | Medium | Phase 0 | Proposed |
+| Phase 1 | **The Falsification Probe** — did the April hooks actually work? | Medium | (ran early — see below) | **First pass complete** — [`phases/phase-1-findings.md`](phases/phase-1-findings.md) |
+| Phase 0 | **The Claims Register** — one machine-readable table of every claim | Medium | — | Next |
 | Phase 2 | **Conformance Suite (Tier A)** — deterministic fitness functions | Medium | Phase 0 | Proposed |
 | Phase 3 | **Efficacy Harness (Tier B)** — framework-on vs framework-off | High | Phase 0, Phase 1 | Proposed |
 | Phase 4 | **Field Telemetry (Tier C)** — longitudinal, observational | Low | Phase 0 | Proposed |
 | Phase 5 | **The Designed Report** — **GATED** | Medium | Phases 1, 2, 3 absorbed | Blocked by gate |
 
-Phases 1, 2 and 4 are parallelizable once Phase 0 lands. Phase 3 is the long
-pole. Phase 5 is deliberately not startable early.
+Phases 2 and 4 are parallelizable once Phase 0 lands. Phase 3 is the long pole.
+Phase 5 is deliberately not startable early.
+
+**Phase 1 ran ahead of Phase 0, and this was a deviation.** It was run as an
+opportunistic probe because the evidence it depends on was actively being
+destroyed (see F-6). Its findings are therefore **not pre-registered** and
+violate V-2 — they carry the weakest evidentiary status this initiative accepts,
+and must be re-run against `claims.yaml` before being quoted anywhere. This is
+recorded rather than tidied away: an audit that quietly exempts its own first run
+from its own rules has already failed.
+
+Its four falsified findings — the delegation hook was disabled the day it
+shipped, enforcement exists in 1 of 27 repos, the model-tier claim is false under
+every denominator, and the protocol rate never recovered — are what make Phase 0
+urgent rather than academic.
 
 ### Phase 0 — The Claims Register
 
@@ -410,18 +420,31 @@ the condition the "~94% less context" figure is in today.
 
 ## Current Summary
 
-**Status: discovery.** The claim-surface investigation is done and its findings
-are recorded above. Owner decisions D-1, D-2, and D-3 are ratified. `claims.yaml`
-does not exist, so no phase can be planned in detail yet and no PRD or tasks have
-been opened.
+**Status: active.** The claim-surface investigation is done, owner decisions D-1,
+D-2 and D-3 are ratified, and the Phase 1 falsification probe has run — producing
+four `FALSIFIED` verdicts against this ecosystem's own claims on its first
+execution, before any tool was built. See [`phases/phase-1-findings.md`](phases/phase-1-findings.md).
 
-**The next action is Phase 0 and only Phase 0.** Nothing downstream is
-plannable until the register exists, because the register is the spec.
+`claims.yaml` still does not exist, so no claim can yet be *scored* — only
+probed.
 
-The single thing most likely to go wrong: Phase 0 gets written as an inventory
-instead of a cull. If it produces forty rows and deletes none of them, it has
-failed, and every later phase will be measuring claims that should never have
-survived.
+**The next actions, in causal order:**
+
+1. **Transcript retention.** The only item where delay is irreversible. F-6
+   established that the hooks' before/after comparison is permanently closed
+   because the evidence was pruned. Every day without retention forecloses
+   another question.
+2. **`test_pretool_hook_fires_on_read`.** One check. It would have caught F-1 on
+   2026-04-22 and every day since. The matcher rotted for exactly one reason:
+   nothing tested that it fired.
+3. **Phase 0 — the register.** F-5 (delegation rate is 3.1% or 40.5% depending
+   on which defensible definition you pick) and F-8 (the "~94%" figure may be a
+   misattributed cache-read statistic) are both unanswerable without it.
+
+The single thing most likely to go wrong remains: **Phase 0 gets written as an
+inventory instead of a cull.** If it produces forty rows and deletes none of
+them, it has failed, and every later phase will be measuring claims that should
+never have survived.
 
 Live task state — assignments, in-flight status, blockers — belongs in the
 authoritative task system, not here.

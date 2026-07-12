@@ -1,0 +1,194 @@
+{
+  "/Volumes/Dev/Sites/COPILOT/pipeline-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/pipeline-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/pipeline-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/voice-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/voice-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/voice-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/PERSONAL/runway": {
+    "cwd": "/Volumes/Dev/Sites/PERSONAL/runway",
+    "claude_dir": "/Volumes/Dev/Sites/PERSONAL/runway/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/PERSONAL/thoughts": {
+    "cwd": "/Volumes/Dev/Sites/PERSONAL/thoughts",
+    "claude_dir": "/Volumes/Dev/Sites/PERSONAL/thoughts/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/convoco-site": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/convoco-site",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/convoco-site/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/claude-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/claude-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/claude-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": true,
+    "hook_matcher_covers_read_edit": false,
+    "registered_pretool_hook_path": "/Volumes/Dev/Sites/COPILOT/claude-copilot/.claude/hooks/pretool-check.sh"
+  },
+  "/Volumes/Dev/Sites/COPILOT/cli-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/cli-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/cli-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT",
+    "claude_dir": "/Volumes/Dev/Sites/.claude",
+    "agents_present": false,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/conversations-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/conversations-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/.claude",
+    "agents_present": false,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/knowledge-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/knowledge-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/knowledge-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/insights-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/insights-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/insights-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/conversations-copilot-site": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/conversations-copilot-site",
+    "claude_dir": "/Volumes/Dev/Sites/.claude",
+    "agents_present": false,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/convoco": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/convoco",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/convoco/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/shared-docs": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/shared-docs",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/shared-docs/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/copilot-control-tower": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/copilot-control-tower",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/TSM/hermes": {
+    "cwd": "/Volumes/Dev/Sites/TSM/hermes",
+    "claude_dir": "/Volumes/Dev/Sites/TSM/hermes/.claude",
+    "agents_present": false,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/project-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/project-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/project-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/product-creation-copilot": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/product-creation-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/product-creation-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/PERSONAL/tracker": {
+    "cwd": "/Volumes/Dev/Sites/PERSONAL/tracker",
+    "claude_dir": "/Volumes/Dev/Sites/PERSONAL/tracker/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/convoco/backend": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/convoco/backend",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/convoco/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/PERSONAL/job-finder": {
+    "cwd": "/Volumes/Dev/Sites/PERSONAL/job-finder",
+    "claude_dir": "/Volumes/Dev/Sites/PERSONAL/job-finder/.claude",
+    "agents_present": false,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/private/tmp/claude-501/-Volumes-Dev-Sites-COPILOT-cli-copilot/295f06f2-361b-496c-b7a9-38bb71b22a2f/scratchpad/bridge-demo-proj": {
+    "cwd": "/private/tmp/claude-501/-Volumes-Dev-Sites-COPILOT-cli-copilot/295f06f2-361b-496c-b7a9-38bb71b22a2f/scratchpad/bridge-demo-proj",
+    "claude_dir": null,
+    "agents_present": false,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/PERSONAL/spanish-copilot": {
+    "cwd": "/Volumes/Dev/Sites/PERSONAL/spanish-copilot",
+    "claude_dir": "/Volumes/Dev/Sites/PERSONAL/spanish-copilot/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  },
+  "/Volumes/Dev/Sites/COPILOT/saas-financial-model": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/saas-financial-model",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/saas-financial-model/.claude",
+    "agents_present": true,
+    "mechanical_hooks_registered": false,
+    "hook_matcher_covers_read_edit": null,
+    "registered_pretool_hook_path": null
+  }
+}
