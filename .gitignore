@@ -47,3 +47,9 @@ yarn-error.log*
 
 # session review artifacts (not source)
 scratchpad/
+
+# cse-bench collector output — regenerated on every `collect` run
+# (stamped history + -latest.json pointer), not source.
+tools/cse-bench/output/
+__pycache__/
+*.pyc

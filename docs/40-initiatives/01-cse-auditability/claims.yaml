@@ -1,0 +1,434 @@
+# claims.yaml — CSE Verification & Benchmark Program claims register (v1)
+#
+# TASK-85 (B-2, phase-2-prd.md P0). Retires the initiative's V-2 violation
+# (docs/40-initiatives/01-cse-auditability/README.md, "Validation Contract"):
+# Phase 1's findings were produced by choosing operational definitions AFTER
+# seeing the data. This file is the pre-registration V-2 requires. Per
+# phase-2-prd.md §7: "claims.yaml is the single authoritative source for
+# every operational definition. No metric may be quoted from this program
+# without a register entry — including in the dashboard, in docs, and in
+# future audit phases."
+#
+# SCOPE NOTE (read before extending this file): this is NOT yet the
+# README's Phase-0 vision of "one machine-readable table of every claim
+# across all four products" (~40 rows, operational_definition /
+# falsification_condition / threshold / verdict schema). That full sweep is
+# still open work. This v1 register is narrower and specific to what
+# phase-2-prd.md §7 actually requires right now: the operational
+# definitions this Verification & Benchmark Program itself quotes, plus one
+# claim per program truth condition (T1-T8, phase-2-prd.md §2) and one per
+# still-quotable Phase-1/re-audit corrected number. When Phase 0's full
+# CSE-wide sweep runs, it should EXTEND this file (reuse `definitions:`,
+# append to `claims:`) rather than replace it.
+#
+# ---------------------------------------------------------------------------
+# SCHEMA
+# ---------------------------------------------------------------------------
+#
+# definitions:
+#   <name>:                 # referenced by claims[].definition_refs
+#     description: <str>    # what the term means, precisely enough to
+#                            #   re-implement independently
+#     source: <path>         # (optional) the code that currently implements
+#                            #   this definition, if one exists
+#     note / caveat: <str>   # (optional) known fragility, open gaps, or
+#                            #   cross-references to other definitions
+#     ... additional structured sub-fields as the term requires (e.g.
+#         `channels`, `variants`, `products`, `classes`, `levels`) — see
+#         individual entries below.
+#
+# claims:
+#   - id: <unique-slug>
+#     statement: <str>              # the exact quotable claim, precise
+#                                    #   enough to be falsified
+#     definition_refs: [<name>, ...]  # keys into `definitions:` above;
+#                                    #   `[]` only when the claim rests on
+#                                    #   an unambiguous raw field, not a
+#                                    #   contested operational definition
+#     check: <command-or-"manual">  # how to (re-)verify this claim
+#     status: passing|failing|unchecked|gated
+#     evidence: <path>              # file (this repo or a sibling repo)
+#                                    #   substantiating `status`
+#     last_checked: <YYYY-MM-DD>    # required whenever status != unchecked
+#
+# STATUS ENUM (this register's own vocabulary — distinct from, but mapped
+# to, the README's Phase-5 four-verdict scorecard language):
+#   passing   — checked; the statement is currently true.        (~ proven)
+#   failing   — checked; the statement is currently false.       (~ falsified)
+#   unchecked — no check has been run against this statement yet. (~ not-yet-measured)
+#   gated     — blocked on a prerequisite workstream/decision landing
+#               first; cannot be meaningfully checked until then. (~ not-yet-measured,
+#               blocked)
+#
+# V-2 note: this file is git-committed as its own pre-registration event.
+# Per V-2, any `check`/`status`/`threshold`-bearing field must not be
+# edited to match a result observed after the fact — corrections belong in
+# a new commit with a changed `last_checked`, not a silent rewrite.
+# ---------------------------------------------------------------------------
+
+definitions:
+
+  turn:
+    description: >-
+      One real user turn in a main session transcript: a JSONL record with
+      type=="user", isSidechain != true, isMeta != true, and content that is
+      not a tool_result (i.e. an actual human/user message, not a tool
+      response wrapped in a user-role record). This is the definition
+      tools/cse-audit/session_metrics.py (is_real_user_turn, n_user_turns)
+      currently implements and the one this program's "turns" numbers use.
+    source: "tools/cse-audit/jsonl_utils.py (is_real_user_turn); tools/cse-audit/session_metrics.py (n_user_turns)"
+    caveat: >-
+      This definition is NOT comparable to the April 2026 restructure doc's
+      "671 turns/session" figure. April's counting script no longer exists
+      (docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md,
+      F-6), so its definition cannot be recovered. Re-measuring under THIS
+      definition gives a median of 6.0 turns/session — a ~90-112x gap the
+      re-audit corroborated as a definitional artifact, not a real
+      before/after change. See claim turn-definition-incompatible-with-april.
+
+  delegation_rate_tool_share:
+    description: >-
+      Of all tool calls in a session (main-session tool calls plus every
+      sidechain/subagent tool call), the fraction executed inside a
+      subagent context: n_subagent_tool_calls / (n_main_tool_calls +
+      n_subagent_tool_calls). Answers "of everything that got done, how
+      much ran inside a delegated subagent."
+    source: "tools/cse-audit/session_metrics.py (SessionMetrics.delegation_rate_toolshare)"
+    note: >-
+      ALWAYS report side by side with delegation_rate_event_share, never
+      alone. The two are both defensible readings of "delegation rate" and
+      disagree by an order of magnitude (docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md,
+      F-5); citing only one without the other reproduces the exact
+      pre-registration failure this file exists to close.
+
+  delegation_rate_event_share:
+    description: >-
+      Of the main session's own tool-call decisions only, the fraction that
+      were "call an Agent/Task" rather than "do it myself":
+      n_agent_delegations / n_main_tool_calls. Answers "of the orchestrator's
+      own choices, how often did it choose to delegate."
+    source: "tools/cse-audit/session_metrics.py (SessionMetrics.delegation_rate_eventshare)"
+    note: >-
+      ALWAYS report side by side with delegation_rate_tool_share. See that
+      entry's note; this is the other half of the same F-5 pair.
+
+  protocol_declaration:
+    description: >-
+      A main-session assistant message counts as protocol-declared if its
+      first non-thinking text block, left-stripped, starts with the literal
+      string "[PROTOCOL". Two denominators are tracked: `_all` (every
+      main-session assistant message) and `_first_of_turn` (only messages
+      whose parentUuid is a real user-turn uuid — the "strict" reading,
+      since a protocol declaration is only meaningful as the FIRST reply to
+      a user turn, not on every follow-up message within it).
+    source: "tools/cse-audit/session_metrics.py (_process_assistant_record; protocol_declaration_rate_all, protocol_declaration_rate_first_of_turn)"
+    caveat: >-
+      Whether April 2026's original "3.5%" figure used the same string
+      match is unrecoverable (F-6); the comparison is directional only.
+
+  knowledge_read:
+    description: >-
+      A file under a registered knowledge-repo root counts as "read" in a
+      session if EITHER of two channels fires against its path.
+    channels:
+      read_tool: >-
+        A Read, Grep, or Glob tool_use call whose input path (file_path for
+        Read; path/pattern for Grep/Glob) resolves to a location under a
+        registered knowledge repo root. IMPLEMENTED —
+        tools/cse-audit/product_usage.py (classify_knowledge_path,
+        scan_corpus's Read/Grep/Glob branch).
+      bash_mediated: >-
+        A Bash tool_use call whose command string contains one of {cat,
+        grep, rg, head, sed} in COMMAND POSITION (start of the command
+        string, or start of a pipeline segment after &&/||/|/;/backtick/
+        $(/newline — the same command-position rule as cli_invocation
+        below) AND at least one subsequent whitespace-delimited token,
+        after ~/$VAR/relative-to-cwd expansion, resolves to a path under a
+        registered knowledge repo root. NOT YET IMPLEMENTED — this is the
+        H-2 gap identified in phase-1-findings.md ("no native Grep/Glob
+        calls exist anywhere in the corpus — file search happens via
+        Bash") and is scoped as part of B-5 (phase-2-prd.md P1). Until it
+        lands, any "never read" figure computed from read_tool alone is an
+        UPPER BOUND on never-read, not a measurement.
+    named_file_match_rule: >-
+      The binary must be in command position per the bash_mediated channel
+      above (not merely present in the argument list — e.g. `echo "run cat
+      foo.md"` does not match). A directory-target grep/rg call (e.g. `grep
+      -r pattern knowledge-copilot/`) counts as reading every file named in
+      that call's OWN tool_result output (the files rg/grep actually
+      reported matches in), not every file under the directory argument —
+      a call that finds zero matches reads nothing under this rule.
+    source: "tools/cse-audit/product_usage.py (read_tool channel only; bash_mediated is unimplemented)"
+
+  knowledge_never_read_denominator:
+    description: >-
+      "Never read" is meaningless without stating what it is a fraction OF.
+      Two denominators are both registered and both quotable — NEVER quote
+      a never-read percentage without naming which one it uses.
+    variants:
+      knowledge_md: >-
+        Count of *.md files under knowledge-copilot/, excluding vendored/
+        tooling directories (node_modules, storybook build output, .git,
+        .obsidian). 906 files as measured 2026-07-12
+        (docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html: "True size: 906 knowledge markdown
+        files — of 15,244 total"). Never-read share under this denominator:
+        67% (67.1% precisely).
+      all_files: >-
+        Count of every file under knowledge-copilot/ regardless of
+        extension, using tools/cse-audit/product_usage.py's
+        inventory_knowledge_repo() (excludes only .git, .obsidian,
+        node_modules by default). Never-read share under this denominator:
+        ≈88%. OPEN GAP: whether this exact exclusion set (in particular
+        storybook build output) matches what the re-audit used to produce
+        88% is not independently confirmed by this register — flagged for
+        confirmation when B-5 rebuilds this collector as a runnable check
+        rather than a one-off re-audit computation.
+    caveat: >-
+      Phase 1's original headline (95.6% never read) is SUPERSEDED and must
+      not be requoted; it combined a buggy path-join (a mid-corpus repo
+      reorg broke ~60% of recorded reads) with a vendored-file-polluted
+      denominator. See claim knowledge-never-read-rate.
+
+  cli_invocation:
+    description: >-
+      A tool call counts as invoking a CLI product if the target binary
+      name appears in COMMAND POSITION — the start of a Bash command
+      string, or the start of a pipeline segment after &&, ||, |, ;, a
+      backtick, $(, or a newline — never merely as a substring, a path
+      component, a grep pattern, or prose in an argument. This is the same
+      command-position rule the bash_mediated knowledge_read channel reuses.
+    products:
+      cli_copilot: >-
+        Entrypoints: /opt/homebrew/bin/copilot (absolute path) or the
+        `cli_copilot` console-script name — both classified
+        cli_copilot_unambiguous. A bare `copilot` token in command position
+        is tracked SEPARATELY as cli_copilot_bare (ambiguous: whether the
+        Bash tool's non-interactive shell sources the `copilot` alias below
+        cannot be determined from the transcript alone) and is NOT counted
+        toward unambiguous cli_copilot usage.
+      cc_framework: >-
+        Entrypoint: `cc`, resolving to ~/.local/bin/cc (mirrored at
+        /opt/homebrew/bin/cc) — claude-copilot's tool, a DIFFERENT product
+        from cli_copilot (see docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md
+        F-14: "four programs share two names"). Classified cc_framework
+        only when the following token is a registered cc subcommand (see
+        CC_FRAMEWORK_SUBCOMMANDS in product_usage.py) or --version/--help;
+        otherwise cc_ambiguous. Must NEVER be merged into cli_copilot
+        counts.
+    excludes:
+      - "the interactive `copilot` shell alias (`cd /Volumes/Dev/Sites/COPILOT`) — a directory change, not a program; per F-14 it shadows the binary in an interactive shell"
+      - "`gh copilot` (GitHub's own Copilot CLI extension) — excluded by checking for a preceding `gh` token"
+      - "`/usr/bin/cc`, the C compiler — excluded via a compiler-style-flag / source-object-argument / CC=-assignment / cargo|clang|gcc heuristic (cc_compiler bucket)"
+    source: "tools/cse-audit/product_usage.py (classify_bash_command, CLI_COPILOT_BIN_RE, CC_BIN_RE, _CC_COMPILER_HINT_RE)"
+    terminal_coverage: >-
+      Terminal (non-transcript) invocations are covered by two independent,
+      cross-validated sources: ~/.zsh_history (536 days, 2025-01-21..2026-07-12)
+      and Warp's block history (warp.sqlite `commands` table, 207 days,
+      2025-12-17..2026-07-12; B-3 probe 2026-07-12). For the overlapping window
+      every command-position hit is a timestamp-exact duplicate across both
+      sources (12/12 concordant); the pre-2025-12-17 stretch (~329 days) is
+      single-source (zsh only) because Warp did not exist on this machine.
+      CORRECTION (B-3, 2026-07-12): the re-audit's "14 terminal invocations"
+      counted 2 mid-line textual mentions; under this definition's
+      command-position rule the true count is 12 (11x uspto 2026-04-03,
+      1x conv 2026-06-09; +2x db 2026-06-14 appear only in zsh — recheck
+      classification during B-5). Bare `copilot` in interactive history is
+      always the cd alias (84/84 Warp hits corroborated via pwd deltas).
+
+  cli_liveness_classes:
+    description: >-
+      Every CLI Copilot leaf command is classified into exactly one of four
+      liveness classes, per config presence x git activity x transcript
+      usage x shell history, as used in the 2026-07-12 re-audit
+      (docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html).
+    classes:
+      alive: "shows all four liveness signals (config present, recent git activity, transcript usage, shell-history usage)"
+      occasional: "shows some but not all liveness signals — used, but not on every signal"
+      never: "shows zero usage signals in any corpus checked, including commands whose backing service cannot even authenticate"
+      local_utility: "commands that operate purely on local state (git, fs, shell, docker, docs, …) and therefore have no live-integration signal to show in the first place — liveness classification does not apply to them the same way"
+    caveat: >-
+      This classifies CLI Copilot's 439 leaf commands (22 service groups),
+      not the same figure as Phase 1's original 208-command count, which
+      was a ~2x undercount corrected by the re-audit.
+
+  parity:
+    description: >-
+      Codex Copilot's fidelity to its claude-copilot upstream, checked at
+      two distinct levels — never conflate them when reporting a parity
+      result.
+    levels:
+      version_tuple: >-
+        Compares 3 version-string fields between the two repos'
+        parity manifests (codex-copilot/parity/claude-baseline.json).
+        EXISTING, IMPLEMENTED. Passing this check proves the manifests
+        AGREE on version numbers; it says nothing about whether the
+        underlying agent/command/skill CONTENT actually matches.
+      content_hash: >-
+        Extends the version-tuple check to content hashes of
+        agents/commands/skills, so drift is visible the day it happens
+        rather than only when a maintainer notices by inspection.
+        PROPOSED, NOT YET BUILT — scoped as C-4 (phase-2-prd.md C-series,
+        owning repo codex-copilot, extends check-upstream-parity.py).
+    source: "codex-copilot/parity/claude-baseline.json; codex-copilot check-upstream-parity.py (version_tuple only, as of this register's writing)"
+
+  live_integration:
+    description: >-
+      A service is counted as a live integration if `copilot health --json`
+      (CLI Copilot's top-level `health` command, cli-copilot/copilot_cli/main.py)
+      reports healthy==true for it. Per-service check functions return a
+      dict containing a "healthy" boolean (or, for legacy checks, a
+      "status"=="healthy" string that main.py's health() coerces to the
+      same boolean); a service that raises an exception during its check,
+      or that main.py could not import at all, is treated as unhealthy
+      (healthy=false), never as absent from the count.
+    source: "cli-copilot/copilot_cli/main.py (health(); checks list; print_health)"
+    caveat: >-
+      As of this register's writing, 4 service groups exist in CLI Copilot
+      but are NOT registered in the `health` command's checks list at all
+      (phase-2-prd.md C-1: "registering the 4 service groups missing from
+      copilot health"). Until that lands, a live_integration count is an
+      undercount of true integration health, not a false one — services
+      missing from the list are neither healthy nor unhealthy, they are
+      simply not checked.
+
+claims:
+
+  # --- Program truth conditions (phase-2-prd.md §2, T1-T8) ---------------
+
+  - id: t1-ecosystem-sees-itself
+    statement: "Every CSE component leaves durable, queryable usage evidence as a side effect of normal work: transcripts are retained (not pruned), tool events are logged at source, and CLI invocations are recorded (opt-in)."
+    definition_refs: []
+    check: "manual — inspect ~/.claude/transcript-archive/runs.log (retention) and cli-copilot for an invocation ledger (C-1, not yet built)"
+    status: failing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md (T1 row); tools/cse-bench/retention/retain_transcripts.sh (B-1, now running — partial evidence transcript retention is fixed); CLI invocation logging (C-1) does not exist yet"
+    last_checked: "2026-07-12"
+
+  - id: t2-no-claim-outlives-its-check
+    statement: "Every public CSE claim maps to a pre-registered, runnable check; unverifiable claims are deleted; the F-18 artifact-without-mechanism count is zero, enforced on commit."
+    definition_refs: []
+    check: "tools/cse-bench/check_claims.py (structural half only — does not yet sweep product docs for unregistered claims)"
+    status: failing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-18: 7 artifact-without-mechanism instances found); this file itself registers only this program's own quoted numbers, not the full ~40-claim CSE surface (see SCOPE NOTE at top of file)"
+    last_checked: "2026-07-12"
+
+  - id: t3-instruction-layer-changes-behavior
+    statement: "Enforcement fires where the docs say it does (or the docs stop saying it); delegation/protocol adoption is measured at source; every specialist agent has a passing golden-set eval."
+    definition_refs: [delegation_rate_tool_share, delegation_rate_event_share, protocol_declaration]
+    check: "manual — python3 tools/cse-audit/run_probe.py (in claude-copilot) plus a headcount of cc eval golden sets"
+    status: failing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-1, F-2, F-4); phase-2-prd.md (T3 row: 'evals exist for 1 of 16 agents')"
+    last_checked: "2026-07-12"
+
+  - id: t4-knowledge-layer-changes-output
+    statement: "With-knowledge output beats without-knowledge output on private-fact accuracy; voice conformance shows a delta attributable to the knowledge repo rather than to prompting alone."
+    definition_refs: [knowledge_read]
+    check: "manual — pending B-9 (private-fact Q&A bench) and B-10 (voice-conformance bench), phase-2-prd.md P2"
+    status: unchecked
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md (T4 row: 'Never measured (was wrongly declared unmeasurable)')"
+    last_checked: "2026-07-12"
+
+  - id: t5-integration-layer-pays-its-way
+    statement: "Live integrations authenticate; retained CLI commands show usage; dead surface is pruned or revived; the CLI-vs-MCP advantage is measured and honestly bounded."
+    definition_refs: [cli_liveness_classes, live_integration]
+    check: "manual — see docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html liveness breakdown; copilot health --json for live_integration"
+    status: failing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md (T5 row: '~23% of 439 commands plausibly alive')"
+    last_checked: "2026-07-12"
+
+  - id: t6-two-harnesses-one-behavior
+    statement: "Claude/Codex parity is checked at content and behavior level; drift is bounded and alarmed — 'same solution, different harness' is a tested property, not a slogan."
+    definition_refs: [parity]
+    check: "manual — codex-copilot check-upstream-parity.py (version_tuple level only today; content_hash level is C-4, not yet built)"
+    status: failing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md (T6 row: 'Parity check covers 3 version strings only')"
+    last_checked: "2026-07-12"
+
+  - id: t7-inheritance-ladder-in-practice
+    statement: "At least one real Foundation->Org->Personal chain syncs through Control Tower, entitlement by repo access, secrets outside git."
+    definition_refs: []
+    check: "manual — depends on Copilot Control Tower's own build program (docs/02-prd/prd.md); this program's trust panel only verifies it, does not deliver it"
+    status: gated
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md (T7 row: 'Delivered by the Control Tower build program; tracked here as a dependency')"
+    last_checked: "2026-07-12"
+
+  - id: t8-value-transfers-beyond-author
+    statement: "A person who is not the owner, using a persona task pack, completes representative tasks measurably better with the CSE than without."
+    definition_refs: []
+    check: "manual — pending B-14 (external pilot protocol), phase-2-prd.md P3"
+    status: unchecked
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md (T8 row: 'Every number in existence is single-author')"
+    last_checked: "2026-07-12"
+
+  # --- Still-quotable Phase-1 / re-audit corrected numbers ----------------
+
+  - id: delegation-rate-baseline
+    statement: "Post-hook delegation rate, reported under both registered definitions: tool-share median ~40.5-40.9%; event-share median ~3.0-3.1%. The two disagree by an order of magnitude and neither is authoritative alone."
+    definition_refs: [delegation_rate_tool_share, delegation_rate_event_share]
+    check: "python3 tools/cse-audit/run_probe.py (run from copilot-control-tower; reads ~/.claude/projects)"
+    status: passing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-5); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-5 row: 'Reproduces (40.9% tool-share vs 3.0% event-share)')"
+    last_checked: "2026-07-12"
+
+  - id: protocol-declaration-rate-baseline
+    statement: "Post-hook protocol-declaration rate never recovered from the April 2026 pre-hook baseline (3.5%): median ~0.8-0.9% under the all-messages definition, 0.0% under the strict first-of-turn definition."
+    definition_refs: [protocol_declaration]
+    check: "python3 tools/cse-audit/run_probe.py"
+    status: passing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-4); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-4 row: 'Reproduces: 0.9% median, 0.0% strict (n=76)')"
+    last_checked: "2026-07-12"
+
+  - id: turn-definition-incompatible-with-april
+    statement: "April 2026's reported '671 turns/session' figure is directly comparable to (reproducible under) this register's `turn` definition."
+    definition_refs: [turn]
+    check: "manual — April's original counting script does not exist; nothing to re-run"
+    status: failing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-6: probe measures median 6.0, a ~100x gap); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-6 row: 'PARTIALLY REOPENED... Turn-gap corroborated as a definitional artifact (~90-112x)')"
+    last_checked: "2026-07-12"
+
+  - id: model-tier-opus-dominant-main-session
+    statement: "Main-session tool-call/message share is Opus-dominant (92.5% of main-session assistant messages; 94.5% of main-session tool calls per the re-audit), contradicting the framework claim of 'Sonnet for ~94% of work' under every denominator tested (main-session messages, all messages, token share, and the re-audit's additional readings)."
+    definition_refs: []
+    check: "python3 tools/cse-audit/run_probe.py (reads the literal `model` field per assistant message — an unambiguous field, not a contested operational definition, hence no definitions: entry)"
+    status: passing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-3); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-3 row: 'STRENGTHENED... Today's main-session Opus tool-call share: 94.5%')"
+    last_checked: "2026-07-12"
+
+  - id: knowledge-never-read-rate
+    statement: "Share of Knowledge Copilot files never read, reported under both registered denominators: ~67% under knowledge_md (906 files); ~88% under all_files. The original Phase 1 headline of 95.6% is superseded (buggy path-join + vendored-file-polluted denominator) and must not be requoted."
+    definition_refs: [knowledge_read, knowledge_never_read_denominator]
+    check: "manual — see docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html Knowledge Copilot panel; automatable re-run pending B-5 (phase-2-prd.md P1)"
+    status: passing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-11); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-11 row: 'CORRECTED... Corrected: 67% (knowledge-md) to 88% (all files)')"
+    last_checked: "2026-07-12"
+
+  - id: cli-command-liveness-breakdown
+    statement: "CLI Copilot's real surface is 439 leaf commands across 22 service groups (Phase 1's 208 was a ~2x undercount), classified: Alive 103 (23%), Occasional-signal 142 (32%), Never-invoked 133 (30%), Local-utility 61 (14%)."
+    definition_refs: [cli_liveness_classes, cli_invocation]
+    check: "manual — see docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html CLI Copilot panel; automatable re-run pending C-1 (usage ledger) landing"
+    status: passing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-16); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (CLI Copilot panel, liveness stack chart)"
+    last_checked: "2026-07-12"
+
+  - id: cli-copilot-test-suite-verified
+    statement: "CLI Copilot's test suite passes: 1,588 tests pass, 16 deselected, 53% coverage, CI green (ruff + format-check + pytest, py3.11/3.12) on push-to-main and PRs."
+    definition_refs: []
+    check: "cd /Volumes/Dev/Sites/COPILOT/cli-copilot && python3 -m pytest --cov (external repo — not run by this program's own checker)"
+    status: unchecked
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-13, the only VERIFIED verdict in Phase 1); phase-1-review-handoff.md (item 4: 'I did not re-run it... Re-run it', flagged and still open)"
+    last_checked: "2026-07-12"
+
+  - id: enforcement-hook-wiring-ratio
+    statement: "Exactly 1 of 27 repos carrying .claude/agents/ (26 real directories plus 1 symlink, research-copilot -> knowledge-copilot) registers a PreToolUse hook in .claude/settings.json."
+    definition_refs: []
+    check: "find /Volumes/Dev/Sites/COPILOT -maxdepth 3 -name settings.json -path '*/.claude/*' -exec grep -l PreToolUse {} \\; (external tree scan, informational)"
+    status: passing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-2); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-2 row: 'UPHELD... exactly one repo registers PreToolUse')"
+    last_checked: "2026-07-12"
+
+  - id: delegation-hook-matcher-scope
+    statement: "claude-copilot's delegation-enforcement PreToolUse hook matcher is Bash-only (excludes Read/Edit/Agent), unchanged since the 2026-04-22 same-day deadlock-resolution commit (23c02c0) that narrowed it from 'Bash|Read|Edit|Agent' to 'Bash'."
+    definition_refs: []
+    check: "git -C /Volumes/Dev/Sites/COPILOT/claude-copilot show HEAD:.claude/settings.json (external repo, informational)"
+    status: passing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-1); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-1 row: 'UPHELD. Live settings.json matcher is still Bash-only')"
+    last_checked: "2026-07-12"
