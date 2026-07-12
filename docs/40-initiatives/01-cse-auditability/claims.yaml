@@ -144,12 +144,18 @@ definitions:
         $(/newline — the same command-position rule as cli_invocation
         below) AND at least one subsequent whitespace-delimited token,
         after ~/$VAR/relative-to-cwd expansion, resolves to a path under a
-        registered knowledge repo root. NOT YET IMPLEMENTED — this is the
-        H-2 gap identified in phase-1-findings.md ("no native Grep/Glob
-        calls exist anywhere in the corpus — file search happens via
-        Bash") and is scoped as part of B-5 (phase-2-prd.md P1). Until it
-        lands, any "never read" figure computed from read_tool alone is an
-        UPPER BOUND on never-read, not a measurement.
+        registered knowledge repo root. IMPLEMENTED (B-5, 2026-07-12) —
+        tools/cse-bench/collectors/transcripts.py
+        (_classify_knowledge_bash / _extract_bash_targets / the Bash
+        branch of _scan_extra). This closes the H-2 gap identified in
+        phase-1-findings.md ("no native Grep/Glob calls exist anywhere in
+        the corpus — file search happens via Bash"). Any "never read"
+        figure computed from read_tool alone remains available for
+        comparison (tools/cse-audit/product_usage.py still implements
+        that channel only) but is now known to be an UPPER BOUND on
+        never-read, not the full measurement — see the collector's
+        `distinct_files.bash_only` field for how many files this channel
+        surfaces that read_tool alone would have missed.
     named_file_match_rule: >-
       The binary must be in command position per the bash_mediated channel
       above (not merely present in the argument list — e.g. `echo "run cat
@@ -158,7 +164,7 @@ definitions:
       that call's OWN tool_result output (the files rg/grep actually
       reported matches in), not every file under the directory argument —
       a call that finds zero matches reads nothing under this rule.
-    source: "tools/cse-audit/product_usage.py (read_tool channel only; bash_mediated is unimplemented)"
+    source: "tools/cse-audit/product_usage.py (read_tool channel); tools/cse-bench/collectors/transcripts.py (bash_mediated channel, B-5)"
 
   knowledge_never_read_denominator:
     description: >-
@@ -364,17 +370,17 @@ claims:
   - id: delegation-rate-baseline
     statement: "Post-hook delegation rate, reported under both registered definitions: tool-share median ~40.5-40.9%; event-share median ~3.0-3.1%. The two disagree by an order of magnitude and neither is authoritative alone."
     definition_refs: [delegation_rate_tool_share, delegation_rate_event_share]
-    check: "python3 tools/cse-audit/run_probe.py (run from copilot-control-tower; reads ~/.claude/projects)"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only transcripts (reads metrics.global.delegation_rate_tool_share / delegation_rate_event_share .median from output/transcripts-latest.json; supersedes the tools/cse-audit/run_probe.py invocation as the runnable check now that B-5 exists, and additionally unions the archive with live ~/.claude/projects)"
     status: passing
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-5); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-5 row: 'Reproduces (40.9% tool-share vs 3.0% event-share)')"
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-5); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-5 row: 'Reproduces (40.9% tool-share vs 3.0% event-share)'); B-5 re-run 2026-07-12 via tools/cse-bench/collectors/transcripts.py, n=108 sessions (archive UNION live): tool-share median 40.9%, event-share median 3.2% — reproduces within the registered range"
     last_checked: "2026-07-12"
 
   - id: protocol-declaration-rate-baseline
     statement: "Post-hook protocol-declaration rate never recovered from the April 2026 pre-hook baseline (3.5%): median ~0.8-0.9% under the all-messages definition, 0.0% under the strict first-of-turn definition."
     definition_refs: [protocol_declaration]
-    check: "python3 tools/cse-audit/run_probe.py"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only transcripts (reads metrics.global.protocol_declaration_rate_loose / protocol_declaration_rate_strict .median from output/transcripts-latest.json; supersedes the tools/cse-audit/run_probe.py invocation as the runnable check now that B-5 exists)"
     status: passing
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-4); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-4 row: 'Reproduces: 0.9% median, 0.0% strict (n=76)')"
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-4); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-4 row: 'Reproduces: 0.9% median, 0.0% strict (n=76)'); B-5 re-run 2026-07-12 via tools/cse-bench/collectors/transcripts.py, n=108 sessions (archive UNION live): loose median 0.86%, strict median 0.0% — reproduces within the registered range"
     last_checked: "2026-07-12"
 
   - id: turn-definition-incompatible-with-april
@@ -396,9 +402,32 @@ claims:
   - id: knowledge-never-read-rate
     statement: "Share of Knowledge Copilot files never read, reported under both registered denominators: ~67% under knowledge_md (906 files); ~88% under all_files. The original Phase 1 headline of 95.6% is superseded (buggy path-join + vendored-file-polluted denominator) and must not be requoted."
     definition_refs: [knowledge_read, knowledge_never_read_denominator]
-    check: "manual — see docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html Knowledge Copilot panel; automatable re-run pending B-5 (phase-2-prd.md P1)"
-    status: passing
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-11); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-11 row: 'CORRECTED... Corrected: 67% (knowledge-md) to 88% (all files)')"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only transcripts (reads metrics.global.knowledge_read.never_read.{knowledge_md,all_files}.never_read_pct from output/transcripts-latest.json; this is the automatable re-run B-5 was scoped to build)"
+    status: failing
+    evidence: >-
+      docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-11);
+      docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html
+      (F-11 row: 'CORRECTED... Corrected: 67% (knowledge-md) to 88% (all files)').
+      B-5 re-run 2026-07-12 via tools/cse-bench/collectors/transcripts.py (n=108
+      sessions, archive UNION live, rename-robust matching per
+      knowledge_never_read_denominator): all_files never-read 88.7% (denominator
+      1724) — reproduces the registered ~88% closely (0.8% relative). knowledge_md
+      never-read 80.8% (denominator 915, vs the registered 906 — file count has
+      grown since this claim was registered) does NOT reproduce the registered
+      ~67% (~21% relative deviation) and is marked failing on that basis, per V-2
+      (corrections belong in a new commit with a changed last_checked, not a
+      silent rewrite of the pre-registered figure). Hypothesis: this collector's
+      basename-fallback rename matching is deliberately conservative (requires a
+      UNIQUE numeric-ordering-prefix-stripped basename match in today's
+      inventory; ambiguous or non-unique slugs are reported unmatched rather than
+      guessed) and demonstrably under-credits reads relative to whatever manual
+      reconciliation the original re-audit applied for the knowledge_md figure
+      specifically -- the all_files denominator, which has far more registered
+      files for a basename match to land uniquely against, is NOT similarly
+      affected and reproduces almost exactly, which is evidence this is a
+      matching-conservatism gap concentrated in the narrower denominator, not a
+      corpus or methodology error. Needs reconciliation against the original
+      manual figure, out of scope for this task.
     last_checked: "2026-07-12"
 
   - id: cli-command-liveness-breakdown

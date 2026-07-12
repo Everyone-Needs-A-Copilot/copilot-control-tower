@@ -13,8 +13,11 @@ change to add a new collector (transcripts, parity, health, ...).
 Usage:
     python3 cse_bench.py collect [--only tasksdb[,other]] [--out DIR]
     python3 cse_bench.py list
+    python3 cse_bench.py render [--out DIR] [--claims PATH]
 
-Stdlib only. No third-party dependencies.
+Stdlib only for collect/list. `render` (B-8, tools/cse-bench/render/) reads
+PyYAML if importable for the claims register and falls back gracefully
+(see render/dashboard.py's load_claims) — no hard new dependency either way.
 """
 from __future__ import annotations
 
@@ -131,6 +134,35 @@ def cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_render(args: argparse.Namespace) -> int:
+    """Render the static dashboard.html (B-8) from whatever collector
+    output and claims-register state currently exist. Lazily imports the
+    render/ package (same pattern discover_collectors() uses for
+    collectors/) so a bug in render/ can never affect `collect`/`list`.
+    """
+    out_dir = Path(args.out).expanduser().resolve() if args.out else DEFAULT_OUT_DIR
+    try:
+        from render.dashboard import DEFAULT_CLAIMS_PATH as RENDER_DEFAULT_CLAIMS_PATH
+        from render.dashboard import render_dashboard
+    except Exception as exc:
+        print(f"cse_bench: render module failed to import: {exc}", file=sys.stderr)
+        return 1
+
+    claims_path = Path(args.claims).expanduser().resolve() if args.claims else RENDER_DEFAULT_CLAIMS_PATH
+
+    try:
+        html_text = render_dashboard(out_dir=out_dir, claims_path=claims_path)
+    except Exception as exc:  # render_dashboard already degrades internally; this is a last-resort guard
+        print(f"cse_bench: render failed: {exc}", file=sys.stderr)
+        return 1
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    dest = out_dir / "dashboard.html"
+    dest.write_text(html_text, encoding="utf-8")
+    print(f"cse_bench: wrote {dest} ({dest.stat().st_size:,} bytes)")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cse_bench.py",
@@ -153,6 +185,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_parser = subparsers.add_parser("list", help="List registered collectors and exit.")
     list_parser.set_defaults(func=cmd_list)
+
+    render_parser = subparsers.add_parser(
+        "render",
+        help="Render output/dashboard.html (B-8) from collector *-latest.json output plus claims.yaml.",
+    )
+    render_parser.add_argument(
+        "--out",
+        help=f"Directory to read <collector>-latest.json from and write dashboard.html into (default: {DEFAULT_OUT_DIR}).",
+    )
+    render_parser.add_argument(
+        "--claims",
+        help="Path to claims.yaml (default: docs/40-initiatives/01-cse-auditability/claims.yaml).",
+    )
+    render_parser.set_defaults(func=cmd_render)
 
     return parser
 

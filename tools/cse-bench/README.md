@@ -25,6 +25,10 @@ python3 cse_bench.py collect --only tasksdb,transcripts --out /tmp/cse-bench-out
 
 # List what's registered
 python3 cse_bench.py list
+
+# Render the web-view dashboard (B-8) from whatever collector output +
+# claims.yaml currently exist, then open it — no server, no network
+open output/dashboard.html   # after: python3 cse_bench.py collect && python3 cse_bench.py render
 ```
 
 Run from `tools/cse-bench/` (the script adds its own directory to
@@ -77,6 +81,42 @@ version before assuming a field exists.
   definitions (completion rate, the reopened-count proxy, etc.) are
   restated in the output's own `metrics.definitions` block so no
   consumer has to read this file to know what a number means.
+
+## Dashboard (`render` — TASK-91 / B-8)
+
+```bash
+python3 cse_bench.py collect   # refresh output/*-latest.json
+python3 cse_bench.py render    # writes output/dashboard.html
+open output/dashboard.html     # no server, no network — opens straight from file://
+```
+
+`render` reads every `output/<collector>-latest.json` this machine has
+produced, plus the claims register (`../../docs/40-initiatives/01-cse-auditability/claims.yaml`,
+via `render/`'s reuse of `check_claims.py`'s PyYAML-or-fallback loader),
+and writes ONE self-contained `output/dashboard.html` — everything
+rendered server-side in Python, nothing fetched client-side. Same
+invariant as the rest of Control Tower: the collectors compute, this
+view only renders.
+
+Three panels:
+
+- **Adoption** — stat tiles + pure-CSS bar charts per collector
+  (`tasksdb`, `transcripts`, `velocity`, `integrations`, `parity`). A
+  collector whose `*-latest.json` doesn't exist yet renders a quiet
+  "collector not yet run" card instead of breaking the page — safe to
+  run `render` before every collector has been run at least once.
+- **Efficacy** — placeholder cards for B-9/B-10/B-11 (none built yet;
+  the panel says so honestly rather than inventing numbers).
+- **Trust** — the claims register rendered live: every claim's status
+  chip, statement, check command, and `last_checked`, plus the
+  permanent "adoption metrics are single-author data" banner (T8 open).
+
+`render/dashboard.py`'s per-collector renderers are written against each
+collector's real, observed `metrics` shape (see each function's
+docstring for which `output/*-latest.json` it was verified against); an
+unrecognized future shape change degrades to an in-page notice with the
+raw JSON in a `<details>`, never a crash — see that file's module
+docstring for the full schema-tolerance contract.
 
 ## Adding a collector
 
