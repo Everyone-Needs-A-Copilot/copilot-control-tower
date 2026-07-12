@@ -1,0 +1,183 @@
+# rules.yaml -- compiled voice-conformance rubric (TASK-93 / B-10).
+#
+# Every rule below was prose scattered across three knowledge-copilot
+# files. This is the first machine-readable compilation of it. Each
+# entry carries a `source` (file + line range, checked against the
+# actual file content on the date below -- not assumed from the task
+# brief's approximate refs, which had drifted in a few places).
+#
+# Source files (all in knowledge-copilot, read-only from this repo):
+#   tone_of_voice   = 01-company/01-brand/02-tone-of-voice.md
+#   cw_extension    = .claude/extensions/cw.extension.md
+#   cw_agent        = .claude/agents/cw.md
+#
+# Compiled: 2026-07-12. Line numbers are 1-indexed, verified by direct
+# read of each file at that timestamp.
+
+schema_version: voice-lint-rules/1
+knowledge_repo_root: /Volumes/Dev/Sites/COPILOT/knowledge-copilot
+sources:
+  tone_of_voice: 01-company/01-brand/02-tone-of-voice.md
+  cw_extension: .claude/extensions/cw.extension.md
+  cw_agent: .claude/agents/cw.md
+
+# ---------------------------------------------------------------------------
+# Banned words / phrases, by category. Matched case-insensitively on word
+# boundaries (multi-word phrases match with flexible internal whitespace).
+# Where the same term recurs across both source files it is listed once;
+# duplicate sourcing is noted, not double-counted.
+# ---------------------------------------------------------------------------
+banned_words:
+  corporate_speak:
+    source:
+      - "tone_of_voice:204-215 (### Banned Corporate Speak)"
+      - "cw_extension:153-158 (### Corporate Speak -- NEVER USE)"
+    terms:
+      - leverage
+      - synergy
+      - best-in-class
+      - solutions
+      - stakeholder engagement
+      - circle back
+      - move the needle
+      - strategic initiatives
+      - touch base
+      - deep dive
+
+  consultant_jargon:
+    source:
+      - "tone_of_voice:217-224 (### Banned Consultant Jargon)"
+      - "cw_extension:153-158 (### Corporate Speak -- NEVER USE, consultant-jargon items folded into the same block)"
+    terms:
+      - ideation session
+      - discovery phase
+      - synthesis workshop
+      - implementation roadmap
+      - change management
+      - transformation journey
+    note: >
+      tone_of_voice:222 allows "implementation roadmap" when "immediately
+      followed by something that makes it real" -- a conditional exception
+      the linter does not implement (documented limitation, see README).
+      It flags every occurrence.
+
+  hedging:
+    source:
+      - "tone_of_voice:226-234 (### Banned Hedging Language)"
+      - "cw_extension:160-164 (### Hedging -- NEVER USE)"
+    terms:
+      - we believe
+      - perhaps
+      - it could be argued
+      - in some cases
+      - potentially
+      - it's worth noting
+      - it's important to understand
+
+  ai_cliches:
+    source: "cw_extension:166-170 (### AI Cliches -- NEVER USE)"
+    terms:
+      - landscape
+      - delve
+      - realm
+      - tapestry
+      - unlock
+      - empower
+      - furthermore
+      - additionally
+      - moreover
+
+# ---------------------------------------------------------------------------
+# Em-dash ban -- absolute, no exceptions, called out as an explicit
+# "AI writing tell".
+# ---------------------------------------------------------------------------
+em_dash_ban:
+  source: "cw_extension:56 (### Structural Choices -- 'No em dashes.')"
+  rule: "Zero occurrences of U+2014 (—) permitted anywhere in the text. No exceptions per source text."
+
+# ---------------------------------------------------------------------------
+# Terminology substitution. Each entry is "avoid" (banned term(s), any use
+# is a violation) -> "use" (the mandated company term). Entries already
+# covered verbatim by banned_words.corporate_speak (leverage, synergy,
+# touch base, circle back, deep dive) are excluded here to avoid double-
+# counting the same literal word under two categories; every OTHER anti-
+# glossary/company-terminology row is included.
+# ---------------------------------------------------------------------------
+terminology:
+  # cw_extension Anti-Glossary table (172-183), rows not already in
+  # banned_words.corporate_speak.
+  - avoid: [stakeholder]
+    use: "person, leader, team member"
+    source: "cw_extension:176 (Anti-Glossary)"
+  - avoid: ["best practice"]
+    use: "what works here"
+    source: "cw_extension:177 (Anti-Glossary)"
+  - avoid: [alignment]
+    use: "agreement with commitment"
+    source: "cw_extension:180 (Anti-Glossary)"
+
+  # cw_extension Company Terminology -> Core Terms table (212-224),
+  # "Never Say Instead" column.
+  - avoid: [consultant, advisor, vendor]
+    use: copilot
+    source: "cw_extension:218 (Company Terminology / Core Terms)"
+  - avoid: [problem, issue, challenge]
+    use: tension
+    source: "cw_extension:219 (Company Terminology / Core Terms)"
+  - avoid: [solution, fix, answer]
+    use: breakthrough
+    source: "cw_extension:220 (Company Terminology / Core Terms)"
+  - avoid: [deliverable, handoff, recommendation]
+    use: co-creation
+    source: "cw_extension:221 (Company Terminology / Core Terms)"
+  - avoid: [factors, considerations, elements]
+    use: forces
+    source: "cw_extension:222 (Company Terminology / Core Terms)"
+  - avoid: ["pain point", "friction point"]
+    use: "struggling moment"
+    source: "cw_extension:223 (Company Terminology / Core Terms)"
+
+# ---------------------------------------------------------------------------
+# Sentence rhythm.
+# ---------------------------------------------------------------------------
+rhythm:
+  source: "cw_extension:204 (Voice Calibration Check table -- 'More than 2 sentences in a row under 5 words' -> 'Too punchy, feels like copywriting')"
+  rule: "A run of 3 or more CONSECUTIVE sentences that each have fewer than 5 words is a violation (one violation per run, not per sentence)."
+  threshold_words: 5
+  min_consecutive: 3
+
+# ---------------------------------------------------------------------------
+# Readability target.
+# ---------------------------------------------------------------------------
+flesch_kincaid:
+  source: "cw_agent:71 (Readability Engineering -- 'Target grade 6-8 reading level (Flesch-Kincaid)')"
+  target_grade_min: 6
+  target_grade_max: 8
+
+# ---------------------------------------------------------------------------
+# Illustrative before/after exemplar pairs (tone_of_voice.md). NOT checked
+# programmatically by lint.py -- recorded here for completeness /
+# future exemplar-anchored judging work (see README "necessary, not
+# sufficient" caveat), since the task asked for EVERY rule extracted,
+# and these before/after pairs are the clearest statement of what "good"
+# looks like beyond negative-space (banned-word) conformance.
+# ---------------------------------------------------------------------------
+exemplar_pairs:
+  - source: "tone_of_voice:380-386 (Examples in Action, pair 1)"
+    before: "Our organizational design methodology leverages a proprietary framework to facilitate strategic alignment among leadership teams, enabling enhanced execution capabilities and sustainable transformation outcomes."
+    after: "Your senior team agrees in meetings then does their own thing. Org Design gets your leadership team aligned and executing together. In 8 weeks, not 8 months."
+  - source: "tone_of_voice:390-396 (Examples in Action, pair 2)"
+    before: "We provide strategic support for executives navigating complex business challenges through a collaborative partnership model."
+    after: "You can't say what you're really thinking to your board. You can't show uncertainty to your team. Copilot is the thinking partner who tells you what your team won't, asks what your board doesn't, and stays until you've landed safely."
+  - source: "tone_of_voice:130-132 (Lead with Pain)"
+    before: "Our organizational design methodology helps align leadership teams through a proprietary framework."
+    after: "Your senior team nods in agreement then runs five different companies."
+  - source: "tone_of_voice:138-140 (Be Surgically Concise)"
+    before: "We help facilitate productive conversations that enable leadership teams to move from discussion to decision-making."
+    after: "Stop circling. Start deciding."
+  - source: "tone_of_voice:146-148 (Show, Don't Tell)"
+    before: "Organizations face significant challenges with execution efficiency."
+    after: "Every initiative takes twice as long and costs twice as much."
+  - source: "tone_of_voice:154-156 (Use Active, Direct Language)"
+    before: "A more aligned leadership team structure is delivered through our methodology."
+    after: "We hand you a leadership team that's rowing together."

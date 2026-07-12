@@ -26,7 +26,14 @@ anything recognized, dispatch() degrades to a quiet "unrecognized shape"
 card with the raw JSON available in a <details> — it never lets one
 collector's surprise shape blank the page. A collector whose *-latest.json
 file does not exist yet renders the plain "not run" placeholder the task
-calls for.
+calls for. The Efficacy panel's bench_knowledge_qa/bench_voice_lint/
+bench_mcp_twin renderers (B-9/B-10/B-11) are owned by parallel agents and
+had not landed a real output file as of this writing — those three are
+GUESSED-SHAPE renderers (several candidate metric-key spellings tried per
+value) precisely because the schema-tolerance contract above has to hold
+even before the producer exists, not just after it changes. evals
+(collectors/evals.py, B-12 groundwork) and the tasksdb-trend efficacy card
+are owned by this module and ARE verified against a real collect run.
 
 Organized atoms-up (Brad Frost-ish, even though the output is server-
 rendered HTML, not a component tree):
@@ -53,7 +60,17 @@ DEFAULT_CLAIMS_PATH = (
     REPO_ROOT / "docs" / "40-initiatives" / "01-cse-auditability" / "claims.yaml"
 )
 
-KNOWN_COLLECTORS = ["tasksdb", "transcripts", "velocity", "integrations", "parity"]
+KNOWN_COLLECTORS = [
+    "tasksdb",
+    "transcripts",
+    "velocity",
+    "integrations",
+    "parity",
+    "evals",
+    "bench_knowledge_qa",
+    "bench_voice_lint",
+    "bench_mcp_twin",
+]
 
 # check_claims.py already implements "prefer PyYAML, fall back to a vendored
 # strict-subset parser" (B-2). Reusing it here means this module has exactly
@@ -109,6 +126,29 @@ def fmt_pct100(pct: Any, decimals: int = 1) -> str:
         return f"{float(pct):.{decimals}f}%"
     except (TypeError, ValueError):
         return "—"
+
+
+def _as_float(value: Any) -> float | None:
+    """Coerce a value pulled from an unverified/best-effort metrics shape
+    (see the bench_* renderers below) to a float for arithmetic-comparison
+    or numeric-format use; None on anything non-numeric. Never raises —
+    the caller is always free to treat the result as "field not usable"."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def fmt_signed(value: Any, decimals: int = 2, suffix: str = "") -> str:
+    """Format a value already known to be signed-meaningful (a delta or an
+    advantage figure) with an explicit +/- sign. "—" on anything
+    non-numeric, same convention as fmt_pct/fmt_int."""
+    num = _as_float(value)
+    if num is None:
+        return "—"
+    return f"{num:+.{decimals}f}{suffix}"
 
 
 def dig(d: Any, *path: str, default: Any = _MISSING) -> Any:
@@ -189,13 +229,14 @@ def raw_json_details(envelope: Any, label: str = "Raw JSON") -> str:
     return f'<details class="rawjson"><summary>{esc(label)}</summary><pre><code>{raw}</code></pre></details>'
 
 
-def placeholder_card(name: str, title: str, blurb: str) -> str:
+def placeholder_card(name: str, title: str, blurb: str, extra_html: str = "") -> str:
     return (
         f'<div class="card placeholder">'
         f"<h3>{esc(title)}</h3>"
         f'<p class="role">collector: <code>{esc(name)}</code></p>'
         f"<p>{esc(blurb)}</p>"
         f'<p class="tnote">collector not yet run — <code>python3 cse_bench.py collect --only {esc(name)}</code></p>'
+        f"{extra_html}"
         f"</div>"
     )
 
@@ -225,9 +266,9 @@ def unexpected_shape_card(name: str, title: str, exc: Exception, envelope: Any) 
     )
 
 
-def dispatch(envelope: Any, name: str, renderer, title: str, blurb: str) -> str:
+def dispatch(envelope: Any, name: str, renderer, title: str, blurb: str, placeholder_extra: str = "") -> str:
     if envelope is None:
-        return placeholder_card(name, title, blurb)
+        return placeholder_card(name, title, blurb, placeholder_extra)
     if isinstance(envelope, dict) and "__parse_error__" in envelope:
         return parse_error_card(name, title, envelope["__parse_error__"])
     try:
@@ -617,60 +658,452 @@ def render_adoption_section(outputs: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Organisms — Efficacy panel (all placeholders; none of B-9/B-10/B-11 exist yet)
+# Organisms — Efficacy panel (B-9/B-10/B-11 benches + B-12 evals; each card
+# is LIVE the moment its collector has written output/<name>-latest.json,
+# and an honest "not yet run" placeholder until then — same dispatch()
+# contract the Adoption panel uses, see module docstring's SCHEMA TOLERANCE
+# note. bench_knowledge_qa / bench_voice_lint / bench_mcp_twin are owned by
+# parallel agents and had not landed as of this module's writing, so their
+# renderers are deliberately best-effort: several candidate metric-key
+# names are tried via first()/dig(), and an unrecognized shape degrades to
+# the raw-JSON unexpected-shape card via dispatch() rather than inventing a
+# number. evals (collectors/evals.py) and the tasksdb trend card below are
+# both owned by this module and verified against a real collect run.
 # ---------------------------------------------------------------------------
 
 
-def efficacy_card(title: str, blurb: str, claim_id: str, claims_by_id: dict) -> str:
+def claim_ref_note(claim_id: str, claims_by_id: dict) -> str:
     claim = claims_by_id.get(claim_id)
-    ref_note = ""
-    if claim:
-        ref_note = (
-            f'<p class="tnote">Tracked by claim <code>{esc(claim_id)}</code> in the Trust panel '
-            f'(status: {chip(claim.get("status", "unchecked"))}).</p>'
-        )
+    if not claim:
+        return ""
+    return (
+        f'<p class="tnote">Tracked by claim <code>{esc(claim_id)}</code> in the Trust panel '
+        f'(status: {chip(claim.get("status", "unchecked"))}).</p>'
+    )
+
+
+def render_bench_knowledge_qa(envelope: dict) -> str:
+    """Matches collectors/bench_knowledge_qa.py's real, observed
+    `metrics.results.headline` / `metrics.bank` shape (verified against a
+    real collect run — see output/bench_knowledge_qa-latest.json, B-9).
+    `first()` fallback candidates from this renderer's original
+    pre-landing guesses are kept after the real paths in case the shape
+    changes later; an unrecognized shape still degrades to the
+    unexpected-shape card via dispatch(), never a crash or an invented
+    number."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+
+    acc_with = first(
+        metrics,
+        "results.headline.accuracy_with",
+        "accuracy_with",
+        "accuracy_with_knowledge",
+        "arms.with_knowledge.accuracy",
+        "with_knowledge.accuracy",
+    )
+    acc_without = first(
+        metrics,
+        "results.headline.accuracy_without",
+        "accuracy_without",
+        "accuracy_without_knowledge",
+        "arms.without_knowledge.accuracy",
+        "without_knowledge.accuracy",
+        "arms.empty_tree.accuracy",
+        "empty_tree.accuracy",
+    )
+    delta = first(metrics, "results.headline.delta", "delta", "accuracy_delta", "delta_accuracy")
+    unknown_with = first(
+        metrics,
+        "results.headline.unknown_rate_with",
+        "unknown_rate_with",
+        "arms.with_knowledge.unknown_rate",
+        "with_knowledge.unknown_rate",
+    )
+    unknown_without = first(
+        metrics,
+        "results.headline.unknown_rate_without",
+        "unknown_rate_without",
+        "arms.without_knowledge.unknown_rate",
+        "without_knowledge.unknown_rate",
+        "arms.empty_tree.unknown_rate",
+    )
+    bank_size = first(metrics, "bank.size", "bank_size", "question_bank_size", "n_questions", "questions.total")
+
+    if acc_with is None and acc_without is None and bank_size is None:
+        raise ValueError("no recognized bench_knowledge_qa fields found under metrics")
+
+    delta_f = _as_float(delta)
+    tiles_html = "".join(
+        t
+        for t in [
+            tile(fmt_pct(acc_with), "accuracy — with knowledge", "ok") if acc_with is not None else "",
+            tile(fmt_pct(acc_without), "accuracy — without knowledge") if acc_without is not None else "",
+            tile(fmt_pct(delta), "delta (with − without)", "ok" if (delta_f or 0) > 0 else "")
+            if delta is not None
+            else "",
+            tile(fmt_pct(unknown_with), "UNKNOWN rate — with knowledge") if unknown_with is not None else "",
+            tile(fmt_pct(unknown_without), "UNKNOWN rate — without knowledge") if unknown_without is not None else "",
+            tile(fmt_int(bank_size), "question bank size") if bank_size is not None else "",
+        ]
+        if t
+    )
+
     return (
         '<div class="card">'
-        f"<h3>{esc(title)}</h3>"
-        '<p class="role">PRD-9 · phase-2-prd.md P2</p>'
-        f"<p>{esc(blurb)}</p>"
-        '<span class="chip neutral">BENCH NOT YET BUILT</span>'
-        f"{ref_note}"
+        "<h3>B-9 · Private-fact Q&amp;A bench</h3>"
+        f'<p class="role">collector: <code>bench_knowledge_qa</code> · generated {esc(generated)}</p>'
+        f'<div class="tiles">{tiles_html}</div>'
+        f"{raw_json_details(envelope, 'Raw JSON (bench_knowledge_qa-latest.json)')}"
         "</div>"
     )
 
 
-def render_efficacy_section(claims_by_id: dict) -> str:
+def render_bench_voice_lint(envelope: dict) -> str:
+    """Matches collectors/bench_voice_lint.py's real, observed
+    `metrics.per_arm_summary.<arm>.mean_total_violations_per_100_words` /
+    `metrics.headline.*_delta_total_violations_per_100_words` shape
+    (verified against a real collect run — see
+    output/bench_voice_lint-latest.json, B-10). Two deltas are reported by
+    the collector (knowledge-vs-bare and the sharper knowledge-vs-rules-
+    in-prompt "does the repo earn its keep over just pasting the
+    rubric?" question); both are shown rather than collapsing to one.
+    `first()` fallback candidates from this renderer's pre-landing guess
+    are kept after the real paths."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+
+    arm_candidates = {
+        "bare": [
+            "per_arm_summary.arm_bare.mean_total_violations_per_100_words",
+            "arms.bare.violations_per_100w",
+            "bare.violations_per_100w",
+            "violations_per_100w.bare",
+        ],
+        "rules_in_prompt": [
+            "per_arm_summary.arm_rules_in_prompt.mean_total_violations_per_100_words",
+            "arms.rules_in_prompt.violations_per_100w",
+            "rules_in_prompt.violations_per_100w",
+            "violations_per_100w.rules_in_prompt",
+        ],
+        "knowledge": [
+            "per_arm_summary.arm_knowledge.mean_total_violations_per_100_words",
+            "arms.knowledge.violations_per_100w",
+            "knowledge.violations_per_100w",
+            "violations_per_100w.knowledge",
+        ],
+    }
+    arm_values = {name: _as_float(first(metrics, *paths)) for name, paths in arm_candidates.items()}
+    delta_knowledge_vs_bare = first(
+        metrics, "headline.knowledge_vs_bare_delta_total_violations_per_100_words", "marginal_delta"
+    )
+    delta_knowledge_vs_rules = first(
+        metrics,
+        "headline.knowledge_vs_rules_delta_total_violations_per_100_words",
+        "marginal_value_delta",
+        "delta.marginal",
+    )
+
+    if all(v is None for v in arm_values.values()) and delta_knowledge_vs_bare is None and delta_knowledge_vs_rules is None:
+        raise ValueError("no recognized bench_voice_lint fields found under metrics")
+
+    present_arms = {k: v for k, v in arm_values.items() if v is not None}
+    max_v = max(list(present_arms.values()) + [1.0])
+    bars = "".join(
+        bar_row(name.replace("_", " "), v, max_v, display=f"{v:.2f}/100w", color_var="--warn")
+        for name, v in present_arms.items()
+    )
+    delta_tiles = "".join(
+        t
+        for t in [
+            tile(
+                fmt_signed(delta_knowledge_vs_bare, decimals=2, suffix="/100w"),
+                "delta: knowledge vs. bare (negative = fewer violations)",
+            )
+            if delta_knowledge_vs_bare is not None
+            else "",
+            tile(
+                fmt_signed(delta_knowledge_vs_rules, decimals=2, suffix="/100w"),
+                "marginal value: knowledge vs. rules-in-prompt",
+            )
+            if delta_knowledge_vs_rules is not None
+            else "",
+        ]
+        if t
+    )
+
+    return (
+        '<div class="card">'
+        "<h3>B-10 · Voice-conformance bench</h3>"
+        f'<p class="role">collector: <code>bench_voice_lint</code> · generated {esc(generated)}</p>'
+        f'<div class="tiles">{delta_tiles}</div>'
+        '<h4 class="subhead">Mean violations per 100 words, by arm</h4>'
+        f'<div class="bars">{bars}</div>'
+        f"{raw_json_details(envelope, 'Raw JSON (bench_voice_lint-latest.json)')}"
+        "</div>"
+    )
+
+
+def render_bench_mcp_twin(envelope: dict) -> str:
+    """Matches collectors/bench_mcp_twin.py's real, observed
+    `metrics.twins.<name>.net_advantage_tokens.{conservative_using_probe_everything_grammar_cost,
+    optimistic_using_prose_grammar_cost}` / `metrics.f17_caveats` shape
+    (verified against a real collect run — see
+    output/bench_mcp_twin-latest.json, B-11, F-17). Each twin reports TWO
+    net-advantage variants (conservative/optimistic grammar-cost basis) —
+    the collector's own `net_advantage_tokens` definition deliberately
+    does not pick one ("the task does not license picking one"), so this
+    renderer shows both rather than collapsing to a single number. A flat
+    per-twin numeric fallback (this renderer's pre-landing guess) is tried
+    first if the nested-variant shape isn't present."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+
+    raw_twins = first(metrics, "twins", "per_twin", "net_advantage_tokens")
+    twin_variants: dict[str, dict[str, float]] = {}
+    if isinstance(raw_twins, dict):
+        for name, val in raw_twins.items():
+            if not isinstance(val, dict):
+                flat = _as_float(val)
+                if flat is not None:
+                    twin_variants[name] = {"advantage": flat}
+                continue
+            nat = val.get("net_advantage_tokens")
+            if isinstance(nat, dict):
+                variants = {}
+                conservative = _as_float(nat.get("conservative_using_probe_everything_grammar_cost"))
+                optimistic = _as_float(nat.get("optimistic_using_prose_grammar_cost"))
+                if conservative is not None:
+                    variants["conservative"] = conservative
+                if optimistic is not None:
+                    variants["optimistic"] = optimistic
+                if variants:
+                    twin_variants[name] = variants
+            else:
+                flat = _as_float(nat if nat is not None else val.get("advantage_tokens"))
+                if flat is not None:
+                    twin_variants[name] = {"advantage": flat}
+
+    if not twin_variants:
+        raise ValueError("no recognized bench_mcp_twin net-advantage-tokens fields found under metrics")
+
+    all_values = [v for variants in twin_variants.values() for v in variants.values()]
+    max_v = max(abs(v) for v in all_values) or 1.0
+    bars = "".join(
+        bar_row(
+            f"{name} ({variant})",
+            abs(v),
+            max_v,
+            display=f"{v:+,.0f} tok",
+            color_var="--good" if v >= 0 else "--crit",
+        )
+        for name, variants in sorted(twin_variants.items())
+        for variant, v in variants.items()
+    )
+
+    caveats = metrics.get("f17_caveats")
+    if isinstance(caveats, list) and caveats:
+        caveat_html = "<ul>" + "".join(f"<li>{esc(c)}</li>" for c in caveats) + "</ul>"
+    else:
+        single_caveat = first(metrics, "f17_caveat", "bounded_caveat", "caveat")
+        caveat_html = (
+            f'<p class="tnote">{esc(single_caveat)}</p>'
+            if single_caveat
+            else '<p class="tnote">Honestly bounded per F-17 (the deferral-threshold caveat) — see raw JSON for '
+            "the collector's own bounding note if one is present.</p>"
+        )
+
+    return (
+        '<div class="card">'
+        "<h3>B-11 · MCP-twin bench</h3>"
+        f'<p class="role">collector: <code>bench_mcp_twin</code> · generated {esc(generated)}</p>'
+        '<h4 class="subhead">Net advantage, tokens (CLI vs. live MCP twin) — conservative vs. optimistic '
+        "grammar-cost basis</h4>"
+        f'<div class="bars">{bars}</div>'
+        '<h4 class="subhead">F-17 bounded caveats</h4>'
+        f"{caveat_html}"
+        f"{raw_json_details(envelope, 'Raw JSON (bench_mcp_twin-latest.json)')}"
+        "</div>"
+    )
+
+
+def render_evals(envelope: dict) -> str:
+    """Matches collectors/evals.py's `metrics.agents_with_evals` /
+    `metrics.agents_total` / `metrics.coverage_ratio` / `metrics.per_agent`
+    shape (verified against a real collect run — see output/evals-latest.json).
+    Golden-set pass-rate per agent via claude-copilot's `cc eval`
+    (LocalPythonRunner — pure Python, no LLM call), the T3 program truth
+    condition's only measured signal today."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+
+    agents_with_evals = metrics.get("agents_with_evals")
+    agents_total = metrics.get("agents_total")
+    coverage_ratio = metrics.get("coverage_ratio")
+    per_agent = metrics.get("per_agent")
+
+    if not isinstance(per_agent, dict) and agents_total is None:
+        raise ValueError("no recognized eval-coverage fields found under metrics")
+
+    per_agent = per_agent if isinstance(per_agent, dict) else {}
+    agents_with_evals = agents_with_evals if isinstance(agents_with_evals, list) else list(per_agent.keys())
+
+    coverage_display = f"{fmt_int(len(agents_with_evals))} / {fmt_int(agents_total) if agents_total is not None else '?'}"
+    tiles_html = "".join(
+        t
+        for t in [
+            tile(coverage_display, "agents with a golden-set eval", "hot" if (coverage_ratio or 0) < 0.5 else ""),
+            tile(fmt_pct(coverage_ratio), "eval coverage ratio") if coverage_ratio is not None else "",
+        ]
+        if t
+    )
+
+    bars = ""
+    if per_agent:
+        rows = []
+        for agent, data in sorted(per_agent.items()):
+            if not isinstance(data, dict):
+                continue
+            pass_rate = _as_float(data.get("pass_rate"))
+            cases = data.get("cases")
+            passed = data.get("passed")
+            display = (
+                f"{fmt_pct(pass_rate)} ({fmt_int(passed)}/{fmt_int(cases)})"
+                if pass_rate is not None and cases is not None
+                else fmt_pct(pass_rate)
+            )
+            rows.append(
+                bar_row(
+                    agent,
+                    pass_rate or 0,
+                    1.0,
+                    display=display,
+                    color_var="--good" if (pass_rate or 0) >= 0.8 else "--warn",
+                )
+            )
+        bars = '<h4 class="subhead">Pass rate by agent</h4><div class="bars">' + "".join(rows) + "</div>"
+
+    coverage_note = (
+        f'<p class="tnote">Coverage: {fmt_int(len(agents_with_evals))} of '
+        f'{fmt_int(agents_total) if agents_total is not None else "an unknown number of"} specialist agents have '
+        "a golden-set eval today — the T3 program truth condition (\"every specialist agent has a passing "
+        "golden-set eval\") is unmet by construction until B-12 expands the golden-set roster.</p>"
+    )
+
+    return (
+        '<div class="card">'
+        "<h3>Golden-set eval coverage</h3>"
+        f'<p class="role">collector: <code>evals</code> · generated {esc(generated)}</p>'
+        f'<div class="tiles">{tiles_html}</div>'
+        f"{bars}{coverage_note}"
+        f"{raw_json_details(envelope, 'Raw JSON (evals-latest.json)')}"
+        "</div>"
+    )
+
+
+def render_tasksdb_trend_efficacy(envelope: dict) -> str:
+    """Small efficacy-adjacent card: Task Copilot completion/rework trend,
+    sourced from the SAME tasksdb-latest.json the Adoption panel's Task
+    Copilot throughput card already reads (collectors/tasksdb.py, B-4) —
+    not a new collector, and this card deliberately omits the raw-JSON
+    block (already shown once, in full, on the Adoption card) to stay
+    small."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+    totals = metrics.get("totals", {}) if isinstance(metrics.get("totals"), dict) else {}
+
+    completion_rate = totals.get("completion_rate")
+    reopened = totals.get("reopened_count")
+    cancelled = totals.get("cancelled_count")
+    tasks = totals.get("tasks")
+
+    if completion_rate is None and reopened is None and tasks is None:
+        raise ValueError("no recognized tasksdb totals found under metrics")
+
+    tiles_html = "".join(
+        t
+        for t in [
+            tile(fmt_pct(completion_rate), "completion rate", "ok" if (completion_rate or 0) >= 0.5 else "")
+            if completion_rate is not None
+            else "",
+            tile(fmt_int(reopened), "reopened (rework proxy)", "hot" if (reopened or 0) > 0 else "")
+            if reopened is not None
+            else "",
+            tile(fmt_int(cancelled), "cancelled") if cancelled is not None else "",
+            tile(fmt_int(tasks), "tasks tracked") if tasks is not None else "",
+        ]
+        if t
+    )
+
+    trend = totals.get("monthly_trend", {}) if isinstance(totals.get("monthly_trend"), dict) else {}
+    trend_html = monthly_trend_chart(trend.get("created", {}) or {}, trend.get("completed", {}) or {})
+
+    return (
+        '<div class="card">'
+        "<h3>Task throughput — completion/rework trend</h3>"
+        f'<p class="role">collector: <code>tasksdb</code> · generated {esc(generated)} · same source as the '
+        "Adoption panel's Task Copilot card</p>"
+        f'<div class="tiles">{tiles_html}</div>'
+        f"{trend_html}"
+        "</div>"
+    )
+
+
+def render_efficacy_section(outputs: dict, claims_by_id: dict) -> str:
     cards = [
-        efficacy_card(
+        dispatch(
+            outputs.get("bench_knowledge_qa"),
+            "bench_knowledge_qa",
+            render_bench_knowledge_qa,
             "B-9 · Private-fact Q&A bench",
             "Closed-book questions generated from product dossiers, scored with-knowledge vs. against an "
             "empty tree — a contamination-immune ablation.",
-            "t4-knowledge-layer-changes-output",
-            claims_by_id,
+            claim_ref_note("t4-knowledge-layer-changes-output", claims_by_id),
         ),
-        efficacy_card(
+        dispatch(
+            outputs.get("bench_voice_lint"),
+            "bench_voice_lint",
+            render_bench_voice_lint,
             "B-10 · Voice-conformance bench",
             "Deterministic linter compiled from the existing tone-of-voice rubric (banned words, em-dash ban, "
             "AI-cliché list, terminology table, reading-level target) — no LLM judge required.",
-            "t4-knowledge-layer-changes-output",
-            claims_by_id,
+            claim_ref_note("t4-knowledge-layer-changes-output", claims_by_id),
         ),
-        efficacy_card(
+        dispatch(
+            outputs.get("bench_mcp_twin"),
+            "bench_mcp_twin",
+            render_bench_mcp_twin,
             "B-11 · MCP-twin bench",
             "copilot crm / db against their live MCP twins — tokens, latency, success rate, honestly "
             "bounded per the F-17 deferral-threshold caveat.",
-            "t5-integration-layer-pays-its-way",
-            claims_by_id,
+            claim_ref_note("t5-integration-layer-pays-its-way", claims_by_id),
+        ),
+        dispatch(
+            outputs.get("evals"),
+            "evals",
+            render_evals,
+            "Golden-set eval coverage",
+            "cc eval golden-set pass-rate per agent (LocalPythonRunner, deterministic, no LLM call) — the "
+            "instruction layer's only rubric-scored quality metric today.",
+            claim_ref_note("t3-instruction-layer-changes-behavior", claims_by_id),
+        ),
+        dispatch(
+            outputs.get("tasksdb"),
+            "tasksdb",
+            render_tasksdb_trend_efficacy,
+            "Task throughput — completion/rework trend",
+            "Completion rate and the reopened-count rework proxy, efficacy-adjacent context alongside the "
+            "benches above — same source as the Adoption panel's Task Copilot card, no new collector.",
         ),
     ]
     return (
         '<section id="efficacy">'
         '<span class="eyebrow">Panel 2 · Efficacy</span>'
-        "<h2>Does it help? (not yet measured)</h2>"
-        '<p class="prose">Adoption tells you the CSE is alive; only these benches can tell you it helps. '
-        "PRD-9 P2 scopes each as a deterministic, contamination-resistant delta a skeptic can re-run. None are "
-        "built yet — that is the honest current state, not an oversight.</p>"
+        "<h2>Does it help?</h2>"
+        '<p class="prose">Adoption tells you the CSE is alive; only these benches (plus eval coverage) can tell '
+        "you it helps. PRD-9 P2 scopes each as a deterministic, contamination-resistant delta a skeptic can "
+        're-run. Each card below is LIVE the moment its collector has run at least once; until then it is an '
+        'honest "not yet run" placeholder, never an invented number.</p>'
         f'<div class="cards">{"".join(cards)}</div>'
         "</section>"
     )
@@ -1065,7 +1498,7 @@ def render_dashboard(out_dir: Path, claims_path: Path | None = None) -> str:
             return f'<section><div class="callout crit">Section failed to render: {esc(exc)}</div></section>'
 
     adoption_html = safe_section(render_adoption_section, outputs)
-    efficacy_html = safe_section(render_efficacy_section, claims_by_id)
+    efficacy_html = safe_section(render_efficacy_section, outputs, claims_by_id)
     trust_html = safe_section(render_trust_section, claims_data, claims_error)
 
     return build_page(

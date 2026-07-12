@@ -216,16 +216,16 @@ def _merge_indexes(archive_files: dict[str, Path], live_files: dict[str, Path]) 
     provenance = {"archive_only": 0, "live_only": 0, "both": 0}
     for rel in set(archive_files) | set(live_files):
         a = archive_files.get(rel)
-        l = live_files.get(rel)
-        if a and l:
+        lv = live_files.get(rel)
+        if a and lv:
             provenance["both"] += 1
-            winners[rel] = _pick_winner(a, l)
+            winners[rel] = _pick_winner(a, lv)
         elif a:
             provenance["archive_only"] += 1
             winners[rel] = a
         else:
             provenance["live_only"] += 1
-            winners[rel] = l
+            winners[rel] = lv
     return winners, provenance
 
 

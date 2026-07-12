@@ -458,6 +458,38 @@ claims:
     statement: "claude-copilot's delegation-enforcement PreToolUse hook matcher is Bash-only (excludes Read/Edit/Agent), unchanged since the 2026-04-22 same-day deadlock-resolution commit (23c02c0) that narrowed it from 'Bash|Read|Edit|Agent' to 'Bash'."
     definition_refs: []
     check: "git -C /Volumes/Dev/Sites/COPILOT/claude-copilot show HEAD:.claude/settings.json (external repo, informational)"
+    status: failing
+    evidence: "C-6 (TASK-106) fixed the deadlock and re-widened the matcher to 'Bash|Read|Edit|Agent': claude-copilot commit 77f5cdb0 (subagent exemption via agent_type, CC_HOOK_ENFORCE kill switch, fail-open hardening; root cause in claude-copilot docs/10-architecture/06-hook-deadlock-root-cause-2026-07.md). This statement is now FALSE — the desired direction. Rollout beyond claude-copilot remains staged (C-3); see enforcement-hook-wiring-ratio, still true."
+    last_checked: "2026-07-12"
+
+  - id: knowledge-factual-accuracy-delta
+    statement: "With dossier content in context, model accuracy on private product facts is >=90%; without it, accuracy is ~0% with a high UNKNOWN rate (contamination immunity). First run: with=98.0% (48/49), without=0.0% (49/49 UNKNOWN), delta=+98.0pp, model=sonnet."
+    definition_refs: []
+    check: "cd tools/cse-bench/benches/knowledge_qa && python3 run.py (49-question bank, 2 dossiers; output/bench_knowledge_qa-latest.json)"
     status: passing
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-1); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-1 row: 'UPHELD. Live settings.json matcher is still Bash-only')"
+    evidence: "tools/cse-bench/output/bench_knowledge_qa-latest.json (run 20260712T175029Z; per-call audit in output/bench_knowledge_qa-runs/)"
+    last_checked: "2026-07-12"
+
+  - id: voice-conformance-deltas
+    statement: "Knowledge voice content reduces linter violations vs bare prompting (knowledge_vs_bare < 0), BUT compiled rules-in-prompt outperform raw repo-as-context on conformance (knowledge_vs_rules >= 0) — the effective payload is the distilled rubric, not the prose. First run: bare=2.77, rules=0.10, knowledge=0.48 violations/100w."
+    definition_refs: []
+    check: "cd tools/cse-bench/benches/voice_lint && python3 run.py (6 tasks x 3 arms; output/bench_voice_lint-latest.json)"
+    status: passing
+    evidence: "tools/cse-bench/output/bench_voice_lint-latest.json (clean 18/18 run 20260712T175434Z; direction replicated across 2 runs); rubric: benches/voice_lint/rules.yaml (44 rules, source-cited)"
+    last_checked: "2026-07-12"
+
+  - id: cli-mcp-net-token-advantage
+    statement: "CLI Copilot's token advantage over its two MCP twins is positive. FALSIFIED as stated: net advantage is negative for both twins under probe-everything grammar cost (crm -780, db -1894 tokens) and positive only for crm (+1238) when the shipped prose docs are provided up front. Live tools/list handshakes, tiktoken o200k_base."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 benches/mcp_twin/run.py (output/bench_mcp_twin-latest.json)"
+    status: failing
+    evidence: "tools/cse-bench/output/bench_mcp_twin-latest.json (run 20260712T175500Z). Product implication: ship the per-service prose (docs/services/*.md) into agent context; F-17's 10% deferral threshold remains changelog-sourced/unverified."
+    last_checked: "2026-07-12"
+
+  - id: agent-eval-coverage
+    statement: "Every framework agent has a golden-set eval with a passing score. Current: 1 of 16 agents covered (qa: 10/10 pass, deterministic LocalPythonRunner, threshold 0.8); coverage_ratio 6.25%."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only evals (runs cc eval --agent qa --json in claude-copilot)"
+    status: failing
+    evidence: "tools/cse-bench/output/evals-latest.json — the qa suite passes; the CLAIM fails on coverage (15 of 16 agents unmeasured). Expansion tracked as C-5 (TASK-105)."
     last_checked: "2026-07-12"

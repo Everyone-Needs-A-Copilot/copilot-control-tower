@@ -20,6 +20,9 @@ python3 cse_bench.py collect
 # Run one collector only
 python3 cse_bench.py collect --only tasksdb
 
+# Run the golden-set eval collector (needs claude-copilot's cc on this machine)
+python3 cse_bench.py collect --only evals
+
 # Run a subset, write elsewhere
 python3 cse_bench.py collect --only tasksdb,transcripts --out /tmp/cse-bench-out
 
@@ -81,6 +84,15 @@ version before assuming a field exists.
   definitions (completion rate, the reopened-count proxy, etc.) are
   restated in the output's own `metrics.definitions` block so no
   consumer has to read this file to know what a number means.
+- **`evals`** (TASK-95/B-12 groundwork) — runs `cc eval --agent <agent>
+  --json` (claude-copilot's `~/.local/bin/cc`) for every agent that has a
+  golden set under `<claude-copilot>/.claude/evals/<agent>/*.yaml`, and
+  reports `agents_total` (from `<claude-copilot>/.claude/agents/*.md`),
+  `agents_with_evals`, `coverage_ratio`, and a `per_agent` pass-rate
+  breakdown. The eval runner itself is a pure-Python deterministic
+  assertion engine (no LLM call, no network) — this collector always
+  performs a real, complete suite run. `cc` missing, or either directory
+  missing, degrades to an `errors` entry, never a crash.
 
 ## Dashboard (`render` — TASK-91 / B-8)
 
@@ -105,8 +117,19 @@ Three panels:
   collector whose `*-latest.json` doesn't exist yet renders a quiet
   "collector not yet run" card instead of breaking the page — safe to
   run `render` before every collector has been run at least once.
-- **Efficacy** — placeholder cards for B-9/B-10/B-11 (none built yet;
-  the panel says so honestly rather than inventing numbers).
+- **Efficacy** — B-9/B-10/B-11 bench cards (`bench_knowledge_qa`,
+  `bench_voice_lint`, `bench_mcp_twin`, each owned by a parallel
+  workstream) plus this repo's own `evals` (golden-set pass-rate/coverage)
+  and a small Task Copilot completion/rework trend card sourced from the
+  same `tasksdb-latest.json` the Adoption panel reads. Every card is LIVE
+  the moment its collector has written `output/<name>-latest.json`; until
+  then it renders the same quiet "not yet run" placeholder the Adoption
+  panel uses (plus a link to the Trust-panel claim it's tracked by). The
+  three bench renderers are best-effort against their producers' actual
+  field names (tried via `first()`/`dig()` with multiple candidate
+  spellings); an unrecognized shape degrades to a raw-JSON details block,
+  never a crash or an invented number — see `render/dashboard.py`'s module
+  docstring for the full schema-tolerance contract.
 - **Trust** — the claims register rendered live: every claim's status
   chip, statement, check command, and `last_checked`, plus the
   permanent "adoption metrics are single-author data" banner (T8 open).

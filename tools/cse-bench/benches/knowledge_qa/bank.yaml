@@ -1,0 +1,450 @@
+# bank.yaml — B-9 private-fact question bank (TASK-92).
+#
+# Authored by hand against the product dossiers under
+# /Volumes/Dev/Sites/COPILOT/knowledge-copilot/02-products/04-applications/
+# (convoco/, insights-copilot/). This is the LLM-judgment step the task
+# calls out: every question below was chosen because its answer is a
+# PRIVATE fact — a version number, internal module name, canonical config
+# value, former name, internal domain, or count — that base Claude cannot
+# plausibly know without the reference document, not something a language
+# model could produce from public knowledge or plausible-sounding
+# improvisation. See README.md "What makes a question private" for the
+# selection rule and the questions that were drafted and dropped.
+#
+# Schema (one entry per question):
+#   id       — stable slug, "<dossier>-NN"
+#   dossier  — "convoco" | "insights-copilot" (matches the directory name
+#              under knowledge-copilot's product-dossier tree)
+#   question — the literal prompt tail asked in both arms
+#   answer   — canonical answer string (objectively checkable, not prose)
+#   accept   — list of additional normalized-equivalent strings that count
+#              as correct (phrasing/punctuation/unit variants); may be empty
+#   source   — "<dossier>/<file>:<line>" pointing at the dossier line the
+#              answer was read from, for auditability
+#
+# run.py resolves `source` to the actual dossier file on disk (read-only,
+# from knowledge-copilot) to build the "with-knowledge" arm's prompt; the
+# "without" arm never sees this file's content or path.
+
+questions:
+  # ---------------------------------------------------------------------
+  # convoco (24 questions) — sources: 00-overview.md, 01-architecture.md,
+  # 02-deployment.md, 03-operations.md, 04-integrations.md, 06-security.md,
+  # 07-decisions.md
+  # ---------------------------------------------------------------------
+
+  - id: convoco-01
+    dossier: convoco
+    question: "What was the Convoco product formerly named, before it was renamed?"
+    answer: "conversations-copilot"
+    accept:
+      - "conversations copilot"
+    source: "convoco/00-overview.md:17"
+
+  - id: convoco-02
+    dossier: convoco
+    question: "What frontend framework and major version does Convoco's app use?"
+    answer: "Next.js 16"
+    accept:
+      - "nextjs 16"
+      - "next.js 16"
+      - "next 16"
+    source: "convoco/00-overview.md:9"
+
+  - id: convoco-03
+    dossier: convoco
+    question: "What Python web framework does Convoco's backend use?"
+    answer: "FastAPI"
+    accept:
+      - "fast api"
+    source: "convoco/00-overview.md:9"
+
+  - id: convoco-04
+    dossier: convoco
+    question: "What PostgreSQL version does Convoco run in production?"
+    answer: "PostgreSQL 15"
+    accept:
+      - "postgres 15"
+      - "postgresql 15"
+      - "pg 15"
+    source: "convoco/00-overview.md:49"
+
+  - id: convoco-05
+    dossier: convoco
+    question: "What PostgreSQL version does Convoco run locally in dev?"
+    answer: "PostgreSQL 16"
+    accept:
+      - "postgres 16"
+      - "postgresql 16"
+      - "pg 16"
+      - "16-alpine"
+    source: "convoco/00-overview.md:49"
+
+  - id: convoco-06
+    dossier: convoco
+    question: "Roughly how many tools does Convoco's live MCP server expose?"
+    answer: "40+"
+    accept:
+      - "40"
+      - "over 40"
+      - "more than 40"
+      - "40 plus"
+    source: "convoco/00-overview.md:44"
+
+  - id: convoco-07
+    dossier: convoco
+    question: "What is the production domain/endpoint of Convoco's MCP server?"
+    answer: "mcp.convocoai.com"
+    accept:
+      - "https://mcp.convocoai.com/mcp"
+      - "mcp.convocoai.com/mcp"
+    source: "convoco/04-integrations.md:13"
+
+  - id: convoco-08
+    dossier: convoco
+    question: "What is Convoco's production backend API domain?"
+    answer: "api.convocoai.com"
+    accept: []
+    source: "convoco/00-overview.md:43"
+
+  - id: convoco-09
+    dossier: convoco
+    question: "What is Convoco's production frontend domain?"
+    answer: "app.convocoai.com"
+    accept: []
+    source: "convoco/00-overview.md:40"
+
+  - id: convoco-10
+    dossier: convoco
+    question: "What legacy domain still redirects to Convoco for back-compat?"
+    answer: "conversations.ineedacopilot.com"
+    accept: []
+    source: "convoco/00-overview.md:19"
+
+  - id: convoco-11
+    dossier: convoco
+    question: "What background-job/task-queue library does Convoco's backend use?"
+    answer: "arq"
+    accept:
+      - "arq workers"
+    source: "convoco/00-overview.md:42"
+
+  - id: convoco-12
+    dossier: convoco
+    question: "What major version of SQLAlchemy does Convoco's backend use?"
+    answer: "SQLAlchemy 2"
+    accept:
+      - "sqlalchemy2"
+      - "sql alchemy 2"
+    source: "convoco/01-architecture.md:41"
+
+  - id: convoco-13
+    dossier: convoco
+    question: "What migration tool manages Convoco's database schema changes?"
+    answer: "Alembic"
+    accept: []
+    source: "convoco/01-architecture.md:41"
+
+  - id: convoco-14
+    dossier: convoco
+    question: "What is the name of the backend module that is the canonical source of truth for people/company/deal/forces graph data in Convoco?"
+    answer: "force_tracking"
+    accept:
+      - "force tracking"
+    source: "convoco/01-architecture.md:53"
+
+  - id: convoco-15
+    dossier: convoco
+    question: "What is Convoco's Coolify application UUID for the backend API?"
+    answer: "xk08goo8sks884o8s4c8k480"
+    accept: []
+    source: "convoco/02-deployment.md:16"
+
+  - id: convoco-16
+    dossier: convoco
+    question: "What is Convoco's Coolify application UUID for the frontend?"
+    answer: "z0g88oos0s8cc88cswc0oc4g"
+    accept: []
+    source: "convoco/02-deployment.md:17"
+
+  - id: convoco-17
+    dossier: convoco
+    question: "What environment variable must Convoco's frontend standalone server set to avoid breaking container health checks?"
+    answer: "HOSTNAME=0.0.0.0"
+    accept:
+      - "hostname"
+      - "hostname 0.0.0.0"
+    source: "convoco/02-deployment.md:28"
+
+  - id: convoco-18
+    dossier: convoco
+    question: "What local port does Convoco's frontend run on inside Docker?"
+    answer: "3001"
+    accept: []
+    source: "convoco/00-overview.md:39"
+
+  - id: convoco-19
+    dossier: convoco
+    question: "What local port does Convoco's backend run on in dev?"
+    answer: "8000"
+    accept: []
+    source: "convoco/03-operations.md:20"
+
+  - id: convoco-20
+    dossier: convoco
+    question: "What make target restores an anonymized seed to Convoco's local DB without needing prod access?"
+    answer: "db-restore-seed"
+    accept:
+      - "make db-restore-seed"
+    source: "convoco/03-operations.md:37"
+
+  - id: convoco-21
+    dossier: convoco
+    question: "What is the name of the middleware class that enforces tenant isolation in Convoco's backend?"
+    answer: "TenantMiddleware"
+    accept:
+      - "tenant middleware"
+    source: "convoco/01-architecture.md:83"
+
+  - id: convoco-22
+    dossier: convoco
+    question: "What library does Convoco use to sanitize HTML and prevent XSS?"
+    answer: "DOMPurify"
+    accept:
+      - "dom purify"
+      - "isomorphic-dompurify"
+      - "isomorphic dompurify"
+    source: "convoco/06-security.md:63"
+
+  - id: convoco-23
+    dossier: convoco
+    question: "What exact shell command does Convoco use to generate its SECRET_KEY?"
+    answer: "openssl rand -hex 32"
+    accept: []
+    source: "convoco/06-security.md:38"
+
+  - id: convoco-24
+    dossier: convoco
+    question: "What exact shell command does Convoco use to generate its JWT_SECRET_KEY?"
+    answer: "openssl rand -hex 64"
+    accept: []
+    source: "convoco/06-security.md:38"
+
+  # ---------------------------------------------------------------------
+  # insights-copilot (25 questions) — sources: 00-overview.md,
+  # 01-architecture.md, 02-deployment.md, 04-integrations.md, 06-security.md
+  # ---------------------------------------------------------------------
+
+  - id: insights-copilot-01
+    dossier: insights-copilot
+    question: "What is Insights Copilot's current version per pyproject.toml?"
+    answer: "2.7.0"
+    accept: []
+    source: "insights-copilot/00-overview.md:17"
+
+  - id: insights-copilot-02
+    dossier: insights-copilot
+    question: "What is the release name associated with Insights Copilot's 2.x line?"
+    answer: "Thought Leadership Platform"
+    accept:
+      - "thought leadership"
+    source: "insights-copilot/00-overview.md:17"
+
+  - id: insights-copilot-03
+    dossier: insights-copilot
+    question: "What Python version does Insights Copilot's FastAPI backend run on?"
+    answer: "3.12"
+    accept:
+      - "python 3.12"
+    source: "insights-copilot/00-overview.md:22"
+
+  - id: insights-copilot-04
+    dossier: insights-copilot
+    question: "Roughly how many route modules live under Insights Copilot's app/api/routes/?"
+    answer: "38+"
+    accept:
+      - "38"
+      - "over 38"
+      - "more than 38"
+    source: "insights-copilot/00-overview.md:22"
+
+  - id: insights-copilot-05
+    dossier: insights-copilot
+    question: "How many services total does Insights Copilot's service-architecture doc report, across all categories?"
+    answer: "54"
+    accept:
+      - "54 services"
+    source: "insights-copilot/01-architecture.md:85"
+
+  - id: insights-copilot-06
+    dossier: insights-copilot
+    question: "What background-job framework does Insights Copilot run on Redis for long-running scans/synthesis?"
+    answer: "ARQ"
+    accept:
+      - "arq worker"
+      - "arq on redis"
+    source: "insights-copilot/00-overview.md:23"
+
+  - id: insights-copilot-07
+    dossier: insights-copilot
+    question: "What framework and version powers Insights Copilot's admin panel?"
+    answer: "Next.js 14"
+    accept:
+      - "nextjs 14"
+      - "next.js 14"
+      - "next 14"
+    source: "insights-copilot/00-overview.md:24"
+
+  - id: insights-copilot-08
+    dossier: insights-copilot
+    question: "What vector database does Insights Copilot use for semantic search?"
+    answer: "Qdrant"
+    accept: []
+    source: "insights-copilot/00-overview.md:25"
+
+  - id: insights-copilot-09
+    dossier: insights-copilot
+    question: "How many dimensions does Insights Copilot's force/article embedding vector have?"
+    answer: "1536"
+    accept:
+      - "1536-dim"
+      - "1536 dimensions"
+    source: "insights-copilot/01-architecture.md:186"
+
+  - id: insights-copilot-10
+    dossier: insights-copilot
+    question: "What OpenAI embedding model does Insights Copilot use?"
+    answer: "text-embedding-3-small"
+    accept:
+      - "text embedding 3 small"
+    source: "insights-copilot/01-architecture.md:185"
+
+  - id: insights-copilot-11
+    dossier: insights-copilot
+    question: "What similarity threshold does Insights Copilot use to treat two forces as duplicates?"
+    answer: "0.85"
+    accept:
+      - "85%"
+      - "85 percent"
+    source: "insights-copilot/01-architecture.md:187"
+
+  - id: insights-copilot-12
+    dossier: insights-copilot
+    question: "What similarity threshold does Insights Copilot use for related-forces correlation discovery (not deduplication)?"
+    answer: "0.70"
+    accept:
+      - "0.7"
+      - "70%"
+      - "70 percent"
+    source: "insights-copilot/01-architecture.md:188"
+
+  - id: insights-copilot-13
+    dossier: insights-copilot
+    question: "What reverse proxy does Insights Copilot use for local HTTPS development?"
+    answer: "Caddy"
+    accept:
+      - "caddy 2"
+    source: "insights-copilot/01-architecture.md:20"
+
+  - id: insights-copilot-14
+    dossier: insights-copilot
+    question: "What PostgreSQL version does Insights Copilot's primary database run?"
+    answer: "PostgreSQL 16"
+    accept:
+      - "postgres 16"
+      - "postgresql 16"
+      - "pg 16"
+    source: "insights-copilot/01-architecture.md:18"
+
+  - id: insights-copilot-15
+    dossier: insights-copilot
+    question: "What deploy platform did Insights Copilot use before it moved to Coolify?"
+    answer: "DigitalOcean App Platform"
+    accept:
+      - "digitalocean"
+      - "digital ocean app platform"
+      - "digital ocean"
+    source: "insights-copilot/02-deployment.md:5"
+
+  - id: insights-copilot-16
+    dossier: insights-copilot
+    question: "What is Insights Copilot's production API domain?"
+    answer: "insights.ineedacopilot.com"
+    accept: []
+    source: "insights-copilot/00-overview.md:127"
+
+  - id: insights-copilot-17
+    dossier: insights-copilot
+    question: "What is Insights Copilot's production admin-panel domain?"
+    answer: "insightsadmin.ineedacopilot.com"
+    accept: []
+    source: "insights-copilot/00-overview.md:127"
+
+  - id: insights-copilot-18
+    dossier: insights-copilot
+    question: "What is Insights Copilot's local-dev API domain (via the Caddy proxy)?"
+    answer: "insightsapi.ineedacopilot.dev"
+    accept: []
+    source: "insights-copilot/00-overview.md:128"
+
+  - id: insights-copilot-19
+    dossier: insights-copilot
+    question: "What is the exact filename of the GitHub Actions workflow that triggers Insights Copilot's Coolify deploy on push to main?"
+    answer: "deploy.yml"
+    accept:
+      - ".github/workflows/deploy.yml"
+    source: "insights-copilot/02-deployment.md:31"
+
+  - id: insights-copilot-20
+    dossier: insights-copilot
+    question: "What HTTP header carries Insights Copilot's service API key for CLI/programmatic access?"
+    answer: "X-Service-Key"
+    accept:
+      - "x service key"
+    source: "insights-copilot/06-security.md:29"
+
+  - id: insights-copilot-21
+    dossier: insights-copilot
+    question: "What HTTP header carries the HMAC signature on Insights Copilot's n8n webhooks?"
+    answer: "X-N8N-Signature"
+    accept:
+      - "x n8n signature"
+    source: "insights-copilot/04-integrations.md:19"
+
+  - id: insights-copilot-22
+    dossier: insights-copilot
+    question: "How many minutes of clock skew does Insights Copilot's Research Copilot HMAC signature tolerate?"
+    answer: "5 minutes"
+    accept:
+      - "5-minute"
+      - "300s"
+      - "300 seconds"
+      - "5"
+    source: "insights-copilot/06-security.md:27"
+
+  - id: insights-copilot-23
+    dossier: insights-copilot
+    question: "What is Insights Copilot's target failure-to-tech content ratio for weekly synthesis reports?"
+    answer: "70:30"
+    accept:
+      - "70/30"
+      - "70 to 30"
+      - "70-30"
+    source: "insights-copilot/01-architecture.md:250"
+
+  - id: insights-copilot-24
+    dossier: insights-copilot
+    question: "What non-root user does Insights Copilot's Docker container run as?"
+    answer: "appuser:1000"
+    accept:
+      - "appuser"
+      - "uid 1000"
+    source: "insights-copilot/06-security.md:182"
+
+  - id: insights-copilot-25
+    dossier: insights-copilot
+    question: "What email domain must a Google account belong to in order to sign into Insights Copilot's admin panel?"
+    answer: "ineedacopilot.com"
+    accept:
+      - "@ineedacopilot.com"
+    source: "insights-copilot/06-security.md:25"
