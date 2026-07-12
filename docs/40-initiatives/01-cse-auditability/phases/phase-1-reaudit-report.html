@@ -1,0 +1,498 @@
+<title>CSE Re-Audit — Adversarial Review &amp; Measurability Map</title>
+<style>
+  :root {
+    --paper:#F7F8F5; --raised:#FFFFFF; --ink:#1C2733; --muted:#54626F; --faint:#8B96A3;
+    --line:#DFE4E1; --accent:#058A62; --accent-ink:#04684A;
+    --good:#058A62; --warn:#B45309; --crit:#B91C4B; --neutral:#64748B;
+    --good-bg:rgba(5,138,98,.10); --warn-bg:rgba(180,83,9,.10); --crit-bg:rgba(185,28,75,.09);
+    --neutral-bg:rgba(100,116,139,.11); --code-bg:#ECEFED;
+    --shadow:0 1px 3px rgba(28,39,51,.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#12181F; --raised:#1A222B; --ink:#E4EAF0; --muted:#9AA6B2; --faint:#6E7A87;
+      --line:#2A3440; --accent:#2CB68C; --accent-ink:#4BC9A2;
+      --good:#109673; --warn:#C07E1D; --crit:#CC4B68; --neutral:#7E8CA0;
+      --good-bg:rgba(16,150,115,.16); --warn-bg:rgba(192,126,29,.16); --crit-bg:rgba(204,75,104,.15);
+      --neutral-bg:rgba(126,140,160,.15); --code-bg:#212B36;
+      --shadow:0 1px 3px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper:#F7F8F5; --raised:#FFFFFF; --ink:#1C2733; --muted:#54626F; --faint:#8B96A3;
+    --line:#DFE4E1; --accent:#058A62; --accent-ink:#04684A;
+    --good:#058A62; --warn:#B45309; --crit:#B91C4B; --neutral:#64748B;
+    --good-bg:rgba(5,138,98,.10); --warn-bg:rgba(180,83,9,.10); --crit-bg:rgba(185,28,75,.09);
+    --neutral-bg:rgba(100,116,139,.11); --code-bg:#ECEFED;
+    --shadow:0 1px 3px rgba(28,39,51,.07);
+  }
+  :root[data-theme="dark"] {
+    --paper:#12181F; --raised:#1A222B; --ink:#E4EAF0; --muted:#9AA6B2; --faint:#6E7A87;
+    --line:#2A3440; --accent:#2CB68C; --accent-ink:#4BC9A2;
+    --good:#109673; --warn:#C07E1D; --crit:#CC4B68; --neutral:#7E8CA0;
+    --good-bg:rgba(16,150,115,.16); --warn-bg:rgba(192,126,29,.16); --crit-bg:rgba(204,75,104,.15);
+    --neutral-bg:rgba(126,140,160,.15); --code-bg:#212B36;
+    --shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    background:var(--paper); color:var(--ink);
+    font:16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin:0; padding:0;
+  }
+  .wrap { max-width:1060px; margin:0 auto; padding:0 24px 96px; }
+  .prose { max-width:74ch; }
+
+  h1,h2 { font-family:"Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif; text-wrap:balance; }
+  h1 { font-size:clamp(2rem,4.5vw,2.75rem); line-height:1.15; margin:.4em 0 .3em; font-weight:600; }
+  h2 { font-size:1.45rem; margin:0 0 .6em; font-weight:600; }
+  h3 { font-size:1.02rem; margin:1.6em 0 .5em; font-weight:650; }
+  p { margin:.75em 0; }
+  a { color:var(--accent-ink); }
+  section { margin-top:64px; }
+  ul { padding-left:1.25em; margin:.6em 0; }
+  li { margin:.35em 0; }
+  strong { font-weight:650; }
+
+  .eyebrow {
+    font:600 .72rem/1 ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent-ink);
+    display:block; margin-bottom:14px;
+  }
+  .masthead { padding-top:64px; border-bottom:1px solid var(--line); padding-bottom:36px; }
+  .masthead .meta { color:var(--muted); font-size:.92rem; max-width:74ch; }
+  .runline { font:500 .8rem/1.7 ui-monospace,"SF Mono",Menlo,monospace; color:var(--faint); margin-top:18px; }
+
+  code, .mono { font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace; font-size:.86em; }
+  code { background:var(--code-bg); border-radius:4px; padding:.1em .35em; }
+  .num { font-variant-numeric:tabular-nums; }
+
+  .tldr {
+    background:var(--raised); border:1px solid var(--line); border-left:4px solid var(--accent);
+    border-radius:8px; padding:22px 26px; margin-top:36px; box-shadow:var(--shadow);
+  }
+  .tldr h2 { margin-top:0; font-size:1.2rem; }
+  .tldr p:last-child { margin-bottom:0; }
+
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-top:28px; }
+  .tile { background:var(--raised); border:1px solid var(--line); border-radius:8px; padding:14px 16px; box-shadow:var(--shadow); }
+  .tile .v { font:650 1.5rem/1.1 ui-monospace,"SF Mono",Menlo,monospace; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+  .tile .k { font-size:.78rem; color:var(--muted); margin-top:6px; line-height:1.4; }
+  .tile.hot .v { color:var(--crit); }
+  .tile.ok .v { color:var(--good); }
+
+  .chip {
+    display:inline-block; font:650 .68rem/1 ui-monospace,"SF Mono",Menlo,monospace;
+    letter-spacing:.06em; padding:.35em .55em; border-radius:4px; white-space:nowrap;
+  }
+  .chip.good { color:var(--good); background:var(--good-bg); border:1px solid var(--good); }
+  .chip.warn { color:var(--warn); background:var(--warn-bg); border:1px solid var(--warn); }
+  .chip.crit { color:var(--crit); background:var(--crit-bg); border:1px solid var(--crit); }
+  .chip.neutral { color:var(--neutral); background:var(--neutral-bg); border:1px solid var(--neutral); }
+
+  .scroll { overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--raised); box-shadow:var(--shadow); }
+  table { border-collapse:collapse; width:100%; font-size:.88rem; }
+  th { text-align:left; font:600 .72rem/1.4 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:.08em;
+       text-transform:uppercase; color:var(--muted); padding:12px 14px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td { padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+  tr:last-child td { border-bottom:none; }
+  td.id { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-weight:650; white-space:nowrap; }
+  .tnote { font-size:.8rem; color:var(--muted); margin-top:8px; }
+
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:20px; }
+  @media (max-width:760px){ .cards { grid-template-columns:1fr; } }
+  .card { background:var(--raised); border:1px solid var(--line); border-radius:8px; padding:20px 22px; box-shadow:var(--shadow); }
+  .card h3 { margin:0 0 2px; font-size:1.08rem; }
+  .card .role { font-size:.78rem; color:var(--muted); font-family:ui-monospace,"SF Mono",Menlo,monospace; margin-bottom:12px; }
+  .card ul { font-size:.9rem; }
+  .card .tierlab { font:650 .68rem/1 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:.1em; text-transform:uppercase;
+                   color:var(--accent-ink); display:block; margin:14px 0 4px; }
+
+  .bars { margin:18px 0 6px; }
+  .brow { display:grid; grid-template-columns:220px 1fr; gap:12px; align-items:center; margin:8px 0; padding-right:64px; }
+  @media (max-width:640px){ .brow { grid-template-columns:1fr; gap:2px; } }
+  .brow .lab { font-size:.82rem; color:var(--muted); text-align:right; }
+  @media (max-width:640px){ .brow .lab { text-align:left; } }
+  .track { background:var(--neutral-bg); border-radius:4px; height:22px; position:relative; }
+  .fill { height:100%; border-radius:4px 3px 3px 4px; background:var(--good); min-width:2px; transition:opacity .15s; }
+  .fill:hover { opacity:.82; }
+  .bval { position:absolute; left:calc(100% + 8px); top:50%; transform:translateY(-50%);
+          font:650 .8rem/1 ui-monospace,"SF Mono",Menlo,monospace; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .track.inset .bval { left:auto; right:8px; color:#fff; }
+
+  .stack { display:flex; height:34px; border-radius:6px; overflow:hidden; gap:2px; background:var(--paper); margin:14px 0 10px; }
+  .seg { position:relative; transition:opacity .15s; }
+  .seg:hover { opacity:.85; }
+  .legend { display:flex; flex-wrap:wrap; gap:16px; font-size:.82rem; color:var(--muted); }
+  .legend .sw { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  .figcap { font-size:.8rem; color:var(--faint); margin-top:10px; }
+
+  .callout { border:1px solid var(--line); border-left:4px solid var(--warn); background:var(--raised);
+             border-radius:8px; padding:16px 20px; margin:20px 0; font-size:.93rem; box-shadow:var(--shadow); }
+  .callout.crit { border-left-color:var(--crit); }
+  .callout.good { border-left-color:var(--good); }
+
+  .foot { margin-top:80px; border-top:1px solid var(--line); padding-top:24px; font-size:.82rem; color:var(--muted); }
+  .foot code { font-size:.85em; }
+  @media (prefers-reduced-motion: reduce) { .fill, .seg { transition:none; } }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <span class="eyebrow">Copilot Solutioning Ecosystem · Initiative 01 · Auditability</span>
+  <h1>The Re-Audit: Adversarial Review &amp; Measurability Map</h1>
+  <p class="meta">A second, independent pass over the Phase&nbsp;1 falsification probe — run as the adversarial review the
+     handoff demanded — plus the answer to the owner's question: <em>what can we measure today, what could we measure,
+     and what should we measure</em> to credibly prove the CSE works. Covers all four products: Claude&nbsp;Copilot and
+     Codex&nbsp;Copilot (one instruction layer, two harnesses), Knowledge&nbsp;Copilot, and CLI&nbsp;Copilot.</p>
+  <div class="runline">RUN 2026-07-12 · SIX INDEPENDENT AUDIT AGENTS · READ-ONLY · NOTHING WAS FIXED OR MODIFIED</div>
+</header>
+
+<div class="tldr prose">
+  <h2>The verdict, up front</h2>
+  <p><strong>Phase&nbsp;1 is trustworthy enough to base product decisions on.</strong> A review explicitly instructed to
+     overturn it upheld 13 of 18 findings — several came out <em>stronger</em> — and the three that moved, moved in
+     instructive ways: one headline number was inflated by probe bugs (F-11: "95.6% of knowledge never read" corrects to
+     <strong>67–88%</strong>, definition-dependent), the biggest open question resolved <em>against</em> the product
+     (F-16: 1.47&nbsp;years of shell history shows <strong>14 terminal invocations, ever</strong>), and the one verdict that
+     told you to stop trying was wrong (F-12: knowledge efficacy is <strong>not</strong> structurally unmeasurable —
+     roughly 60–70% of it is benchmarkable with what already exists).</p>
+  <p><strong>The strategic picture:</strong> the binding constraint is still that the ecosystem cannot see itself — but the
+     re-audit found the instruments mostly already exist, unwired: hooks written but registered in 1 repo, a
+     <code>health</code> verb that authenticates every integration, an eval harness for exactly one agent, a voice rubric
+     sitting as prose, and <strong>954 tasks of untapped Task&nbsp;Copilot history reaching back 3&nbsp;months before the
+     transcript corpus begins</strong>. The benchmark tool you want is buildable — and most of its first data sources are
+     already on disk.</p>
+</div>
+
+<div class="tiles">
+  <div class="tile ok"><div class="v num">13 / 18</div><div class="k">Phase 1 findings upheld under adversarial re-review</div></div>
+  <div class="tile hot"><div class="v num">14</div><div class="k">CLI Copilot terminal invocations in 1.47 years of shell history</div></div>
+  <div class="tile"><div class="v num">439</div><div class="k">actual CLI leaf commands — Phase 1 said 208 (2× undercount)</div></div>
+  <div class="tile"><div class="v num">67–88%</div><div class="k">knowledge never read (corrected from 95.6%)</div></div>
+  <div class="tile ok"><div class="v num">954</div><div class="k">tasks in untapped Task Copilot stores, back to 2026-03</div></div>
+  <div class="tile hot"><div class="v num">0.9%</div><div class="k">protocol declaration rate (claim-era target: universal)</div></div>
+</div>
+
+<section>
+  <span class="eyebrow">Section 1</span>
+  <h2>Verdict board — all 18 findings after re-audit</h2>
+  <p class="prose">Each Phase&nbsp;1 finding was attacked per the handoff's ranked list. <strong>UPHELD</strong> = survived
+     re-testing; <strong>CORRECTED</strong> = direction survives, number doesn't; <strong>OVERTURNED</strong> = verdict falls
+     as written; <strong>RESOLVED</strong> = an open question now has an answer.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>ID</th><th>Phase 1 finding</th><th>Re-audit</th><th>What the re-audit established</th></tr></thead>
+    <tbody>
+      <tr><td class="id">F-1</td><td>Delegation enforcement hook disabled the day it shipped</td><td><span class="chip good">UPHELD</span></td>
+          <td>Live <code>settings.json</code> matcher is still <code>Bash</code>-only. <code>pretool-check.sh:240-298</code> tracks Read/Edit streaks it can never receive.</td></tr>
+      <tr><td class="id">F-2</td><td>Framework installed as documentation — 1 of ~26 repos wired</td><td><span class="chip good">UPHELD</span></td>
+          <td>Re-verified across the whole tree: exactly one repo registers <code>PreToolUse</code>.</td></tr>
+      <tr><td class="id">F-3</td><td>"Sonnet for ~94% of work" false under every denominator</td><td><span class="chip good">STRENGTHENED</span></td>
+          <td>Six more denominators tested; none reach 94%. Found the likely provenance: the "after" claim mirrors the <em>before</em> diagnostic. Today's main-session Opus tool-call share: <strong>94.5%</strong> — the problem number, unchanged.</td></tr>
+      <tr><td class="id">F-4</td><td>Protocol-declaration rate never recovered (0.8%)</td><td><span class="chip good">UPHELD</span></td>
+          <td>Reproduces: 0.9% median, 0.0% strict (n=76).</td></tr>
+      <tr><td class="id">F-5</td><td>Delegation rate definition-dependent, unscoreable</td><td><span class="chip good">UPHELD</span></td>
+          <td>Reproduces (40.9% tool-share vs 3.0% event-share). Fix is logging at source, not defining harder.</td></tr>
+      <tr><td class="id">F-6</td><td>Before/after comparison permanently closed</td><td><span class="chip warn">PARTIALLY REOPENED</span></td>
+          <td>Turn-gap corroborated as a definitional artifact (~90–112×). Corpus shrank 113→108 sessions in ~24h — retention is deleting evidence <em>now</em>. But Task Copilot stores reach back to <strong>2026-03-02</strong>: pre-hook-era task data exists.</td></tr>
+      <tr><td class="id">F-7</td><td>Natural control group points the wrong way</td><td><span class="chip neutral">NOT RETESTED</span></td>
+          <td>Stands as stated (cross-sectional, confounded, not causal).</td></tr>
+      <tr><td class="id">F-8</td><td>"~94% less context" likely a misattributed caching artifact</td><td><span class="chip good">UPHELD</span></td>
+          <td>Still no script, dataset, or run anywhere in the repo.</td></tr>
+      <tr><td class="id">F-9</td><td>Knowledge extension system is inert</td><td><span class="chip good">UPHELD</span></td>
+          <td>Exhaustive loader hunt (plugins, skills, hooks, MCP, every repo + <code>~/.claude</code>): nothing loads them. If anything, understated — the <em>only</em> delivery mechanism anywhere is a prose pointer.</td></tr>
+      <tr><td class="id">F-10</td><td>Glossary claim rests on a file that doesn't exist</td><td><span class="chip warn">UPHELD, REFINED</span></td>
+          <td>Glossary <em>content</em> exists (<code>04-shared-glossary.md</code>); the manifest points at the wrong path — and nothing reads the manifest anyway.</td></tr>
+      <tr><td class="id">F-11</td><td>95.6% of the knowledge repo never read</td><td><span class="chip warn">CORRECTED</span></td>
+          <td>Two probe bugs: Bash-mediated reads uncounted (they <em>outnumber</em> Read-tool reads), and a stale-path join broken by a mid-corpus repo reorg (60% of recorded reads no longer match). Corrected: <strong>67% (knowledge-md) to 88% (all files)</strong>. Direction survives.</td></tr>
+      <tr><td class="id">F-12</td><td>Knowledge efficacy structurally unlearnable (CEILING)</td><td><span class="chip crit">OVERTURNED</span></td>
+          <td>Private-fact Q&amp;A from dossiers is contamination-immune and buildable now. The voice "prose, not rubric" claim is false — banned-word lists, em-dash ban, AI-cliché list, terminology tables, reading-level targets, and before/after exemplar pairs already exist. ~60–70% benchmarkable without changing the product.</td></tr>
+      <tr><td class="id">F-13</td><td>"Testable" — the CLI's suite passes (the one good claim)</td><td><span class="chip good">UPHELD — EXACT</span></td>
+          <td>Re-run: 1,588 passed / 53% coverage / 16,081 statements / 7,582 missed — bit-for-bit reproduction.</td></tr>
+      <tr><td class="id">F-14</td><td>Control Tower doesn't orchestrate CLI Copilot</td><td><span class="chip good">STRENGTHENED</span></td>
+          <td><code>copilot doctor</code> → exit 2. <code>cc doctor</code>'s own docstring admits the copilot-wraps-cc design was never built. New: the contracted <code>publish</code> verb is absent from <em>both</em> binaries.</td></tr>
+      <tr><td class="id">F-15</td><td>"Versioned --json contract" has no version</td><td><span class="chip good">UPHELD + EXTENDED</span></td>
+          <td>Still zero <code>schema_version</code>. Service count wrong in three docs three different ways. Real surface: <strong>439 leaf commands</strong>, not 208.</td></tr>
+      <tr><td class="id">F-16</td><td>CLI usage unknown — the product records nothing</td><td><span class="chip warn">RESOLVED</span></td>
+          <td>H-1 closed: 1.47y of shell history = <strong>14 real invocations</strong> (11 = one-day dev burst). <code>uspto</code> exits the dead list; 13 services now zero-use across <em>both</em> corpora. Caveat: Warp terminal history not yet checked.</td></tr>
+      <tr><td class="id">F-17</td><td>CLI advantage capped by 10% MCP deferral threshold</td><td><span class="chip neutral">NOT RETESTED</span></td>
+          <td>The threshold remains changelog-sourced, not experimentally verified. Treat as provisional.</td></tr>
+      <tr><td class="id">F-18</td><td>Seven artifacts, zero mechanisms — the operating mode</td><td><span class="chip good">UPHELD + 4 NEW</span></td>
+          <td>New instances: empty <code>sessions/corrections/initiatives</code> tables in the rich memory store; inert <code>LOG_LEVEL</code> config; <code>VERSION.json</code> lists 6 of 10 skill categories; the statelessness charter contradicted by 4 services persisting local state.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tnote">Handoff question 4 answered plainly: yes, the report can carry the weight of product decisions — quote the corrected numbers, not the originals.</p>
+</section>
+
+<section class="prose">
+  <span class="eyebrow">Section 2</span>
+  <h2>The three corrections that matter</h2>
+
+  <h3>1 · Knowledge is measurable after all (F-12 falls)</h3>
+  <p>The CEILING verdict was the most consequential claim in Phase&nbsp;1 because it told you to stop trying. It's wrong,
+     for a specific reason: <strong>the product dossiers contain private facts</strong> — version numbers, internal module
+     names, former product names, internal domains — that base Claude cannot know. A closed-book Q&amp;A bank generated from
+     the dossiers, scored with-knowledge vs. against-an-empty-tree, is a contamination-immune ablation. And the "voice is
+     prose, not a rubric" premise is simply false: the tone-of-voice doc and the <code>cw</code> extension already carry
+     banned-word lists, an em-dash ban, an AI-cliché list, terminology substitution tables, a sentence-rhythm rule, a
+     reading-level target, and gold before/after exemplar pairs. That is a deterministic linter nobody compiled.</p>
+
+  <h3>2 · The CLI's usage question is answered, and the answer is near-zero (F-16 resolves)</h3>
+  <p>Phase&nbsp;1's honest hedge was "terminal usage is invisible, so 14 dead services may be wrong." Shell history closes
+     it: <strong>536&nbsp;days of near-complete history contain 14 real invocations</strong> — 11 of them a single-day dev
+     burst for the uspto feature, whose usage was indeed invisible to transcripts (the hedge was right in mechanism, wrong
+     in magnitude). Every bare <code>copilot</code> command in history (197 of them) hit the <code>cd</code> alias, not the
+     binary. And claude-copilot's <code>cc</code> — the binary Control Tower actually contracts — has been typed into a
+     terminal <strong>zero times in its 71-day life</strong>.</p>
+
+  <div class="bars" aria-label="Corrected never-read rate under three definitions">
+    <div class="brow"><span class="lab">Phase 1 headline (buggy join + vendored files)</span>
+      <div class="track"><div class="fill" style="width:95.6%; background:var(--crit)" title="95.6% — inflated by two probe bugs"></div><span class="bval num">95.6%</span></div></div>
+    <div class="brow"><span class="lab">Probe basis, both bugs fixed</span>
+      <div class="track"><div class="fill" style="width:87.6%; background:var(--warn)" title="87.6% — all-files denominator, named-file Bash correction"></div><span class="bval num">≈88%</span></div></div>
+    <div class="brow"><span class="lab">Knowledge markdown only, Read + Bash counted</span>
+      <div class="track"><div class="fill" style="width:67.1%; background:var(--good)" title="67.1% — 906 knowledge .md files, both read channels"></div><span class="bval num">67.1%</span></div></div>
+  </div>
+  <p class="figcap">Share of Knowledge Copilot files never read, under three defensible definitions. The spread itself is the F-5 lesson again: pre-register the definition before quoting the number.</p>
+
+  <h3>3 · A headline number was inflated by the probe's own bugs (F-11 corrects)</h3>
+  <p>Two independent agents converged on the same conclusion from different directions. The probe never counted
+     Bash-mediated reads (<code>cat</code>/<code>grep</code>/<code>rg</code> against knowledge paths) — and those
+     <em>outnumber</em> Read-tool reads (586 vs 502 calls; 91 files were read <em>only</em> via Bash). Separately, the
+     never-read join compares historically recorded paths against <em>today's</em> filesystem, and a mid-corpus repo
+     reorganization broke 60% of those joins. The honest range is 67–88% depending on denominator — still a cold library,
+     no longer a dead one.</p>
+</section>
+
+<section>
+  <span class="eyebrow">Section 3</span>
+  <h2>Component state — the four products as they actually are</h2>
+
+  <div class="cards">
+    <div class="card">
+      <h3>Claude Copilot</h3>
+      <div class="role">instruction layer · claude-copilot · v5.13.0</div>
+      <ul>
+        <li><strong>Real surface:</strong> 16 agents, 17 commands (4 unlisted in VERSION.json), 37 skills, 4 hooks. <code>/protocol</code> is prompt injection — the only mechanical enforcement anywhere is a Bash-streak rule and a two-agent QA gate.</li>
+        <li><strong>Task Copilot is real and full:</strong> a Python CLI writing per-repo SQLite — <span class="num">954 tasks · 1,143 work products · 83 PRDs</span> across 14 repos, spanning <strong>2026-03-02 → 2026-07-11</strong>. Phase 1 never mined it.</li>
+        <li><strong>Memory Copilot is split-brain:</strong> active FTS5 entry store (~143 entries) plus a richer superseded store whose <code>sessions</code>/<code>corrections</code>/<code>initiatives</code> tables are empty in all 29 projects.</li>
+        <li><strong>The efficacy seed exists:</strong> <code>cc eval</code> runs golden-set cases with deterministic scoring — for exactly one agent (<code>qa</code>, 10 cases).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Codex Copilot</h3>
+      <div class="role">same instruction layer, Codex harness · v0.6.0</div>
+      <ul>
+        <li><strong>At parity today, by test:</strong> same framework/cc/tc versions, identical 16-agent roster, byte-identical workflow sequences. Protocol is 8× compressed (119 vs 943 lines) — <em>intent</em> parity, unverified <em>behavior</em> parity.</li>
+        <li><strong>Structurally lagging by design:</strong> 21 vs 143 commits/90d (~15% velocity), catch-up in bursts. The parity check compares only 3 version strings — content drift is invisible to it.</li>
+        <li><strong>Telemetry already exists:</strong> <code>~/.codex/</code> holds sessions back to 2025-11, a 190&nbsp;MB event log, 2,426-line history; 256 session files reference codex-copilot in real product work across 12+ repos.</li>
+        <li><strong>Blunt read:</strong> a faithfully-maintained downstream mirror, not an independent peer — its own task store contains only self-porting meta-work.</li>
+      </ul>
+      <div class="bars" aria-label="Commit velocity, last 90 days">
+        <div class="brow"><span class="lab">claude-copilot</span><div class="track"><div class="fill" style="width:100%" title="143 commits in 90 days"></div><span class="bval num">143</span></div></div>
+        <div class="brow"><span class="lab">codex-copilot</span><div class="track"><div class="fill" style="width:14.7%" title="21 commits in 90 days"></div><span class="bval num">21</span></div></div>
+      </div>
+      <p class="figcap">Commits, last 90 days. Same hue — one measure, two repos.</p>
+    </div>
+    <div class="card">
+      <h3>Knowledge Copilot</h3>
+      <div class="role">knowledge layer · knowledge-copilot / shared-docs</div>
+      <ul>
+        <li><strong>True size:</strong> 906 knowledge markdown files — of 15,244 total (the rest is vendored <code>node_modules</code>/storybook that polluted Phase 1's denominator).</li>
+        <li><strong>Delivery is discretionary prose:</strong> zero bytes auto-injected; the session hook emits a <em>path</em>; five extensions have no loader; the manifest's only consumer checks that it exists.</li>
+        <li><strong>Cold but not dead:</strong> ~67% of knowledge-md never read; ≥20% orphaned (referenced by nothing); 12% carries freshness metadata; registry paths 17/17 accurate.</li>
+        <li><strong>Most ablatable product in the CSE:</strong> point the knowledge pointer at an empty tree and the counterfactual is clean — no hidden channel to control for.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>CLI Copilot</h3>
+      <div class="role">integration layer · cli-copilot · v1.4.5</div>
+      <ul>
+        <li><strong>Real surface: 439 leaf commands</strong> in 22 groups — Phase 1's 208 was a 2× undercount. Top-5 groups hold 64% of the surface.</li>
+        <li><strong>Alive surface ≈ 23%:</strong> only coolify + discord show all four liveness signals. 12 of 23 service dirs are frozen at their genesis commit; fireflies/reddit cannot authenticate; <code>method</code> has credentials but no service; the stated email/calendar/Slack mission exists only as opaque n8n workflow IDs behind a frozen group.</li>
+        <li><strong>Coverage is inverse to importance:</strong> coolify (81 commands) sits at 18%; infisical has zero test files. The healthy 53% headline is buoyed by small frozen services.</li>
+        <li><strong>The charter unblocks telemetry:</strong> "zero logging" turns out to be a portability stance, not privacy — and four services already persist local state. An opt-in usage ledger breaks nothing principled.</li>
+      </ul>
+      <div class="stack" aria-label="439 CLI commands by liveness class">
+        <div class="seg" style="flex:103; background:var(--good)" title="Alive — coolify + discord: 103 commands (23%)"></div>
+        <div class="seg" style="flex:142; background:var(--warn)" title="Occasional signal — conv, uspto, infisical, db: 142 commands (32%)"></div>
+        <div class="seg" style="flex:133; background:var(--crit)" title="Never invoked in any corpus (incl. 8 that cannot authenticate): 133 commands (30%)"></div>
+        <div class="seg" style="flex:61; background:var(--neutral)" title="Local utility groups (git, fs, shell, docker, docs, …): 61 commands (14%)"></div>
+      </div>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--good)"></span>Alive · 103</span>
+        <span><span class="sw" style="background:var(--warn)"></span>Occasional signal · 142</span>
+        <span><span class="sw" style="background:var(--crit)"></span>Never invoked · 133</span>
+        <span><span class="sw" style="background:var(--neutral)"></span>Local utility · 61</span>
+      </div>
+      <p class="figcap">All 439 leaf commands classified by config presence × git activity × transcript usage × shell history.</p>
+    </div>
+  </div>
+
+  <div class="callout crit prose">
+    <strong>One urgent, irreversible item.</strong> The transcript corpus shrank from 113 to 108 sessions during the ~24 hours
+    between the Phase 1 run and this re-audit. Claude Code's retention is actively deleting the primary evidence base.
+    Transcript retention (a copy-out cron) is the only action in this entire program where delay is permanent loss —
+    everything else can wait; this cannot.
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Section 4</span>
+  <h2>The measurability map — need · possible · should</h2>
+  <p class="prose">Your question, answered per component. <strong>Measurable today</strong> = data already on disk, zero new
+     code. <strong>Unlockable</strong> = modest instrumentation (config or a small script). <strong>Worth measuring</strong>
+     = the metrics that actually evidence the value claim, split into <em>adoption</em> (is it used?) and <em>efficacy</em>
+     (does it help?). The re-audit's core discovery is how much of column one already exists unread.</p>
+
+  <div class="cards">
+    <div class="card">
+      <h3>Claude + Codex Copilot</h3>
+      <div class="role">treat as one component with two harness adapters — never double-count</div>
+      <span class="tierlab">Measurable today</span>
+      <ul>
+        <li>Delegation rate, protocol rate, agent mix, model mix — transcripts (both harnesses; Codex's <code>~/.codex</code> is untapped)</li>
+        <li>Task throughput, completion vs rework, work-products-per-task — <code>tasks.db</code> ×14 repos, back to 2026-03</li>
+        <li>Parity: version tuple + roster + workflow equality — existing checks pass today</li>
+      </ul>
+      <span class="tierlab">Unlockable with modest work</span>
+      <ul>
+        <li>Register the already-written hooks in the 24 unwired repos (config-only) → ecosystem-wide event capture</li>
+        <li>PostToolUse event ledger → delegation measured at source (ends the F-5 definition war)</li>
+        <li>Claude↔Codex session normalizer; content-hash parity diff; <code>cc eval</code> beyond the one agent</li>
+      </ul>
+      <span class="tierlab">Worth measuring</span>
+      <ul>
+        <li><strong>Adoption:</strong> framework-attach rate per session; delegation rate</li>
+        <li><strong>Efficacy:</strong> <code>cc eval</code> pass-rate per agent (least-confounded metric in the system); task completion/rework trend; A/B framework-vs-bare task suite (the prize)</li>
+        <li><strong>Parity drift</strong> (days-behind + capability coverage) — the headline metric for "same solution, two harnesses"</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Knowledge Copilot</h3>
+      <div class="role">knowledge layer</div>
+      <span class="tierlab">Measurable today</span>
+      <ul>
+        <li>Session read-coverage: 16.8% of sessions touch knowledge (counting both read channels)</li>
+        <li>Cold rate 67% · orphan rate ≥20% · freshness metadata 12% · registry accuracy 17/17</li>
+      </ul>
+      <span class="tierlab">Unlockable with modest work</span>
+      <ul>
+        <li><strong>Private-fact Q&amp;A bank</strong> from product dossiers (60–80 questions per dossier extractable) — the contamination-immune ablation</li>
+        <li><strong>Voice-conformance linter</strong> compiled from the rubric material already in the repo — deterministic, no LLM</li>
+        <li>Freshness frontmatter enforced by pre-commit (the ecosystem already owns this pattern)</li>
+      </ul>
+      <span class="tierlab">Worth measuring</span>
+      <ul>
+        <li><strong>Adoption:</strong> read-coverage; cold/orphan rate (prune signal)</li>
+        <li><strong>Efficacy:</strong> factual-accuracy delta ±knowledge; voice-conformance delta — including the sharper question, <em>rules-in-repo vs rules-in-prompt</em>, which measures the repo's marginal value</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>CLI Copilot</h3>
+      <div class="role">integration layer</div>
+      <span class="tierlab">Measurable today</span>
+      <ul>
+        <li><strong>Live-integration count:</strong> <code>copilot health --json</code> already does real per-service auth (covers 18/22 groups — close the gap)</li>
+        <li>Config presence; per-service git activity (52% frozen) and coverage; on-disk state liveness; shell history — now mined</li>
+      </ul>
+      <span class="tierlab">Unlockable with modest work</span>
+      <ul>
+        <li>Opt-in usage ledger (command + timestamp, args stripped) — the charter analysis removed the principled objection</li>
+        <li>MCP-twin benchmark: <code>crm</code>↔nocodb-mcp, <code>db</code>↔postgresql-mcp — tokens, latency, success rate</li>
+      </ul>
+      <span class="tierlab">Worth measuring</span>
+      <ul>
+        <li><strong>Adoption:</strong> live integrations; surface utilization (invoked-ever / 439); maintenance concentration</li>
+        <li><strong>Efficacy:</strong> the MCP-twin delta — the only metric that speaks to "integrations make solutions faster," honestly bounded per F-17</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Ecosystem-level (what Control Tower renders)</h3>
+      <div class="role">cross-cutting</div>
+      <span class="tierlab">Measurable today</span>
+      <ul>
+        <li>Docs-vs-mechanism drift: the F-18 count — claims backed by a check vs claims that are wishes (18 findings gave it a baseline)</li>
+      </ul>
+      <span class="tierlab">Unlockable with modest work</span>
+      <ul>
+        <li><strong>The claims register (V-2)</strong> — pre-registered claims, each bound to a runnable check; the initiative's own unmet rule</li>
+        <li>Transcript + event retention — the see-itself substrate everything above depends on</li>
+      </ul>
+      <span class="tierlab">Worth measuring</span>
+      <ul>
+        <li><strong>The layered ablation:</strong> same task suite at four configs — bare harness → +instruction → +knowledge → +integrations. Each layer's marginal contribution, matching the CSE's own architecture. This is the benchmark that answers the accountant story.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="prose">
+  <span class="eyebrow">Section 5</span>
+  <h2>Principles the benchmark must respect</h2>
+  <ul>
+    <li><strong>Usage before efficacy.</strong> Phase 1's deepest point survives intact: measuring the quality of knowledge nobody reads, or a CLI nobody invokes, is a category error. The see-itself tier (retention + ledgers) is the foundation, and it is nearly free.</li>
+    <li><strong>Adoption ≠ efficacy — never let one impersonate the other.</strong> Most numbers available today are adoption numbers. They can prove the ecosystem is <em>alive</em>; only ablations and rubric-scored evals can prove it <em>helps</em>.</li>
+    <li><strong>Pre-register, then measure.</strong> Every definition dispute in this program (F-5, F-11's 67-vs-88 spread, the 671-turn ghost) traces to definitions chosen after seeing data. The claims register precedes the dashboard.</li>
+    <li><strong>The single-user confound is real.</strong> Every adoption metric currently measures its own author. Deterministic evals (<code>cc eval</code>, the voice linter, private-fact Q&amp;A) are immune; the ablation suite becomes credible to outsiders only when someone who isn't the author runs it.</li>
+    <li><strong>Claim what you can demonstrate.</strong> The inversion finding held: the product that promised least (CLI: "testable") is the only one that delivered. The fastest credibility gain isn't a better benchmark — it's deleting claims that have no check behind them.</li>
+  </ul>
+</section>
+
+<section class="prose">
+  <span class="eyebrow">Section 6</span>
+  <h2>Blueprint — the benchmark tool you asked for</h2>
+  <p>A web-view side application is the right instinct, and it should obey the same invariant as Control Tower:
+     <strong>the CLI computes, the app renders.</strong> The existing <code>tools/cse-audit/</code> harness grows into a
+     <code>bench</code> verb emitting versioned JSON; the web view is a thin skin over its output.</p>
+  <h3>Architecture</h3>
+  <ul>
+    <li><strong>Collectors:</strong> transcript miner (both harnesses), <code>tasks.db</code> reader, <code>health --json</code>, usage ledgers, parity checker, freshness scanner, eval runners — each a deterministic script emitting stamped, versioned JSON (the probe's own lesson: unstamped output goes stale silently).</li>
+    <li><strong>Store:</strong> one local SQLite metrics DB with run timestamps — history, not snapshots.</li>
+    <li><strong>Web view:</strong> three panels. <em>Adoption</em> (live gauges from today's measurables), <em>Efficacy</em> (ablation deltas and eval pass-rates), <em>Trust</em> (claims register: every public claim, its check, its last verdict — the permanent antidote to F-18).</li>
+    <li><strong>Task packs:</strong> the ablation suite takes pluggable persona packs — your software-build tasks today, an accountant's close-the-books tasks later. The harness is constant; the pack is the persona.</li>
+  </ul>
+  <h3>Phasing (dependencies, not dates)</h3>
+  <ul>
+    <li><strong>P0 — Preserve &amp; see:</strong> transcript retention (urgent), event ledger, CLI usage ledger, hook registration. Everything else consumes this.</li>
+    <li><strong>P1 — Adoption dashboard:</strong> render what already exists — tasks.db history, read-coverage, live integrations, parity, velocity. No new science; immediate visibility.</li>
+    <li><strong>P2 — Efficacy benches:</strong> private-fact Q&amp;A, voice linter, <code>cc eval</code> expansion, MCP-twin. Each produces a delta a skeptic can re-run.</li>
+    <li><strong>P3 — The layered ablation:</strong> four-config task-suite runs, rubric + anchored-judge scoring, then external pilot users to break the single-author confound. This is the artifact you can show another organization.</li>
+  </ul>
+  <div class="callout good">
+    <strong>Why this is now credible rather than aspirational:</strong> P0 is mostly configuration, P1's data is already on disk,
+    and P2's hardest prerequisite — a measurable knowledge layer — was the thing F-12 wrongly declared impossible. The re-audit
+    didn't just grade Phase 1; it established that the benchmark's raw material largely exists.
+  </div>
+</section>
+
+<section class="prose">
+  <span class="eyebrow">Section 7</span>
+  <h2>Limitations of this re-audit</h2>
+  <ul>
+    <li><strong>Warp terminal gap.</strong> Warp.app is installed and doesn't reliably write <code>~/.zsh_history</code>. The 14-invocation figure is a near-complete floor, not a ceiling — close this before quoting "13 dead services" as final.</li>
+    <li><strong>F-7 and F-17 were not re-tested</strong> (cohort confounding and the 10% deferral threshold stand unverified).</li>
+    <li><strong>The corpus moved during the review</strong> (113→108 sessions); every percentage carries a run timestamp for a reason.</li>
+    <li><strong>One layer of review, not two.</strong> Six agents audited the probe and products; nobody has audited the six agents. Their headline numbers (439 commands, 67%, 14 invocations) are file-cited and re-runnable, which is the intended remedy.</li>
+    <li><strong>Probe blind spots found but not fixed</strong> (per the no-remediation rule): Fable-class models bucket as "other" in every model-tier split; the never-read join has no rename tracking and will silently re-break on the next repo reorg.</li>
+    <li><strong>Everything here is still single-user data.</strong> Nothing in this report is evidence about how a second human would fare.</li>
+  </ul>
+</section>
+
+<footer class="foot">
+  <p><strong>Method.</strong> Six independent audit agents, read-only, 2026-07-12: adversarial probe re-run · new-evidence mining
+     (shell history, test reproduction, binary verification) · four per-product measurability audits. Nothing was repaired,
+     per the handoff's no-remediation rule.</p>
+  <p><strong>Sources.</strong> <code>docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md</code> ·
+     <code>phase-1-review-handoff.md</code> · <code>tools/cse-audit/</code> · live source and git history of
+     <code>claude-copilot</code>, <code>codex-copilot</code>, <code>knowledge-copilot</code>, <code>cli-copilot</code> ·
+     <code>~/.claude/projects</code> (108 sessions) · <code>~/.codex</code> · <code>~/.zsh_history</code> (536 days) ·
+     <code>.copilot/tasks.db</code> ×14 repos.</p>
+  <p>Prepared by Claude (Fable 5) for the CSE auditability initiative · Copilot Control Tower repo · 2026-07-12.</p>
+</footer>
+
+</div>
