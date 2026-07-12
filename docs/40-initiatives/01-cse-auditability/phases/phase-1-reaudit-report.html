@@ -443,8 +443,42 @@
   </ul>
 </section>
 
-<section class="prose">
+<section>
   <span class="eyebrow">Section 6</span>
+  <h2>What must become true — the vision's truth conditions</h2>
+  <p class="prose">Distilled from everything above: eight conditions that, once true, mean the CSE lives up to its
+     vision. These are now the program's definition of success — registered as <strong>PRD-9</strong> in Task Copilot
+     with a full task breakdown. Owner directive (2026-07-12): <em>where capability is missing, build it</em> — so each
+     condition pairs its measurement with the capability build that makes it true.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>#</th><th>Truth condition</th><th>Today</th><th>Program response</th></tr></thead>
+    <tbody>
+      <tr><td class="id">T1</td><td><strong>The ecosystem can see itself</strong> — durable usage evidence as a side effect of normal work</td>
+          <td>Corpus self-deletes; CLI records nothing</td><td>B-1 retention job · C-1 usage ledger · C-3 observability hooks</td></tr>
+      <tr><td class="id">T2</td><td><strong>No claim outlives its check</strong> — pre-registered claims, each bound to a runnable check</td>
+          <td>11 artifact-without-mechanism instances; V-2 violated</td><td>B-2 claims register · B-17 delete-or-defend list</td></tr>
+      <tr><td class="id">T3</td><td><strong>The instruction layer demonstrably changes behavior</strong></td>
+          <td>Enforcement 1 repo, Bash-only; evals 1 of 16 agents</td><td>C-6 deadlock-free enforcement · C-5 per-agent evals · B-5 measured at source</td></tr>
+      <tr><td class="id">T4</td><td><strong>The knowledge layer demonstrably changes output</strong></td>
+          <td>Never measured; extensions inert; ~67% cold</td><td>C-2 real extension loader · B-9 private-fact Q&amp;A · B-10 voice bench</td></tr>
+      <tr><td class="id">T5</td><td><strong>The integration layer pays its way; surface matches reality</strong></td>
+          <td>~23% of 439 commands alive; mission unimplemented</td><td>C-1 health completion + ledger · B-11 MCP-twin bench · B-17</td></tr>
+      <tr><td class="id">T6</td><td><strong>Two harnesses, one behavior</strong> — parity as a tested property</td>
+          <td>Parity check covers 3 version strings</td><td>C-4 content-hash parity check</td></tr>
+      <tr><td class="id">T7</td><td><strong>The inheritance ladder exists in practice</strong></td>
+          <td>Single-tier, single-machine</td><td>Control Tower build program (dependency); verified in the trust panel</td></tr>
+      <tr><td class="id">T8</td><td><strong>The value transfers beyond its author</strong> — the accountant story, demonstrated</td>
+          <td>Every number is single-author</td><td>B-13 ablation + persona task packs · B-14 external pilot</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tnote">Enforcement rollout across the ~24 unwired repos is deliberately staged behind C-6: the audit showed the current
+     hook deadlocked on ship day, so the missing capability is <em>enforcement that doesn't deadlock</em>, proven in one repo first.</p>
+</section>
+
+<section class="prose">
+  <span class="eyebrow">Section 7</span>
   <h2>Blueprint — the benchmark tool you asked for</h2>
   <p>A web-view side application is the right instinct, and it should obey the same invariant as Control Tower:
      <strong>the CLI computes, the app renders.</strong> The existing <code>tools/cse-audit/</code> harness grows into a
@@ -471,7 +505,7 @@
 </section>
 
 <section class="prose">
-  <span class="eyebrow">Section 7</span>
+  <span class="eyebrow">Section 8</span>
   <h2>Limitations of this re-audit</h2>
   <ul>
     <li><strong>Warp terminal gap.</strong> Warp.app is installed and doesn't reliably write <code>~/.zsh_history</code>. The 14-invocation figure is a near-complete floor, not a ceiling — close this before quoting "13 dead services" as final.</li>
