@@ -32,9 +32,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from collectors.paths import resolve_copilot_root
+
 COLLECTOR_NAME = "tasksdb"
 
-DEFAULT_GLOB = "/Volumes/Dev/Sites/COPILOT/*/.copilot/tasks.db"
+DEFAULT_GLOB = str(resolve_copilot_root() / "*" / ".copilot" / "tasks.db")
 
 # tasks.db stores timestamps as SQLite's `datetime('now')` output: naive
 # "YYYY-MM-DD HH:MM:SS" strings, always UTC (no offset in the string).

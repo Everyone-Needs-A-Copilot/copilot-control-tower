@@ -75,9 +75,11 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Callable, Optional
 
+from collectors.paths import resolve_copilot_root
+
 COLLECTOR_NAME = "knowledge_soul"
 
-COPILOT_ROOT = Path("/Volumes/Dev/Sites/COPILOT")
+COPILOT_ROOT = resolve_copilot_root()
 KNOWLEDGE_ROOT = COPILOT_ROOT / "knowledge-copilot"
 ECOSYSTEM_MD = KNOWLEDGE_ROOT / "ECOSYSTEM.md"
 MANIFEST_JSON = KNOWLEDGE_ROOT / "knowledge-manifest.json"

@@ -38,10 +38,12 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+from collectors.paths import resolve_copilot_root
+
 COLLECTOR_NAME = "parity"
 
-CODEX_ROOT = Path("/Volumes/Dev/Sites/COPILOT/codex-copilot")
-CLAUDE_ROOT = Path("/Volumes/Dev/Sites/COPILOT/claude-copilot")
+CODEX_ROOT = resolve_copilot_root() / "codex-copilot"
+CLAUDE_ROOT = resolve_copilot_root() / "claude-copilot"
 PARITY_SCRIPT = CODEX_ROOT / "scripts" / "check-upstream-parity.py"
 BASELINE_JSON = CODEX_ROOT / "parity" / "claude-baseline.json"
 CLAUDE_VERSION_JSON = CLAUDE_ROOT / "VERSION.json"

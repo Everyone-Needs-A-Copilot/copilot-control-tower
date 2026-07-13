@@ -29,9 +29,11 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+from collectors.paths import resolve_copilot_root
+
 COLLECTOR_NAME = "velocity"
 
-COPILOT_ROOT = Path("/Volumes/Dev/Sites/COPILOT")
+COPILOT_ROOT = resolve_copilot_root()
 REPOS = [
     "claude-copilot",
     "codex-copilot",

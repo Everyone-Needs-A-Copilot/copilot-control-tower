@@ -98,6 +98,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from collectors.paths import resolve_copilot_root
+
 COLLECTOR_NAME = "transcripts"
 
 # ---------------------------------------------------------------------------
@@ -133,7 +135,7 @@ from session_metrics import compute_session_metrics, median_iqr  # noqa: E402
 
 DEFAULT_ARCHIVE_ROOT = Path.home() / ".claude" / "transcript-archive" / "claude-projects"
 DEFAULT_LIVE_ROOT = Path.home() / ".claude" / "projects"
-DEFAULT_KNOWLEDGE_REPO_ROOT = Path("/Volumes/Dev/Sites/COPILOT/knowledge-copilot")
+DEFAULT_KNOWLEDGE_REPO_ROOT = resolve_copilot_root() / "knowledge-copilot"
 
 _FABLE_MODEL_RE = re.compile(r"fable", re.IGNORECASE)
 

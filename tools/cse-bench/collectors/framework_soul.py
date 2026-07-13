@@ -153,6 +153,7 @@ from product_usage import (  # noqa: E402
 )
 from session_metrics import compute_session_metrics, median_iqr  # noqa: E402
 
+from collectors.paths import resolve_copilot_root  # noqa: E402
 from collectors.tasksdb import DEFAULT_GLOB as TASKSDB_GLOB  # noqa: E402
 from collectors.tasksdb import _dedupe_by_real_path  # noqa: E402
 from collectors.transcripts import DEFAULT_ARCHIVE_ROOT  # noqa: E402
@@ -164,9 +165,9 @@ from collectors.transcripts import _merge_indexes  # noqa: E402
 
 DEFAULT_STATS_CACHE_PATH = Path.home() / ".claude" / "stats-cache.json"
 DEFAULT_QA_GATE_STATE_PATH = (
-    Path("/Volumes/Dev/Sites/COPILOT/claude-copilot/.claude/hooks/state/qa-gate.json")
+    resolve_copilot_root() / "claude-copilot" / ".claude" / "hooks" / "state" / "qa-gate.json"
 )
-DEFAULT_QA_GATE_ECOSYSTEM_GLOB = "/Volumes/Dev/Sites/COPILOT/*/.claude/hooks/state/qa-gate.json"
+DEFAULT_QA_GATE_ECOSYSTEM_GLOB = str(resolve_copilot_root() / "*" / ".claude" / "hooks" / "state" / "qa-gate.json")
 DEFAULT_TRANSCRIPTS_LATEST_PATH = Path(__file__).resolve().parents[1] / "output" / "transcripts-latest.json"
 
 TOKEN_ESTIMATE_METHOD = "heuristic:chars/4"
