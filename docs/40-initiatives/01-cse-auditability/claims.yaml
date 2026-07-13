@@ -320,6 +320,123 @@ definitions:
       moves no outcome bar within its review window is nominated for
       delete-or-defend.
 
+  solution_token_accounting:
+    description: >-
+      W-2 (per-solution token accounting, phase-4-outcome-program-prd.md
+      par.3 W-2): a solution's total tokens are computed TWO independent
+      ways and the two are compared — never quoted alone.
+    methods:
+      ledger: >-
+        The solutions.tokens_total column (claude-copilot tools/tc/,
+        `tc solution log-usage --tokens N`) — a self-reported, cumulative
+        figure a person types in. Per the W-1 (TASK-123) status gate,
+        log_usage can only run once a solution has shipped
+        (tc.services.solutions.log_usage), so today this column
+        accumulates POST-ship usage entries, not a running total from
+        first prompt — an inherited W-1 scope limit this task does not
+        change; the ledger figure compared here is whatever a person has
+        logged, however that entry was arrived at.
+      transcripts: >-
+        For every DISTINCT session_id recorded against a solution in the
+        new solution_sessions join table (repo_path + session_id +
+        logged_at — the repo+time+session-id join keys
+        phase-4-outcome-program-prd.md par.3 W-2 names), the sum of
+        input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+        + output_tokens across every assistant message in that session's
+        main transcript file AND its sibling subagent transcript files.
+        Reuses tools/cse-audit/session_metrics.compute_session_metrics
+        (main_tokens/subagent_tokens) unmodified — the same token
+        arithmetic already registered under this file's `turn` /
+        `delegation_rate_*` definitions, not a re-implementation.
+      event_ledger_c3: >-
+        NOT YET BUILT. phase-4-outcome-program-prd.md par.3 W-2 names a
+        third source — "the PostToolUse event ledger from C-3" — as what
+        "makes this exact in every wired repo." C-3 (phase-2-prd.md
+        C-series, "Observability hook rollout ... beyond the single wired
+        repo") has not landed anywhere as of this register's writing (see
+        phase-4-outcome-program-prd.md par.1, "Pending queues: R-series
+        (phase 3), C-3/C-5, B-13/B-14/B-17") — no PostToolUse hook that
+        logs a token/tool-call event ledger exists in any repo today. The
+        two methods this register compares are therefore `ledger` vs
+        `transcripts`, NOT `ledger` vs the C-3 event ledger — do not
+        mistake `transcripts` for C-3's output.
+    join_keys: >-
+      repo_path (cwd at the time of the `tc solution` call), session_id
+      (the CLAUDE_CODE_SESSION_ID environment variable Claude Code exports
+      to every tool invocation inside a live session), and logged_at
+      (datetime('now') at the call) — captured automatically by every
+      solution-mutating `tc solution` subcommand (create, lock-brief,
+      mark-working, mark-loveable, log-usage, close) into the additive
+      solution_sessions table whenever that env var is present; absent
+      outside a live session (e.g. scripts, tests), which is the honest
+      no-signal state, not an error.
+    tolerance: >-
+      agrees_within_tolerance := abs(ledger_tokens - transcript_tokens) /
+      transcript_tokens <= 0.20 (20 percent relative difference);
+      undefined (null) when transcript_tokens is 0 or either side has no
+      data. Registered BEFORE any real two-method comparison was computed
+      or looked at (V-2). Rationale: `ledger` is a human-typed, rounded
+      estimate, not a second machine-exact computation, so this tolerance
+      measures "same order of magnitude, roughly right," not agreement
+      between two machines that should be identical to the token. 20
+      percent is a deliberately loose first bar for that reason; expected
+      to tighten once event_ledger_c3 lands and the comparison becomes
+      machine-vs-machine.
+    source: >-
+      claude-copilot tools/tc/src/tc/db/schema.py (solution_sessions
+      table); tools/tc/src/tc/services/solutions.py
+      (_record_session_touch); tools/cse-bench/collectors/economy.py (the
+      join + comparison).
+
+  waste_decomposition_heuristics:
+    description: >-
+      phase-4-outcome-program-prd.md par.3 W-2: "waste decomposition
+      (re-explaining, rework, failed-direction tokens — classify by
+      session structure; document the heuristics in the register first)."
+      Registered BEFORE any waste-decomposition number was computed or
+      looked at (V-2). Computed per session, then summed across a
+      solution's joined sessions (definitions.solution_token_accounting
+      join_keys). A given subagent (sidechain) transcript file is
+      attributed to AT MOST ONE of failed_direction/rework (priority order
+      below); re_explaining is scoped to main-session tokens only, a
+      disjoint pool, so it never double-counts against the other two.
+    categories:
+      failed_direction: >-
+        Full token total (input+cache_creation+cache_read+output) of any
+        subagent (sidechain) transcript file whose LAST real assistant-role
+        message does not contain the literal string
+        "<promise>COMPLETE</promise>" — i.e. the delegated direction ended
+        BLOCKED, CONFUSED, or with no completion marker at all. Highest
+        attribution priority (checked first).
+      rework: >-
+        Full token total of a subagent (sidechain) transcript file for a
+        subagent_type already delegated to EARLIER in the same session
+        (2nd-or-later occurrence of that subagent_type; the 1st occurrence
+        is assumed the primary attempt, never rework), and not already
+        counted under failed_direction. Subagent files are matched to
+        their session's ordered list of Agent/Task tool_use calls by
+        chronological order (each file's own first record timestamp) — an
+        approximation valid where call count and file count agree 1:1; a
+        per-session mismatch count is reported alongside so silent
+        misattribution stays visible, never hidden.
+      re_explaining: >-
+        Token total (input+cache_creation+cache_read+output) of every
+        main-session assistant message that is the first reply to a real
+        user turn (jsonl_utils.is_real_user_turn) whose own text,
+        normalized (stripped, lowercased, whitespace-collapsed), exactly
+        matches an earlier real user turn's normalized text in the SAME
+        session — a proxy for "the person had to repeat themselves." A
+        deliberately conservative floor: paraphrased (non-exact) repeats
+        are not caught, so this undercounts, never overcounts.
+    caveat: >-
+      All three are approximations of a genuinely fuzzy concept (why was a
+      token spent); they exist to make waste VISIBLE and comparable
+      release over release, not to be an exact ledger. waste_total is a
+      lower bound given re_explaining's exact-match floor and the
+      chronological-order assumption behind rework/failed_direction
+      attribution.
+    source: "tools/cse-bench/collectors/economy.py"
+
 claims:
 
   - id: outcome-ttfls
@@ -348,10 +465,18 @@ claims:
 
   - id: outcome-token-efficiency
     statement: "Creating a finished solution through the CSE uses at least 60 percent fewer tokens than the bare-harness counterfactual (aspiration: 90 percent), with O-1/O-3 non-degraded. Constraint, not objective."
-    definition_refs: [outcome_bars]
-    check: "gated on W-2 token joins + W-3 ladder"
-    status: gated
-    evidence: "phases/phase-4-outcome-program-prd.md par.0.4, par.2 (O-4)"
+    definition_refs: [outcome_bars, solution_token_accounting]
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; print(json.load(open('output/economy-latest.json'))['metrics']['totals'])\""
+    status: unchecked
+    evidence: "W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join table + tools/cse-bench/collectors/economy.py): the CSE-side half of O-4 (a solution's tokens_total, computed two independent ways -- ledger vs transcripts, joined via repo+time+session-id -- and cross-checked against the tolerance in definitions.solution_token_accounting) is now real and runnable, replacing the prior no-instrumentation gate. Flipped gated->unchecked because the check command is now real, not because the full statement has been evaluated: this claim's 60/90 percent figure also needs a bare-harness counterfactual denominator, which is W-3's ladder harness (still gated -- see outcome-counterfactual-delta), so no percentage can be reported yet. Real-data state as of this run: see token-accounting-dual-method-agreement for the one dogfooded solution this task produced, or its honest empty-state note if that step did not land."
+    last_checked: "2026-07-13"
+
+  - id: token-accounting-dual-method-agreement
+    statement: "For at least one completed solution with a joined session, tokens_total computed via the ledger and via transcripts agree within the registered tolerance (definitions.solution_token_accounting)."
+    definition_refs: [solution_token_accounting, waste_decomposition_heuristics]
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; d=json.load(open('output/economy-latest.json')); print(d['metrics']['totals']); print(d['errors'])\""
+    status: unchecked
+    evidence: "TASK-124 (W-2): the join table, the two accounting methods, and the waste-decomposition heuristics are implemented and run clean (errors: []). Real-data state to be filled in after the check is actually run against this machine's own store/corpus (see this task's work-product for the specific numbers found, honest empty-state if no solution had a joined session with matching transcript data at check time)."
     last_checked: "2026-07-13"
 
   - id: outcome-survival
