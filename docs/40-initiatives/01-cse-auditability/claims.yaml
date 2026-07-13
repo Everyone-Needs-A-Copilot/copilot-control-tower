@@ -585,6 +585,107 @@ definitions:
       undercounts waste the same way it undercounts total tokens).
     source: "tools/cse-bench/collectors/economy.py"
 
+  ladder_config_materialization:
+    description: >-
+      TASK-125 (W-3): the 4-config ladder's config isolation, verbatim from
+      phase-4-outcome-program-prd.md par.3 W-3 ("bare = fresh dir, no
+      framework files; +framework = claude-copilot install; +knowledge =
+      CC_KNOWLEDGE_REPO populated vs empty tree; +integrations =
+      cli-copilot on PATH with .env"). Registered BEFORE any config was
+      run against a real job (V-2). Two isolation levers, both verified
+      against this machine's actually-installed `claude` CLI before this
+      register entry was written (`claude --help`, 2026-07-13): (1)
+      `--setting-sources project` on every rung including bare, so none of
+      this dev machine's own USER-scope claude-copilot install
+      (`~/.claude/`, `~/.local/bin/{tc,cc}`) leaks into a rung that hasn't
+      earned it; (2) a per-rung PATH override (bare/+framework exclude
+      cli-copilot's venv bin; bare additionally excludes tc/cc's
+      ~/.local/bin). `+framework` materializes `.claude/{agents,commands,
+      skills}/` + CLAUDE.md by copying directly from claude-copilot's own
+      VERSION.json roster (the same files `/setup-project`'s FULL-mode
+      flow would copy), so the ladder measures a job's MARGINAL cost with
+      the framework already installed, not the one-time setup cost.
+      `+framework`'s CC_KNOWLEDGE_REPO points at an EMPTY directory (not
+      unset), isolating "knowledge content present" from "knowledge
+      mechanism present."
+    source: "tools/cse-bench/benches/ladder/configs.py"
+    caveat: >-
+      Environment gap found while building this (recorded, not hidden):
+      `/opt/homebrew/bin/copilot` (the path this repo's README and
+      benches/mcp_twin/run.py name) does not exist on this machine;
+      `copilot` is also a shell alias for `cd` interactively. The real,
+      working entry point used for +integrations is cli-copilot's own venv
+      (`cli-copilot/.venv313/bin/copilot`, verified live via --help).
+      Separately, every config also overrides HOME to a fresh per-run temp
+      directory so a live run's transcripts do not land in this machine's
+      REAL transcript corpus (which framework_soul/transcripts.py already
+      treat as production data) — but whether an isolated HOME still
+      resolves Anthropic auth (OAuth/keychain) the same way is UNTESTED,
+      not asserted as fact; verify on one throwaway cell before a full live
+      run.
+
+  ladder_job_pack_v1:
+    description: >-
+      TASK-125 (W-3): the ladder's job pack v1, per
+      phase-4-outcome-program-prd.md par.3 W-3 ("3 real software jobs of
+      graduated size ... candidates: an R-series fix implemented 4 ways;
+      a small web utility; a data-pull-and-report task that exercises
+      integrations. Pack format is pluggable"). Registered BEFORE any job
+      was scored (V-2). Three jobs: job-1-bugfix (small — an R-series-
+      style off-by-one fix, mechanical t_working via stdlib `unittest`,
+      not pytest, since this machine's default python3 has no pytest
+      importable, verified live); job-2-web-utility (medium — build a
+      word-frequency CLI utility from scratch, mechanical t_working via
+      an external checker diffing real output against a precomputed
+      expected_output.txt); job-3-integration-report (large, exercises
+      integrations — pull a service-health report via the copilot CLI,
+      with an explicit, mechanically-checked honest-fallback path
+      ("integrations unavailable") when the CLI is not reachable, so this
+      job is reachable and t_working-passable from EVERY rung, not gated
+      to +integrations alone — the ladder's O-1..O-4 deltas are what
+      reveal whether +integrations actually helps, not a rigged pass/fail
+      gate). Pack format is a plain, directly-importable Python module
+      (job_pack.py), not a bank.yaml/rules.yaml-style file like this
+      program's other benches: this machine's default python3 has no
+      importable PyYAML (verified live), and a job pack's nested shape
+      (per-job acceptance-check specs, fixture dirs) would need a bigger
+      vendored parser than knowledge_qa/voice_lint's flat-row parsers
+      already carry — "pack format is pluggable" is satisfied by
+      run.py's --job/--config selectors reading this module, not by a
+      file-format promise.
+    source: "tools/cse-bench/benches/ladder/job_pack.py"
+
+  ladder_mlp_rubric:
+    description: >-
+      TASK-125 (W-3): the written MLP expectation rubric that scores
+      t_loveable, per phase-4-outcome-program-prd.md par.3 W-3
+      ("guided experience, sensible defaults, error help, polish — judged
+      blind, exemplar-anchored, deterministic checks where possible").
+      Registered BEFORE any deliverable was scored (V-2). Each of the 4
+      dimensions is scored 0-3 against a written exemplar anchor per
+      level (not a bare good/bad scale); t_loveable = the first cell
+      scoring >=2 on ALL 4 dimensions, not an averaged total (mirrors "MLP
+      not MVP" literally). One hard floor set mechanically rather than
+      left to judgment: job-3's error-help dimension scores 0 outright if
+      the deliverable fabricates service data instead of honestly
+      reporting integrations-unavailable. Blind judging protocol: the
+      judge (human or, once ratified, a model) sees the brief, the
+      deliverable, and the rubric — never the config name, ladder rung,
+      elapsed time, or token count; enforced by construction
+      (build_blind_judge_prompt() has no config-name parameter at all,
+      not merely an instruction not to reveal one).
+    source: "tools/cse-bench/benches/ladder/rubric.md"
+    note: >-
+      STATUS: DRAFT, NOT RATIFIED. Per phase-4-handoff.md §6 row 6 ("the
+      MLP expectation rubric needs owner sign-off before first scoring —
+      it operationalizes his bar"), this rubric requires owner ratification
+      before ANY live t_loveable scoring — see
+      docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md.
+      This is enforced MECHANICALLY, not just by convention: run.py's
+      check_signoff() reads DEC-6's header for the literal string
+      "Status: **ratified**" and refuses any non-dry-run invocation until
+      it appears there.
+
 claims:
 
   - id: outcome-ttfls
@@ -616,7 +717,7 @@ claims:
     definition_refs: [outcome_bars, solution_token_accounting]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; print(json.load(open('output/economy-latest.json'))['metrics']['totals'])\""
     status: unchecked
-    evidence: "W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join table + tools/cse-bench/collectors/economy.py), then CORRECTED same-day per QA WP-17 (windowing + billed_volume/marginal_spend split -- see definitions.solution_token_accounting.windowing and .methods): the CSE-side half of O-4 (a solution's tokens, computed two independent ways -- ledger vs transcripts, windowed to each solution's own touch span, joined via repo+time+session-id -- and cross-checked against the tolerance) is now real and runnable, replacing the prior no-instrumentation gate. Flipped gated->unchecked because the check command is now real, not because the full statement has been evaluated: this claim's 60/90 percent figure also needs a bare-harness counterfactual denominator, which is W-3's ladder harness (still gated -- see outcome-counterfactual-delta), so no percentage can be reported yet. The production ledger (tools/cse-bench's own repo glob) has zero real solutions as of this run, same honest-empty state as outcome-ttfls/outcome-completeness/outcome-survival -- see token-accounting-dual-method-agreement for the real-transcript verification this task ran instead (a scratch DB, not a production solution record)."
+    evidence: "W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join table + tools/cse-bench/collectors/economy.py), then CORRECTED same-day per QA WP-17 (windowing + billed_volume/marginal_spend split -- see definitions.solution_token_accounting.windowing and .methods): the CSE-side half of O-4 (a solution's tokens, computed two independent ways -- ledger vs transcripts, windowed to each solution's own touch span, joined via repo+time+session-id -- and cross-checked against the tolerance) is now real and runnable, replacing the prior no-instrumentation gate. Flipped gated->unchecked because the check command is now real, not because the full statement has been evaluated: this claim's 60/90 percent figure also needs a bare-harness counterfactual denominator, which is W-3's ladder harness (harness now built and dry-run validated, TASK-125 -- but still unchecked pending owner rubric sign-off, see outcome-counterfactual-delta and ladder-harness-dry-run-validated), so no percentage can be reported yet. The production ledger (tools/cse-bench's own repo glob) has zero real solutions as of this run, same honest-empty state as outcome-ttfls/outcome-completeness/outcome-survival -- see token-accounting-dual-method-agreement for the real-transcript verification this task ran instead (a scratch DB, not a production solution record)."
     last_checked: "2026-07-13"
 
   - id: token-accounting-dual-method-agreement
@@ -637,10 +738,18 @@ claims:
 
   - id: outcome-counterfactual-delta
     statement: "The 4-config ladder (bare -> +framework -> +knowledge -> +integrations) shows each component contributing positively to O-1..O-4; a component with no positive contribution enters the removal queue."
-    definition_refs: [outcome_bars]
-    check: "gated on W-3 ladder harness"
-    status: gated
-    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-6), par.3 (W-3)"
+    definition_refs: [outcome_bars, ladder_config_materialization, ladder_job_pack_v1, ladder_mlp_rubric]
+    check: "cd tools/cse-bench/benches/ladder && python3 run.py --dry-run"
+    status: unchecked
+    evidence: "TASK-125 (W-3): the ladder harness is built (tools/cse-bench/benches/ladder/{run.py,configs.py,job_pack.py,rubric.md}) and fully dry-run validated -- 4 configs x 3 jobs = 12 cells materialize cleanly (0 wiring problems, 0 claude invocations, nothing written to output/, per the command above). Flipped gated->unchecked because the check command is now real (the dry-run), not because the full statement has been evaluated: NO live scored ladder run has executed. This is deliberate, not an oversight -- the PRD's own MLP rubric requires owner sign-off BEFORE first scoring (phase-4-handoff.md §6 row 6), and run.py's check_signoff() mechanically refuses any non-dry-run invocation until docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md's header reads 'Status: **ratified**' (today: not ratified, verified by the dry-run's own printed gate line). See ladder-harness-dry-run-validated for the mechanism-level check, and DEC-6 for the sign-off memo. No O-1..O-4 numbers exist for any config or job yet."
+    last_checked: "2026-07-13"
+
+  - id: ladder-harness-dry-run-validated
+    statement: "The W-3 ladder harness's full pipeline (config materialization x job-pack wiring x acceptance-check wiring x rubric structural consistency x the DEC-6 sign-off gate) runs end-to-end without error in --dry-run mode, with zero live model calls."
+    definition_refs: [ladder_config_materialization, ladder_job_pack_v1, ladder_mlp_rubric]
+    check: "cd tools/cse-bench/benches/ladder && python3 run.py --dry-run"
+    status: passing
+    evidence: "TASK-125, 2026-07-13: `python3 run.py --dry-run` materializes all 4 configs x 3 jobs = 12 cells (real, side-effect-scoped directory operations under a fresh tempfile.mkdtemp() -- .claude/{agents,commands,skills}/ + CLAUDE.md correctly present for +framework/+knowledge/+integrations and correctly ABSENT for bare; CC_KNOWLEDGE_REPO correctly None for bare, an empty tree for +framework, the real knowledge-copilot repo for +knowledge/+integrations; PATH correctly excludes tc/cc/copilot for bare, restores tc/cc for +framework/+knowledge, adds cli-copilot's venv bin only for +integrations), reports 0 acceptance-check wiring problems across all 3 jobs, validates job_pack.py (0 structural problems) and rubric.md (all 4 dimensions present) at startup, and correctly reports the DEC-6 sign-off gate as ratified=False. A live (non-dry-run) invocation was also verified to exit 1 with an explicit refusal message rather than proceed. Exit code 0; nothing written to output/, per this bench's own convention (see README.md 'Dry-run output')."
     last_checked: "2026-07-13"
 
   - id: outcome-return-rate

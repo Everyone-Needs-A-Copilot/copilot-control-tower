@@ -1,0 +1,5 @@
+the: 10
+fox: 5
+and: 4
+dog: 4
+quick: 3
