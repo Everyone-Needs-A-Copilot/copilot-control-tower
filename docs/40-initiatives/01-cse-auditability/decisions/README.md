@@ -15,7 +15,7 @@ nothing"), a labeled recommendation, and the exact one-line command to
 execute each option. Pick an option, run its command yourself (or hand it to
 the agent that owns the target repo) — nothing here executes automatically.
 
-## The five decisions
+## The decisions
 
 | # | Memo | tc task | One-line question |
 |---|---|---|---|
@@ -24,11 +24,17 @@ the agent that owns the target repo) — nothing here executes automatically.
 | DEC-3 | [`DEC-3-soul-94pct-correction.md`](DEC-3-soul-94pct-correction.md) | TASK-114 (R-5) | Ratify the SOUL §3 correction replacing the falsified "~94% less context" figure? |
 | DEC-4 | [`DEC-4-stale-clones.md`](DEC-4-stale-clones.md) | TASK-118 (R-9) | Delete or keep the stale `shared-docs`/`conversations-copilot` clone artifacts? |
 | DEC-5 | [`DEC-5-configure-or-cut-services.md`](DEC-5-configure-or-cut-services.md) | TASK-122 (R-13) | Configure or cut: fireflies, reddit, metabase, method? |
+| DEC-7 | [`DEC-7-c3-hook-rollout-gate.md`](DEC-7-c3-hook-rollout-gate.md) | TASK-103 (C-3) | The `claude-copilot` hook-path defect is fixed and scripted-reverified — does that satisfy Rollout Readiness condition 1, or does the owner still need to run one real session before C-3 widens to consumer repos? |
+
+*(DEC-6 number is reserved/in flight elsewhere; not yet present in this
+directory as of this index update.)*
 
 ## Status
 
-All five tasks are `blocked` in Task Copilot — the honest status for
-"preparable work complete, ruling not made yet." Each task will move to
+DEC-1 through DEC-5 tasks are `blocked` in Task Copilot — the honest status
+for "preparable work complete, ruling not made yet." DEC-7's task
+(TASK-103) is also `blocked`, pending the owner's ruling on whether one real
+`claude-copilot` session is still required. Each task will move to
 `completed` (or whatever the owner's chosen option's own follow-up task is)
 once the owner picks and someone executes the corresponding one-line
 command.
