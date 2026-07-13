@@ -112,8 +112,13 @@ Task IDs are live in this repo's Task Copilot (`tc task get <id>`). Done means
 | TASK-116 (R-7) | Freshness frontmatter (`last_updated`+`status`) backfill + pre-commit |
 | TASK-117 (R-8) | Rewrite `02-tone-of-voice.md` to pass its own linter; convert `cw` extension to distilled-rules format |
 | TASK-119 (R-10) | Fix contradictory product versions (start: insights-copilot 2.7.0 vs 2.6.0) |
-| TASK-120 (R-11) | Close the 13 CLI conformance gaps → suite reads 138/138 |
+| TASK-120 (R-11) | Close the CLI conformance gaps — **scoped by the relevance rule:** skip removal-candidate services (fireflies/reddit/metabase/method) until R-13 is ruled; close the rest (infisical tests, error-hierarchy migration, kept-service env docs) now |
 | TASK-121 (R-12) | Two residual doc-truth lines in cli-copilot |
+
+> **Relevance rule (phase-3 §Sequencing):** never polish surface the removal
+> rule may delete. It also scopes R-6 (fix the 28-link batch + actively-read
+> files first; orphan-candidate links wait) and C-5 (eval agents that survive
+> the W-6 relevance pass, not all 15 blanket).
 
 ### Wave 3 — after the first ladder run
 | Task | What |

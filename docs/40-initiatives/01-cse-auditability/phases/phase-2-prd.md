@@ -1,5 +1,13 @@
 # PRD — CSE Verification & Benchmark Program (Phase 2)
 
+> **STATUS (2026-07-13): largely executed; superseded as a work plan.**
+> P0–P2 and the C/S series shipped (see [`phase-4-handoff.md`](phase-4-handoff.md) §3
+> for what exists). **B-12, B-13, B-14 are superseded** by C-5, W-3, W-4 (tc
+> tasks 95/96/97 cancelled — do not execute them from this document). §2's T6
+> row predates the owner ruling that Claude↔Codex parity is sync plumbing,
+> never a measurement — §2.5 and phase-4 govern. **This file is historical
+> context; open work lives only in `phase-4-handoff.md` §4.**
+
 > Initiative: `01-cse-auditability` · Prepared: 2026-07-12
 > Basis: [`phase-1-findings.md`](phase-1-findings.md) + [`phase-1-reaudit-report.html`](phase-1-reaudit-report.html)
 > Owner intent: *"I want to be able to prove that this thing actually works, so I need it

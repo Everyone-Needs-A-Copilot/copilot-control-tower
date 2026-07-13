@@ -41,7 +41,17 @@ done — not "the work happened," but "the check now passes."
 
 ## Sequencing
 
-1. **Wave R-mechanical (no decisions needed):** R-6, R-7, R-8, R-10, R-11, R-12 — each ends with a claim flip and a regression check.
+> **Relevance rule (added 2026-07-13, after the outcome-bars ratification):**
+> do not polish surface that may be removed. R-11 SKIPS removal-candidate
+> services (fireflies, reddit, metabase, method) until R-13/B-17 is ruled —
+> close the other gaps (infisical tests, error-hierarchy migration, env-var
+> docs for kept services) now. R-6 fixes the systematic 28-link batch and
+> links in actively-read files first; links inside orphan/prune candidates
+> wait for the removal review. C-5 evals follow the W-6 relevance pass —
+> evaluate agents that earn their place, don't blanket-eval 15 agents the
+> removal rule may cut.
+
+1. **Wave R-mechanical (no decisions needed):** R-6, R-7, R-8, R-10, R-11 (scoped per the relevance rule), R-12 — each ends with a claim flip and a regression check.
 2. **Wave R-staged:** R-2 (per-repo readiness), R-4 (eval-by-eval).
 3. **Owner queue:** R-1 direction, R-3 direction, R-5 ratification, R-9 deletions, R-13 cuts.
 4. Ecosystem endgame unchanged: **B-13 ladder test → B-14 external pilot** — the "substantial value" question stays unanswerable until these run.
