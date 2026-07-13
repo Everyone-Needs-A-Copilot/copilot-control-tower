@@ -387,6 +387,32 @@ definitions:
       table); tools/tc/src/tc/services/solutions.py
       (_record_session_touch); tools/cse-bench/collectors/economy.py (the
       join + comparison).
+    verified_finding: >-
+      TASK-124, 2026-07-13, added AFTER the tolerance above was registered
+      and the mechanism built (not a threshold change): a scratch-DB
+      verification joined to this task's own real, live session
+      transcript found transcript_tokens two-to-three orders of magnitude
+      larger than a plausible human-typed ledger guess (~190M vs a 50,000
+      test estimate). This is NOT a bug -- `cache_read_input_tokens` is
+      billed PER ASSISTANT MESSAGE and reflects that turn's full re-read
+      context, so summing it across every turn of a long, many-turn
+      session (here: 1 main + 7 subagent files, 1,373 assistant messages
+      total) is mathematically a cumulative sum, not a snapshot -- it
+      legitimately grows to the tens/hundreds of millions for a
+      real, heavily-delegated session. Two consequences worth recording:
+      (1) a `tc solution log-usage --tokens` estimate typed against
+      intuition (e.g. "current context size") will essentially never
+      agree with this definition at real-world scale unless the person
+      logging it is told explicitly to estimate the SAME cumulative-sum
+      quantity; (2) a session_id shared across multiple unrelated tasks
+      (Claude Code reuses one session_id across a long-lived orchestrator
+      conversation) attributes that WHOLE session's cumulative usage to
+      whichever solution happens to be joined to it -- the join is only
+      a clean per-solution measure when the joined session is dedicated
+      to that one solution. Neither point changes the registered 20%
+      tolerance or the mechanism; both are open gaps for whoever next
+      logs ledger tokens or interprets a comparison this collector
+      produces.
 
   waste_decomposition_heuristics:
     description: >-
@@ -468,7 +494,7 @@ claims:
     definition_refs: [outcome_bars, solution_token_accounting]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; print(json.load(open('output/economy-latest.json'))['metrics']['totals'])\""
     status: unchecked
-    evidence: "W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join table + tools/cse-bench/collectors/economy.py): the CSE-side half of O-4 (a solution's tokens_total, computed two independent ways -- ledger vs transcripts, joined via repo+time+session-id -- and cross-checked against the tolerance in definitions.solution_token_accounting) is now real and runnable, replacing the prior no-instrumentation gate. Flipped gated->unchecked because the check command is now real, not because the full statement has been evaluated: this claim's 60/90 percent figure also needs a bare-harness counterfactual denominator, which is W-3's ladder harness (still gated -- see outcome-counterfactual-delta), so no percentage can be reported yet. Real-data state as of this run: see token-accounting-dual-method-agreement for the one dogfooded solution this task produced, or its honest empty-state note if that step did not land."
+    evidence: "W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join table + tools/cse-bench/collectors/economy.py): the CSE-side half of O-4 (a solution's tokens_total, computed two independent ways -- ledger vs transcripts, joined via repo+time+session-id -- and cross-checked against the tolerance in definitions.solution_token_accounting) is now real and runnable, replacing the prior no-instrumentation gate. Flipped gated->unchecked because the check command is now real, not because the full statement has been evaluated: this claim's 60/90 percent figure also needs a bare-harness counterfactual denominator, which is W-3's ladder harness (still gated -- see outcome-counterfactual-delta), so no percentage can be reported yet. The production ledger (tools/cse-bench's own repo glob) has zero real solutions as of this run, same honest-empty state as outcome-ttfls/outcome-completeness/outcome-survival -- see token-accounting-dual-method-agreement for the real-transcript verification this task ran instead (a scratch DB, not a production solution record)."
     last_checked: "2026-07-13"
 
   - id: token-accounting-dual-method-agreement
@@ -476,7 +502,7 @@ claims:
     definition_refs: [solution_token_accounting, waste_decomposition_heuristics]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; d=json.load(open('output/economy-latest.json')); print(d['metrics']['totals']); print(d['errors'])\""
     status: unchecked
-    evidence: "TASK-124 (W-2): the join table, the two accounting methods, and the waste-decomposition heuristics are implemented and run clean (errors: []). Real-data state to be filled in after the check is actually run against this machine's own store/corpus (see this task's work-product for the specific numbers found, honest empty-state if no solution had a joined session with matching transcript data at check time)."
+    evidence: "TASK-124 (W-2): the join table, the two accounting methods, and the waste-decomposition heuristics are implemented, run clean (errors: []), and were verified against REAL transcript data -- a scratch-DB solution (deliberately NOT written into any production tasks.db, to avoid polluting the Outcome Ledger with a fabricated 'solution') joined to this task's own real, live Claude Code session. Result: mechanism works (found the real session's main+7 subagent transcript files, computed a real transcript_tokens sum from their usage fields, ran the waste heuristics without error) but did NOT agree within tolerance against a plausible hand-typed ledger guess -- delta_pct ~99.97%, agrees_within_tolerance: false. This is the honest finding, not a failure to hide: see definitions.solution_token_accounting.verified_finding for why the magnitude gap is real (cumulative cache_read summation across a long, heavily-delegated session) rather than a bug. Zero real (non-scratch) solutions with a joined session exist in any production ledger as of this run -- the full acceptance criterion (a real completed solution, not a verification scratch-DB) remains open."
     last_checked: "2026-07-13"
 
   - id: outcome-survival
