@@ -1124,12 +1124,12 @@ claims:
     last_checked: "2026-07-12"
 
   - id: agent-eval-coverage
-    statement: "Every framework agent has a golden-set eval with a passing score. Current: 1 of 16 agents covered (qa: 10/10 pass, deterministic LocalPythonRunner, threshold 0.8); coverage_ratio 6.25%."
+    statement: "Every framework agent has a golden-set eval with a passing score. UPDATED 2026-07-13: 6 of 16 agents covered (qa, me, ta, doc, sd, uxd -- each 10/10 pass, deterministic LocalPythonRunner, threshold 0.8); coverage_ratio 37.5% (was 1 of 16, 6.25%)."
     definition_refs: []
-    check: "cd tools/cse-bench && python3 cse_bench.py collect --only evals (runs cc eval --agent qa --json in claude-copilot)"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only evals (runs cc eval --agent <agent> --json in claude-copilot for EVERY agent under <claude-copilot>/.claude/evals/ with a golden set -- the collector already discovers this list dynamically from the evals directory, not hardcoded to qa; this check-field description previously undersold that as qa-only and is corrected here to match the collector's actual behavior, collectors/evals.py)"
     status: failing
-    evidence: "tools/cse-bench/output/evals-latest.json — the qa suite passes; the CLAIM fails on coverage (15 of 16 agents unmeasured). Expansion tracked as C-5 (TASK-105)."
-    last_checked: "2026-07-12"
+    evidence: "tools/cse-bench/output/evals-latest.json (re-run 2026-07-13: agents_with_evals [doc, me, qa, sd, ta, uxd], agents_total 16, coverage_ratio 0.375; all six 10/10 pass, overall_pass true) -- all six covered suites pass; the CLAIM still fails on coverage (10 of 16 agents remain unmeasured: the claim's own statement requires EVERY framework agent, not a majority). Expansion tracked as C-5 (TASK-105). Evidence note: narrowing this claim's statement (e.g. to 'every agent WITH a golden set passes it') is an owner option, not applied unilaterally here -- the statement as pre-registered says 'every framework agent,' and this program does not silently narrow a claim to match a partial result (V-2)."
+    last_checked: "2026-07-13"
 
   # --- S-series: SOUL-aligned claims (2026-07-12 revision; phase-2-prd.md §2.5) ---
 
@@ -1142,52 +1142,52 @@ claims:
     last_checked: "2026-07-12"
 
   - id: framework-externalization-94pct
-    statement: "Externalized work products yield '~94% less context' vs inlining (claude-copilot SOUL §3 Principle 3, README panel). FALSIFIED AND INVERTED under population measurement: agent returns median 658 tokens vs WP content median 217 — returns are ~3x LARGER than the artifacts they externalize. README claim struck 2026-07-12; SOUL §3 line flagged for owner-ratified correction per SOUL §10."
+    statement: "Externalized work products yield '~94% less context' vs inlining (claude-copilot SOUL §3 Principle 3, README panel). FALSIFIED AND INVERTED under population measurement. README claim struck 2026-07-12; SOUL §3 line flagged for owner-ratified correction per SOUL §10."
     definition_refs: []
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul"
     status: failing
-    evidence: "tools/cse-bench/output/framework_soul-latest.json (n=1099 WPs, n=658 returns; population-level caveat stated in output)"
-    last_checked: "2026-07-12"
+    evidence: "REFRESHED 2026-07-13 (QA WP-28): tools/cse-bench/output/framework_soul-latest.json, fresh collect this session -- wp_tokens median 353 (n=126 work products with inline content, of 137 total scanned across 10 repos' */.copilot/tasks.db), agent_return_tokens median 893 (n=124 subagent final returns); savings_ratio_median -1.53 (-153%) -- agent returns are ~2.5x LARGER than the work products they externalize, same falsified-and-inverted direction as the prior reading, still failing. The prior evidence (n=1099 WPs, n=658-token median return) is SUPERSEDED, not because the direction changed but because the corpus it was measured against was wrong: both this collector's work-product glob and its transcript corpus root resolve through collectors/paths.py's resolve_copilot_root(), which (per this session's own §2 fix) previously fell back silently to a path that does not exist on this machine. Now that both known COPILOT root candidates are tried, the collector sees this machine's REAL, smaller tree (137 WPs, 124 returns) instead of whatever larger/stale corpus the prior number reflects. The finding (returns larger than externalized content, SOUL §3's 94% claim falsified) is unchanged; only the population size and exact median moved, and moved for an environmental-visibility reason, not a behavior change."
+    last_checked: "2026-07-13"
 
   - id: framework-agent-frugality
-    statement: "Agents return ~100 tokens to the main session (claude-copilot SOUL §6 non-negotiable). Current: median return 658 tokens, p90 2,749; 86.2% of returns exceed 300 tokens."
+    statement: "Agents return ~100 tokens to the main session (claude-copilot SOUL §6 non-negotiable). UPDATED 2026-07-13 (QA WP-28 refresh): median return 893 tokens (was 658 -- WORSE, further from the ~100-token bar), p90 3,474 (was 2,749); 95.97% of returns exceed 300 tokens (was 86.2%)."
     definition_refs: []
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul"
     status: failing
-    evidence: "tools/cse-bench/output/framework_soul-latest.json (agent_frugality block)"
-    last_checked: "2026-07-12"
+    evidence: "REFRESHED 2026-07-13 (QA WP-28): tools/cse-bench/output/framework_soul-latest.json, fresh collect this session -- agent_frugality block: n=124 subagent returns (merged transcript corpus, now visible in full after the collectors/paths.py root-resolution fix, TASK-128/719cb6e, previously silently blind to this machine's real tree), median 893.0, p90 3473.8, pct_over_threshold 95.97%. This is a genuine regression vs the 658-token/86.2% figure this claim previously quoted, not a methodology change -- quoted plainly, not softened. The claim was already failing and remains failing; the gap from the SOUL §6 bar widened."
+    last_checked: "2026-07-13"
 
   - id: framework-qa-gate-adherence
-    statement: "No implementation ships without a qa pass carrying an ARTIFACT: marker (claude-copilot SOUL §6). Current: 75.9% of qa returns carry the marker (41/54); 8 sessions delegated to me with no qa at all; the qa-gate hook state file has never existed anywhere on this machine."
+    statement: "No implementation ships without a qa pass carrying an ARTIFACT: marker (claude-copilot SOUL §6). UPDATED 2026-07-13 (QA WP-28 refresh): 66.67% of qa returns carry the marker (10/15, was 75.9%/41-of-54 -- WORSE), 3 sessions delegated to me with no qa activity at all (of 9 sessions with me-or-qa activity); the qa-gate hook state file now EXISTS at the primary path (claude-copilot/.claude/hooks/state/qa-gate.json) but is empty (`{}`, 0 sessions tracked, 0 history events) -- the hook has been installed but has not yet actually fired/gated anything on this machine, a materially different (and still concerning) state from 'has never existed.'"
     definition_refs: []
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul"
     status: failing
-    evidence: "tools/cse-bench/output/framework_soul-latest.json (qa_gate_adherence block; primary_exists false)"
-    last_checked: "2026-07-12"
+    evidence: "REFRESHED 2026-07-13 (QA WP-28): tools/cse-bench/output/framework_soul-latest.json, fresh collect this session -- qa_gate_adherence block: artifact_marker_rate 0.6667 (n_qa_returns 15, with marker 10), n_sessions_with_me_activity_but_no_qa_activity 3 (of n_sessions_with_me_or_qa_activity 9), hook_state.primary_exists true (was false), hook_state.primary_summary all-zero (installed, unfired). This is a genuine regression vs the 75.9%/41-of-54 figure this claim previously quoted, not a methodology change -- quoted plainly. The claim was already failing and remains failing."
+    last_checked: "2026-07-13"
 
   - id: knowledge-crosslink-integrity
-    statement: "Knowledge is cross-linked where decisions depend on other documents (knowledge-copilot SOUL quality bar). Current: 52.5% of relative links resolve (137/261, 124 broken; top offender has 28 from a systematic wrong-depth pattern)."
+    statement: "Knowledge is cross-linked where decisions depend on other documents (knowledge-copilot SOUL quality bar). CORRECTED 2026-07-13: 70.99% of relative links resolve (186/262, 76 broken), up from 52.5% (137/261, 124 broken), after knowledge-copilot commit 5a07dcfe (R-6) repaired the remaining real breaks beyond the systematic wrong-depth batch. The 76 that remain are BASELINED (scripts/crosslinks-baseline.json) as non-decision-dependent: 68 pedagogical example syntax inside documentation-teaching SKILL.md content (never meant to resolve) and 8 framework-template files (CLAUDE.md, CLAUDE_REFERENCE.md, .claude/commands/reflect.md) synced verbatim from claude-copilot. A pre-commit regression gate (scripts/check-crosslinks.py) now fails any NEW broken link outside this baseline."
     definition_refs: []
-    check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul"
-    status: failing
-    evidence: "tools/cse-bench/output/knowledge_soul-latest.json (crosslink_integrity block)"
-    last_checked: "2026-07-12"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul; or knowledge-copilot's own gate: cd knowledge-copilot && python3 scripts/check-crosslinks.py"
+    status: passing
+    evidence: "knowledge-copilot commit 5a07dcfe (R-6, scripts/check-crosslinks.py + scripts/crosslinks-baseline.json); tools/cse-bench/output/knowledge_soul-latest.json (crosslink_integrity block, re-run 2026-07-13: n_links_checked 262, n_broken 76, pct_resolving 70.99 -- reproduces the commit's own verified numbers). Flipped failing->passing per this claim's own truth condition: the SOUL bar concerns cross-links between DECISIONS, and every remaining broken link is now baselined as non-decision content (pedagogical example / synced template), not a real cross-reference gap; a mechanical gate prevents regression back into real breakage."
+    last_checked: "2026-07-13"
 
   - id: knowledge-staleness-honesty
-    statement: "The repo never becomes a stale content dump; documents carry honest freshness status (knowledge-copilot SOUL). Current: the last_updated key appears ZERO times; only 1.3% of files carry any freshness key."
+    statement: "The repo never becomes a stale content dump; documents carry honest freshness status (knowledge-copilot SOUL). CORRECTED 2026-07-13: last_updated + status frontmatter coverage is 100% (764/764 non-archive files), up from 0% literal last_updated / 1.3% any-freshness-key, after knowledge-copilot commit c6a6b492 (R-7) backfilled both keys on every active file missing them -- last_updated always derived from that file's own git history (git log -1, never invented), status defaulting to 'active' (matching the ~90% pre-existing convention) without overwriting any pre-existing value (2 'draft' + 1 'proposed' file kept as-is)."
     definition_refs: []
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul"
-    status: failing
-    evidence: "tools/cse-bench/output/knowledge_soul-latest.json (staleness block)"
-    last_checked: "2026-07-12"
+    status: passing
+    evidence: "knowledge-copilot commit c6a6b492 (R-7, scripts/backfill-freshness.py); tools/cse-bench/output/knowledge_soul-latest.json (staleness_archive_honesty.frontmatter_freshness block, re-run 2026-07-13: n_scope_files 764, any_frontmatter_pct 100.0, freshness_key_pct 100.0, literal_last_updated_key_pct 100.0). Flipped failing->passing per this claim's own truth condition (documents now carry honest, git-derived freshness status, not an invented one)."
+    last_checked: "2026-07-13"
 
   - id: knowledge-voice-self-conformance
-    statement: "The company-voice reference content passes its own voice rules (anti-pattern: 'rewriting company voice into generic consultant language'). Current: 01-company content lints at 1.93 violations/100w; the tone-of-voice document ITSELF lints at 2.74 — nearly the unguided-output rate (2.77), which plausibly explains why raw-prose knowledge underperformed compiled rules in the voice bench."
+    statement: "The company-voice reference content passes its own voice rules (anti-pattern: 'rewriting company voice into generic consultant language'). CORRECTED 2026-07-13: the tone-of-voice document ITSELF (01-company/01-brand/02-tone-of-voice.md) now lints at 0.0 violations/100w (was 2.74 -- nearly the unguided-output rate of 2.77), Flesch-Kincaid grade 6.5 (was 9.9, out of the 6-8 band; now in band), after knowledge-copilot commit b1f99719 (R-8) rewrote the doc and the cw extension into the distilled-rules form the voice_lint bench proved beats prose -- the doc now practices what it preaches instead of re-typing its own denylist in violation of it."
     definition_refs: []
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul"
-    status: failing
-    evidence: "tools/cse-bench/output/knowledge_soul-latest.json (voice_self_conformance block)"
-    last_checked: "2026-07-12"
+    status: passing
+    evidence: "knowledge-copilot commit b1f99719 (R-8); tools/cse-bench/output/knowledge_soul-latest.json (voice_preservation.per_file block, re-run 2026-07-13: 01-company/01-brand/02-tone-of-voice.md total_violations 0, total_violations_per_100_words 0.0 -- verified by this claim's own voice_lint linter, benches/voice_lint/lint.py, not a self-report). Flipped failing->passing per this claim's own truth condition (the reference content now passes its own voice rules). Note: the broader 01-company/ aggregate (90 files) still lints at 1.861 violations/100w -- this claim is specifically about the tone-of-voice reference document, not every company-voice file; the aggregate figure is unchanged by R-8 and is not what this claim's statement scopes to."
+    last_checked: "2026-07-13"
 
   - id: knowledge-registry-completeness
     statement: "The ecosystem registry tracks the ecosystem (anti-pattern: registry staleness). Current: 17/17 listed paths resolve, but copilot-control-tower is entirely absent from ECOSYSTEM.md and knowledge-copilot never lists its own local path; 12 top-level dirs unmentioned."
@@ -1198,12 +1198,12 @@ claims:
     last_checked: "2026-07-12"
 
   - id: cli-soul-conformance
-    statement: "Every CLI service meets the SOUL §6 quality bar (health, test file, CopilotError, lazy import, config documented, docs entry). Current: 125/138 scorecard cases pass; 13 named gaps tracked as strict-xfail (infisical test file; coolify+infisical error hierarchy; 3 docs entries; 7 services with undocumented env vars). The bar is now mechanically enforced as a test."
+    statement: "Every CLI service meets the SOUL §6 quality bar (health, test file, CopilotError, lazy import, config documented, docs entry). UPDATED 2026-07-13: 135/138 scorecard cases pass (was 125/138); 3 remaining named gaps tracked as strict-xfail, all scoped to fireflies/reddit (fireflies: FIREFLIES_API_KEY undocumented in .env.example + no docs/services entry; reddit: REDDIT_CLIENT_ID/SECRET/USER_AGENT undocumented). The bar is mechanically enforced as a test."
     definition_refs: []
-    check: "cd /Volumes/Dev/Sites/COPILOT/cli-copilot && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/test_soul_conformance.py -q; or: python3 cse_bench.py collect --only cli_soul"
+    check: "cd cli-copilot && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/test_soul_conformance.py -q --tb=no -rxX; or: python3 cse_bench.py collect --only cli_soul (repo root resolved via collectors/paths.py resolve_copilot_root() -- /Volumes/Dev/Sites/COPILOT/cli-copilot on the owner's primary machine, /Users/pabs/Sites/COPILOT/cli-copilot on a secondary machine where /Volumes/Dev is unmounted)"
     status: failing
-    evidence: "tools/cse-bench/output/cli_soul-latest.json (13 tracked gaps; suite green with strict xfail)"
-    last_checked: "2026-07-12"
+    evidence: "cli-copilot commits 21e7c61 (R-11, close kept-service conformance gaps) + 4f90d7b (R-12, fix residual service-count untruths in CLAUDE.md/overview docs), merged to cli-copilot main 2026-07-13; re-run post-merge on main: `pytest tests/test_soul_conformance.py` -> 135 passed, 3 xfailed; full suite `pytest -q` -> 1808 passed, 16 skipped, 3 xfailed, ruff clean. Status STAYS failing: the claim's own truth condition is EVERY CLI service meeting the bar, and 3 named cases still genuinely fail (xfail is a tracked, expected failure, not a pass) -- fireflies and reddit are both structurally-dead, credential-less services already flagged as removal candidates by DEC-5 (TASK-122, R-13); the gaps close either by configuring them for real or by the owner's R-13 cut ruling, whichever comes first. Quoting xfail as passing would misrepresent a tracked violation as resolved."
+    last_checked: "2026-07-13"
 
   - id: removal-review-first-pass
     statement: "The first mechanical removal review (W-6) traces every claude-copilot agent, CLI Copilot service group, knowledge-copilot top-level area, and .claude/skills leaf skill to usage evidence + outcome-bar trace per the registered value_density definition, and produces a mechanical nomination list (surface + evidence) to the owner's delete-or-defend queue -- nominations only, no deletions, per the removal rule (phase-4-outcome-program-prd.md §0.5). First run: 4 nominations of 75 surfaces traced (16 agents, 22 CLI service groups, 10 knowledge areas, 37 skills) -- agents cpa/cs/kc (0 subagent invocations, no golden-set eval) and knowledge area 04-shared-systems (68.8% of its 16 files orphaned). 0 CLI-service and 0 skill nominations this review -- both surfaces' usage_evidence is null ecosystem-wide (no event ledger), and the nomination_rule never nominates on a null signal alone."
