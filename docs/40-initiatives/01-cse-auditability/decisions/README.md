@@ -26,15 +26,16 @@ the agent that owns the target repo) — nothing here executes automatically.
 | DEC-5 | [`DEC-5-configure-or-cut-services.md`](DEC-5-configure-or-cut-services.md) | TASK-122 (R-13) | Configure or cut: fireflies, reddit, metabase, method? |
 | DEC-6 | [`DEC-6-mlp-rubric-signoff.md`](DEC-6-mlp-rubric-signoff.md) | TASK-125 (W-3) | Ratify the MLP expectation rubric (`tools/cse-bench/benches/ladder/rubric.md`) before the ladder bench's first scored run? |
 | DEC-7 | [`DEC-7-c3-hook-rollout-gate.md`](DEC-7-c3-hook-rollout-gate.md) | TASK-103 (C-3) | The `claude-copilot` hook-path defect is fixed and scripted-reverified — does that satisfy Rollout Readiness condition 1, or does the owner still need to run one real session before C-3 widens to consumer repos? |
+| DEC-8 | [`DEC-8-first-removal-review.md`](DEC-8-first-removal-review.md) | TASK-100 (B-17), fed by TASK-128 (W-6) | The first mechanical removal review nominates agents `cpa`/`cs`/`kc` and knowledge area `04-shared-systems` — keep, cut, or (for `kc`) investigate a measurement caveat first? |
 
 ## Status
 
-DEC-1 through DEC-5 and DEC-7 tasks are `blocked` in Task Copilot — the
-honest status for "preparable work complete, ruling not made yet." DEC-6
-(TASK-125) is likewise `blocked`, and is additionally **mechanically**
-enforced, not just a process convention: the ladder bench's `run.py`
-refuses to execute a live (non-`--dry-run`) scored run until DEC-6's header
-literally reads `Status: **ratified**` (see
+DEC-1 through DEC-5, DEC-7, and DEC-8 tasks are `blocked` in Task Copilot
+— the honest status for "preparable work complete, ruling not made yet."
+DEC-6 (TASK-125) is likewise `blocked`, and is additionally
+**mechanically** enforced, not just a process convention: the ladder
+bench's `run.py` refuses to execute a live (non-`--dry-run`) scored run
+until DEC-6's header literally reads `Status: **ratified**` (see
 `tools/cse-bench/benches/ladder/run.py`'s `check_signoff()`). Each task
 will move to `completed` (or whatever the owner's chosen option's own
 follow-up task is) once the owner picks and someone executes the
