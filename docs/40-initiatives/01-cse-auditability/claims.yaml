@@ -336,18 +336,38 @@ definitions:
         first prompt — an inherited W-1 scope limit this task does not
         change; the ledger figure compared here is whatever a person has
         logged, however that entry was arrived at.
-      transcripts: >-
-        For every DISTINCT session_id recorded against a solution in the
-        new solution_sessions join table (repo_path + session_id +
-        logged_at — the repo+time+session-id join keys
-        phase-4-outcome-program-prd.md par.3 W-2 names), the sum of
-        input_tokens + cache_creation_input_tokens + cache_read_input_tokens
-        + output_tokens across every assistant message in that session's
-        main transcript file AND its sibling subagent transcript files.
-        Reuses tools/cse-audit/session_metrics.compute_session_metrics
-        (main_tokens/subagent_tokens) unmodified — the same token
-        arithmetic already registered under this file's `turn` /
-        `delegation_rate_*` definitions, not a re-implementation.
+      transcripts_billed_volume: >-
+        RENAMED + WINDOWED 2026-07-13 (QA WP-17 finding 1, correction
+        commit -- was `transcripts`, unwindowed, in the original W-2
+        landing; see join_keys.windowing below for the attribution bug
+        this fixes). For every DISTINCT session_id recorded against a
+        solution in solution_sessions, windowed to that solution's OWN
+        touch span in that session, the sum of input_tokens +
+        cache_creation_input_tokens + cache_read_input_tokens +
+        output_tokens across every assistant message WHOSE OWN TIMESTAMP
+        FALLS INSIDE THE WINDOW, in that session's main transcript file
+        and its sibling subagent transcript files. This is billed API
+        VOLUME (what the API metered for those messages), not marginal
+        spend -- see transcripts_marginal_spend for the number comparable
+        to a person's mental model of "tokens this took."
+      transcripts_marginal_spend: >-
+        NEW 2026-07-13 (QA WP-17 finding 2, correction commit, citing the
+        F-8 precedent -- docs/40-initiatives/01-cse-auditability/phases/
+        phase-1-findings.md: the falsified "~94% less context" figure was
+        cache-read SHARE misattributed as the framework's own context
+        reduction, a property of Claude Code's prompt caching, not the
+        framework. Cumulative-summing transcripts_billed_volume across a
+        long session has the same error class: cache_read_input_tokens
+        reflects a turn's full re-read of the growing cached context, so
+        summing it turn-over-turn conflates billed API volume with
+        tokens actually spent doing NEW work). Same windowed message set
+        as transcripts_billed_volume, but summing ONLY input_tokens +
+        cache_creation_input_tokens + output_tokens -- i.e. EXCLUDING
+        cache_read_input_tokens entirely (tokens re-read from an existing
+        cache, not newly spent). This is the figure the tolerance below
+        is primarily checked against, since a person typing a
+        `tc solution log-usage --tokens` estimate is estimating marginal
+        spend, not cumulative billed cache-read volume.
       event_ledger_c3: >-
         NOT YET BUILT. phase-4-outcome-program-prd.md par.3 W-2 names a
         third source — "the PostToolUse event ledger from C-3" — as what
@@ -370,25 +390,65 @@ definitions:
       solution_sessions table whenever that env var is present; absent
       outside a live session (e.g. scripts, tests), which is the honest
       no-signal state, not an error.
+    windowing: >-
+      CORRECTION 2026-07-13 (QA WP-17 finding 1, correction commit). The
+      original W-2 landing attributed a session's ENTIRE transcript total
+      to EVERY solution that shared its session_id — a real attribution
+      bug (caught before any O-4 number was ever quoted, not after). Fix:
+      per (solution, session_id) pair, window := [min(logged_at),
+      max(logged_at)] across that solution's OWN solution_sessions
+      touches in that session — first touch to last touch. Chosen over
+      the other honest option (cross-solution per-touch bracketing, where
+      each touch's window extends to the NEXT touch to ANY solution in
+      that session) because a single solution's own touch rows are
+      sufficient to bound its own window without reading every OTHER
+      solution's touches in the same session — simpler, and still fixes
+      the attribution bug, at the cost of the limitation below. Only
+      assistant messages whose OWN timestamp falls inside the window
+      count toward that solution's transcripts_billed_volume /
+      transcripts_marginal_spend / waste_decomposition_heuristics
+      figures for that session.
+      KNOWN LIMITATION (disclosed, not padded away): a solution touched
+      only once, or whose touches all land in the same instant (e.g. a
+      scripted/synthetic sequence rather than real elapsed work), yields
+      a near-zero-width window and near-zero attributed tokens. This
+      join is only informative for solutions whose real `tc solution`
+      commands are genuinely spread across the session's real elapsed
+      time — the expected shape of real usage, not of a test script.
     tolerance: >-
-      agrees_within_tolerance := abs(ledger_tokens - transcript_tokens) /
-      transcript_tokens <= 0.20 (20 percent relative difference);
-      undefined (null) when transcript_tokens is 0 or either side has no
-      data. Registered BEFORE any real two-method comparison was computed
-      or looked at (V-2). Rationale: `ledger` is a human-typed, rounded
-      estimate, not a second machine-exact computation, so this tolerance
-      measures "same order of magnitude, roughly right," not agreement
-      between two machines that should be identical to the token. 20
-      percent is a deliberately loose first bar for that reason; expected
-      to tighten once event_ledger_c3 lands and the comparison becomes
-      machine-vs-machine.
+      agrees_within_tolerance := abs(ledger_tokens - transcripts_marginal_spend)
+      / transcripts_marginal_spend <= 0.20 (20 percent relative
+      difference); undefined (null) when transcripts_marginal_spend is 0
+      or either side has no data. Registered BEFORE any real two-method
+      comparison was computed or looked at (V-2); value UNCHANGED by the
+      2026-07-13 correction commit (QA WP-17) — only the windowing and
+      the marginal-spend/billed-volume split were added, never the
+      threshold. Rationale: `ledger` is a human-typed, rounded estimate,
+      not a second machine-exact computation, so this tolerance measures
+      "same order of magnitude, roughly right," not agreement between
+      two machines that should be identical to the token. 20 percent is
+      a deliberately loose first bar for that reason; expected to
+      tighten once event_ledger_c3 lands and the comparison becomes
+      machine-vs-machine. Applies PRIMARILY to ledger vs
+      transcripts_marginal_spend (the figure comparable to a human
+      estimate); ledger vs transcripts_billed_volume is reported
+      alongside for transparency only — it is NOT expected to agree at
+      the same order of magnitude (billed_volume includes cumulative
+      cache-read re-reads, not new spend), and a billed_volume/ledger
+      mismatch must never be quoted as if it were the same finding as a
+      marginal_spend/ledger mismatch (the F-8 conflation this correction
+      exists to avoid).
     source: >-
       claude-copilot tools/tc/src/tc/db/schema.py (solution_sessions
       table); tools/tc/src/tc/services/solutions.py
       (_record_session_touch); tools/cse-bench/collectors/economy.py (the
       join + comparison).
-    verified_finding: >-
-      TASK-124, 2026-07-13, added AFTER the tolerance above was registered
+    verified_finding_initial_superseded: >-
+      SUPERSEDED by verified_finding_corrected below (QA WP-17 caught the
+      unwindowed attribution bug and the billed-volume/marginal-spend
+      conflation this initial run exhibits). Kept verbatim as the honest
+      record of what the FIRST run actually found, not deleted: TASK-124,
+      2026-07-13, added AFTER the tolerance above was registered
       and the mechanism built (not a threshold change): a scratch-DB
       verification joined to this task's own real, live session
       transcript found transcript_tokens two-to-three orders of magnitude
@@ -426,41 +486,59 @@ definitions:
       attributed to AT MOST ONE of failed_direction/rework (priority order
       below); re_explaining is scoped to main-session tokens only, a
       disjoint pool, so it never double-counts against the other two.
+      WINDOWED 2026-07-13 (QA WP-17 finding 1, correction commit): every
+      category below now uses the SAME per-(solution,session) touch
+      window as definitions.solution_token_accounting.windowing — only
+      messages (and, for rework's subagent-file matching, only subagent
+      files with at least one message) inside the window are considered;
+      the token totals below use the billed_volume formula (see
+      solution_token_accounting.methods.transcripts_billed_volume).
     categories:
       failed_direction: >-
-        Full token total (input+cache_creation+cache_read+output) of any
-        subagent (sidechain) transcript file whose LAST real assistant-role
-        message does not contain the literal string
+        Full windowed token total (billed_volume formula: input+
+        cache_creation+cache_read+output, messages inside the solution's
+        touch window only) of any subagent (sidechain) transcript file,
+        WITHIN THE WINDOW, whose LAST real assistant-role message in the
+        FULL file does not contain the literal string
         "<promise>COMPLETE</promise>" — i.e. the delegated direction ended
-        BLOCKED, CONFUSED, or with no completion marker at all. Highest
-        attribution priority (checked first).
+        BLOCKED, CONFUSED, or with no completion marker at all. The
+        completion-marker check itself reads the whole file (a
+        structural/qualitative signal, not token-windowed); only the
+        token total attributed is windowed. Highest attribution priority
+        (checked first).
       rework: >-
-        Full token total of a subagent (sidechain) transcript file for a
-        subagent_type already delegated to EARLIER in the same session
-        (2nd-or-later occurrence of that subagent_type; the 1st occurrence
-        is assumed the primary attempt, never rework), and not already
-        counted under failed_direction. Subagent files are matched to
-        their session's ordered list of Agent/Task tool_use calls by
-        chronological order (each file's own first record timestamp) — an
-        approximation valid where call count and file count agree 1:1; a
-        per-session mismatch count is reported alongside so silent
-        misattribution stays visible, never hidden.
+        Full windowed token total (billed_volume formula) of a subagent
+        (sidechain) transcript file, WITHIN THE WINDOW, for a
+        subagent_type already delegated to EARLIER in the same session's
+        windowed delegation order (2nd-or-later occurrence of that
+        subagent_type; the 1st occurrence is assumed the primary attempt,
+        never rework), and not already counted under failed_direction.
+        Subagent files are matched to the session's windowed, ordered
+        list of Agent/Task tool_use calls by chronological order (each
+        file's own first record timestamp) — an approximation valid
+        where call count and file count agree 1:1; a per-session
+        mismatch count is reported alongside so silent misattribution
+        stays visible, never hidden.
       re_explaining: >-
-        Token total (input+cache_creation+cache_read+output) of every
-        main-session assistant message that is the first reply to a real
-        user turn (jsonl_utils.is_real_user_turn) whose own text,
-        normalized (stripped, lowercased, whitespace-collapsed), exactly
-        matches an earlier real user turn's normalized text in the SAME
-        session — a proxy for "the person had to repeat themselves." A
-        deliberately conservative floor: paraphrased (non-exact) repeats
-        are not caught, so this undercounts, never overcounts.
+        Windowed token total (billed_volume formula) of every
+        main-session assistant message, WITHIN THE WINDOW, that is the
+        first reply to a real user turn (jsonl_utils.is_real_user_turn)
+        whose own text, normalized (stripped, lowercased,
+        whitespace-collapsed), exactly matches an earlier real user
+        turn's normalized text in the SAME session — a proxy for "the
+        person had to repeat themselves." A deliberately conservative
+        floor: paraphrased (non-exact) repeats are not caught, so this
+        undercounts, never overcounts.
     caveat: >-
       All three are approximations of a genuinely fuzzy concept (why was a
       token spent); they exist to make waste VISIBLE and comparable
       release over release, not to be an exact ledger. waste_total is a
-      lower bound given re_explaining's exact-match floor and the
+      lower bound given re_explaining's exact-match floor, the
       chronological-order assumption behind rework/failed_direction
-      attribution.
+      attribution, AND the windowing limitation
+      (solution_token_accounting.windowing's known-limitation note
+      applies here identically — a narrow or single-instant touch window
+      undercounts waste the same way it undercounts total tokens).
     source: "tools/cse-bench/collectors/economy.py"
 
 claims:
