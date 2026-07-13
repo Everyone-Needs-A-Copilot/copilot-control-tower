@@ -686,6 +686,133 @@ definitions:
       "Status: **ratified**" and refuses any non-dry-run invocation until
       it appears there.
 
+  value_density:
+    description: >-
+      TASK-128 (W-6): operationalizes the removal rule (phase-4-outcome-
+      program-prd.md §0.5 / §2, "surface that does not move an outcome
+      bar within its review window is a removal candidate... nominations
+      are mechanical; deletions are the owner's"). Per CSE surface
+      (agent, cli_service_group, knowledge_area, skill), density is
+      NOT a continuous ratio for this first review -- several evidence
+      channels are genuinely unavailable this early (no CLI usage
+      ledger enabled anywhere; no skill-invocation event ledger; C-3's
+      hook rollout still staged to claude-copilot only), so a real
+      per-unit-time rate is not honestly computable yet. Instead this
+      first review computes, per surface, two binary facts: whether
+      usage_evidence is a MEASURED value (and what it is) or genuinely
+      unmeasured (null), and whether outcome_trace is a MEASURED value
+      or unmeasured (null). Registered BEFORE the collector that
+      computes these numbers was written (V-2) -- collectors/value_density.py
+      implements exactly this definition, joining already-computed
+      collector output rather than re-deriving raw evidence a second
+      way. A future review, once the CLI usage ledger and a broader
+      hook rollout are both live, should upgrade this to a real
+      per-unit-time density and register that change here rather than
+      silently reinterpreting this entry.
+    review_window: >-
+      The full corpus available on this machine as of the first review
+      (2026-07-13): the entire archive-UNION-live session transcript
+      corpus (collectors/transcripts.py's DEFAULT_ARCHIVE_ROOT/
+      DEFAULT_LIVE_ROOT merge) for agent usage signals, and the full
+      knowledge-copilot corpus for the knowledge cross-reference check.
+      No periodic (e.g. rolling-90-day) cadence has been ratified yet --
+      there is one author and one corpus to date, so "the whole history"
+      and "the current review window" are the same thing. The NEXT
+      review (once W-4's external pilots and/or a second review cycle
+      exist) should register a real rolling window here instead of
+      reusing "all time" by default.
+    usage_evidence_by_surface:
+      agent: >-
+        Count of subagent invocations attributed to that agent
+        (attributionAgent field) across the review-window transcript
+        corpus, exactly as collectors/framework_soul.py's
+        agent_frugality.by_agent_type already computes (median_iqr's `n`
+        field per agent) -- reused via output/framework_soul-latest.json,
+        never recomputed a second way.
+      cli_service_group: >-
+        NULL for all 22 registered CLI service groups. CLI Copilot ships
+        an opt-in usage ledger (COPILOT_USAGE_LOG,
+        copilot_cli/shared/usage_ledger.py) that has never been enabled
+        on this machine (~/.copilot-cli/usage.jsonl does not exist --
+        verified directly, matching DEC-5's own finding). The only
+        corpus-wide signal (collectors/transcripts.py's cli_invocation
+        metric) is not broken out per service. This is an honest null,
+        not a computed zero -- absence of instrumentation, not evidence
+        of non-use.
+      knowledge_area: >-
+        % of a top-level knowledge-copilot/ directory's files that are
+        referenced (by full relative path or, failing that, bare
+        basename) anywhere else in the knowledge corpus or its manifest
+        -- collectors/knowledge_soul.py's orphan_rate metric (metric 5),
+        re-grouped by top-level directory rather than recomputed. This
+        is DELIBERATELY the "referenced by other knowledge content"
+        signal, not "read by an agent in a live session" -- the latter
+        (knowledge_never_read_denominator, above) is only computed as an
+        ecosystem-wide aggregate today, not sliceable per top-level
+        directory without re-deriving the corpus scan a second way (the
+        exact drift risk tools/cse-bench/README.md's "no metric ... may
+        be reported without a claims.yaml entry" rule warns against). Per
+        knowledge_soul.py's own orphan_rate docstring this is a FLOOR on
+        true orphan rate (a permissive basename fallback), not a point
+        measurement -- carried through unchanged here.
+      skill: >-
+        NULL for all 37 .claude/skills/**/SKILL.md leaf skills. Skill
+        invocation is not tracked by any event ledger anywhere in the
+        ecosystem yet (the same C-3 hook rollout that would carry this
+        signal is staged to claude-copilot only, per phase-4-handoff.md
+        TASK-103). Honest null, not a computed zero.
+    outcome_trace_by_surface:
+      agent: >-
+        Whether the agent has a golden-set eval AND that eval currently
+        passes (output/evals-latest.json's per_agent[<agent>].overall_pass).
+        An agent with NO eval at all (15 of 16 today, per claim
+        agent-eval-coverage) is trace=null (unmeasured), never
+        trace=false (measured-and-failing) -- never scored is a
+        different finding than scored-and-found-wanting.
+      cli_service_group: >-
+        Whether the service passes cli-copilot's own SOUL §6 conformance
+        scorecard (collectors/cli_soul.py) with zero gaps. A
+        conformance/quality-bar proxy, not a literal outcome-bar (O-1..
+        O-9) trace -- no outcome bar is wired to any individual CLI
+        service yet; labeled as a proxy everywhere it is reported.
+      knowledge_area: >-
+        NULL for every area -- no outcome bar is wired to any specific
+        knowledge area yet (the knowledge_qa bench's +98pp accuracy
+        result is corpus-wide across 2 product dossiers, not a per-area
+        outcome trace).
+      skill: >-
+        NULL for every skill -- no outcome bar or eval is wired to any
+        individual skill yet.
+    nomination_rule: >-
+      A surface is a MECHANICAL removal nomination this review iff its
+      usage_evidence is a MEASURED zero (not null/unavailable) AND its
+      outcome_trace is anything other than a measured true (i.e. a
+      measured false, or unmeasured/null). A surface whose usage_evidence
+      is null is NEVER nominated on that basis alone: absence of
+      instrumentation is not evidence of non-use, and nominating on
+      missing data would violate this program's own honesty rule
+      (phase-4-handoff.md §5.4). This is deliberately a HIGHER bar than
+      "no evidence of use" -- it is "measured evidence of no use."
+    threshold: >-
+      Binary (measured-zero-usage AND not-measured-true-outcome) for
+      agent and knowledge_area, the only two surfaces with a real
+      measured usage_evidence channel today -- see the description field
+      above for why a continuous per-unit-time cutoff is not yet honestly
+      computable. knowledge_area additionally requires >=10 scope files
+      (MIN_KNOWLEDGE_AREA_FILES; the orphan-rate proxy is too noisy on a
+      handful of files) and an orphan rate >=50% (a literal majority of
+      the area's files unreferenced anywhere else) -- a natural,
+      non-arbitrary bright line chosen independently of any specific
+      area's number, not fitted post-hoc to produce a particular result.
+      cli_service_group and skill usage_evidence is null ecosystem-wide
+      (see usage_evidence_by_surface above), so NO cli_service_group or
+      skill surface is mechanically nominated this review on usage
+      grounds -- the CLI services with an actual STRUCTURAL-ABSENCE
+      finding (fireflies, reddit, metabase, method) are already covered
+      by DEC-5 and this review defers to that memo rather than
+      re-deriving the same finding.
+    source: "tools/cse-bench/collectors/value_density.py"
+
 claims:
 
   - id: outcome-ttfls
@@ -1044,3 +1171,10 @@ claims:
     status: failing
     evidence: "tools/cse-bench/output/cli_soul-latest.json (13 tracked gaps; suite green with strict xfail)"
     last_checked: "2026-07-12"
+
+  - id: removal-review-first-pass
+    statement: "The first mechanical removal review (W-6) traces every claude-copilot agent, CLI Copilot service group, knowledge-copilot top-level area, and .claude/skills leaf skill to usage evidence + outcome-bar trace per the registered value_density definition, and produces a mechanical nomination list (surface + evidence) to the owner's delete-or-defend queue -- nominations only, no deletions, per the removal rule (phase-4-outcome-program-prd.md §0.5)."
+    definition_refs: [value_density]
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only value_density && python3 -c \"import json; d=json.load(open('output/value_density-latest.json')); print(d['metrics']['nominations'])\""
+    status: unchecked
+    evidence: "tools/cse-bench/collectors/value_density.py (not yet run against real output as of this registration commit -- see the next commit for the first real run and the resulting decisions/DEC-8-first-removal-review.md memo)"
