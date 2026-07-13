@@ -297,7 +297,94 @@ definitions:
       missing from the list are neither healthy nor unhealthy, they are
       simply not checked.
 
+  outcome_bars:
+    description: >-
+      The nine ratified outcome measures (owner, 2026-07-13) that define
+      ecosystem success: O-1 Time-to-First-Loveable-Solution (two timestamps,
+      t_working and t_loveable, per solution); O-2 Solution Completeness
+      (against a brief locked at start: sessions-to-done, tokens-to-done,
+      post-ship fix-vs-feature ratio); O-3 Speed (prompt to finished solution
+      vs bare-harness counterfactual); O-4 Token Efficiency (constraint not
+      objective: aspiration 90 percent reduction, below 60 percent = work to
+      do, never traded against O-1/O-3); O-5 Solution Survival (started ->
+      shipped -> in-use at N weeks); O-6 Counterfactual Delta (4-config
+      ladder); O-7 Voluntary Return Rate; O-8 Transfer Coefficient (>=2
+      non-author users); O-9 Upkeep Tax. Unit of value = a Solution: a
+      completed artifact resolving a real person's real problem. Full
+      operational definitions: phases/phase-4-outcome-program-prd.md par.2.
+    source: "docs/40-initiatives/01-cse-auditability/phases/phase-4-outcome-program-prd.md"
+    note: >-
+      Pre-registered before any outcome data exists (V-2). Gated on the
+      Outcome Ledger (W-1), token joins (W-2), ladder harness (W-3), and
+      external pilots (W-4). The removal rule rides on these: surface that
+      moves no outcome bar within its review window is nominated for
+      delete-or-defend.
+
 claims:
+
+  - id: outcome-ttfls
+    statement: "A new user reaches a first loveable solution (t_loveable) within their first working session; the t_loveable minus t_working gap quantifies the design chain's value."
+    definition_refs: [outcome_bars]
+    check: "gated on W-1 outcome ledger + W-3 ladder (phase-4-outcome-program-prd.md)"
+    status: gated
+    evidence: "phases/phase-4-outcome-program-prd.md par.0 (ratified 2026-07-13); no data yet by design"
+    last_checked: "2026-07-13"
+
+  - id: outcome-completeness
+    statement: "Shipped solutions match their locked brief, and post-ship activity is dominated by new features, not fixes, over the review window."
+    definition_refs: [outcome_bars]
+    check: "gated on W-1 outcome ledger"
+    status: gated
+    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-2)"
+    last_checked: "2026-07-13"
+
+  - id: outcome-token-efficiency
+    statement: "Creating a finished solution through the CSE uses at least 60 percent fewer tokens than the bare-harness counterfactual (aspiration: 90 percent), with O-1/O-3 non-degraded. Constraint, not objective."
+    definition_refs: [outcome_bars]
+    check: "gated on W-2 token joins + W-3 ladder"
+    status: gated
+    evidence: "phases/phase-4-outcome-program-prd.md par.0.4, par.2 (O-4)"
+    last_checked: "2026-07-13"
+
+  - id: outcome-survival
+    statement: "Of solutions started, a stated majority ship; of shipped, a stated majority remain in active use at the N-week check. Sustained use is the primary loveability evidence."
+    definition_refs: [outcome_bars]
+    check: "gated on W-1 outcome ledger usage logging"
+    status: gated
+    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-5)"
+    last_checked: "2026-07-13"
+
+  - id: outcome-counterfactual-delta
+    statement: "The 4-config ladder (bare -> +framework -> +knowledge -> +integrations) shows each component contributing positively to O-1..O-4; a component with no positive contribution enters the removal queue."
+    definition_refs: [outcome_bars]
+    check: "gated on W-3 ladder harness"
+    status: gated
+    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-6), par.3 (W-3)"
+    last_checked: "2026-07-13"
+
+  - id: outcome-return-rate
+    statement: "After a first solution, users choose the CSE for their next problem unprompted."
+    definition_refs: [outcome_bars]
+    check: "gated on W-4 external pilot"
+    status: gated
+    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-7)"
+    last_checked: "2026-07-13"
+
+  - id: outcome-transfer
+    statement: "Non-author users achieve O-1..O-5 unassisted within a stated tolerance of the owner's numbers (>=2 external users)."
+    definition_refs: [outcome_bars]
+    check: "gated on W-4 external pilot"
+    status: gated
+    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-8)"
+    last_checked: "2026-07-13"
+
+  - id: outcome-upkeep-tax
+    statement: "The time and tokens spent maintaining the CSE itself are measured and netted against outcome value in every value statement."
+    definition_refs: [outcome_bars]
+    check: "gated on W-1/W-2 instrumentation (maintenance-session tagging)"
+    status: gated
+    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-9)"
+    last_checked: "2026-07-13"
 
   # --- Program truth conditions (phase-2-prd.md §2, T1-T8) ---------------
 
