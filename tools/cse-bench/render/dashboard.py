@@ -1,5 +1,5 @@
 """render/dashboard.py — builds the self-contained cse-bench dashboard.html
-(TASK-91 / B-8, PRD-9 P1).
+(TASK-91/B-8 original build; reorganized by component/SOUL in TASK-111/S-5).
 
 WHAT THIS DOES: reads every tools/cse-bench/output/<collector>-latest.json
 this machine has produced, plus the claims register
@@ -11,36 +11,58 @@ blocks use native <details>/<summary>, not JS.
 
 WHY RENDER-IN-PYTHON: Control Tower invariant #1 (the CLI computes, the
 view renders) applies here too — this module does no metric computation
-of its own. Every number it prints was already computed by a collector or
-already lives in claims.yaml; this file's only job is formatting.
+of its own beyond simple display-only arithmetic on numbers a collector
+already produced (e.g. the ecosystem scoreboard's "tasks/week" divides
+tasksdb's own monthly totals by the span of its own activity_range — the
+same class of derived-display arithmetic bar_row()'s width% and
+render_evals()'s coverage_display already did before this reorg). It
+invents no business logic, resolution, sync, or merge decisions.
 
-SCHEMA TOLERANCE: collectors/transcripts.py, velocity.py, parity.py, and
-integrations.py (B-5/B-6) landed concurrently while this module was being
-written and are owned elsewhere — this module never imports or duplicates
-their logic, only reads their JSON output. Every renderer below is
-therefore written against the real, observed `metrics` shape of a live
-`collect` run (see each render_*()'s docstring for the output/*-latest.json
-file it was verified against), with `first()`/dig() fallback candidates
-kept for resilience if that shape changes later. If a shape doesn't match
-anything recognized, dispatch() degrades to a quiet "unrecognized shape"
-card with the raw JSON available in a <details> — it never lets one
+TASK-111 / S-5 (owner-directed reorg, phase-2-prd.md §2.5): the dashboard
+is now organized around the owner's mental model of exactly THREE
+components, each measured against its own ratified SOUL promise, plus an
+ecosystem-level scoreboard (header) and a trust ledger (footer):
+  - Development framework (claude-copilot & codex-copilot SOUL) — Task
+    Copilot, Memory Copilot, specialized agents. Measures process
+    discipline and context efficiency; explicitly never speed/quality.
+  - Knowledge framework (knowledge-copilot SOUL) — accurate understanding
+    for good decisions; never a stale dump, marketing narrative, or a
+    home for quietly contradictory facts.
+  - Integration framework (cli-copilot SOUL) — one binary, one grammar;
+    client, never server; honest, hint-bearing failure.
+There is no "instruction layer" section and no "voice content" component —
+those were retired terms; voice-lint output now lives INSIDE the
+Development/Knowledge sections as one measure among several, never a
+component of its own. Parity and commit velocity move OUT of the
+measurement story per the same revision: velocity is dropped entirely,
+parity survives only as a small "sync plumbing" chip in the Development
+section's footer.
+
+SCHEMA TOLERANCE: four collectors this reorg depends on — bench_resume_cost
+(S-1), framework_soul (S-2), knowledge_soul (S-3), and cli_soul (S-4) — were
+being built by parallel agents as this module was written and had not
+landed a real output file as of this writing. Their renderers below are
+therefore GUESSED-SHAPE renderers (several candidate metric-key spellings
+tried per value via first()/dig()), the exact same pattern the original
+B-8 build used for bench_knowledge_qa/bench_voice_lint/bench_mcp_twin
+before THEY landed. tasksdb, transcripts, evals, integrations, parity,
+bench_knowledge_qa, bench_voice_lint, and bench_mcp_twin are all verified
+against a real collect run on this machine (see each function's docstring
+for which output/*-latest.json it was checked against). If a shape doesn't
+match anything recognized, dispatch() degrades to a quiet "unrecognized
+shape" card with the raw JSON available in a <details> — it never lets one
 collector's surprise shape blank the page. A collector whose *-latest.json
-file does not exist yet renders the plain "not run" placeholder the task
-calls for. The Efficacy panel's bench_knowledge_qa/bench_voice_lint/
-bench_mcp_twin renderers (B-9/B-10/B-11) are owned by parallel agents and
-had not landed a real output file as of this writing — those three are
-GUESSED-SHAPE renderers (several candidate metric-key spellings tried per
-value) precisely because the schema-tolerance contract above has to hold
-even before the producer exists, not just after it changes. evals
-(collectors/evals.py, B-12 groundwork) and the tasksdb-trend efficacy card
-are owned by this module and ARE verified against a real collect run.
+file does not exist yet renders the plain "not run" placeholder.
 
 Organized atoms-up (Brad Frost-ish, even though the output is server-
 rendered HTML, not a component tree):
-  - atoms: esc/fmt_*/tile/chip/bar_row
-  - molecules: monthly_trend_chart, raw_json_details, placeholder/error cards
-  - organisms: render_tasksdb/transcripts/velocity/integrations/parity,
-    render_adoption_section/efficacy_section/trust_section
+  - atoms: esc/fmt_*/dig/first/tile/chip/bar_row
+  - molecules: monthly_trend_chart, raw_json_details, placeholder/error
+    cards, soul_intro (the SOUL-promise blockquote every component section
+    opens with)
+  - organisms: per-collector render_* functions, render_scoreboard_section/
+    render_framework_section/render_knowledge_section/
+    render_integration_section/render_trust_section
   - page: PAGE_CSS/PAGE_JS/build_page/render_dashboard (the public entry point)
 """
 from __future__ import annotations
@@ -60,15 +82,23 @@ DEFAULT_CLAIMS_PATH = (
     REPO_ROOT / "docs" / "40-initiatives" / "01-cse-auditability" / "claims.yaml"
 )
 
+# The collector set this dashboard reads. velocity is deliberately absent —
+# TASK-111/S-5 moved commit velocity OUT of the measurement story entirely
+# (parity survives only as a footer sync-plumbing chip; velocity does not
+# survive at all). collectors/velocity.py still runs fine under
+# `cse_bench.py collect`; this dashboard simply no longer displays it.
 KNOWN_COLLECTORS = [
     "tasksdb",
     "transcripts",
-    "velocity",
+    "evals",
+    "bench_resume_cost",
+    "framework_soul",
+    "bench_knowledge_qa",
+    "knowledge_soul",
+    "bench_voice_lint",
     "integrations",
     "parity",
-    "evals",
-    "bench_knowledge_qa",
-    "bench_voice_lint",
+    "cli_soul",
     "bench_mcp_twin",
 ]
 
@@ -130,9 +160,10 @@ def fmt_pct100(pct: Any, decimals: int = 1) -> str:
 
 def _as_float(value: Any) -> float | None:
     """Coerce a value pulled from an unverified/best-effort metrics shape
-    (see the bench_* renderers below) to a float for arithmetic-comparison
-    or numeric-format use; None on anything non-numeric. Never raises —
-    the caller is always free to treat the result as "field not usable"."""
+    (see the guessed-shape renderers below) to a float for arithmetic-
+    comparison or numeric-format use; None on anything non-numeric. Never
+    raises — the caller is always free to treat the result as "field not
+    usable"."""
     if value is None:
         return None
     try:
@@ -151,6 +182,36 @@ def fmt_signed(value: Any, decimals: int = 2, suffix: str = "") -> str:
     return f"{num:+.{decimals}f}{suffix}"
 
 
+def fmt_flexible_pct(value: Any, decimals: int = 1) -> str:
+    """Format a ratio that might be expressed either 0..1 or already-0..100 —
+    used only by the guessed-shape S-2/S-3/S-4/S-1 renderers below, where the
+    real collector's scale convention is not yet observable on this machine
+    (see module docstring's SCHEMA TOLERANCE note). "—" on anything
+    non-numeric, same convention as fmt_pct/fmt_int."""
+    num = _as_float(value)
+    if num is None:
+        return "—"
+    if -1.0 <= num <= 1.0:
+        return fmt_pct(num, decimals)
+    return fmt_pct100(num, decimals)
+
+
+def _weeks_between(earliest: Any, latest: Any) -> float | None:
+    """Span, in weeks, between two ISO timestamps — display-only arithmetic
+    for the ecosystem scoreboard's "tasks finished / week" tile (divides
+    tasksdb's own activity_range span by its own monthly totals; invents no
+    new data). None on anything unparsable, never raises."""
+    if not earliest or not latest:
+        return None
+    try:
+        d0 = datetime.fromisoformat(str(earliest).replace("Z", "+00:00"))
+        d1 = datetime.fromisoformat(str(latest).replace("Z", "+00:00"))
+        days = (d1 - d0).total_seconds() / 86400.0
+        return max(days / 7.0, 1.0 / 7.0)
+    except (TypeError, ValueError):
+        return None
+
+
 def dig(d: Any, *path: str, default: Any = _MISSING) -> Any:
     cur = d
     for key in path:
@@ -163,8 +224,8 @@ def dig(d: Any, *path: str, default: Any = _MISSING) -> Any:
 
 def first(d: Any, *dotted_paths: str, default: Any = None) -> Any:
     """Try each dotted-path candidate in order; return the first present,
-    non-None value. Used by the best-effort (non-tasksdb) renderers, whose
-    exact field names aren't observable yet (see module docstring)."""
+    non-None value. Used by the guessed-shape renderers, whose exact field
+    names aren't observable yet (see module docstring)."""
     for dotted in dotted_paths:
         val = dig(d, *dotted.split("."))
         if val is not _MISSING and val is not None:
@@ -277,12 +338,40 @@ def dispatch(envelope: Any, name: str, renderer, title: str, blurb: str, placeho
         return unexpected_shape_card(name, title, exc, envelope)
 
 
+def soul_intro(eyebrow: str, title: str, quote: str, soul_note: str, lede: str) -> str:
+    """The block every component section opens with: its SOUL promise
+    quoted in one sentence, the SOUL file path in small text underneath
+    (soul_note), then a one-paragraph lede. Shared by all three component
+    sections so the "measured against its own SOUL promise" framing is
+    structurally identical for each (TASK-111/S-5)."""
+    return (
+        f'<span class="eyebrow">{eyebrow}</span>'
+        f"<h2>{esc(title)}</h2>"
+        f'<blockquote class="soulquote">“{esc(quote)}”</blockquote>'
+        f'<p class="soulpath">{soul_note}</p>'
+        f'<p class="prose">{lede}</p>'
+    )
+
+
+def claim_ref_note(claim_id: str, claims_by_id: dict) -> str:
+    claim = claims_by_id.get(claim_id)
+    if not claim:
+        return ""
+    return (
+        f'<p class="tnote">Tracked by claim <code>{esc(claim_id)}</code> in the Trust ledger '
+        f'(status: {chip(claim.get("status", "unchecked"))}).</p>'
+    )
+
+
 # ---------------------------------------------------------------------------
-# Organisms — Adoption panel collector cards
+# Organisms — Development framework (claude-copilot & codex-copilot SOUL)
 # ---------------------------------------------------------------------------
 
 
 def render_tasksdb(envelope: dict) -> str:
+    """Matches collectors/tasksdb.py's real, observed `metrics.totals` /
+    `metrics.per_repo` shape (verified against a real collect run — see
+    output/tasksdb-latest.json, B-4)."""
     metrics = envelope.get("metrics", {})
     totals = metrics.get("totals", {})
     generated = envelope.get("generated_at", "?")
@@ -355,330 +444,395 @@ def render_tasksdb(envelope: dict) -> str:
     )
 
 
-def render_transcripts(envelope: dict) -> str:
-    """Matches collectors/transcripts.py's actual `metrics.global` /
-    `metrics.corpus` shape (verified against a real collect run — see
-    output/transcripts-latest.json). `first()` candidate paths are kept as
-    a fallback in case that shape changes; an unrecognized shape still
-    degrades to the quiet unexpected-shape card via dispatch(), never a
-    crash.
-    """
+def render_framework_discipline(envelope: dict) -> str:
+    """Discipline half of collectors/transcripts.py's `metrics.global` shape
+    (verified against a real collect run — see output/transcripts-latest.json,
+    B-5) — the Development framework's mechanical-enforcement measures (SOUL
+    Principle 2: "Mechanical Enforcement Over Polite Advice"): delegation
+    rate under BOTH registered definitions side by side (F-5's tool-share/
+    event-share pair, neither authoritative alone) and protocol-declaration
+    rate under both denominators. TASK-111/S-5 split this out of what used
+    to be one combined "transcript adoption" card — knowledge-read fields
+    moved to render_knowledge_read_coverage (Knowledge framework section)
+    and model-mix/CLI-invocation-mix were dropped from this reorg's scope
+    entirely, per the task's explicit card list."""
     metrics = envelope.get("metrics", {})
     generated = envelope.get("generated_at", "?")
     g = metrics.get("global", {}) if isinstance(metrics.get("global"), dict) else {}
 
-    tool_share = first(g, "delegation_rate_tool_share.median", default=None)
-    event_share = first(g, "delegation_rate_event_share.median", default=None)
-    proto_loose = first(g, "protocol_declaration_rate_loose.median", default=None)
-    proto_strict = first(g, "protocol_declaration_rate_strict.median", default=None)
-    n_sessions = first(g, "n_sessions", default=None)
+    tool_share = first(g, "delegation_rate_tool_share.median")
+    event_share = first(g, "delegation_rate_event_share.median")
+    proto_loose = first(g, "protocol_declaration_rate_loose.median")
+    proto_strict = first(g, "protocol_declaration_rate_strict.median")
+    n_sessions = g.get("n_sessions")
 
-    knowledge_read = g.get("knowledge_read", {}) if isinstance(g.get("knowledge_read"), dict) else {}
-    sessions_touching_pct = knowledge_read.get("sessions_touching_pct")
-    never_read_md_pct = dig(knowledge_read, "never_read", "knowledge_md", "never_read_pct", default=None)
-    never_read_all_pct = dig(knowledge_read, "never_read", "all_files", "never_read_pct", default=None)
+    if tool_share is None and event_share is None and proto_loose is None:
+        raise ValueError("no recognized delegation/protocol fields found under metrics.global")
 
-    if tool_share is None and event_share is None and proto_loose is None and not knowledge_read:
-        raise ValueError("no recognized transcript-adoption fields found under metrics.global")
-
-    tile_parts = [
-        tile(fmt_pct(tool_share), "delegation — tool-share (median)") if tool_share is not None else "",
-        tile(fmt_pct(event_share), "delegation — event-share (median)") if event_share is not None else "",
-        tile(fmt_pct(proto_loose), "protocol rate — loose (median)") if proto_loose is not None else "",
-        tile(fmt_pct(proto_strict), "protocol rate — strict, first-of-turn (median)")
-        if proto_strict is not None
-        else "",
-        tile(fmt_int(n_sessions), "sessions analyzed") if n_sessions is not None else "",
-        tile(fmt_pct100(sessions_touching_pct), "sessions touching knowledge")
-        if sessions_touching_pct is not None
-        else "",
-        tile(fmt_pct100(never_read_md_pct), "knowledge-md never read", "hot" if (never_read_md_pct or 0) > 50 else "")
-        if never_read_md_pct is not None
-        else "",
-        tile(fmt_pct100(never_read_all_pct), "all-files never read", "hot" if (never_read_all_pct or 0) > 50 else "")
-        if never_read_all_pct is not None
-        else "",
-    ]
-    tiles_html = "".join(t for t in tile_parts if t)
-
-    model_combined = dig(g, "model_mix", "combined", "share", default={}) or {}
-    model_html = ""
-    if isinstance(model_combined, dict) and model_combined:
-        model_html = '<h4 class="subhead">Model mix (main + subagent, all messages)</h4><div class="bars">' + "".join(
-            bar_row(m, v, max(model_combined.values()), display=fmt_pct(v))
-            for m, v in sorted(model_combined.items(), key=lambda kv: -kv[1])
-        ) + "</div>"
-
-    cli_by_class = dig(g, "cli_invocation", "by_class", default={}) or {}
-    cli_html = ""
-    if isinstance(cli_by_class, dict) and cli_by_class:
-        max_cli = max(cli_by_class.values())
-        cli_html = '<h4 class="subhead">CLI invocation, by class</h4><div class="bars">' + "".join(
-            bar_row(cls, n, max_cli) for cls, n in sorted(cli_by_class.items(), key=lambda kv: -kv[1])
-        ) + "</div>"
+    tiles_html = "".join(
+        t
+        for t in [
+            tile(fmt_pct(tool_share), "delegation — tool-share (median)") if tool_share is not None else "",
+            tile(fmt_pct(event_share), "delegation — event-share (median)") if event_share is not None else "",
+            tile(fmt_pct(proto_loose), "protocol rate — loose (median)") if proto_loose is not None else "",
+            tile(fmt_pct(proto_strict), "protocol rate — strict, first-of-turn (median)")
+            if proto_strict is not None
+            else "",
+            tile(fmt_int(n_sessions), "sessions analyzed") if n_sessions is not None else "",
+        ]
+        if t
+    )
 
     return (
         '<div class="card">'
-        "<h3>Transcript adoption</h3>"
+        "<h3>Discipline — delegation &amp; protocol adherence</h3>"
         f'<p class="role">collector: <code>transcripts</code> · generated {esc(generated)}</p>'
         f'<div class="tiles">{tiles_html}</div>'
-        f"{model_html}{cli_html}"
         '<p class="tnote">Delegation is always reported tool-share alongside event-share — the two disagree '
         "by an order of magnitude and neither is authoritative alone "
-        "(see claim <code>delegation-rate-baseline</code> in the Trust panel).</p>"
+        "(see claim <code>delegation-rate-baseline</code> in the Trust ledger).</p>"
         f"{raw_json_details(envelope, 'Raw JSON (transcripts-latest.json)')}"
         "</div>"
     )
 
 
-def render_velocity(envelope: dict) -> str:
-    """Matches collectors/velocity.py's actual `metrics.per_repo` /
-    `metrics.totals` shape (verified against a real collect run — see
-    output/velocity-latest.json)."""
+def render_evals(envelope: dict) -> str:
+    """Matches collectors/evals.py's `metrics.agents_with_evals` /
+    `metrics.agents_total` / `metrics.coverage_ratio` / `metrics.per_agent`
+    shape (verified against a real collect run — see output/evals-latest.json).
+    Golden-set pass-rate per agent via claude-copilot's `cc eval`
+    (LocalPythonRunner — pure Python, no LLM call), the Development
+    framework's only rubric-scored quality metric today."""
     metrics = envelope.get("metrics", {})
     generated = envelope.get("generated_at", "?")
 
-    per_repo = metrics.get("per_repo")
-    by_repo = None
-    if isinstance(per_repo, dict) and per_repo:
-        by_repo = {repo: dig(entry, "commits_90d", default=0) for repo, entry in per_repo.items()}
-    if not by_repo:
-        # Fallback for a flatter shape, should this collector's output change.
-        flat = first(metrics, "commits_90d", "by_repo", "velocity_by_repo")
-        by_repo = flat if isinstance(flat, dict) and flat else None
-    if not by_repo:
-        raise ValueError("no recognized per-repo commit-velocity mapping found")
+    agents_with_evals = metrics.get("agents_with_evals")
+    agents_total = metrics.get("agents_total")
+    coverage_ratio = metrics.get("coverage_ratio")
+    per_agent = metrics.get("per_agent")
 
-    totals = metrics.get("totals", {}) if isinstance(metrics.get("totals"), dict) else {}
-    window_days = metrics.get("window_days")
-    dirty_repos = set(totals.get("dirty_repos", []) or [])
+    if not isinstance(per_agent, dict) and agents_total is None:
+        raise ValueError("no recognized eval-coverage fields found under metrics")
 
+    per_agent = per_agent if isinstance(per_agent, dict) else {}
+    agents_with_evals = agents_with_evals if isinstance(agents_with_evals, list) else list(per_agent.keys())
+
+    coverage_display = f"{fmt_int(len(agents_with_evals))} / {fmt_int(agents_total) if agents_total is not None else '?'}"
     tiles_html = "".join(
         t
         for t in [
-            tile(fmt_int(totals.get("commits_90d", sum(by_repo.values()))), f"commits / {fmt_int(window_days or 90)}d"),
-            tile(fmt_int(len(by_repo)), "repos scanned"),
-            tile(fmt_int(totals.get("dirty_repo_count", len(dirty_repos))), "dirty working trees"),
+            tile(coverage_display, "agents with a golden-set eval", "hot" if (coverage_ratio or 0) < 0.5 else ""),
+            tile(fmt_pct(coverage_ratio), "eval coverage ratio") if coverage_ratio is not None else "",
         ]
         if t
     )
 
-    max_v = max(by_repo.values()) if by_repo else 1
-    bars = "".join(
-        bar_row(f"{repo}{' *' if repo in dirty_repos else ''}", n, max_v)
-        for repo, n in sorted(by_repo.items(), key=lambda kv: -kv[1])
-    )
-    dirty_note = (
-        '<p class="tnote">* dirty working tree (uncommitted changes) at collection time.</p>' if dirty_repos else ""
+    bars = ""
+    if per_agent:
+        rows = []
+        for agent, data in sorted(per_agent.items()):
+            if not isinstance(data, dict):
+                continue
+            pass_rate = _as_float(data.get("pass_rate"))
+            cases = data.get("cases")
+            passed = data.get("passed")
+            display = (
+                f"{fmt_pct(pass_rate)} ({fmt_int(passed)}/{fmt_int(cases)})"
+                if pass_rate is not None and cases is not None
+                else fmt_pct(pass_rate)
+            )
+            rows.append(
+                bar_row(
+                    agent,
+                    pass_rate or 0,
+                    1.0,
+                    display=display,
+                    color_var="--good" if (pass_rate or 0) >= 0.8 else "--warn",
+                )
+            )
+        bars = '<h4 class="subhead">Pass rate by agent</h4><div class="bars">' + "".join(rows) + "</div>"
+
+    coverage_note = (
+        f'<p class="tnote">Coverage: {fmt_int(len(agents_with_evals))} of '
+        f'{fmt_int(agents_total) if agents_total is not None else "an unknown number of"} specialist agents have '
+        "a golden-set eval today.</p>"
     )
 
     return (
         '<div class="card">'
-        "<h3>Commit velocity</h3>"
-        f'<p class="role">collector: <code>velocity</code> · generated {esc(generated)}</p>'
+        "<h3>Golden-set eval coverage</h3>"
+        f'<p class="role">collector: <code>evals</code> · generated {esc(generated)}</p>'
         f'<div class="tiles">{tiles_html}</div>'
-        f'<h4 class="subhead">Commits, last {fmt_int(window_days or 90)} days</h4>'
-        f'<div class="bars">{bars}</div>{dirty_note}'
-        f"{raw_json_details(envelope, 'Raw JSON (velocity-latest.json)')}"
+        f"{bars}{coverage_note}"
+        f"{raw_json_details(envelope, 'Raw JSON (evals-latest.json)')}"
         "</div>"
     )
 
 
-def _coerce_healthy(v: Any) -> bool | None:
-    if isinstance(v, bool):
-        return v
-    if isinstance(v, str):
-        return v.strip().lower() in ("healthy", "true", "ok", "up")
-    if isinstance(v, dict):
-        return _coerce_healthy(v.get("healthy", v.get("status")))
-    return None
-
-
-def _extract_services(metrics: dict) -> list[dict] | None:
-    for key in ("services", "by_service", "checks", "health"):
-        val = metrics.get(key)
-        if isinstance(val, dict) and val:
-            return [{"name": k, "healthy": _coerce_healthy(v)} for k, v in val.items()]
-        if isinstance(val, list) and val:
-            out = []
-            for item in val:
-                if isinstance(item, dict):
-                    name = item.get("name") or item.get("service") or item.get("id") or "unknown"
-                    out.append({"name": name, "healthy": _coerce_healthy(item.get("healthy", item.get("status")))})
-            if out:
-                return out
-    return None
-
-
-def render_integrations(envelope: dict) -> str:
-    """Matches collectors/integrations.py's actual `metrics.services` /
-    `metrics.healthy_count` / `metrics.total_services` shape (verified
-    against a real collect run — see output/integrations-latest.json).
-    Prefers the collector's own healthy_count/total_services fields over
-    recomputing from the services list (render, don't compute — CT
-    invariant #1) and falls back to a computed count only if those fields
-    are absent."""
+def render_bench_resume_cost(envelope: dict) -> str:
+    """Matches benches/resume_cost's real, observed `metrics.results.headline`
+    / `metrics.run_params` shape (verified against a real collect run —
+    landed mid-work, S-1/TASK-107 — see output/bench_resume_cost-latest.json).
+    A single fixture project, headless-claude probed with vs. without an
+    injected state block, `run_params.reps` repetitions per arm — measures
+    the Development framework's SOUL Job statement directly: tokens and
+    correctness resuming real work with vs. without Memory/Task state.
+    `first()` fallback candidates from this renderer's original pre-landing
+    guess are kept after the real paths in case the shape changes later;
+    an unrecognized shape still degrades to the unexpected-shape card via
+    dispatch(), never a crash or an invented number."""
     metrics = envelope.get("metrics", {})
     generated = envelope.get("generated_at", "?")
-    services = _extract_services(metrics)
-    if services is None:
-        raise ValueError("no recognized per-service health mapping found")
+    headline = dig(metrics, "results", "headline", default={}) or {}
 
-    total = metrics.get("total_services")
-    healthy = metrics.get("healthy_count")
-    if not isinstance(total, int):
-        total = len(services)
-    if not isinstance(healthy, int):
-        healthy = sum(1 for s in services if s["healthy"] is True)
-    gauge = bar_row("Live integrations", healthy, max(total, 1), display=f"{healthy}/{total}", color_var="--good")
-    chips = "".join(
-        f'<span class="chip {"good" if s["healthy"] is True else ("crit" if s["healthy"] is False else "neutral")}">'
-        f'{esc(s["name"])}</span>'
-        for s in sorted(services, key=lambda s: s["name"])
+    tokens_with = first(headline, "mean_total_tokens_with", "tokens_with")
+    tokens_without = first(headline, "mean_total_tokens_without", "tokens_without")
+    token_delta = first(headline, "token_delta_with_minus_without", "token_delta")
+    correctness_with = first(headline, "correctness_with")
+    correctness_without = first(headline, "correctness_without")
+    correctness_delta = first(headline, "correctness_delta")
+    reps = first(metrics, "run_params.reps", "n_tasks", "bank.size")
+
+    if tokens_with is None and tokens_without is None and correctness_with is None and reps is None:
+        raise ValueError("no recognized bench_resume_cost fields found under metrics")
+
+    delta_f = _as_float(token_delta)
+    tiles_html = "".join(
+        t
+        for t in [
+            tile(fmt_int(tokens_with), "mean tokens to resume — WITH Memory/Task state", "ok")
+            if tokens_with is not None
+            else "",
+            tile(fmt_int(tokens_without), "mean tokens to resume — WITHOUT state")
+            if tokens_without is not None
+            else "",
+            tile(
+                fmt_signed(token_delta, decimals=0, suffix=" tok"),
+                "token delta, with − without (SOUL's 'rebuilding context' cost)",
+                "hot" if (delta_f or 0) > 0 else "ok",
+            )
+            if token_delta is not None
+            else "",
+            tile(fmt_flexible_pct(correctness_with), "correctness — WITH state", "ok")
+            if correctness_with is not None
+            else "",
+            tile(fmt_flexible_pct(correctness_without), "correctness — WITHOUT state")
+            if correctness_without is not None
+            else "",
+            tile(fmt_signed(correctness_delta, decimals=2), "correctness delta, with − without")
+            if correctness_delta is not None
+            else "",
+            tile(fmt_int(reps), "reps per arm") if reps is not None else "",
+        ]
+        if t
     )
-    cli_version = metrics.get("cli_version")
-    version_note = f'<p class="tnote">{esc(cli_version)}</p>' if cli_version else ""
 
     return (
         '<div class="card">'
-        "<h3>Integration health</h3>"
-        f'<p class="role">collector: <code>integrations</code> · generated {esc(generated)}</p>'
-        f'<div class="bars">{gauge}</div>'
-        f"{version_note}"
-        f'<div class="svc-chips">{chips}</div>'
-        f"{raw_json_details(envelope, 'Raw JSON (integrations-latest.json)')}"
+        "<h3>S-1 · Resume-cost bench</h3>"
+        f'<p class="role">collector: <code>bench_resume_cost</code> · generated {esc(generated)}</p>'
+        f'<div class="tiles">{tiles_html}</div>'
+        "<p class=\"tnote\">Measures the SOUL's own Job statement directly: resuming disciplined work "
+        "without burning the token budget rebuilding context. A positive token delta means the injected "
+        "state cost more tokens than the bare-resume arm's own tool-call exploration/hedging — read "
+        "alongside the correctness delta, not alone.</p>"
+        f"{raw_json_details(envelope, 'Raw JSON (bench_resume_cost-latest.json)')}"
         "</div>"
     )
 
 
-def render_parity(envelope: dict) -> str:
-    """Matches collectors/parity.py's actual `metrics.upstream_check` /
-    `metrics.versions` / `metrics.content_check` shape (verified against a
-    real collect run — see output/parity-latest.json)."""
+def render_framework_soul(envelope: dict) -> str:
+    """Matches collectors/framework_soul.py's real, observed
+    `metrics.externalization_ratio` / `metrics.agent_frugality` /
+    `metrics.qa_gate_adherence` / `metrics.main_session_token_trend.weekly`
+    shape (verified against a real collect run — landed mid-work,
+    S-2/TASK-108 — see output/framework_soul-latest.json). Checks the
+    SOUL's own "~94% less context for externalized work products" claim
+    per its own Gate 3 honesty test (measure it or strike it — the
+    collector's own `verdict`/`verdict_band` fields ARE that measure-or-
+    strike judgment, rendered verbatim, not recomputed here), agent
+    return-size frugality against the SOUL's ~100-token target, the
+    ARTIFACT-marker QA-gate adherence rate the SubagentStop hook itself
+    enforces, and a weekly main-session token trend blended from two
+    differently-shaped sources (recent weeks from live transcripts,
+    older weeks backfilled from stats-cache.json where transcript
+    retention has already rolled off — the collector's own `source` field
+    per week is preserved in the raw JSON). `first()` fallback candidates
+    from this renderer's original pre-landing guesses are kept after the
+    real paths in case the shape changes later."""
     metrics = envelope.get("metrics", {})
     generated = envelope.get("generated_at", "?")
 
-    status = first(metrics, "upstream_check.status", "status")
-    if status is None:
-        raise ValueError("no recognized parity fields found under metrics.upstream_check")
+    ext = metrics.get("externalization_ratio", {}) if isinstance(metrics.get("externalization_ratio"), dict) else {}
+    savings_median = first(ext, "savings_ratio_median", "externalization.ratio")
+    savings_mean = first(ext, "savings_ratio_mean")
+    ext_verdict = first(ext, "verdict", "externalization_verdict")
+    ext_claim = first(ext, "claim")
 
-    status_cls = {"pass": "ok", "fail": "hot"}.get(status, "")
-    baseline = dig(metrics, "versions", "baseline", default={}) or {}
-    claude = dig(metrics, "versions", "claude_copilot", default={}) or {}
-    mismatches = dig(metrics, "upstream_check", "mismatches", default={}) or {}
-    content_available = dig(metrics, "content_check", "available", default=False)
+    frugality = metrics.get("agent_frugality", {}) if isinstance(metrics.get("agent_frugality"), dict) else {}
+    frugality_median = first(frugality, "median", "agent_frugality.mean_return_tokens")
+    frugality_pct_over = first(frugality, "pct_over_threshold")
+    frugality_threshold = first(frugality, "threshold_tokens", default=100)
+
+    qa_gate = metrics.get("qa_gate_adherence", {}) if isinstance(metrics.get("qa_gate_adherence"), dict) else {}
+    qa_gate_rate = first(qa_gate, "artifact_marker_rate", "qa_gate_adherence_pct")
+    qa_gate_n = first(qa_gate, "n_qa_returns")
+
+    weekly = dig(metrics, "main_session_token_trend", "weekly", default=None)
+
+    if savings_median is None and frugality_median is None and qa_gate_rate is None and not isinstance(weekly, dict):
+        raise ValueError("no recognized framework_soul fields found under metrics")
+
+    frugality_f = _as_float(frugality_median)
+    tiles_html = "".join(
+        t
+        for t in [
+            tile(
+                fmt_pct(savings_median),
+                "externalization savings ratio, median (checks the SOUL's own “~94%” claim)",
+                "hot" if (_as_float(savings_median) or 0) <= 0 else "ok",
+            )
+            if savings_median is not None
+            else "",
+            tile(fmt_pct(savings_mean), "externalization savings ratio, mean") if savings_mean is not None else "",
+            tile(
+                fmt_int(frugality_median),
+                "agent return size, median tokens (SOUL target ~100)",
+                "hot" if frugality_f and frugality_f > frugality_threshold else "",
+            )
+            if frugality_median is not None
+            else "",
+            tile(fmt_pct100(frugality_pct_over), f"agent returns over the {fmt_int(frugality_threshold)}-token threshold")
+            if frugality_pct_over is not None
+            else "",
+            tile(fmt_pct(qa_gate_rate), "QA-gate / ARTIFACT-marker adherence", "ok" if (_as_float(qa_gate_rate) or 0) >= 0.8 else "hot")
+            if qa_gate_rate is not None
+            else "",
+            tile(fmt_int(qa_gate_n), "QA returns sampled") if qa_gate_n is not None else "",
+        ]
+        if t
+    )
+
+    verdict_html = ""
+    if ext_verdict:
+        claim_line = f' Claim checked: <em>{esc(ext_claim)}</em>.' if ext_claim else ""
+        verdict_html = (
+            f'<p class="tnote">S-2\'s verdict on the SOUL\'s own claim: <strong>{esc(ext_verdict)}</strong>.'
+            f"{claim_line}</p>"
+        )
+
+    trend_html = ""
+    if isinstance(weekly, dict) and weekly:
+        vals: dict[str, float] = {}
+        for week, wv in weekly.items():
+            if not isinstance(wv, dict):
+                continue
+            total = first(wv, "input_plus_output_total", "total_tokens_all_models")
+            total_f = _as_float(total)
+            if total_f is not None:
+                vals[week] = total_f
+        if vals:
+            max_v = max(vals.values()) or 1.0
+            rows = "".join(bar_row(k, v, max_v, display=fmt_int(v)) for k, v in sorted(vals.items()))
+            trend_html = (
+                '<h4 class="subhead">Main-session token trend, by ISO week</h4>'
+                f'<div class="bars">{rows}</div>'
+                '<p class="tnote">Recent weeks are input+output tokens from live transcripts; older weeks '
+                "(beyond transcript retention) are backfilled from stats-cache.json's coarser "
+                "all-model daily totals — see the raw JSON's per-week <code>source</code> field.</p>"
+            )
+
+    return (
+        '<div class="card">'
+        "<h3>S-2 · Framework-SOUL collector</h3>"
+        f'<p class="role">collector: <code>framework_soul</code> · generated {esc(generated)}</p>'
+        f'<div class="tiles">{tiles_html}</div>'
+        f"{verdict_html}{trend_html}"
+        f"{raw_json_details(envelope, 'Raw JSON (framework_soul-latest.json)')}"
+        "</div>"
+    )
+
+
+def parity_footer_chip(envelope: Any) -> str:
+    """Small footer chip, not a card — Codex/Claude parity is demoted to
+    "sync plumbing" per TASK-111/S-5 (same framework, two harnesses; the
+    Claude↔Codex comparison itself is dropped as a measurement). Never
+    raises. Matches collectors/parity.py's real `metrics.upstream_check`
+    shape (verified — see output/parity-latest.json, B-6)."""
+    if envelope is None:
+        return '<span class="chip neutral">NOT RUN</span>'
+    if isinstance(envelope, dict) and "__parse_error__" in envelope:
+        return '<span class="chip warn">PARSE ERROR</span>'
+    try:
+        metrics = envelope.get("metrics", {})
+        status = first(metrics, "upstream_check.status", "status")
+        if status == "pass":
+            return '<span class="chip good">PASS</span>'
+        if status == "fail":
+            return '<span class="chip crit">DRIFT</span>'
+        return '<span class="chip neutral">UNKNOWN</span>'
+    except Exception:  # noqa: BLE001 - a footer chip must never break the page
+        return '<span class="chip warn">UNREADABLE</span>'
+
+
+# ---------------------------------------------------------------------------
+# Organisms — Knowledge framework (knowledge-copilot SOUL)
+# ---------------------------------------------------------------------------
+
+
+def render_knowledge_read_coverage(envelope: dict) -> str:
+    """Knowledge-read half of collectors/transcripts.py's `metrics.global`
+    shape (verified against a real collect run — see
+    output/transcripts-latest.json, B-5) — moved here from what used to be
+    one combined "transcript adoption" card (TASK-111/S-5); the delegation/
+    protocol half now lives in render_framework_discipline (Development
+    framework section)."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+    g = metrics.get("global", {}) if isinstance(metrics.get("global"), dict) else {}
+    knowledge_read = g.get("knowledge_read", {}) if isinstance(g.get("knowledge_read"), dict) else {}
+
+    sessions_touching_pct = knowledge_read.get("sessions_touching_pct")
+    never_read_md_pct = dig(knowledge_read, "never_read", "knowledge_md", "never_read_pct", default=None)
+    never_read_all_pct = dig(knowledge_read, "never_read", "all_files", "never_read_pct", default=None)
+
+    if sessions_touching_pct is None and never_read_md_pct is None and never_read_all_pct is None:
+        raise ValueError("no recognized knowledge_read fields found under metrics.global.knowledge_read")
 
     tiles_html = "".join(
-        [
-            tile(esc(status).upper(), "upstream_check.status", status_cls),
-            tile(esc(baseline.get("frameworkVersion", "?")), "framework (baseline)"),
-            tile(esc(claude.get("framework", "?")), "framework (claude-copilot live)"),
-            tile(esc(claude.get("agents_version", "?")), "agents version"),
-            tile(esc(claude.get("commands_version", "?")), "commands version"),
+        t
+        for t in [
+            tile(fmt_pct100(sessions_touching_pct), "sessions touching knowledge")
+            if sessions_touching_pct is not None
+            else "",
             tile(
-                "BUILT" if content_available else "NOT BUILT",
-                "content-hash parity (C-4)",
-                "" if content_available else "neutral",
-            ),
+                fmt_pct100(never_read_md_pct),
+                "knowledge-md never read",
+                "hot" if (never_read_md_pct or 0) > 50 else "",
+            )
+            if never_read_md_pct is not None
+            else "",
+            tile(
+                fmt_pct100(never_read_all_pct),
+                "all-files never read",
+                "hot" if (never_read_all_pct or 0) > 50 else "",
+            )
+            if never_read_all_pct is not None
+            else "",
         ]
+        if t
     )
-
-    mismatch_html = ""
-    if mismatches:
-        rows = "".join(
-            f"<li><code>{esc(k)}</code>: adopted <code>{esc(v.get('adopted'))}</code> vs upstream "
-            f"<code>{esc(v.get('upstream'))}</code></li>"
-            for k, v in mismatches.items()
-            if isinstance(v, dict)
-        )
-        mismatch_html = f'<h4 class="subhead">Mismatches</h4><ul>{rows}</ul>'
 
     return (
         '<div class="card">'
-        "<h3>Codex/Claude parity</h3>"
-        f'<p class="role">collector: <code>parity</code> · generated {esc(generated)}</p>'
+        "<h3>Read coverage — is the knowledge actually read?</h3>"
+        f'<p class="role">collector: <code>transcripts</code> · generated {esc(generated)}</p>'
         f'<div class="tiles">{tiles_html}</div>'
-        f"{mismatch_html}"
-        f"{raw_json_details(envelope, 'Raw JSON (parity-latest.json)')}"
+        '<p class="tnote">"Never read" is meaningless without naming the denominator — both registered '
+        "denominators (<code>knowledge_md</code>, <code>all_files</code>) are shown; see claim "
+        "<code>knowledge-never-read-rate</code> in the Trust ledger.</p>"
+        f"{raw_json_details(envelope, 'Raw JSON (transcripts-latest.json)')}"
         "</div>"
-    )
-
-
-def render_adoption_section(outputs: dict) -> str:
-    blocks = [
-        dispatch(
-            outputs.get("tasksdb"),
-            "tasksdb",
-            render_tasksdb,
-            "Task Copilot throughput",
-            "Per-repo task/PRD/work-product counts, completion rate, and monthly trend from every "
-            "*/.copilot/tasks.db store on this machine.",
-        ),
-        dispatch(
-            outputs.get("transcripts"),
-            "transcripts",
-            render_transcripts,
-            "Transcript adoption",
-            "Delegation rate (tool-share and event-share side by side), protocol-declaration rate, model mix, "
-            "and knowledge read-coverage mined from ~/.claude/projects and ~/.codex/sessions.",
-        ),
-        dispatch(
-            outputs.get("velocity"),
-            "velocity",
-            render_velocity,
-            "Commit velocity",
-            "Commits per 90 days, per repo — the maintenance-health signal alongside adoption.",
-        ),
-        dispatch(
-            outputs.get("integrations"),
-            "integrations",
-            render_integrations,
-            "Integration health",
-            "Live-integration count from copilot health --json, plus a status chip per service.",
-        ),
-        dispatch(
-            outputs.get("parity"),
-            "parity",
-            render_parity,
-            "Codex/Claude parity",
-            "Version-tuple parity today; content-hash parity once C-4 lands — between claude-copilot and "
-            "its codex-copilot mirror.",
-        ),
-    ]
-    return (
-        '<section id="adoption">'
-        '<span class="eyebrow">Panel 1 · Adoption</span>'
-        "<h2>Is it used?</h2>"
-        '<p class="prose">Everything in this panel is measured today, from data already on disk — task '
-        "throughput, delegation/protocol adoption, commit velocity, and integration health. No efficacy claims "
-        'here; see Panel 2 for what "helps" would even mean.</p>'
-        f'<div class="cards">{"".join(blocks)}</div>'
-        "</section>"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Organisms — Efficacy panel (B-9/B-10/B-11 benches + B-12 evals; each card
-# is LIVE the moment its collector has written output/<name>-latest.json,
-# and an honest "not yet run" placeholder until then — same dispatch()
-# contract the Adoption panel uses, see module docstring's SCHEMA TOLERANCE
-# note. bench_knowledge_qa / bench_voice_lint / bench_mcp_twin are owned by
-# parallel agents and had not landed as of this module's writing, so their
-# renderers are deliberately best-effort: several candidate metric-key
-# names are tried via first()/dig(), and an unrecognized shape degrades to
-# the raw-JSON unexpected-shape card via dispatch() rather than inventing a
-# number. evals (collectors/evals.py) and the tasksdb trend card below are
-# both owned by this module and verified against a real collect run.
-# ---------------------------------------------------------------------------
-
-
-def claim_ref_note(claim_id: str, claims_by_id: dict) -> str:
-    claim = claims_by_id.get(claim_id)
-    if not claim:
-        return ""
-    return (
-        f'<p class="tnote">Tracked by claim <code>{esc(claim_id)}</code> in the Trust panel '
-        f'(status: {chip(claim.get("status", "unchecked"))}).</p>'
     )
 
 
@@ -755,6 +909,110 @@ def render_bench_knowledge_qa(envelope: dict) -> str:
         f'<p class="role">collector: <code>bench_knowledge_qa</code> · generated {esc(generated)}</p>'
         f'<div class="tiles">{tiles_html}</div>'
         f"{raw_json_details(envelope, 'Raw JSON (bench_knowledge_qa-latest.json)')}"
+        "</div>"
+    )
+
+
+def render_knowledge_soul(envelope: dict) -> str:
+    """Matches collectors/knowledge_soul.py's real, observed
+    `metrics.registry_integrity` / `metrics.cross_link_integrity` /
+    `metrics.contradictory_facts` / `metrics.orphan_rate` /
+    `metrics.staleness_archive_honesty` / `metrics.voice_preservation` shape
+    (verified against a real collect run — landed mid-work, S-3/TASK-109 —
+    see output/knowledge_soul-latest.json). voice_preservation checks the
+    knowledge repo's OWN docs (distinct from bench_voice_lint's with/
+    without/rules ablation on GENERATED marketing copy — this is the
+    SOUL's "prefer precise product... language over generic AI vocabulary"
+    taste constraint applied to the repo's own content). `first()`
+    fallback candidates from this renderer's original pre-landing guesses
+    are kept after the real paths in case the shape changes later."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+
+    registry = metrics.get("registry_integrity", {}) if isinstance(metrics.get("registry_integrity"), dict) else {}
+    registry_headline = dig(registry, "forward_check", "headline", default=None)
+    registry_uncovered = dig(registry, "reverse_check", "n_uncovered", default=None)
+
+    cross_link = metrics.get("cross_link_integrity", {}) if isinstance(metrics.get("cross_link_integrity"), dict) else {}
+    cross_link_pct = first(cross_link, "pct_resolving", "pct")
+    cross_link_broken = first(cross_link, "n_broken", "broken_count")
+
+    contradictory = metrics.get("contradictory_facts", {}) if isinstance(metrics.get("contradictory_facts"), dict) else {}
+    contradictions_n = first(contradictory, "n_flagged", "count")
+
+    orphan = metrics.get("orphan_rate", {}) if isinstance(metrics.get("orphan_rate"), dict) else {}
+    orphan_pct = first(orphan, "orphan_rate_pct", "pct")
+    orphan_n = first(orphan, "n_orphans")
+
+    staleness = metrics.get("staleness_archive_honesty", {}) if isinstance(metrics.get("staleness_archive_honesty"), dict) else {}
+    freshness_key_pct = dig(staleness, "frontmatter_freshness", "freshness_key_pct", default=None)
+    any_frontmatter_pct = dig(staleness, "frontmatter_freshness", "any_frontmatter_pct", default=None)
+
+    voice = metrics.get("voice_preservation", {}) if isinstance(metrics.get("voice_preservation"), dict) else {}
+    own_voice = first(voice, "aggregate_violations_per_100_words", "mean_violations_per_100w")
+    own_voice_n_files = first(voice, "n_files")
+
+    if all(
+        v is None
+        for v in (registry_headline, cross_link_pct, contradictions_n, orphan_pct, freshness_key_pct, own_voice)
+    ):
+        raise ValueError("no recognized knowledge_soul fields found under metrics")
+
+    own_voice_f = _as_float(own_voice)
+    tiles_html = "".join(
+        t
+        for t in [
+            tile(esc(registry_headline), "registry forward-check (ECOSYSTEM.md paths resolving)")
+            if registry_headline is not None
+            else "",
+            tile(
+                fmt_int(registry_uncovered),
+                "top-level dirs uncovered by the registry",
+                "hot" if (registry_uncovered or 0) > 0 else "",
+            )
+            if registry_uncovered is not None
+            else "",
+            tile(
+                fmt_pct100(cross_link_pct),
+                "cross-links resolving",
+                "hot" if (_as_float(cross_link_pct) or 0) < 90 else "ok",
+            )
+            if cross_link_pct is not None
+            else "",
+            tile(fmt_int(cross_link_broken), "broken cross-links", "hot" if (cross_link_broken or 0) > 0 else "")
+            if cross_link_broken is not None
+            else "",
+            tile(fmt_int(contradictions_n), "products with contradictory facts flagged", "hot" if (contradictions_n or 0) > 0 else "")
+            if contradictions_n is not None
+            else "",
+            tile(fmt_pct100(orphan_pct), f"orphan rate ({fmt_int(orphan_n)} files)" if orphan_n is not None else "orphan rate")
+            if orphan_pct is not None
+            else "",
+            tile(fmt_pct100(freshness_key_pct), "docs with a freshness key (created/last_updated/…)")
+            if freshness_key_pct is not None
+            else "",
+            tile(fmt_pct100(any_frontmatter_pct), "docs with any frontmatter") if any_frontmatter_pct is not None else "",
+            tile(
+                f"{own_voice_f:.2f}/100w",
+                f"own-content voice-lint violations ({fmt_int(own_voice_n_files)} files)"
+                if own_voice_n_files is not None
+                else "own-content voice-lint violations",
+            )
+            if own_voice_f is not None
+            else "",
+        ]
+        if t
+    )
+
+    return (
+        '<div class="card">'
+        "<h3>S-3 · Knowledge-SOUL collector</h3>"
+        f'<p class="role">collector: <code>knowledge_soul</code> · generated {esc(generated)}</p>'
+        f'<div class="tiles">{tiles_html}</div>'
+        "<p class=\"tnote\">Checks the SOUL's own anti-patterns directly: stale dump, marketing-only "
+        "narrative, quietly contradictory facts. voice_preservation lints the repo's OWN docs — a "
+        "different measure from the B-10 bench_voice_lint ablation below, which scores GENERATED copy.</p>"
+        f"{raw_json_details(envelope, 'Raw JSON (knowledge_soul-latest.json)')}"
         "</div>"
     )
 
@@ -839,7 +1097,235 @@ def render_bench_voice_lint(envelope: dict) -> str:
         f'<div class="tiles">{delta_tiles}</div>'
         '<h4 class="subhead">Mean violations per 100 words, by arm</h4>'
         f'<div class="bars">{bars}</div>'
+        '<p class="tnote"><strong>Finding: "distilled rules beat raw prose."</strong> Knowledge voice content '
+        "reduces violations vs. bare prompting, but compiled rules-in-prompt outperform raw repo-as-context — "
+        "the effective payload is the distilled rubric, not the prose (see claim "
+        "<code>voice-conformance-deltas</code> in the Trust ledger).</p>"
         f"{raw_json_details(envelope, 'Raw JSON (bench_voice_lint-latest.json)')}"
+        "</div>"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Organisms — Integration framework (cli-copilot SOUL)
+# ---------------------------------------------------------------------------
+
+
+def _coerce_healthy(v: Any) -> bool | None:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in ("healthy", "true", "ok", "up")
+    if isinstance(v, dict):
+        return _coerce_healthy(v.get("healthy", v.get("status")))
+    return None
+
+
+def _extract_services(metrics: dict) -> list[dict] | None:
+    for key in ("services", "by_service", "checks", "health"):
+        val = metrics.get(key)
+        if isinstance(val, dict) and val:
+            return [{"name": k, "healthy": _coerce_healthy(v)} for k, v in val.items()]
+        if isinstance(val, list) and val:
+            out = []
+            for item in val:
+                if isinstance(item, dict):
+                    name = item.get("name") or item.get("service") or item.get("id") or "unknown"
+                    out.append({"name": name, "healthy": _coerce_healthy(item.get("healthy", item.get("status")))})
+            if out:
+                return out
+    return None
+
+
+def render_integrations(envelope: dict) -> str:
+    """Matches collectors/integrations.py's real `metrics.services` /
+    `metrics.healthy_count` / `metrics.total_services` shape (verified
+    against a real collect run — see output/integrations-latest.json, B-6).
+    Prefers the collector's own healthy_count/total_services fields over
+    recomputing from the services list (render, don't compute — CT
+    invariant #1) and falls back to a computed count only if those fields
+    are absent."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+    services = _extract_services(metrics)
+    if services is None:
+        raise ValueError("no recognized per-service health mapping found")
+
+    total = metrics.get("total_services")
+    healthy = metrics.get("healthy_count")
+    if not isinstance(total, int):
+        total = len(services)
+    if not isinstance(healthy, int):
+        healthy = sum(1 for s in services if s["healthy"] is True)
+    gauge = bar_row("Live integrations", healthy, max(total, 1), display=f"{healthy}/{total}", color_var="--good")
+    chips = "".join(
+        f'<span class="chip {"good" if s["healthy"] is True else ("crit" if s["healthy"] is False else "neutral")}">'
+        f'{esc(s["name"])}</span>'
+        for s in sorted(services, key=lambda s: s["name"])
+    )
+    cli_version = metrics.get("cli_version")
+    version_note = f'<p class="tnote">{esc(cli_version)}</p>' if cli_version else ""
+
+    return (
+        '<div class="card">'
+        "<h3>Live integration health</h3>"
+        f'<p class="role">collector: <code>integrations</code> · generated {esc(generated)}</p>'
+        f'<div class="bars">{gauge}</div>'
+        f"{version_note}"
+        f'<div class="svc-chips">{chips}</div>'
+        f"{raw_json_details(envelope, 'Raw JSON (integrations-latest.json)')}"
+        "</div>"
+    )
+
+
+def _coerce_pass(v: Any) -> bool | None:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        s = v.strip().lower()
+        if s in ("pass", "passing", "true", "ok", "conformant"):
+            return True
+        if s in ("fail", "failing", "false", "non-conformant", "nonconformant"):
+            return False
+        return None
+    if isinstance(v, dict):
+        return _coerce_pass(first(v, "pass", "overall_pass", "conformant", "ok", "status"))
+    return None
+
+
+def _extract_scorecard(metrics: dict) -> list[dict] | None:
+    for key in ("services", "per_service", "scorecard", "conformance"):
+        val = metrics.get(key)
+        if isinstance(val, dict) and val:
+            return [{"name": k, "pass": _coerce_pass(v)} for k, v in val.items()]
+        if isinstance(val, list) and val:
+            out = []
+            for item in val:
+                if isinstance(item, dict):
+                    name = item.get("name") or item.get("service") or item.get("id") or "unknown"
+                    out.append({"name": name, "pass": _coerce_pass(item)})
+            if out:
+                return out
+    return None
+
+
+def render_cli_soul(envelope: dict) -> str:
+    """Matches cli-copilot's S-4 conformance scorecard's real, observed
+    `metrics.scorecard` (service → criterion → {status, reason}) /
+    `metrics.totals_by_service` / `metrics.totals_by_criterion` /
+    `metrics.gaps` / `metrics.suite_green` shape (verified against a real
+    collect run — landed mid-work, S-4/TASK-110, in the OTHER repo
+    (cli-copilot) and read here only as output/cli_soul-latest.json; this
+    module never imports or duplicates its logic). Each service is
+    checked against every one of `metrics.criteria` (the SOUL's own
+    mechanical non-negotiables: health_registered, copilot_error_hierarchy,
+    lazy_import, config_documented, docs_entry, test_file_exists); a
+    non-"passed" criterion is "xfail" (a documented, tracked gap — `gaps`
+    carries the reason) rather than a silent break, so per-service chips
+    are colored good (0 gaps) / warn (tracked gaps), never crit, unless a
+    future run reports an untracked failure. No utilization-ledger or
+    portability-test field exists in this shape as landed — this
+    renderer's original pre-landing guesses for those two are kept as a
+    harmless no-op fallback (see the util_status/portability_pass lookups)
+    in case a later S-4 revision adds them."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+
+    scorecard = metrics.get("scorecard", {}) if isinstance(metrics.get("scorecard"), dict) else {}
+    totals_by_service = metrics.get("totals_by_service", {}) if isinstance(metrics.get("totals_by_service"), dict) else {}
+    totals = metrics.get("totals", {}) if isinstance(metrics.get("totals"), dict) else {}
+    suite_green = metrics.get("suite_green")
+    gaps = metrics.get("gaps") if isinstance(metrics.get("gaps"), list) else []
+    criteria = metrics.get("criteria") if isinstance(metrics.get("criteria"), list) else []
+
+    # Fallback for a hypothetical future flatter shape, plus this
+    # renderer's original pre-landing guesses (harmless no-ops today).
+    fallback_services = _extract_scorecard(metrics) if not scorecard else None
+    utilization_status = first(
+        metrics, "utilization_ledger.status", "usage_ledger.status",
+        "utilization_ledger.enabled", "usage_ledger.enabled",
+    )
+    portability_pass = first(metrics, "portability_test.pass", "portability.pass", "portability_pass")
+
+    if not scorecard and fallback_services is None and utilization_status is None and portability_pass is None:
+        raise ValueError("no recognized cli_soul scorecard/ledger/portability fields found under metrics")
+
+    n_services = len(scorecard) or len(fallback_services or [])
+    n_conformant = sum(1 for s in totals_by_service.values() if isinstance(s, dict) and s.get("gap", 0) == 0)
+    total_suite = sum(v for v in totals.values() if isinstance(v, int)) if totals else None
+    total_passed = totals.get("passed") if totals.get("passed") is not None else None
+
+    util_display = (
+        esc(utilization_status).upper()
+        if isinstance(utilization_status, str)
+        else ("ON" if utilization_status is True else ("OFF" if utilization_status is False else None))
+    )
+    tiles_html = "".join(
+        t
+        for t in [
+            tile(
+                f"{n_conformant}/{n_services}",
+                "services with zero SOUL-conformance gaps",
+                "ok" if n_services and n_conformant == n_services else "",
+            )
+            if n_services
+            else "",
+            tile(fmt_int(total_passed), f"conformance-suite checks passing (of {fmt_int(total_suite)})", "ok")
+            if total_passed is not None and total_suite
+            else "",
+            tile(fmt_int(len(gaps)), "tracked gaps (xfail, not crashes)", "" if gaps else "ok") if criteria else "",
+            tile(
+                "PASS" if suite_green is True else ("FAIL" if suite_green is False else "—"),
+                "cli-copilot conformance suite",
+                "ok" if suite_green is True else ("hot" if suite_green is False else ""),
+            )
+            if suite_green is not None
+            else "",
+            tile(
+                "PASS" if portability_pass is True else ("FAIL" if portability_pass is False else "—"),
+                "portability test (.env-only, byte-identical binary)",
+                "ok" if portability_pass is True else ("hot" if portability_pass is False else ""),
+            )
+            if portability_pass is not None
+            else "",
+            tile(util_display, "utilization ledger status (C-1, opt-in)") if util_display is not None else "",
+        ]
+        if t
+    )
+
+    chips_html = ""
+    if scorecard:
+        chips_html = "".join(
+            f'<span class="chip {"good" if totals_by_service.get(name, {}).get("gap", 0) == 0 else "warn"}">'
+            f'{esc(name)} ({fmt_int(totals_by_service.get(name, {}).get("pass"))}/'
+            f'{fmt_int(len(scorecard.get(name, {})))})</span>'
+            for name in sorted(scorecard)
+        )
+    elif fallback_services:
+        chips_html = "".join(
+            f'<span class="chip {"good" if s["pass"] is True else ("crit" if s["pass"] is False else "neutral")}">'
+            f'{esc(s["name"])}</span>'
+            for s in sorted(fallback_services, key=lambda s: s["name"])
+        )
+    chips_block = (
+        f'<h4 class="subhead">Per-service conformance ({fmt_int(len(criteria))} criteria each)</h4>'
+        f'<div class="svc-chips">{chips_html}</div>'
+        if chips_html
+        else ""
+    )
+
+    return (
+        '<div class="card">'
+        "<h3>S-4 · CLI conformance scorecard</h3>"
+        f'<p class="role">collector: <code>cli_soul</code> · generated {esc(generated)} · owning repo cli-copilot</p>'
+        f'<div class="tiles">{tiles_html}</div>'
+        f"{chips_block}"
+        "<p class=\"tnote\">Criteria are the SOUL's own mechanical non-negotiables (health(), CopilotError+hint, "
+        "lazy import, .env-only config documented, docs entry, test file present) — a chip's gap count is a "
+        "documented, tracked xfail (<code>tests/test_soul_conformance.py</code>), not a silent break. This is a "
+        "separate suite from the full pytest run the Trust ledger's "
+        "<code>cli-copilot-test-suite-verified</code> claim tracks.</p>"
+        f"{raw_json_details(envelope, 'Raw JSON (cli_soul-latest.json)')}"
         "</div>"
     )
 
@@ -849,13 +1335,15 @@ def render_bench_mcp_twin(envelope: dict) -> str:
     `metrics.twins.<name>.net_advantage_tokens.{conservative_using_probe_everything_grammar_cost,
     optimistic_using_prose_grammar_cost}` / `metrics.f17_caveats` shape
     (verified against a real collect run — see
-    output/bench_mcp_twin-latest.json, B-11, F-17). Each twin reports TWO
-    net-advantage variants (conservative/optimistic grammar-cost basis) —
-    the collector's own `net_advantage_tokens` definition deliberately
-    does not pick one ("the task does not license picking one"), so this
-    renderer shows both rather than collapsing to a single number. A flat
-    per-twin numeric fallback (this renderer's pre-landing guess) is tried
-    first if the nested-variant shape isn't present."""
+    output/bench_mcp_twin-latest.json, B-11, F-17). REFRAMED per
+    TASK-111/S-5 (phase-2-prd.md §2.5): this bench checked an overview-DOC
+    claim, not a SOUL claim — cli-copilot's SOUL never promises a token
+    advantage over MCP twins, so a negative result here is a doc-claim
+    correction (feeds B-17: reword/delete the doc claim), not a product
+    verdict. Each twin reports TWO net-advantage variants (conservative/
+    optimistic grammar-cost basis) — the collector's own
+    `net_advantage_tokens` definition deliberately does not pick one, so
+    this renderer shows both."""
     metrics = envelope.get("metrics", {})
     generated = envelope.get("generated_at", "?")
 
@@ -901,216 +1389,322 @@ def render_bench_mcp_twin(envelope: dict) -> str:
         for variant, v in variants.items()
     )
 
-    caveats = metrics.get("f17_caveats")
-    if isinstance(caveats, list) and caveats:
-        caveat_html = "<ul>" + "".join(f"<li>{esc(c)}</li>" for c in caveats) + "</ul>"
-    else:
-        single_caveat = first(metrics, "f17_caveat", "bounded_caveat", "caveat")
-        caveat_html = (
-            f'<p class="tnote">{esc(single_caveat)}</p>'
-            if single_caveat
-            else '<p class="tnote">Honestly bounded per F-17 (the deferral-threshold caveat) — see raw JSON for '
-            "the collector's own bounding note if one is present.</p>"
-        )
-
     return (
         '<div class="card">'
-        "<h3>B-11 · MCP-twin bench</h3>"
+        "<h3>MCP-twin — doc-claim check</h3>"
         f'<p class="role">collector: <code>bench_mcp_twin</code> · generated {esc(generated)}</p>'
+        '<p class="tnote"><strong>Reframed (TASK-111/S-5):</strong> doc-claim check — token advantage requires '
+        "shipping usage prose up front; the doc claim is reworded, not the product verdict. cli-copilot's SOUL "
+        "never promised a token advantage over MCP twins, so a negative result here is not a SOUL failure "
+        "(see claim <code>cli-mcp-net-token-advantage</code> and B-17 in the Trust ledger).</p>"
         '<h4 class="subhead">Net advantage, tokens (CLI vs. live MCP twin) — conservative vs. optimistic '
         "grammar-cost basis</h4>"
         f'<div class="bars">{bars}</div>'
-        '<h4 class="subhead">F-17 bounded caveats</h4>'
-        f"{caveat_html}"
         f"{raw_json_details(envelope, 'Raw JSON (bench_mcp_twin-latest.json)')}"
         "</div>"
     )
 
 
-def render_evals(envelope: dict) -> str:
-    """Matches collectors/evals.py's `metrics.agents_with_evals` /
-    `metrics.agents_total` / `metrics.coverage_ratio` / `metrics.per_agent`
-    shape (verified against a real collect run — see output/evals-latest.json).
-    Golden-set pass-rate per agent via claude-copilot's `cc eval`
-    (LocalPythonRunner — pure Python, no LLM call), the T3 program truth
-    condition's only measured signal today."""
-    metrics = envelope.get("metrics", {})
-    generated = envelope.get("generated_at", "?")
+# ---------------------------------------------------------------------------
+# Organisms — page sections
+# ---------------------------------------------------------------------------
 
-    agents_with_evals = metrics.get("agents_with_evals")
-    agents_total = metrics.get("agents_total")
-    coverage_ratio = metrics.get("coverage_ratio")
-    per_agent = metrics.get("per_agent")
 
-    if not isinstance(per_agent, dict) and agents_total is None:
-        raise ValueError("no recognized eval-coverage fields found under metrics")
+def render_scoreboard_section(outputs: dict) -> str:
+    """Ecosystem-level scoreboard, header section (TASK-111/S-5). Per
+    phase-2-prd.md §2.5, "more work done, faster" is an ecosystem-level
+    claim that lives HERE — never inside a single component's section —
+    and cannot be quoted until the ladder test (B-13/B-14) produces data.
+    Tile values below are simple display-only arithmetic on numbers
+    tasksdb/transcripts/framework_soul already computed (see module
+    docstring); a tile whose inputs aren't available renders "—" with an
+    explanatory note rather than an invented number."""
+    tasksdb_env = outputs.get("tasksdb")
+    tasksdb_ok = isinstance(tasksdb_env, dict) and isinstance(tasksdb_env.get("metrics"), dict)
 
-    per_agent = per_agent if isinstance(per_agent, dict) else {}
-    agents_with_evals = agents_with_evals if isinstance(agents_with_evals, list) else list(per_agent.keys())
+    tiles = []
+    notes: list[str] = []
 
-    coverage_display = f"{fmt_int(len(agents_with_evals))} / {fmt_int(agents_total) if agents_total is not None else '?'}"
-    tiles_html = "".join(
-        t
-        for t in [
-            tile(coverage_display, "agents with a golden-set eval", "hot" if (coverage_ratio or 0) < 0.5 else ""),
-            tile(fmt_pct(coverage_ratio), "eval coverage ratio") if coverage_ratio is not None else "",
-        ]
-        if t
+    completed = None
+    tasks_total = None
+    reopened = None
+    if tasksdb_ok:
+        totals = dig(tasksdb_env, "metrics", "totals", default={}) or {}
+        tasks_total = totals.get("tasks")
+        completed = dig(totals, "by_status", "completed", default=None)
+        reopened = totals.get("reopened_count")
+        activity = totals.get("activity_range") or {}
+        weeks = _weeks_between(activity.get("earliest"), activity.get("latest"))
+        if completed is not None and weeks:
+            tiles.append(tile(f"{completed / weeks:.1f}", "tasks finished / week (approx, whole-corpus average)"))
+        else:
+            tiles.append(tile("—", "tasks finished / week"))
+            notes.append("tasks finished/week: tasksdb has completion counts but no usable activity_range span.")
+    else:
+        tiles.append(tile("—", "tasks finished / week"))
+        notes.append("tasks finished/week: tasksdb collector not yet run.")
+
+    if reopened is not None and tasks_total:
+        tiles.append(
+            tile(f"{reopened / tasks_total * 100:.1f}%", "rework rate (reopened-count proxy)", "hot" if reopened else "")
+        )
+    else:
+        tiles.append(tile("—", "rework rate"))
+
+    tiles.append(tile("not computable", "days start → done", "neutral"))
+    notes.append(
+        "days start → done: not computable from any landed collector — tasksdb has no completed_at column "
+        "(only created_at/updated_at, truncated to month for the monthly trend), so true per-task cycle time "
+        "cannot be derived; see the tasksdb collector's own reopened_count caveat for the same limitation class."
     )
 
-    bars = ""
-    if per_agent:
-        rows = []
-        for agent, data in sorted(per_agent.items()):
-            if not isinstance(data, dict):
-                continue
-            pass_rate = _as_float(data.get("pass_rate"))
-            cases = data.get("cases")
-            passed = data.get("passed")
-            display = (
-                f"{fmt_pct(pass_rate)} ({fmt_int(passed)}/{fmt_int(cases)})"
-                if pass_rate is not None and cases is not None
-                else fmt_pct(pass_rate)
+    tokens_total_f = None
+    framework_soul_env = outputs.get("framework_soul")
+    if isinstance(framework_soul_env, dict) and isinstance(framework_soul_env.get("metrics"), dict):
+        # Real shape (S-2, landed mid-work): main_session_token_trend.weekly is
+        # a per-ISO-week dict blended from two sources (see
+        # render_framework_soul's docstring) — sum whichever total field each
+        # week carries. first() candidates from this tile's original
+        # pre-landing guess are tried first, in case a future shape adds a
+        # ready-made total.
+        tokens_total_f = _as_float(
+            first(
+                framework_soul_env["metrics"],
+                "token_totals.main_session", "main_session_tokens.total", "token_trend.total",
             )
-            rows.append(
-                bar_row(
-                    agent,
-                    pass_rate or 0,
-                    1.0,
-                    display=display,
-                    color_var="--good" if (pass_rate or 0) >= 0.8 else "--warn",
-                )
-            )
-        bars = '<h4 class="subhead">Pass rate by agent</h4><div class="bars">' + "".join(rows) + "</div>"
+        )
+        if tokens_total_f is None:
+            weekly = dig(framework_soul_env, "metrics", "main_session_token_trend", "weekly", default=None)
+            if isinstance(weekly, dict) and weekly:
+                weekly_vals = [
+                    _as_float(first(wv, "input_plus_output_total", "total_tokens_all_models"))
+                    for wv in weekly.values()
+                    if isinstance(wv, dict)
+                ]
+                weekly_vals = [v for v in weekly_vals if v is not None]
+                if weekly_vals:
+                    tokens_total_f = sum(weekly_vals)
 
-    coverage_note = (
-        f'<p class="tnote">Coverage: {fmt_int(len(agents_with_evals))} of '
-        f'{fmt_int(agents_total) if agents_total is not None else "an unknown number of"} specialist agents have '
-        "a golden-set eval today — the T3 program truth condition (\"every specialist agent has a passing "
-        "golden-set eval\") is unmet by construction until B-12 expands the golden-set roster.</p>"
-    )
+    if tokens_total_f is not None and completed:
+        tiles.append(tile(fmt_int(round(tokens_total_f / completed)), "tokens / task (approx, main-session, whole corpus)"))
+    else:
+        tiles.append(tile("—", "tokens / task (approx)"))
+        notes.append(
+            "tokens/task: framework_soul's main-session token trend and/or tasksdb's completed-task count "
+            "are not both available yet — this tile activates once both land."
+        )
 
-    return (
-        '<div class="card">'
-        "<h3>Golden-set eval coverage</h3>"
-        f'<p class="role">collector: <code>evals</code> · generated {esc(generated)}</p>'
-        f'<div class="tiles">{tiles_html}</div>'
-        f"{bars}{coverage_note}"
-        f"{raw_json_details(envelope, 'Raw JSON (evals-latest.json)')}"
+    notes_html = "".join(f'<p class="tnote">{esc(n)}</p>' for n in notes)
+
+    ladder_card = (
+        '<div class="card placeholder">'
+        "<h3>Ladder test — ecosystem-level speed/quality proof</h3>"
+        '<p class="role">scope: ecosystem, not a single component</p>'
+        "<p>“More work done, faster” is an ecosystem-level claim, never a single component's — per "
+        "the 2026-07-12 SOUL-alignment revision it cannot be quoted until the layered-ablation ladder (B-13) "
+        "and the external pilot (B-14) produce data. Tracked by claim "
+        "<code>t8-value-transfers-beyond-author</code> in the Trust ledger.</p>"
+        '<p class="tnote">ladder test: not yet run — pending B-13 (layered ablation harness) and B-14 '
+        "(external pilot protocol), phase-2-prd.md P3.</p>"
         "</div>"
     )
 
-
-def render_tasksdb_trend_efficacy(envelope: dict) -> str:
-    """Small efficacy-adjacent card: Task Copilot completion/rework trend,
-    sourced from the SAME tasksdb-latest.json the Adoption panel's Task
-    Copilot throughput card already reads (collectors/tasksdb.py, B-4) —
-    not a new collector, and this card deliberately omits the raw-JSON
-    block (already shown once, in full, on the Adoption card) to stay
-    small."""
-    metrics = envelope.get("metrics", {})
-    generated = envelope.get("generated_at", "?")
-    totals = metrics.get("totals", {}) if isinstance(metrics.get("totals"), dict) else {}
-
-    completion_rate = totals.get("completion_rate")
-    reopened = totals.get("reopened_count")
-    cancelled = totals.get("cancelled_count")
-    tasks = totals.get("tasks")
-
-    if completion_rate is None and reopened is None and tasks is None:
-        raise ValueError("no recognized tasksdb totals found under metrics")
-
-    tiles_html = "".join(
-        t
-        for t in [
-            tile(fmt_pct(completion_rate), "completion rate", "ok" if (completion_rate or 0) >= 0.5 else "")
-            if completion_rate is not None
-            else "",
-            tile(fmt_int(reopened), "reopened (rework proxy)", "hot" if (reopened or 0) > 0 else "")
-            if reopened is not None
-            else "",
-            tile(fmt_int(cancelled), "cancelled") if cancelled is not None else "",
-            tile(fmt_int(tasks), "tasks tracked") if tasks is not None else "",
-        ]
-        if t
-    )
-
-    trend = totals.get("monthly_trend", {}) if isinstance(totals.get("monthly_trend"), dict) else {}
-    trend_html = monthly_trend_chart(trend.get("created", {}) or {}, trend.get("completed", {}) or {})
-
     return (
-        '<div class="card">'
-        "<h3>Task throughput — completion/rework trend</h3>"
-        f'<p class="role">collector: <code>tasksdb</code> · generated {esc(generated)} · same source as the '
-        "Adoption panel's Task Copilot card</p>"
-        f'<div class="tiles">{tiles_html}</div>'
-        f"{trend_html}"
-        "</div>"
+        '<section id="scoreboard">'
+        '<span class="eyebrow">Ecosystem scoreboard</span>'
+        "<h2>Is the work moving?</h2>"
+        '<div class="callout warn"><strong>All numbers on this page are single-author data (T8 open).</strong> '
+        "No number here has been reproduced by anyone other than this machine's own owner running these "
+        "collectors against their own history.</div>"
+        f'<div class="tiles">{"".join(tiles)}</div>'
+        f"{notes_html}"
+        f'<div class="cards">{ladder_card}</div>'
+        "</section>"
     )
 
 
-def render_efficacy_section(outputs: dict, claims_by_id: dict) -> str:
+def render_framework_section(outputs: dict, claims_by_id: dict) -> str:
     cards = [
         dispatch(
-            outputs.get("bench_knowledge_qa"),
-            "bench_knowledge_qa",
-            render_bench_knowledge_qa,
-            "B-9 · Private-fact Q&A bench",
-            "Closed-book questions generated from product dossiers, scored with-knowledge vs. against an "
-            "empty tree — a contamination-immune ablation.",
-            claim_ref_note("t4-knowledge-layer-changes-output", claims_by_id),
+            outputs.get("bench_resume_cost"),
+            "bench_resume_cost",
+            render_bench_resume_cost,
+            "S-1 · Resume-cost bench",
+            "Tokens and correctness resuming real work with vs. without Memory/Task state, via headless "
+            "claude — the framework's core Job statement, measured directly.",
         ),
         dispatch(
-            outputs.get("bench_voice_lint"),
-            "bench_voice_lint",
-            render_bench_voice_lint,
-            "B-10 · Voice-conformance bench",
-            "Deterministic linter compiled from the existing tone-of-voice rubric (banned words, em-dash ban, "
-            "AI-cliché list, terminology table, reading-level target) — no LLM judge required.",
-            claim_ref_note("t4-knowledge-layer-changes-output", claims_by_id),
+            outputs.get("framework_soul"),
+            "framework_soul",
+            render_framework_soul,
+            "S-2 · Framework-SOUL collector",
+            "Externalization ratio (checks the SOUL's own '~94% less context' claim), agent return-size "
+            "frugality (~100-token target), main-session token trend, and QA-gate/ARTIFACT-marker adherence.",
         ),
         dispatch(
-            outputs.get("bench_mcp_twin"),
-            "bench_mcp_twin",
-            render_bench_mcp_twin,
-            "B-11 · MCP-twin bench",
-            "copilot crm / db against their live MCP twins — tokens, latency, success rate, honestly "
-            "bounded per the F-17 deferral-threshold caveat.",
-            claim_ref_note("t5-integration-layer-pays-its-way", claims_by_id),
+            outputs.get("transcripts"),
+            "transcripts",
+            render_framework_discipline,
+            "Discipline — delegation & protocol adherence",
+            "Delegation rate under both registered definitions, protocol-declaration rate under both "
+            "denominators — the mechanical-enforcement half of SOUL Principle 2.",
         ),
         dispatch(
             outputs.get("evals"),
             "evals",
             render_evals,
             "Golden-set eval coverage",
-            "cc eval golden-set pass-rate per agent (LocalPythonRunner, deterministic, no LLM call) — the "
-            "instruction layer's only rubric-scored quality metric today.",
-            claim_ref_note("t3-instruction-layer-changes-behavior", claims_by_id),
+            "cc eval golden-set pass-rate per agent (LocalPythonRunner, deterministic, no LLM call).",
+            claim_ref_note("agent-eval-coverage", claims_by_id),
         ),
         dispatch(
             outputs.get("tasksdb"),
             "tasksdb",
-            render_tasksdb_trend_efficacy,
-            "Task throughput — completion/rework trend",
-            "Completion rate and the reopened-count rework proxy, efficacy-adjacent context alongside the "
-            "benches above — same source as the Adoption panel's Task Copilot card, no new collector.",
+            render_tasksdb,
+            "Task Copilot throughput",
+            "Per-repo task/PRD/work-product counts, completion rate, and monthly trend from every "
+            "*/.copilot/tasks.db store on this machine.",
+        ),
+    ]
+    footer = (
+        '<p class="foot-chip-row"><span class="tnote">Sync plumbing (Codex parity — demoted from a headline '
+        "metric per the SOUL-alignment revision; same framework, two harnesses, so the Claude↔Codex "
+        f"comparison itself is dropped as a measurement):</span> {parity_footer_chip(outputs.get('parity'))}</p>"
+    )
+    return (
+        '<section id="framework">'
+        + soul_intro(
+            eyebrow="Component 1 of 3 · claude-copilot &amp; codex-copilot",
+            title="Development framework",
+            quote=(
+                "they want to keep their decisions, process, and context from evaporating every time a "
+                "session ends — without burning their token budget rebuilding it, so they can do "
+                "disciplined, resumable, inspectable work instead of starting from zero every morning"
+            ),
+            soul_note=(
+                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/claude-copilot/SOUL.md</code> — explicitly does '
+                "NOT claim speed or output quality (Gate 3: Honesty Test, Principle 4)."
+            ),
+            lede=(
+                "Contains Task Copilot, Memory Copilot, and the specialized-agent roster. Measured against "
+                "its own promise — process discipline and context efficiency — never against speed or "
+                "software quality, which this SOUL explicitly refuses to claim."
+            ),
+        )
+        + f'<div class="cards">{"".join(cards)}</div>'
+        + footer
+        + "</section>"
+    )
+
+
+def render_knowledge_section(outputs: dict, claims_by_id: dict) -> str:
+    cards = [
+        dispatch(
+            outputs.get("bench_knowledge_qa"),
+            "bench_knowledge_qa",
+            render_bench_knowledge_qa,
+            "B-9 · Private-fact Q&A bench",
+            "Closed-book questions generated from product dossiers, scored with-knowledge vs. an empty "
+            "tree — a contamination-immune ablation.",
+            claim_ref_note("knowledge-factual-accuracy-delta", claims_by_id),
+        ),
+        dispatch(
+            outputs.get("knowledge_soul"),
+            "knowledge_soul",
+            render_knowledge_soul,
+            "S-3 · Knowledge-SOUL collector",
+            "Registry & cross-link integrity, contradictory-facts detection, staleness/archive honesty, "
+            "orphan rate, and voice-lint of the repo's own company content.",
+        ),
+        dispatch(
+            outputs.get("transcripts"),
+            "transcripts",
+            render_knowledge_read_coverage,
+            "Read coverage",
+            "Is the knowledge that exists actually read? Both registered never-read denominators, mined "
+            "from ~/.claude/projects and ~/.codex/sessions.",
+        ),
+        dispatch(
+            outputs.get("bench_voice_lint"),
+            "bench_voice_lint",
+            render_bench_voice_lint,
+            "B-10 · Voice-conformance bench",
+            "Deterministic linter compiled from the tone-of-voice rubric, scored across bare / "
+            "rules-in-prompt / knowledge-repo arms.",
+            claim_ref_note("voice-conformance-deltas", claims_by_id),
         ),
     ]
     return (
-        '<section id="efficacy">'
-        '<span class="eyebrow">Panel 2 · Efficacy</span>'
-        "<h2>Does it help?</h2>"
-        '<p class="prose">Adoption tells you the CSE is alive; only these benches (plus eval coverage) can tell '
-        "you it helps. PRD-9 P2 scopes each as a deterministic, contamination-resistant delta a skeptic can "
-        're-run. Each card below is LIVE the moment its collector has run at least once; until then it is an '
-        'honest "not yet run" placeholder, never an invented number.</p>'
-        f'<div class="cards">{"".join(cards)}</div>'
-        "</section>"
+        '<section id="knowledge">'
+        + soul_intro(
+            eyebrow="Component 2 of 3 · knowledge-copilot",
+            title="Knowledge framework",
+            quote=(
+                "Help humans and agents understand the company, its methodologies, and its product "
+                "ecosystem accurately enough to make good build, integrate, extend, and operating decisions"
+            ),
+            soul_note=(
+                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/knowledge-copilot/SOUL.md</code> — must never '
+                "become a stale content dump, a marketing-only narrative, or a place where contradictory "
+                "product facts quietly coexist."
+            ),
+            lede="Measured against accurate understanding for good decisions — never against volume or polish.",
+        )
+        + f'<div class="cards">{"".join(cards)}</div>'
+        + "</section>"
+    )
+
+
+def render_integration_section(outputs: dict, claims_by_id: dict) -> str:
+    cards = [
+        dispatch(
+            outputs.get("cli_soul"),
+            "cli_soul",
+            render_cli_soul,
+            "S-4 · CLI conformance scorecard",
+            "Mechanical check of the SOUL quality bar per service (health(), --json cleanliness, "
+            "CopilotError+hint, lazy instantiation, .env-only config) plus a portability test.",
+        ),
+        dispatch(
+            outputs.get("integrations"),
+            "integrations",
+            render_integrations,
+            "Live integration health",
+            "Live-integration count from copilot health --json, plus a status chip per service.",
+        ),
+        dispatch(
+            outputs.get("bench_mcp_twin"),
+            "bench_mcp_twin",
+            render_bench_mcp_twin,
+            "MCP-twin — doc-claim check",
+            "copilot crm / db against their live MCP twins — reframed as a doc-claim check per the "
+            "SOUL-alignment revision, not a product verdict.",
+            claim_ref_note("cli-mcp-net-token-advantage", claims_by_id),
+        ),
+    ]
+    return (
+        '<section id="integration">'
+        + soul_intro(
+            eyebrow="Component 3 of 3 · cli-copilot",
+            title="Integration framework",
+            quote=(
+                "One binary that gives every Copilot project and agent a single, consistent, scriptable "
+                "way to operate ~20 external services from the terminal — a uniform façade, never the "
+                "services themselves"
+            ),
+            soul_note=(
+                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/cli-copilot/SOUL.md</code> — one binary, one '
+                "grammar; client, never server; honest, hint-bearing failure."
+            ),
+            lede="Measured against uniformity and honest failure per service — never against how many services exist.",
+        )
+        + f'<div class="cards">{"".join(cards)}</div>'
+        + "</section>"
     )
 
 
 # ---------------------------------------------------------------------------
-# Organisms — Trust panel (claims register, rendered live)
+# Organisms — Trust ledger (claims register, rendered live)
 # ---------------------------------------------------------------------------
 
 
@@ -1148,7 +1742,7 @@ def render_trust_section(claims_data: dict | None, claims_error: str | None) -> 
     if claims_error:
         return (
             '<section id="trust">'
-            '<span class="eyebrow">Panel 3 · Trust</span>'
+            '<span class="eyebrow">Trust ledger</span>'
             "<h2>The claims register</h2>"
             f'<div class="callout crit">{esc(claims_error)}</div>'
             "</section>"
@@ -1173,7 +1767,7 @@ def render_trust_section(claims_data: dict | None, claims_error: str | None) -> 
 
     return (
         '<section id="trust">'
-        '<span class="eyebrow">Panel 3 · Trust</span>'
+        '<span class="eyebrow">Trust ledger</span>'
         "<h2>The claims register — live</h2>"
         '<p class="prose">Every metric this program quotes is pre-registered here before it is measured (V-2). '
         "This table renders <code>docs/40-initiatives/01-cse-auditability/claims.yaml</code> directly — the "
@@ -1199,9 +1793,12 @@ def render_trust_section(claims_data: dict | None, claims_error: str | None) -> 
 # legend/.callout/.eyebrow/.masthead/.foot component classes are copied
 # verbatim from docs/40-initiatives/01-cse-auditability/phases/
 # phase-1-reaudit-report.html so this dashboard matches that report's design
-# system exactly (same CVD-validated palette, same type system). Only the
-# dashboard-specific additions at the bottom (subhead, trend chart, service
-# chips, placeholder cards, raw-json details, jump nav, theme toggle) are new.
+# system exactly (same CVD-validated palette, same type system) — unchanged
+# by TASK-111/S-5, per that task's explicit instruction to keep the token
+# system exactly as it passed CVD validation. Only the dashboard-specific
+# additions at the bottom (subhead, trend chart, service chips, placeholder
+# cards, raw-json details, jump nav, theme toggle, soul-quote blockquote,
+# footer chip row) are new/extended.
 PAGE_CSS = """
   :root {
     --paper:#F7F8F5; --raised:#FFFFFF; --ink:#1C2733; --muted:#54626F; --faint:#8B96A3;
@@ -1373,6 +1970,19 @@ PAGE_CSS = """
     outline:2px solid var(--accent); outline-offset:2px; border-radius:3px;
   }
 
+  /* --- TASK-111/S-5 additions: SOUL-quote intro + footer sync chip ------ */
+
+  blockquote.soulquote {
+    margin:14px 0 4px; padding:14px 18px; border-left:3px solid var(--accent);
+    background:var(--raised); border-radius:0 8px 8px 0; font-style:italic;
+    color:var(--ink); font-size:1.02rem; box-shadow:var(--shadow);
+  }
+  p.soulpath { font-size:.8rem; color:var(--muted); margin:4px 0 18px; }
+  p.soulpath code { font-size:.82em; }
+
+  .foot-chip-row { margin-top:20px; }
+  .foot-chip-row .chip { margin-left:8px; vertical-align:middle; }
+
   @media (prefers-reduced-motion: reduce) { .fill, .trend-fill { transition:none; } }
 """
 
@@ -1422,8 +2032,10 @@ def build_page(
     present_count: int,
     total_count: int,
     present_list: str,
-    adoption_html: str,
-    efficacy_html: str,
+    scoreboard_html: str,
+    framework_html: str,
+    knowledge_html: str,
+    integration_html: str,
     trust_html: str,
 ) -> str:
     return f"""<!doctype html>
@@ -1440,21 +2052,28 @@ def build_page(
 <header class="masthead">
   <span class="eyebrow">Copilot Solutioning Ecosystem · CSE Verification &amp; Benchmark Program · PRD-9</span>
   <h1>CSE Benchmark — Live</h1>
-  <p class="meta">Adoption / Efficacy / Trust, rendered from whatever collector output and claims-register state
-     exist on this machine right now. This page computes nothing — every number here was written by a
+  <p class="meta">Development / Knowledge / Integration frameworks, each measured against its own ratified SOUL
+     promise, plus an ecosystem scoreboard and a trust ledger — rendered from whatever collector output and
+     claims-register state exist on this machine right now. This page computes nothing beyond simple
+     display-only arithmetic on numbers a collector already produced (e.g. "tasks/week" divides tasksdb's own
+     monthly totals by its own activity span); every number here was written by a
      <code>cse_bench.py collect</code> run or already lives in <code>claims.yaml</code> (Control Tower invariant
-     #1: the CLI computes, the view renders).</p>
+     #1: the CLI/collectors compute, the view renders).</p>
   <div class="runline">GENERATED {generated_at} · {present_count}/{total_count} COLLECTORS PRESENT ({present_list})</div>
   <nav class="jumpnav" aria-label="Dashboard sections">
-    <a href="#adoption">Adoption</a>
-    <a href="#efficacy">Efficacy</a>
-    <a href="#trust">Trust</a>
+    <a href="#scoreboard">Scoreboard</a>
+    <a href="#framework">Development framework</a>
+    <a href="#knowledge">Knowledge framework</a>
+    <a href="#integration">Integration framework</a>
+    <a href="#trust">Trust ledger</a>
   </nav>
   <button id="theme-toggle" type="button">Dark mode</button>
 </header>
 
-{adoption_html}
-{efficacy_html}
+{scoreboard_html}
+{framework_html}
+{knowledge_html}
+{integration_html}
 {trust_html}
 
 <footer class="foot">
@@ -1462,8 +2081,8 @@ def build_page(
      <code>python3 cse_bench.py collect</code>) and
      <code>docs/40-initiatives/01-cse-auditability/claims.yaml</code> (git-committed, the pre-registration
      record). Refresh with <code>python3 cse_bench.py collect &amp;&amp; python3 cse_bench.py render</code>.</p>
-  <p>Rendered by <code>tools/cse-bench/render/dashboard.py</code> (TASK-91 / B-8) · Copilot Control Tower
-     repo.</p>
+  <p>Rendered by <code>tools/cse-bench/render/dashboard.py</code> — original build TASK-91/B-8, reorganized by
+     component/SOUL in TASK-111/S-5 · Copilot Control Tower repo.</p>
 </footer>
 
 </div>
@@ -1497,8 +2116,10 @@ def render_dashboard(out_dir: Path, claims_path: Path | None = None) -> str:
         except Exception as exc:  # noqa: BLE001 - a rendering bug must not blank the whole page
             return f'<section><div class="callout crit">Section failed to render: {esc(exc)}</div></section>'
 
-    adoption_html = safe_section(render_adoption_section, outputs)
-    efficacy_html = safe_section(render_efficacy_section, outputs, claims_by_id)
+    scoreboard_html = safe_section(render_scoreboard_section, outputs)
+    framework_html = safe_section(render_framework_section, outputs, claims_by_id)
+    knowledge_html = safe_section(render_knowledge_section, outputs, claims_by_id)
+    integration_html = safe_section(render_integration_section, outputs, claims_by_id)
     trust_html = safe_section(render_trust_section, claims_data, claims_error)
 
     return build_page(
@@ -1506,7 +2127,9 @@ def render_dashboard(out_dir: Path, claims_path: Path | None = None) -> str:
         present_count=len(present),
         total_count=len(KNOWN_COLLECTORS),
         present_list=esc(", ".join(present) if present else "none yet"),
-        adoption_html=adoption_html,
-        efficacy_html=efficacy_html,
+        scoreboard_html=scoreboard_html,
+        framework_html=framework_html,
+        knowledge_html=knowledge_html,
+        integration_html=integration_html,
         trust_html=trust_html,
     )

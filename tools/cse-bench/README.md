@@ -94,7 +94,8 @@ version before assuming a field exists.
   performs a real, complete suite run. `cc` missing, or either directory
   missing, degrades to an `errors` entry, never a crash.
 
-## Dashboard (`render` — TASK-91 / B-8)
+## Dashboard (`render` — TASK-91/B-8 original build, reorganized by
+component/SOUL in TASK-111/S-5)
 
 ```bash
 python3 cse_bench.py collect   # refresh output/*-latest.json
@@ -110,29 +111,58 @@ rendered server-side in Python, nothing fetched client-side. Same
 invariant as the rest of Control Tower: the collectors compute, this
 view only renders.
 
-Three panels:
+Per the 2026-07-12 owner-directed SOUL-alignment revision
+(`../../docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md` §2.5),
+the dashboard is organized around exactly **three components**, each
+measured against its own ratified SOUL promise — no "instruction layer"
+section, no "voice content" component:
 
-- **Adoption** — stat tiles + pure-CSS bar charts per collector
-  (`tasksdb`, `transcripts`, `velocity`, `integrations`, `parity`). A
-  collector whose `*-latest.json` doesn't exist yet renders a quiet
-  "collector not yet run" card instead of breaking the page — safe to
-  run `render` before every collector has been run at least once.
-- **Efficacy** — B-9/B-10/B-11 bench cards (`bench_knowledge_qa`,
-  `bench_voice_lint`, `bench_mcp_twin`, each owned by a parallel
-  workstream) plus this repo's own `evals` (golden-set pass-rate/coverage)
-  and a small Task Copilot completion/rework trend card sourced from the
-  same `tasksdb-latest.json` the Adoption panel reads. Every card is LIVE
-  the moment its collector has written `output/<name>-latest.json`; until
-  then it renders the same quiet "not yet run" placeholder the Adoption
-  panel uses (plus a link to the Trust-panel claim it's tracked by). The
-  three bench renderers are best-effort against their producers' actual
-  field names (tried via `first()`/`dig()` with multiple candidate
-  spellings); an unrecognized shape degrades to a raw-JSON details block,
-  never a crash or an invented number — see `render/dashboard.py`'s module
-  docstring for the full schema-tolerance contract.
-- **Trust** — the claims register rendered live: every claim's status
-  chip, statement, check command, and `last_checked`, plus the
-  permanent "adoption metrics are single-author data" banner (T8 open).
+- **Ecosystem scoreboard** (header) — work finished/week, rework rate, a
+  "days start → done" tile that is honestly reported as not computable
+  (tasksdb has no `completed_at` column), tokens/task (approx, sourced
+  from `framework_soul`'s token trend once it has run), the permanent
+  single-author caveat, and a "ladder test: not yet run" card — "more
+  work done, faster" is an ecosystem-level claim (B-13/B-14), never a
+  single component's.
+- **Development framework** (`claude-copilot` & `codex-copilot` SOUL —
+  "disciplined, resumable, inspectable work... without burning the token
+  budget rebuilding context," explicitly never speed/quality) — Task
+  Copilot throughput, delegation/protocol discipline, golden-set eval
+  coverage, the S-1 resume-cost bench, and the S-2 framework-SOUL
+  collector (externalization ratio vs. the SOUL's own "~94%" claim, agent
+  return-size frugality, main-session token trend, QA-gate/ARTIFACT-marker
+  adherence). Codex parity survives only as a small "sync plumbing" chip
+  in this section's footer; commit velocity is dropped from the
+  measurement story entirely.
+- **Knowledge framework** (`knowledge-copilot` SOUL — accurate
+  understanding for good decisions; never a stale dump, marketing
+  narrative, or quietly contradictory facts) — the B-9 private-fact Q&A
+  bench, the S-3 knowledge-SOUL collector (registry/cross-link integrity,
+  contradictory facts, staleness/archive honesty, orphan rate, own-content
+  voice-lint), knowledge read-coverage, and the B-10 voice-conformance
+  bench (with the "distilled rules beat raw prose" finding called out).
+- **Integration framework** (`cli-copilot` SOUL — one binary, one
+  grammar; client, never server; honest, hint-bearing failure) — the S-4
+  per-service conformance scorecard (chips grid against the SOUL's own
+  mechanical non-negotiables), live integration health, and the
+  MCP-twin bench reframed as a doc-claim check (token advantage requires
+  shipping usage prose up front — the doc claim is reworded, not a
+  product verdict).
+- **Trust ledger** (bottom, unchanged mechanics) — the claims register
+  rendered live: every claim's status chip, statement, check command, and
+  `last_checked`, plus the permanent "adoption metrics are single-author
+  data" banner (T8 open).
+
+Every collector card is LIVE the moment its collector has written
+`output/<name>-latest.json`; until then it renders a quiet "not yet run"
+placeholder — safe to run `render` before every collector has run at
+least once. `bench_resume_cost` (S-1), `framework_soul` (S-2),
+`knowledge_soul` (S-3), and `cli_soul` (S-4, owned by `cli-copilot`) are
+matched against their real, observed shapes as of this reorg; every
+renderer keeps `first()`/`dig()` fallback candidates from its original
+pre-landing guesses in case a shape changes later. An unrecognized shape
+degrades to a raw-JSON details block, never a crash or an invented
+number.
 
 `render/dashboard.py`'s per-collector renderers are written against each
 collector's real, observed `metrics` shape (see each function's

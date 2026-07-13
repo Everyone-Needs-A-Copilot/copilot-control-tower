@@ -1,0 +1,27 @@
+## Task Copilot — progress (`tc progress`)
+```
+                           Progress by Stream                           
+┏━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┓
+┃ stream     ┃ pending ┃ in_progress ┃ completed ┃ blocked ┃ cancelled ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━┩
+│ unassigned │ 0       │ 1           │ 0         │ 0       │ 0         │
+└────────────┴─────────┴─────────────┴───────────┴─────────┴───────────┘
+
+Totals:
+  in_progress: 1
+```
+
+## Memory Copilot — current focus (`cc memory list --type context --json`)
+```json
+[{"id": "3fcae193-0f5a-4940-ac8c-c1ba475ab0a3", "type": "context", "tags": [], "created": "2026-07-13T00:10:23Z", "updated": "2026-07-13T00:10:23Z", "scope": "project", "content": "Focus: refactoring invoice_tools out of the monolithic utils.py into single-responsibility modules (validators.py done). Next: TASK-1 \u2014 extract aggregate_totals() and dedupe_invoices() out of utils.py into a new transformers.py module.\n", "path": "/private/tmp/cse-bench-resume-cost-state.DA04OI/.claude/memory/entries/3fcae193-0f5a-4940-ac8c-c1ba475ab0a3.md"}]
+```
+
+## Memory Copilot — recent decision (`cc memory list --type decision --json`)
+```json
+[{"id": "fbc6817d-b25c-431d-aa30-51513c58fd39", "type": "decision", "tags": [], "created": "2026-07-13T00:10:23Z", "updated": "2026-07-13T00:10:23Z", "scope": "project", "content": "Extract validators before transformers: validators.py has no dependency on aggregation state, so pulling it out first keeps main.py's import chain stable while utils.py still holds the yet-to-be-extracted aggregate_totals()/dedupe_invoices() functions.\n", "path": "/private/tmp/cse-bench-resume-cost-state.DA04OI/.claude/memory/entries/fbc6817d-b25c-431d-aa30-51513c58fd39.md"}]
+```
+
+## Memory Copilot — lesson learned (`cc memory list --type lesson --json`)
+```json
+[{"id": "eadda938-2004-4c51-8ef6-71cbd495af5b", "type": "lesson", "tags": [], "created": "2026-07-13T00:10:23Z", "updated": "2026-07-13T00:10:23Z", "scope": "project", "content": "utils.py's old validate_invoice_row() mutated the row dict it validated in place \u2014 dedupe_invoices(), which runs right after validation in main.py's pipeline, was seeing already-mutated rows. Fixed by having validators.py return a new dict instead. [context: invoice_tools refactor; the same non-mutating discipline applies to the step-2 extraction of aggregate_totals()/dedupe_invoices() into transformers.py.]\n", "path": "/private/tmp/cse-bench-resume-cost-state.DA04OI/.claude/memory/entries/eadda938-2004-4c51-8ef6-71cbd495af5b.md"}]
+```

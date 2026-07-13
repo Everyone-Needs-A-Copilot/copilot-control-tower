@@ -1,14 +1,14 @@
 verb,call_count,is_registered_service
 discord,253,True
 coolify,216,True
-(none),82,False
+(none),84,False
 publish,30,False
 infisical,28,True
 conv,24,True
 admin,18,False
 db,13,True
 update,9,False
-doctor,6,False
+doctor,7,False
 auth,4,False
 freshness,4,False
 promote,3,False

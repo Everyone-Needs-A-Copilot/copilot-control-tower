@@ -493,3 +493,77 @@ claims:
     status: failing
     evidence: "tools/cse-bench/output/evals-latest.json — the qa suite passes; the CLAIM fails on coverage (15 of 16 agents unmeasured). Expansion tracked as C-5 (TASK-105)."
     last_checked: "2026-07-12"
+
+  # --- S-series: SOUL-aligned claims (2026-07-12 revision; phase-2-prd.md §2.5) ---
+
+  - id: framework-resume-value
+    statement: "The state Memory/Task Copilot persist makes cold resume accurate: with-state resume correctness 100% (task, completed step, next action) vs 0% without, at +3.9% token overhead (the ~654-token state block). The framework's SOUL §1 job, measured."
+    definition_refs: []
+    check: "cd tools/cse-bench/benches/resume_cost && ./build_state.sh && python3 run.py"
+    status: passing
+    evidence: "tools/cse-bench/output/bench_resume_cost-latest.json (run 20260713T001935Z; 3 reps/arm, contamination-controlled)"
+    last_checked: "2026-07-12"
+
+  - id: framework-externalization-94pct
+    statement: "Externalized work products yield '~94% less context' vs inlining (claude-copilot SOUL §3 Principle 3, README panel). FALSIFIED AND INVERTED under population measurement: agent returns median 658 tokens vs WP content median 217 — returns are ~3x LARGER than the artifacts they externalize. README claim struck 2026-07-12; SOUL §3 line flagged for owner-ratified correction per SOUL §10."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul"
+    status: failing
+    evidence: "tools/cse-bench/output/framework_soul-latest.json (n=1099 WPs, n=658 returns; population-level caveat stated in output)"
+    last_checked: "2026-07-12"
+
+  - id: framework-agent-frugality
+    statement: "Agents return ~100 tokens to the main session (claude-copilot SOUL §6 non-negotiable). Current: median return 658 tokens, p90 2,749; 86.2% of returns exceed 300 tokens."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul"
+    status: failing
+    evidence: "tools/cse-bench/output/framework_soul-latest.json (agent_frugality block)"
+    last_checked: "2026-07-12"
+
+  - id: framework-qa-gate-adherence
+    statement: "No implementation ships without a qa pass carrying an ARTIFACT: marker (claude-copilot SOUL §6). Current: 75.9% of qa returns carry the marker (41/54); 8 sessions delegated to me with no qa at all; the qa-gate hook state file has never existed anywhere on this machine."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul"
+    status: failing
+    evidence: "tools/cse-bench/output/framework_soul-latest.json (qa_gate_adherence block; primary_exists false)"
+    last_checked: "2026-07-12"
+
+  - id: knowledge-crosslink-integrity
+    statement: "Knowledge is cross-linked where decisions depend on other documents (knowledge-copilot SOUL quality bar). Current: 52.5% of relative links resolve (137/261, 124 broken; top offender has 28 from a systematic wrong-depth pattern)."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul"
+    status: failing
+    evidence: "tools/cse-bench/output/knowledge_soul-latest.json (crosslink_integrity block)"
+    last_checked: "2026-07-12"
+
+  - id: knowledge-staleness-honesty
+    statement: "The repo never becomes a stale content dump; documents carry honest freshness status (knowledge-copilot SOUL). Current: the last_updated key appears ZERO times; only 1.3% of files carry any freshness key."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul"
+    status: failing
+    evidence: "tools/cse-bench/output/knowledge_soul-latest.json (staleness block)"
+    last_checked: "2026-07-12"
+
+  - id: knowledge-voice-self-conformance
+    statement: "The company-voice reference content passes its own voice rules (anti-pattern: 'rewriting company voice into generic consultant language'). Current: 01-company content lints at 1.93 violations/100w; the tone-of-voice document ITSELF lints at 2.74 — nearly the unguided-output rate (2.77), which plausibly explains why raw-prose knowledge underperformed compiled rules in the voice bench."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul"
+    status: failing
+    evidence: "tools/cse-bench/output/knowledge_soul-latest.json (voice_self_conformance block)"
+    last_checked: "2026-07-12"
+
+  - id: knowledge-registry-completeness
+    statement: "The ecosystem registry tracks the ecosystem (anti-pattern: registry staleness). Current: 17/17 listed paths resolve, but copilot-control-tower is entirely absent from ECOSYSTEM.md and knowledge-copilot never lists its own local path; 12 top-level dirs unmentioned."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul"
+    status: failing
+    evidence: "tools/cse-bench/output/knowledge_soul-latest.json (registry_integrity block)"
+    last_checked: "2026-07-12"
+
+  - id: cli-soul-conformance
+    statement: "Every CLI service meets the SOUL §6 quality bar (health, test file, CopilotError, lazy import, config documented, docs entry). Current: 125/138 scorecard cases pass; 13 named gaps tracked as strict-xfail (infisical test file; coolify+infisical error hierarchy; 3 docs entries; 7 services with undocumented env vars). The bar is now mechanically enforced as a test."
+    definition_refs: []
+    check: "cd /Volumes/Dev/Sites/COPILOT/cli-copilot && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/test_soul_conformance.py -q; or: python3 cse_bench.py collect --only cli_soul"
+    status: failing
+    evidence: "tools/cse-bench/output/cli_soul-latest.json (13 tracked gaps; suite green with strict xfail)"
+    last_checked: "2026-07-12"

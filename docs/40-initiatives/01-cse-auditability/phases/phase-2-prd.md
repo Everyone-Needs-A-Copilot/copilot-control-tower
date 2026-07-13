@@ -35,6 +35,52 @@ of scope.
 | **T7** | **The inheritance ladder exists in practice.** At least one real Foundation→Org→Personal chain syncs through Control Tower, entitlement by repo access, secrets outside git. | Single-tier, single-machine today. Delivered by the Control Tower build program ([PRD](../../../02-prd/prd.md)); tracked here as a dependency and verified by this program's trust panel. |
 | **T8** | **The value transfers beyond its author.** A person who is not the owner, using a persona task pack (the accountant story), completes representative tasks measurably better with the CSE than without. | Every number in existence is single-author. |
 
+## 2.5 SOUL-alignment revision (2026-07-12, owner-directed)
+
+Each component is measured against **its own ratified SOUL promise** — not against
+generic "faster/cheaper/better" claims its SOUL explicitly refuses.
+
+- **Development framework** (claude-copilot SOUL): promises **process discipline**
+  (enforced, not advisory) and **context efficiency** (resumable work without
+  burning tokens rebuilding context). Gate 3 strikes speed/quality claims.
+  Measures: resume cost (S-1), main-session token trend, the "~94% externalized
+  work-product" figure (measure or strike — required by the SOUL's own taste
+  test), delegation/QA-gate/protocol adherence, agent ~100-token frugality (S-2).
+  Claude↔Codex comparison is dropped as a measurement (same framework, two
+  harnesses); the content parity check remains as sync plumbing only.
+- **Knowledge framework** (knowledge-copilot SOUL): promises **accurate
+  understanding for good decisions**, and to never be a stale dump / marketing
+  narrative / home of quietly contradictory facts. Measures: private-fact
+  accuracy delta (built), registry & cross-link integrity, contradictory-facts
+  detection, staleness/archive honesty, orphan rate, company-voice preservation
+  of its own content (S-3).
+- **Integration framework** (cli-copilot SOUL): promises **one binary, one
+  grammar** — uniform look/config/failure per service, `.env`-only portability,
+  client-never-server, honest hint-bearing failure, lazy & mockable. Measures:
+  per-service conformance scorecard against the SOUL's seven non-negotiables +
+  portability test (S-4); live health (built); utilization ledger (built, now a
+  ratified SOUL exception). The MCP-twin token bench measured an overview-DOC
+  claim, not a SOUL claim — result feeds B-17 (reword/delete the doc claim),
+  not the product verdict.
+- **Ecosystem level**: "more work done, faster" lives HERE (the ladder test +
+  always-on scoreboard), never as a single component's claim, and cannot be
+  quoted until the ladder produces data.
+
+### S-series tasks (this revision)
+- **S-1 Resume-cost bench** — tokens/correctness resuming work with vs without
+  Memory/Task state (the framework's core job, measured).
+- **S-2 Framework-SOUL collector** — externalization %, agent return-size
+  frugality, main-session token trend, QA-gate/ARTIFACT adherence.
+- **S-3 Knowledge-SOUL collector** — registry/cross-link integrity, version
+  contradictions, staleness/archive hygiene, orphan rate, voice-lint of the
+  repo's own company content.
+- **S-4 CLI conformance scorecard** — mechanical check of the SOUL quality bar
+  per service (in cli-copilot, enforced as a test) + portability test + doc
+  truth fixes (service counts, MCP claim rewording).
+- **S-5 Dashboard reorganization** — three component sections, each headed by
+  its SOUL promise, showing adoption + SOUL-aligned measures; ecosystem
+  scoreboard + trust ledger.
+
 ## 3. Scope
 
 **In scope** — measurement, benchmark harnesses, the claims register, retention, a local
