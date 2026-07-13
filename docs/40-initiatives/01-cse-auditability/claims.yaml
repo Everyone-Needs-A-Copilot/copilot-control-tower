@@ -338,6 +338,14 @@ claims:
     evidence: "W-1 Outcome Ledger landed (claude-copilot tools/tc/ `tc solution` verbs + tools/cse-bench/collectors/solutions.py, TASK-123): sessions-to-done/tokens-to-done/post-ship fix-vs-feature-share are computed and run clean (errors: []), but zero solutions have shipped against a locked brief yet -- an honestly empty ledger, not a measured result."
     last_checked: "2026-07-13"
 
+  - id: outcome-speed-observed
+    statement: "Observed elapsed time (first prompt -> working -> loveable -> shipped) is captured per solution from ledger timestamps alone. This is O-3's OBSERVED half only -- it carries no counterfactual bare-harness comparison; that comparison is O-6's job (outcome-counterfactual-delta, the W-3 ladder harness) and is a separate, not-yet-built measurement."
+    definition_refs: [outcome_bars]
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only solutions && python3 -c \"import json; print(json.load(open('output/solutions-latest.json'))['metrics']['totals']['speed_observed_seconds'])\""
+    status: unchecked
+    evidence: "W-1 Outcome Ledger landed (claude-copilot tools/tc/ `tc solution` verbs + tools/cse-bench/collectors/solutions.py, TASK-123): started_at/t_working/t_loveable/closed_at are captured and the collector computes started->working/started->loveable/started->shipped elapsed seconds, run clean (errors: []), but zero solutions exist yet -- an honestly empty ledger, not a measured result. Pre-registered here (V-2) before any data exists, per phase-4-outcome-program-prd.md par.3 W-1 ('a cse-bench collector solutions.py emitting O-1/O-2/O-3(observed)/O-5')."
+    last_checked: "2026-07-13"
+
   - id: outcome-token-efficiency
     statement: "Creating a finished solution through the CSE uses at least 60 percent fewer tokens than the bare-harness counterfactual (aspiration: 90 percent), with O-1/O-3 non-degraded. Constraint, not objective."
     definition_refs: [outcome_bars]

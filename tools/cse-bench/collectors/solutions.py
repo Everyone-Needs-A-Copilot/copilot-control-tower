@@ -13,6 +13,12 @@ Outcome Ledger unblocks:
   - O-2 (Completeness, observed): sessions/tokens to done and the post-ship
     fix-vs-feature ratio, for solutions that reached a shipped-or-beyond
     status against a *locked* brief.
+  - O-3 (Speed, OBSERVED ONLY -- no counterfactual): elapsed wall-clock time
+    from started_at to t_working / t_loveable / closed_at. This is real
+    elapsed time on real solutions, not a comparison against a bare-harness
+    counterfactual -- that comparison is O-6's job (the W-3 ladder harness).
+    Labelled "observed" throughout so it's never mistaken for O-3's full
+    definition.
   - O-5 (Survival): started -> shipped -> in_use counts and ratios.
 
 Honesty note: a store with no `solutions` table yet (the common case until
@@ -92,6 +98,9 @@ def _empty_repo_result() -> dict:
             "sessions_to_done": [],
             "tokens_to_done": [],
             "post_ship_feature_share": [],
+            "started_to_working_seconds": [],
+            "started_to_loveable_seconds": [],
+            "started_to_shipped_seconds": [],
         },
     }
 
@@ -119,7 +128,8 @@ def _scan_repo(db_path: Path) -> dict:
 
         cur = conn.cursor()
         cur.execute(
-            """SELECT status, t_working, t_loveable, sessions_count, tokens_total,
+            """SELECT status, started_at, t_working, t_loveable, closed_at,
+                      sessions_count, tokens_total,
                       post_ship_fixes, post_ship_features, brief_locked_at
                FROM solutions"""
         )
@@ -130,20 +140,39 @@ def _scan_repo(db_path: Path) -> dict:
         sessions_to_done: list[float] = []
         tokens_to_done: list[float] = []
         feature_shares: list[float] = []
+        started_to_working: list[float] = []
+        started_to_loveable: list[float] = []
+        started_to_shipped: list[float] = []
 
         shipped_or_beyond = 0
         in_use = 0
         abandoned = 0
 
-        for status, t_working, t_loveable, sessions_count, tokens_total, fixes, features, brief_locked_at in rows:
+        for (
+            status, started_at, t_working, t_loveable, closed_at,
+            sessions_count, tokens_total, fixes, features, brief_locked_at,
+        ) in rows:
             by_status[status or "unknown"] = by_status.get(status or "unknown", 0) + 1
 
             gap = _seconds_between(t_working, t_loveable)
             if gap is not None:
                 ttfls_gaps.append(gap)
 
+            # O-3 (observed): raw elapsed time from first prompt (started_at)
+            # to each milestone. No counterfactual comparison here -- see
+            # module docstring.
+            wtw = _seconds_between(started_at, t_working)
+            if wtw is not None:
+                started_to_working.append(wtw)
+            wtl = _seconds_between(started_at, t_loveable)
+            if wtl is not None:
+                started_to_loveable.append(wtl)
+
             if status in _SHIPPED_OR_BEYOND:
                 shipped_or_beyond += 1
+                wts = _seconds_between(started_at, closed_at)
+                if wts is not None:
+                    started_to_shipped.append(wts)
                 # O-2 only makes sense against a brief actually locked at
                 # start (the intent contract); `tc solution close --status
                 # shipped` already enforces this, but re-check honestly
@@ -171,6 +200,9 @@ def _scan_repo(db_path: Path) -> dict:
                 "sessions_to_done": sessions_to_done,
                 "tokens_to_done": tokens_to_done,
                 "post_ship_feature_share": feature_shares,
+                "started_to_working_seconds": started_to_working,
+                "started_to_loveable_seconds": started_to_loveable,
+                "started_to_shipped_seconds": started_to_shipped,
             },
         }
     finally:
@@ -189,6 +221,11 @@ def _repo_public_view(entry: dict) -> dict:
         "tokens_to_done": _stats(raw["tokens_to_done"]),
         "post_ship_feature_share": _stats(raw["post_ship_feature_share"]),
     }
+    view["speed_observed_seconds"] = {
+        "started_to_working": _stats(raw["started_to_working_seconds"]),
+        "started_to_loveable": _stats(raw["started_to_loveable_seconds"]),
+        "started_to_shipped": _stats(raw["started_to_shipped_seconds"]),
+    }
     total = view["solutions_total"]
     view["survival"] = {
         "pct_shipped_or_beyond": (view["shipped_or_beyond"] / total) if total else None,
@@ -206,6 +243,9 @@ def _aggregate_totals(per_repo_raw: dict) -> dict:
     all_sessions: list[float] = []
     all_tokens: list[float] = []
     all_feature_shares: list[float] = []
+    all_started_to_working: list[float] = []
+    all_started_to_loveable: list[float] = []
+    all_started_to_shipped: list[float] = []
 
     for entry in per_repo_raw.values():
         total += entry["solutions_total"]
@@ -220,6 +260,9 @@ def _aggregate_totals(per_repo_raw: dict) -> dict:
         all_sessions.extend(raw["sessions_to_done"])
         all_tokens.extend(raw["tokens_to_done"])
         all_feature_shares.extend(raw["post_ship_feature_share"])
+        all_started_to_working.extend(raw["started_to_working_seconds"])
+        all_started_to_loveable.extend(raw["started_to_loveable_seconds"])
+        all_started_to_shipped.extend(raw["started_to_shipped_seconds"])
 
     pct_shipped = (shipped_or_beyond / total) if total else None
     pct_in_use = (in_use / shipped_or_beyond) if shipped_or_beyond else None
@@ -233,6 +276,11 @@ def _aggregate_totals(per_repo_raw: dict) -> dict:
             "sessions_to_done": _stats(all_sessions),
             "tokens_to_done": _stats(all_tokens),
             "post_ship_feature_share": _stats(all_feature_shares),
+        },
+        "speed_observed_seconds": {
+            "started_to_working": _stats(all_started_to_working),
+            "started_to_loveable": _stats(all_started_to_loveable),
+            "started_to_shipped": _stats(all_started_to_shipped),
         },
         "survival": {
             "started": total,
@@ -304,6 +352,7 @@ def collect(glob_pattern: str = DEFAULT_GLOB) -> dict:
             "ttfls_seconds": "O-1: t_loveable - t_working, in seconds, for solutions where both timestamps are set. count=0/median=null when no such solution exists yet -- not fabricated as 0.",
             "completeness.shipped_or_beyond_count / sessions_to_done / tokens_to_done": "O-2: solutions.sessions_count / tokens_total for solutions with status in (shipped, in_use, retired) AND a locked brief (the intent contract completeness is measured against)",
             "completeness.post_ship_feature_share": "post_ship_features / (post_ship_fixes + post_ship_features) per solution, only where post-ship activity exists (denominator > 0)",
+            "speed_observed_seconds": "O-3, OBSERVED ONLY (no counterfactual): started_at -> t_working / t_loveable / closed_at (closed_at only for shipped-or-beyond solutions), in seconds. This is real elapsed time on real solutions, not a comparison against a bare-harness counterfactual -- that's O-6 (the W-3 ladder harness). count=0/median=null when no such solution exists yet.",
             "survival.pct_shipped_or_beyond": "shipped_or_beyond / started (solutions_total); null if started == 0",
             "survival.pct_in_use_of_shipped_or_beyond": "in_use / shipped_or_beyond; null if shipped_or_beyond == 0",
         },

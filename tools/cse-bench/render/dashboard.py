@@ -100,6 +100,7 @@ KNOWN_COLLECTORS = [
     "parity",
     "cli_soul",
     "bench_mcp_twin",
+    "solutions",
 ]
 
 # check_claims.py already implements "prefer PyYAML, fall back to a vendored
@@ -1405,12 +1406,111 @@ def render_bench_mcp_twin(envelope: dict) -> str:
     )
 
 
+def _stat_display(stat: Any, unit: str, fmt: str = ",.0f") -> str:
+    """Render a collectors/solutions.py `_stats()`-shaped dict as a tile
+    value: the median with its unit if data exists, or the honest
+    "awaiting data" placeholder if count == 0 -- never a fabricated 0."""
+    median = stat.get("median") if isinstance(stat, dict) else None
+    if median is None:
+        return "awaiting data"
+    return f"{median:{fmt}} {unit}".strip()
+
+
+def render_outcome_ledger_card(envelope: dict) -> str:
+    """Outcome Ledger card (W-1, TASK-123). Matches collectors/solutions.py's
+    real, observed `metrics.totals` shape (verified against a real collect
+    run on this machine — see output/solutions-latest.json). Surfaces O-1
+    (TTFLS), O-2 (Completeness), O-3 (Speed, OBSERVED ONLY — no
+    counterfactual), and O-5 (Survival). An empty ledger renders the honest
+    "0 solutions, awaiting data" state — never a fabricated number; this is
+    the expected view until the owner's next real solution is tracked."""
+    metrics = envelope.get("metrics", {})
+    generated = envelope.get("generated_at", "?")
+    totals = dig(metrics, "totals", default={}) or {}
+
+    total = totals.get("solutions_total", 0) or 0
+    by_status = totals.get("by_status", {}) or {}
+    survival = totals.get("survival", {}) or {}
+    completeness = totals.get("completeness", {}) or {}
+    ttfls = totals.get("ttfls_seconds", {}) or {}
+    speed = totals.get("speed_observed_seconds", {}) or {}
+
+    counts_html = "".join(
+        [
+            tile(fmt_int(total), "solutions tracked"),
+            tile(fmt_int(survival.get("shipped_or_beyond", 0)), "shipped or beyond"),
+            tile(fmt_int(survival.get("in_use", 0)), "in active use"),
+            tile(fmt_int(survival.get("abandoned", 0)), "abandoned"),
+        ]
+    )
+
+    outcome_html = "".join(
+        [
+            tile(_stat_display(ttfls, "s"), "O-1 TTFLS — working → loveable gap (median)"),
+            tile(
+                _stat_display(dig(speed, "started_to_loveable", default={}), "s"),
+                "O-3 observed — first prompt → loveable (median, no counterfactual)",
+            ),
+            tile(
+                fmt_int(completeness.get("shipped_or_beyond_count", 0)),
+                "O-2 completeness — solutions shipped against a locked brief",
+            ),
+            tile(
+                _stat_display(dig(completeness, "post_ship_feature_share", default={}), "", fmt=".0%"),
+                "O-2 — post-ship feature share (median)",
+            ),
+            tile(
+                fmt_pct(survival.get("pct_shipped_or_beyond")) if survival.get("pct_shipped_or_beyond") is not None else "awaiting data",
+                "O-5 survival — started → shipped",
+            ),
+            tile(
+                fmt_pct(survival.get("pct_in_use_of_shipped_or_beyond"))
+                if survival.get("pct_in_use_of_shipped_or_beyond") is not None
+                else "awaiting data",
+                "O-5 survival — shipped → in use",
+            ),
+        ]
+    )
+
+    max_status = max(by_status.values()) if by_status else 1
+    status_bars = (
+        "".join(
+            bar_row(status, count, max_status)
+            for status, count in sorted(by_status.items(), key=lambda kv: -kv[1])
+        )
+        if by_status
+        else '<p class="tnote">No solutions tracked yet.</p>'
+    )
+
+    empty_note = (
+        '<p class="tnote"><strong>Honest empty state:</strong> the ledger has 0 solutions — every bar above '
+        "awaits data rather than showing a fabricated number. Start tracking with "
+        "<code>tc solution create --title \"...\" --brief \"...\"</code> (claude-copilot tools/tc/).</p>"
+        if total == 0
+        else ""
+    )
+
+    return (
+        '<div class="card">'
+        "<h3>Outcome Ledger (W-1) — O-1 / O-2 / O-3 (observed) / O-5</h3>"
+        f'<p class="role">collector: <code>solutions</code> · generated {esc(generated)}</p>'
+        f'<div class="tiles">{counts_html}</div>'
+        '<h4 class="subhead">Outcome bars</h4>'
+        f'<div class="tiles">{outcome_html}</div>'
+        '<h4 class="subhead">Solutions by status</h4>'
+        f'<div class="bars">{status_bars}</div>'
+        f"{empty_note}"
+        f"{raw_json_details(envelope, 'Raw JSON (solutions-latest.json)')}"
+        "</div>"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Organisms — page sections
 # ---------------------------------------------------------------------------
 
 
-def render_scoreboard_section(outputs: dict) -> str:
+def render_scoreboard_section(outputs: dict, claims_by_id: dict) -> str:
     """Ecosystem-level scoreboard, header section (TASK-111/S-5). Per
     phase-2-prd.md §2.5, "more work done, faster" is an ecosystem-level
     claim that lives HERE — never inside a single component's section —
@@ -1509,6 +1609,24 @@ def render_scoreboard_section(outputs: dict) -> str:
         "</div>"
     )
 
+    outcome_ledger_card = dispatch(
+        outputs.get("solutions"),
+        "solutions",
+        render_outcome_ledger_card,
+        "Outcome Ledger (W-1) — the CSE's unit of value",
+        "Solutions tracked end-to-end (create → lock-brief → mark-working → mark-loveable → log-usage → "
+        "close), feeding O-1 (TTFLS), O-2 (Completeness), O-3 (Speed, observed only), and O-5 (Survival).",
+        "".join(
+            claim_ref_note(cid, claims_by_id)
+            for cid in (
+                "outcome-ttfls",
+                "outcome-completeness",
+                "outcome-speed-observed",
+                "outcome-survival",
+            )
+        ),
+    )
+
     return (
         '<section id="scoreboard">'
         '<span class="eyebrow">Ecosystem scoreboard</span>'
@@ -1518,7 +1636,7 @@ def render_scoreboard_section(outputs: dict) -> str:
         "collectors against their own history.</div>"
         f'<div class="tiles">{"".join(tiles)}</div>'
         f"{notes_html}"
-        f'<div class="cards">{ladder_card}</div>'
+        f'<div class="cards">{outcome_ledger_card}{ladder_card}</div>'
         "</section>"
     )
 
@@ -2116,7 +2234,7 @@ def render_dashboard(out_dir: Path, claims_path: Path | None = None) -> str:
         except Exception as exc:  # noqa: BLE001 - a rendering bug must not blank the whole page
             return f'<section><div class="callout crit">Section failed to render: {esc(exc)}</div></section>'
 
-    scoreboard_html = safe_section(render_scoreboard_section, outputs)
+    scoreboard_html = safe_section(render_scoreboard_section, outputs, claims_by_id)
     framework_html = safe_section(render_framework_section, outputs, claims_by_id)
     knowledge_html = safe_section(render_knowledge_section, outputs, claims_by_id)
     integration_html = safe_section(render_integration_section, outputs, claims_by_id)
