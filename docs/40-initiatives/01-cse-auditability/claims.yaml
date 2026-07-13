@@ -473,6 +473,50 @@ definitions:
       tolerance or the mechanism; both are open gaps for whoever next
       logs ledger tokens or interprets a comparison this collector
       produces.
+    verified_finding_corrected: >-
+      TASK-124, 2026-07-13, RE-RUN after the windowing + billed_volume/
+      marginal_spend correction commit above (QA WP-17) -- same method
+      (scratch DB, never written to a production tasks.db), but this time
+      with the 5 touches given a REALISTIC simulated spread (18:40:00 ->
+      19:00:30, ~20 minutes of this task's own real session, rather than
+      the first run's 5 calls clustered in the same instant, which would
+      have produced a near-zero window per the windowing's own disclosed
+      limitation). Windowing worked as designed: transcripts_billed_volume
+      dropped from the unwindowed run's ~190.2M to ~76.4M (the ~20-minute
+      slice, not the whole ~83-minute session) -- confirms the attribution
+      bug QA caught is fixed. transcripts_marginal_spend for that same
+      slice: ~2.16M -- ~35x smaller than billed_volume, confirming
+      cache_read dominated the old figure exactly as the F-8 precedent
+      predicted. Comparison against a 20,000-token ledger guess: BOTH
+      still fail the 20% tolerance (vs_marginal_spend delta_pct ~99.1%,
+      vs_billed_volume ~99.97%) -- a plain negative finding, not hidden.
+      Unlike the first run, this is not primarily a cache-read artifact:
+      the ~20-minute window contains genuine heavy subagent delegation
+      (multiple large exploration/read-heavy subagent conversations), so
+      ~2.16M real marginal spend in ~20 minutes is itself a large but
+      plausible number a hand-typed guess would not anticipate.
+      mismatch_sessions is now non-empty for this window (was clean
+      unwindowed) -- an honest, disclosed side effect of windowing: a
+      delegation call and its subagent file's own activity can straddle
+      a window boundary, so the windowed call-count and windowed
+      file-count can legitimately disagree even when the unwindowed
+      counts matched.
+      NEW OPEN GAP surfaced by this re-run (not asked for by QA WP-17,
+      not fixed here -- flagged, not silently patched, per V-2):
+      failed_direction_tokens was 96.7% of billed_volume in this window,
+      because failed_direction's check is literally the string
+      "<promise>COMPLETE</promise>" (waste_decomposition_heuristics.
+      categories.failed_direction) -- but only "me"/engineer-class agents
+      in this CSE use that exact marker; other delegated roles (qa, ta,
+      doc, cw, ...) signal completion in their OWN vocabulary (e.g. qa's
+      "VERDICT: APPROVED" + "ARTIFACT:" markers), never the literal
+      promise string, even when they succeeded. As registered, this
+      heuristic therefore likely systematically OVER-counts
+      failed_direction for any session with a normal multi-agent-role
+      delegation mix. Not corrected in this commit (out of the two
+      findings QA WP-17 asked for); left for a future correction commit
+      once an owner/QA decision is made on how to recognize per-role
+      completion vocabulary.
 
   waste_decomposition_heuristics:
     description: >-
@@ -572,15 +616,15 @@ claims:
     definition_refs: [outcome_bars, solution_token_accounting]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; print(json.load(open('output/economy-latest.json'))['metrics']['totals'])\""
     status: unchecked
-    evidence: "W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join table + tools/cse-bench/collectors/economy.py): the CSE-side half of O-4 (a solution's tokens_total, computed two independent ways -- ledger vs transcripts, joined via repo+time+session-id -- and cross-checked against the tolerance in definitions.solution_token_accounting) is now real and runnable, replacing the prior no-instrumentation gate. Flipped gated->unchecked because the check command is now real, not because the full statement has been evaluated: this claim's 60/90 percent figure also needs a bare-harness counterfactual denominator, which is W-3's ladder harness (still gated -- see outcome-counterfactual-delta), so no percentage can be reported yet. The production ledger (tools/cse-bench's own repo glob) has zero real solutions as of this run, same honest-empty state as outcome-ttfls/outcome-completeness/outcome-survival -- see token-accounting-dual-method-agreement for the real-transcript verification this task ran instead (a scratch DB, not a production solution record)."
+    evidence: "W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join table + tools/cse-bench/collectors/economy.py), then CORRECTED same-day per QA WP-17 (windowing + billed_volume/marginal_spend split -- see definitions.solution_token_accounting.windowing and .methods): the CSE-side half of O-4 (a solution's tokens, computed two independent ways -- ledger vs transcripts, windowed to each solution's own touch span, joined via repo+time+session-id -- and cross-checked against the tolerance) is now real and runnable, replacing the prior no-instrumentation gate. Flipped gated->unchecked because the check command is now real, not because the full statement has been evaluated: this claim's 60/90 percent figure also needs a bare-harness counterfactual denominator, which is W-3's ladder harness (still gated -- see outcome-counterfactual-delta), so no percentage can be reported yet. The production ledger (tools/cse-bench's own repo glob) has zero real solutions as of this run, same honest-empty state as outcome-ttfls/outcome-completeness/outcome-survival -- see token-accounting-dual-method-agreement for the real-transcript verification this task ran instead (a scratch DB, not a production solution record)."
     last_checked: "2026-07-13"
 
   - id: token-accounting-dual-method-agreement
-    statement: "For at least one completed solution with a joined session, tokens_total computed via the ledger and via transcripts agree within the registered tolerance (definitions.solution_token_accounting)."
+    statement: "For at least one completed solution with a joined session, tokens computed via the ledger and via transcripts (transcripts_marginal_spend, primarily) agree within the registered tolerance (definitions.solution_token_accounting)."
     definition_refs: [solution_token_accounting, waste_decomposition_heuristics]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; d=json.load(open('output/economy-latest.json')); print(d['metrics']['totals']); print(d['errors'])\""
     status: unchecked
-    evidence: "TASK-124 (W-2): the join table, the two accounting methods, and the waste-decomposition heuristics are implemented, run clean (errors: []), and were verified against REAL transcript data -- a scratch-DB solution (deliberately NOT written into any production tasks.db, to avoid polluting the Outcome Ledger with a fabricated 'solution') joined to this task's own real, live Claude Code session. Result: mechanism works (found the real session's main+7 subagent transcript files, computed a real transcript_tokens sum from their usage fields, ran the waste heuristics without error) but did NOT agree within tolerance against a plausible hand-typed ledger guess -- delta_pct ~99.97%, agrees_within_tolerance: false. This is the honest finding, not a failure to hide: see definitions.solution_token_accounting.verified_finding for why the magnitude gap is real (cumulative cache_read summation across a long, heavily-delegated session) rather than a bug. Zero real (non-scratch) solutions with a joined session exist in any production ledger as of this run -- the full acceptance criterion (a real completed solution, not a verification scratch-DB) remains open."
+    evidence: "TASK-124 (W-2), CORRECTED same-day per QA WP-17: the join table, both windowed accounting methods (transcripts_billed_volume, transcripts_marginal_spend), and the waste-decomposition heuristics are implemented, run clean (errors: []), and were RE-verified against REAL transcript data after the correction -- a scratch-DB solution (deliberately NOT written into any production tasks.db) joined to this task's own real, live session, with a realistic ~20-minute simulated touch spread (not the first run's same-instant cluster). Result: windowing works as designed (billed_volume dropped from the pre-correction ~190.2M, the whole ~83-minute session, to ~76.4M, the actual ~20-minute window); marginal_spend (~2.16M) is ~35x smaller than billed_volume, confirming cache_read dominated the old figure per the F-8 precedent. BOTH still fail the 20% tolerance against a 20,000-token ledger guess (vs_marginal_spend delta_pct ~99.1%, vs_billed_volume ~99.97%) -- an honest negative finding, not hidden, and for a genuinely different reason than the first run's cache-read artifact (this window's real marginal spend is itself large due to heavy subagent delegation). See definitions.solution_token_accounting.verified_finding_corrected for full detail, including a newly-surfaced, NOT-yet-fixed open gap: the failed_direction heuristic's literal '<promise>COMPLETE</promise>' check does not recognize other agent roles' own completion vocabulary (e.g. qa's VERDICT/ARTIFACT markers), so it likely over-counts failed_direction in a normal multi-role session -- flagged, not silently patched. Zero real (non-scratch) solutions with a joined session exist in any production ledger as of this run -- the full acceptance criterion (a real completed solution, not a verification scratch-DB) remains open."
     last_checked: "2026-07-13"
 
   - id: outcome-survival
