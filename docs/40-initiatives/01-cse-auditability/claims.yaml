@@ -1173,8 +1173,9 @@ claims:
     last_checked: "2026-07-12"
 
   - id: removal-review-first-pass
-    statement: "The first mechanical removal review (W-6) traces every claude-copilot agent, CLI Copilot service group, knowledge-copilot top-level area, and .claude/skills leaf skill to usage evidence + outcome-bar trace per the registered value_density definition, and produces a mechanical nomination list (surface + evidence) to the owner's delete-or-defend queue -- nominations only, no deletions, per the removal rule (phase-4-outcome-program-prd.md §0.5)."
+    statement: "The first mechanical removal review (W-6) traces every claude-copilot agent, CLI Copilot service group, knowledge-copilot top-level area, and .claude/skills leaf skill to usage evidence + outcome-bar trace per the registered value_density definition, and produces a mechanical nomination list (surface + evidence) to the owner's delete-or-defend queue -- nominations only, no deletions, per the removal rule (phase-4-outcome-program-prd.md §0.5). First run: 4 nominations of 75 surfaces traced (16 agents, 22 CLI service groups, 10 knowledge areas, 37 skills) -- agents cpa/cs/kc (0 subagent invocations, no golden-set eval) and knowledge area 04-shared-systems (68.8% of its 16 files orphaned). 0 CLI-service and 0 skill nominations this review -- both surfaces' usage_evidence is null ecosystem-wide (no event ledger), and the nomination_rule never nominates on a null signal alone."
     definition_refs: [value_density]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only value_density && python3 -c \"import json; d=json.load(open('output/value_density-latest.json')); print(d['metrics']['nominations'])\""
-    status: unchecked
-    evidence: "tools/cse-bench/collectors/value_density.py (not yet run against real output as of this registration commit -- see the next commit for the first real run and the resulting decisions/DEC-8-first-removal-review.md memo)"
+    status: passing
+    evidence: "tools/cse-bench/output/value_density-latest.json (nominations block); docs/40-initiatives/01-cse-auditability/decisions/DEC-8-first-removal-review.md (the owner-facing memo)"
+    last_checked: "2026-07-13"
