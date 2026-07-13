@@ -75,13 +75,38 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Callable, Optional
 
-from collectors.paths import resolve_copilot_root
+from collectors.paths import COPILOT_ROOT_CANDIDATES, resolve_copilot_root
 
 COLLECTOR_NAME = "knowledge_soul"
 
 COPILOT_ROOT = resolve_copilot_root()
 KNOWLEDGE_ROOT = COPILOT_ROOT / "knowledge-copilot"
 ECOSYSTEM_MD = KNOWLEDGE_ROOT / "ECOSYSTEM.md"
+
+# ECOSYSTEM.md's prose hardcodes the owner's primary-machine root
+# (/Volumes/Dev/Sites/COPILOT) regardless of which root THIS machine
+# actually resolved (collectors.paths.resolve_copilot_root()) -- on a
+# secondary machine where /Volumes/Dev is never mounted, matching only
+# against the resolved COPILOT_ROOT silently produced a vacuous "0/0"
+# forward check (nothing in the doc starts with /Users/pabs/...) and a
+# reverse check that over-flagged every top-level directory as
+# "uncovered" (the doc's own /Volumes/Dev/... paths never textually
+# matched an /Users/pabs/... comparison string). Fix: match against BOTH
+# known root prefixes, then translate whichever one matched to this
+# machine's actually-resolved COPILOT_ROOT before checking existence.
+_KNOWN_ROOT_PREFIXES = [str(root) + "/" for root in COPILOT_ROOT_CANDIDATES]
+
+
+def _resolve_against_known_root(val: str) -> Path:
+    """Translate a path written against ANY known COPILOT_ROOT candidate
+    into the equivalent path under THIS machine's actually-resolved
+    COPILOT_ROOT, so existence checks are honest even when the doc's
+    prose hardcodes a different machine's root than the one that resolved
+    here."""
+    for prefix in _KNOWN_ROOT_PREFIXES:
+        if val.startswith(prefix):
+            return COPILOT_ROOT / val[len(prefix):]
+    return Path(val)
 MANIFEST_JSON = KNOWLEDGE_ROOT / "knowledge-manifest.json"
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -142,20 +167,21 @@ def _metric_1_registry_integrity(errors: list[dict]) -> dict:
     if text is None:
         return {"available": False, "reason": f"{ECOSYSTEM_MD} not readable"}
 
-    prefix = str(COPILOT_ROOT) + "/"
     entries: list[dict] = []
     seen: set[str] = set()
     for line_no, line in enumerate(text.splitlines(), start=1):
         for m in re.finditer(r"`([^`]+)`", line):
             val = m.group(1).strip()
-            if not val.startswith(prefix):
+            if not any(val.startswith(prefix) for prefix in _KNOWN_ROOT_PREFIXES):
                 continue
             if "<" in val or ">" in val:  # template placeholders, e.g. `.../COPILOT/<name>`
                 continue
             if val in seen:
                 continue
             seen.add(val)
-            entries.append({"path": val, "line": line_no, "resolves": Path(val).exists()})
+            entries.append(
+                {"path": val, "line": line_no, "resolves": _resolve_against_known_root(val).exists()}
+            )
 
     n_total = len(entries)
     n_resolving = sum(1 for e in entries if e["resolves"])
@@ -165,7 +191,13 @@ def _metric_1_registry_integrity(errors: list[dict]) -> dict:
 
     return {
         "forward_check": {
-            "definition": "every backtick-wrapped absolute /Volumes/Dev/Sites/COPILOT/... path in ECOSYSTEM.md (its Local-path column values), deduped in document order, checked with Path.exists()",
+            "definition": (
+                "every backtick-wrapped absolute path in ECOSYSTEM.md (its Local-path column "
+                "values) matching either known COPILOT root prefix -- /Volumes/Dev/Sites/COPILOT "
+                "or /Users/pabs/Sites/COPILOT, see collectors/paths.py -- deduped in document "
+                "order, translated to this machine's actually-resolved root, and checked with "
+                "Path.exists()"
+            ),
             "n_paths": n_total,
             "n_resolving": n_resolving,
             "headline": f"{n_resolving}/{n_total}",
@@ -184,7 +216,11 @@ def _registry_reverse_check(ecosystem_text: str) -> dict:
         if not entry.is_dir():  # follows symlinks -> a symlink to a dir counts
             continue
         literal_path = f"{COPILOT_ROOT}/{name}"
-        covered = literal_path in ecosystem_text
+        # "Covered" means the doc's prose contains the literal path under
+        # EITHER known root prefix, not just this machine's resolved one --
+        # ECOSYSTEM.md hardcodes the owner's primary-machine root regardless
+        # of which root actually resolved here.
+        covered = any(f"{prefix}{name}" in ecosystem_text for prefix in _KNOWN_ROOT_PREFIXES)
         name_mentioned = bool(re.search(r"\b" + re.escape(name) + r"\b", ecosystem_text))
         entries.append(
             {
@@ -201,10 +237,12 @@ def _registry_reverse_check(ecosystem_text: str) -> dict:
 
     return {
         "definition": (
-            "top-level entries under /Volumes/Dev/Sites/COPILOT/ that resolve to a directory "
-            "(symlinks followed), excluding dotfiles and _archive itself; 'covered' means the "
-            "literal absolute path string appears in ECOSYSTEM.md as an actual Local-path table "
-            "entry -- a bare name mention in prose does not count as covered"
+            "top-level entries under this machine's actually-resolved COPILOT_ROOT that resolve "
+            "to a directory (symlinks followed), excluding dotfiles and _archive itself; "
+            "'covered' means the literal absolute path string, under EITHER known root prefix "
+            "(/Volumes/Dev/Sites/COPILOT or /Users/pabs/Sites/COPILOT), appears in ECOSYSTEM.md "
+            "as an actual Local-path table entry -- a bare name mention in prose does not count "
+            "as covered"
         ),
         "n_top_level_dirs": len(entries),
         "n_uncovered": len(uncovered),
