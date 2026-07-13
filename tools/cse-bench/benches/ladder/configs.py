@@ -6,25 +6,40 @@ Config isolation, verbatim from phase-4-outcome-program-prd.md par.3 W-3:
 cli-copilot on PATH with .env." Register-first (V-2): this file IS the
 `ladder_config_materialization` definition claims.yaml points at.
 
-DESIGN: two isolation levers, verified live against this machine's actual
-installed `claude` CLI (`claude --help`, 2026-07-13) before writing any of
-this, per this repo's "before calling a third-party API, check the real
-docs/help for the installed version" rule:
+DESIGN: three isolation levers, verified live against this machine's
+actual installed `claude` CLI (`claude --help`, 2026-07-13) before writing
+any of this, per this repo's "before calling a third-party API, check the
+real docs/help for the installed version" rule. QA WP-23 finding 5
+(corrected): an earlier draft of this docstring credited
+`--setting-sources project` with isolating USER-level CLAUDE.md/agents —
+that is wrong, corrected here so the isolation doesn't silently break if a
+future edit removes the HOME override thinking `--setting-sources` alone
+covers it:
 
-  1. `--setting-sources project` (a REAL flag: "Comma-separated list of
+  1. **The per-run HOME override (the PRIMARY isolator of user-level
+     CLAUDE.md/agents/skills).** This dev machine already has
+     claude-copilot installed at the user level (`~/.claude/agents/`,
+     `~/.claude/CLAUDE.md` if any, `~/.local/bin/{tc,cc}`), so cwd-only
+     isolation (an empty directory) would still risk inheriting that
+     content the same way ../resume_cost/run.py's design notes describe a
+     tool-enabled model reaching a real fixture that happened to exist
+     elsewhere on the same host ("this dev machine is not a clean room").
+     Claude Code auto-discovers user-level CLAUDE.md/agents/skills
+     relative to `$HOME/.claude/` — pointing `HOME` at a fresh, empty,
+     per-run temp directory (see `_fresh_home()`) means there IS no real
+     `~/.claude/` to discover, structurally, not by instruction. This is
+     the mechanism that actually closes the leakage path; it is not
+     merely a transcript-hygiene nicety (see below).
+  2. `--setting-sources project` (a REAL flag: "Comma-separated list of
      setting sources to load (user, project, local)") on every config,
-     including bare. This is the actual isolation mechanism, not cwd
-     alone: this dev machine already has claude-copilot installed at the
-     user level (~/.claude/, ~/.local/bin/{tc,cc}), so cwd-only isolation
-     (an empty directory) would still risk inheriting USER-scope
-     CLAUDE.md/agents/settings the same way ../resume_cost/run.py's design
-     notes describe a tool-enabled model reaching a real fixture that
-     happened to exist elsewhere on the same host ("this dev machine is
-     not a clean room"). `--setting-sources project` closes that path
-     structurally: only the job workdir's OWN `.claude/` (materialized or
-     absent, per config) is ever loaded, regardless of what this machine's
-     real user-level ~/.claude contains.
-  2. A per-config PATH override. `tc`/`cc` live at a single directory on
+     including bare — a SECONDARY, narrower restriction on which
+     `settings.json`-style permission/hook configuration sources merge
+     (this is what the flag's own `--help` text scopes it to: "setting
+     sources," not CLAUDE.md/agent-file discovery, which lever 1 already
+     handles). Kept as defense-in-depth so a project-level `settings.json`
+     this bench might materialize later can't accidentally merge with any
+     user-level one.
+  3. A per-config PATH override. `tc`/`cc` live at a single directory on
      this machine (LOCAL_BIN, resolved via `command -v tc`/`command -v cc`
      while building this bench — both resolve to ~/.local/bin) and
      cli-copilot's `copilot` entry point lives in its own venv
@@ -36,22 +51,26 @@ docs/help for the installed version" rule:
      `bare` and `+framework` PATH excludes both; `+knowledge` still
      excludes the cli-copilot venv bin; `+integrations` includes it.
 
-HOME is also overridden, uniformly across all 4 configs, to a fresh
-per-ladder-run temp directory. This is NOT part of the PRD's config
-isolation spec — it exists so a live run's `claude -p` calls write their
-session transcripts under an isolated HOME's `~/.claude/projects/` rather
-than this machine's REAL transcript corpus, which several OTHER collectors
-(framework_soul's agent-frugality distribution, transcripts.py) already
-read as production data. Mixing synthetic ladder-bench transcripts into
-that corpus would silently contaminate those other claims. See README.md
-"Open risk before the first live run" for the one thing this does NOT
-verify: whether an isolated HOME still resolves Anthropic auth (OAuth
-token / keychain) the same way the real HOME does — untested here,
-deliberately not asserted as fact.
+A secondary, welcome effect of the per-run HOME override (lever 1): a live
+run's `claude -p` calls also write their session transcripts under the
+isolated HOME's `~/.claude/projects/` rather than this machine's REAL
+transcript corpus, which several OTHER collectors (framework_soul's
+agent-frugality distribution, transcripts.py) already read as production
+data — so mixing synthetic ladder-bench transcripts into that corpus is
+avoided as a side effect of the SAME mechanism that does the isolation
+job, not a second, separate measure. See README.md "Open risk before the
+first live run" for the one thing this does NOT verify: whether an
+isolated HOME still resolves Anthropic auth (OAuth token / keychain) the
+same way the real HOME does — untested here, deliberately not asserted as
+fact.
 
 Every materialize_*() function is idempotent and side-effect-scoped to the
 run_root directory it is given (never touches this repo, ~/.claude, or
-~/.local/bin) — safe to call during --dry-run.
+~/.local/bin) — safe to call during --dry-run. QA WP-23 finding 4 (fixed):
+every workdir/home is now keyed on (job_id, config_name, rep) — a prior
+version keyed on (job_id, config_name) only, so `--reps > 1` silently
+reused the same directory across reps with no cleanup, contaminating rep 2
+with rep 1's leftover files.
 """
 from __future__ import annotations
 
@@ -114,8 +133,12 @@ def _minimal_system_path() -> str:
     return ":".join(dict.fromkeys(extra + system_dirs))  # dedupe, preserve order
 
 
-def _fresh_home(run_root: Path, config_name: str) -> Path:
-    home = run_root / "homes" / config_name
+def _fresh_home(run_root: Path, config_name: str, rep: int) -> Path:
+    """QA WP-23 finding 4 (fixed): keyed on rep too, not just config_name —
+    a prior version reused the same home dir across every rep of a
+    --reps > 1 run, silently carrying over whatever a previous rep's job
+    call (or a materialization side effect) had written there."""
+    home = run_root / "homes" / config_name / f"rep{rep}"
     home.mkdir(parents=True, exist_ok=True)
     return home
 
@@ -206,8 +229,11 @@ def _parse_dotenv(path: Path) -> dict:
     return env
 
 
-def _new_workdir(run_root: Path, config_name: str, job_id: str) -> Path:
-    workdir = run_root / "jobs" / job_id / config_name
+def _new_workdir(run_root: Path, config_name: str, job_id: str, rep: int) -> Path:
+    """QA WP-23 finding 4 (fixed): keyed on rep too — see _fresh_home()'s
+    docstring for the bug this closes (silent workdir reuse across reps,
+    with no cleanup, when --reps > 1)."""
+    workdir = run_root / "jobs" / job_id / config_name / f"rep{rep}"
     workdir.mkdir(parents=True, exist_ok=True)
     return workdir
 
@@ -219,9 +245,9 @@ def _base_env(home: Path, path_dirs: list) -> dict:
     }
 
 
-def materialize_bare(run_root: Path, job_id: str) -> MaterializedConfig:
-    workdir = _new_workdir(run_root, "bare", job_id)
-    home = _fresh_home(run_root, "bare")
+def materialize_bare(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    workdir = _new_workdir(run_root, "bare", job_id, rep)
+    home = _fresh_home(run_root, "bare", rep)
     warnings: list = []
     env = _base_env(home, [_minimal_system_path()])
     return MaterializedConfig(
@@ -235,9 +261,9 @@ def materialize_bare(run_root: Path, job_id: str) -> MaterializedConfig:
     )
 
 
-def materialize_framework(run_root: Path, job_id: str) -> MaterializedConfig:
-    workdir = _new_workdir(run_root, "framework", job_id)
-    home = _fresh_home(run_root, "framework")
+def materialize_framework(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    workdir = _new_workdir(run_root, "framework", job_id, rep)
+    home = _fresh_home(run_root, "framework", rep)
     warnings: list = []
     _copy_framework_files(workdir, job_id, warnings)
     empty_knowledge = _empty_knowledge_tree(run_root)
@@ -260,9 +286,9 @@ def materialize_framework(run_root: Path, job_id: str) -> MaterializedConfig:
     )
 
 
-def materialize_knowledge(run_root: Path, job_id: str) -> MaterializedConfig:
-    workdir = _new_workdir(run_root, "knowledge", job_id)
-    home = _fresh_home(run_root, "knowledge")
+def materialize_knowledge(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    workdir = _new_workdir(run_root, "knowledge", job_id, rep)
+    home = _fresh_home(run_root, "knowledge", rep)
     warnings: list = []
     _copy_framework_files(workdir, job_id, warnings)
     env = _base_env(home, [str(LOCAL_BIN), _minimal_system_path()])
@@ -285,9 +311,9 @@ def materialize_knowledge(run_root: Path, job_id: str) -> MaterializedConfig:
     )
 
 
-def materialize_integrations(run_root: Path, job_id: str) -> MaterializedConfig:
-    workdir = _new_workdir(run_root, "integrations", job_id)
-    home = _fresh_home(run_root, "integrations")
+def materialize_integrations(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    workdir = _new_workdir(run_root, "integrations", job_id, rep)
+    home = _fresh_home(run_root, "integrations", rep)
     warnings: list = []
     _copy_framework_files(workdir, job_id, warnings)
     env = _base_env(home, [str(CLI_COPILOT_VENV_BIN), str(LOCAL_BIN), _minimal_system_path()])
@@ -338,8 +364,8 @@ LADDER_CONFIGS = [
 CONFIG_NAMES = [name for name, _ in LADDER_CONFIGS]
 
 
-def materialize(config_name: str, run_root: Path, job_id: str) -> MaterializedConfig:
+def materialize(config_name: str, run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
     for name, fn in LADDER_CONFIGS:
         if name == config_name:
-            return fn(run_root, job_id)
+            return fn(run_root, job_id, rep)
     raise KeyError(f"configs.py: unknown config {config_name!r} (known: {CONFIG_NAMES})")

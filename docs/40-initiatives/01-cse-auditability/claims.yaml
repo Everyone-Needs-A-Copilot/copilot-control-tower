@@ -592,23 +592,46 @@ definitions:
       framework files; +framework = claude-copilot install; +knowledge =
       CC_KNOWLEDGE_REPO populated vs empty tree; +integrations =
       cli-copilot on PATH with .env"). Registered BEFORE any config was
-      run against a real job (V-2). Two isolation levers, both verified
-      against this machine's actually-installed `claude` CLI before this
-      register entry was written (`claude --help`, 2026-07-13): (1)
-      `--setting-sources project` on every rung including bare, so none of
-      this dev machine's own USER-scope claude-copilot install
-      (`~/.claude/`, `~/.local/bin/{tc,cc}`) leaks into a rung that hasn't
-      earned it; (2) a per-rung PATH override (bare/+framework exclude
-      cli-copilot's venv bin; bare additionally excludes tc/cc's
-      ~/.local/bin). `+framework` materializes `.claude/{agents,commands,
-      skills}/` + CLAUDE.md by copying directly from claude-copilot's own
-      VERSION.json roster (the same files `/setup-project`'s FULL-mode
-      flow would copy), so the ladder measures a job's MARGINAL cost with
-      the framework already installed, not the one-time setup cost.
-      `+framework`'s CC_KNOWLEDGE_REPO points at an EMPTY directory (not
-      unset), isolating "knowledge content present" from "knowledge
-      mechanism present."
+      run against a real job (V-2). Three isolation levers (CORRECTED
+      same-day per QA WP-23 finding 5 — see corrections below for what
+      changed and why), all verified against this machine's
+      actually-installed `claude` CLI before this register entry was
+      written (`claude --help`, 2026-07-13): (1) a per-run HOME override
+      to a fresh, empty temp directory — the PRIMARY isolator of
+      user-level CLAUDE.md/agents/skills, since Claude Code auto-discovers
+      those relative to $HOME/.claude/ and this machine already has
+      claude-copilot installed at the user level (`~/.claude/agents/`,
+      `~/.local/bin/{tc,cc}`); (2) `--setting-sources project` on every
+      rung including bare — a SECONDARY restriction on which
+      settings.json-style permission/hook sources merge, kept as
+      defense-in-depth, not the CLAUDE.md/agent isolator; (3) a per-rung
+      PATH override (bare/+framework exclude cli-copilot's venv bin; bare
+      additionally excludes tc/cc's ~/.local/bin). `+framework`
+      materializes `.claude/{agents,commands,skills}/` + CLAUDE.md by
+      copying directly from claude-copilot's own VERSION.json roster (the
+      same files `/setup-project`'s FULL-mode flow would copy), so the
+      ladder measures a job's MARGINAL cost with the framework already
+      installed, not the one-time setup cost. `+framework`'s
+      CC_KNOWLEDGE_REPO points at an EMPTY directory (not unset),
+      isolating "knowledge content present" from "knowledge mechanism
+      present."
     source: "tools/cse-bench/benches/ladder/configs.py"
+    corrections: >-
+      TASK-125, same-day, QA WP-23 findings 4/5 (fixed, not a rewrite of
+      the design — the mechanisms above were already correct; these are
+      bugs in how they were described/keyed): finding 5 — an earlier
+      version of this entry (and of configs.py's own docstring) credited
+      `--setting-sources project` with isolating user-level CLAUDE.md/
+      agents; QA verified the actual isolator is the per-run HOME
+      override (lever 1 above), corrected here so the isolation doesn't
+      silently break if a future edit removes the HOME override thinking
+      `--setting-sources` alone covers it. Finding 4 — workdir/HOME
+      materialization was keyed on (job_id, config_name) only; `--reps >
+      1` silently reused the same directory across reps with no cleanup.
+      Fixed: every workdir/HOME is now keyed on (job_id, config_name, rep)
+      — verified via `python3 run.py --dry-run --reps 3 --job
+      job-1-bugfix --config bare` producing three fully distinct
+      rep1/rep2/rep3 directory trees.
     caveat: >-
       Environment gap found while building this (recorded, not hidden):
       `/opt/homebrew/bin/copilot` (the path this repo's README and
@@ -616,13 +639,9 @@ definitions:
       `copilot` is also a shell alias for `cd` interactively. The real,
       working entry point used for +integrations is cli-copilot's own venv
       (`cli-copilot/.venv313/bin/copilot`, verified live via --help).
-      Separately, every config also overrides HOME to a fresh per-run temp
-      directory so a live run's transcripts do not land in this machine's
-      REAL transcript corpus (which framework_soul/transcripts.py already
-      treat as production data) — but whether an isolated HOME still
-      resolves Anthropic auth (OAuth/keychain) the same way is UNTESTED,
-      not asserted as fact; verify on one throwaway cell before a full live
-      run.
+      Whether an isolated HOME still resolves Anthropic auth (OAuth/
+      keychain) the same way the real HOME does is UNTESTED, not asserted
+      as fact; verify on one throwaway cell before a full live run.
 
   ladder_job_pack_v1:
     description: >-
@@ -682,9 +701,23 @@ definitions:
       before ANY live t_loveable scoring — see
       docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md.
       This is enforced MECHANICALLY, not just by convention: run.py's
-      check_signoff() reads DEC-6's header for the literal string
-      "Status: **ratified**" and refuses any non-dry-run invocation until
-      it appears there.
+      check_signoff() requires DEC-6's header to contain EXACTLY ONE
+      "Status:" field whose value starts with "**ratified**", and refuses
+      any non-dry-run invocation otherwise.
+    corrections: >-
+      TASK-125, same-day, QA WP-23 finding 2 (fixed): an earlier version
+      of check_signoff() substring-searched DEC-6's whole header block for
+      "Status: **ratified**" and could false-positive two ways — (a) an
+      unrelated second "Status:" line in the header, (b) the marker hidden
+      inside an HTML comment. Both
+      closed by construction: HTML comments are stripped before matching,
+      matching is per single physical line (never spanning a line break —
+      the original regex's `\s*` could match a literal newline), and the
+      gate fails CLOSED (not ratified) whenever it finds zero or more than
+      one "Status:" field rather than accepting any match anywhere in the
+      block. Regression tests for both bypasses (plus the original
+      not-ratified/ratified cases) added:
+      tools/cse-bench/benches/ladder/test_signoff_gate.py, 7/7 passing.
 
   value_density:
     description: >-
@@ -868,7 +901,7 @@ claims:
     definition_refs: [outcome_bars, ladder_config_materialization, ladder_job_pack_v1, ladder_mlp_rubric]
     check: "cd tools/cse-bench/benches/ladder && python3 run.py --dry-run"
     status: unchecked
-    evidence: "TASK-125 (W-3): the ladder harness is built (tools/cse-bench/benches/ladder/{run.py,configs.py,job_pack.py,rubric.md}) and fully dry-run validated -- 4 configs x 3 jobs = 12 cells materialize cleanly (0 wiring problems, 0 claude invocations, nothing written to output/, per the command above). Flipped gated->unchecked because the check command is now real (the dry-run), not because the full statement has been evaluated: NO live scored ladder run has executed. This is deliberate, not an oversight -- the PRD's own MLP rubric requires owner sign-off BEFORE first scoring (phase-4-handoff.md §6 row 6), and run.py's check_signoff() mechanically refuses any non-dry-run invocation until docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md's header reads 'Status: **ratified**' (today: not ratified, verified by the dry-run's own printed gate line). See ladder-harness-dry-run-validated for the mechanism-level check, and DEC-6 for the sign-off memo. No O-1..O-4 numbers exist for any config or job yet."
+    evidence: "TASK-125 (W-3): the ladder harness is built (tools/cse-bench/benches/ladder/{run.py,configs.py,job_pack.py,rubric.md}) and fully dry-run validated -- 4 configs x 3 jobs = 12 cells materialize cleanly (0 wiring problems, 0 claude invocations, nothing written to output/, per the command above). Flipped gated->unchecked because the check command is now real (the dry-run), not because the full statement has been evaluated: NO live scored ladder run has executed. This is deliberate, not an oversight -- the PRD's own MLP rubric requires owner sign-off BEFORE first scoring (phase-4-handoff.md §6 row 6), and run.py's check_signoff() mechanically refuses any non-dry-run invocation until docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md's header reads 'Status: **ratified**' (today: not ratified, verified by the dry-run's own printed gate line). See ladder-harness-dry-run-validated for the mechanism-level check, and DEC-6 for the sign-off memo. No O-1..O-4 numbers exist for any config or job yet. CORRECTED same-day per QA WP-23 (see ladder_config_materialization.corrections and ladder-harness-dry-run-validated's own evidence for the four capture-method fixes: O-4 now primarily marginal_spend not billed_volume alone, an F-8-class conflation fix; the sign-off gate closes two false-positive bypasses; per-call cost ceilings default to real values instead of None/unbounded; per-rep workdir/HOME isolation replaces prior config-only keying). Nothing about the ladder's counterfactual delta or token-efficiency percentages is known yet -- these are capture-method corrections to instrumentation that still has zero real data, not new findings."
     last_checked: "2026-07-13"
 
   - id: ladder-harness-dry-run-validated
@@ -876,7 +909,7 @@ claims:
     definition_refs: [ladder_config_materialization, ladder_job_pack_v1, ladder_mlp_rubric]
     check: "cd tools/cse-bench/benches/ladder && python3 run.py --dry-run"
     status: passing
-    evidence: "TASK-125, 2026-07-13: `python3 run.py --dry-run` materializes all 4 configs x 3 jobs = 12 cells (real, side-effect-scoped directory operations under a fresh tempfile.mkdtemp() -- .claude/{agents,commands,skills}/ + CLAUDE.md correctly present for +framework/+knowledge/+integrations and correctly ABSENT for bare; CC_KNOWLEDGE_REPO correctly None for bare, an empty tree for +framework, the real knowledge-copilot repo for +knowledge/+integrations; PATH correctly excludes tc/cc/copilot for bare, restores tc/cc for +framework/+knowledge, adds cli-copilot's venv bin only for +integrations), reports 0 acceptance-check wiring problems across all 3 jobs, validates job_pack.py (0 structural problems) and rubric.md (all 4 dimensions present) at startup, and correctly reports the DEC-6 sign-off gate as ratified=False. A live (non-dry-run) invocation was also verified to exit 1 with an explicit refusal message rather than proceed. Exit code 0; nothing written to output/, per this bench's own convention (see README.md 'Dry-run output')."
+    evidence: "TASK-125, 2026-07-13: `python3 run.py --dry-run` materializes all 4 configs x 3 jobs = 12 cells (real, side-effect-scoped directory operations under a fresh tempfile.mkdtemp() -- .claude/{agents,commands,skills}/ + CLAUDE.md correctly present for +framework/+knowledge/+integrations and correctly ABSENT for bare; CC_KNOWLEDGE_REPO correctly None for bare, an empty tree for +framework, the real knowledge-copilot repo for +knowledge/+integrations; PATH correctly excludes tc/cc/copilot for bare, restores tc/cc for +framework/+knowledge, adds cli-copilot's venv bin only for +integrations), reports 0 acceptance-check wiring problems across all 3 jobs, validates job_pack.py (0 structural problems) and rubric.md (all 4 dimensions present) at startup, and correctly reports the DEC-6 sign-off gate as ratified=False. A live (non-dry-run) invocation was also verified to exit 1 with an explicit refusal message rather than proceed. Exit code 0; nothing written to output/, per this bench's own convention (see README.md 'Dry-run output'). RE-VERIFIED same-day after QA WP-23's fixes (four correction items: O-4 capture method, sign-off gate bypasses, cost ceiling defaults, rep-keyed materialization -- see ladder_config_materialization.corrections and ladder_mlp_rubric.corrections): `python3 run.py --dry-run` still exits 0 with 12/12 cells OK; the live-run refusal still exits 1; 7/7 new regression tests in test_signoff_gate.py pass (covering both QA-found bypasses); `python3 run.py --dry-run --reps 3 --job job-1-bugfix --config bare` produces 3 fully distinct rep1/rep2/rep3 directory trees, confirming the rep-independence fix."
     last_checked: "2026-07-13"
 
   - id: outcome-return-rate

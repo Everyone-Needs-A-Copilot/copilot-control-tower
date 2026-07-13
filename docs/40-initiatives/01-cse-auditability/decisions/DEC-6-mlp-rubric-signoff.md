@@ -5,11 +5,13 @@
 > Rubric: [`../../../../tools/cse-bench/benches/ladder/rubric.md`](../../../../tools/cse-bench/benches/ladder/rubric.md)
 > · Status: prepared, **not ratified** — owner signs off before first
 > scoring. **No `t_loveable` score has ever been computed against this
-> rubric.** `run.py`'s `check_signoff()` reads THIS header block for a
-> literal ratified-status marker (the word "Status" immediately followed
-> by "ratified" in bold — see §6 for the exact text to swap in) and
-> mechanically refuses a live ladder run until it appears here — see
-> rubric.md §0 and run.py's module docstring.
+> rubric.** `run.py`'s `check_signoff()` requires THIS header block to
+> contain EXACTLY ONE "Status" field whose value starts with "ratified" in
+> bold (see §6 for the exact text to swap in), fails CLOSED on zero or more
+> than one such field, and strips HTML comments before checking (QA WP-23
+> closed two bypasses here — see §3) — mechanically refusing a live ladder
+> run until this header genuinely reads ratified. See rubric.md §0 and
+> run.py's module docstring.
 
 ## 1. The decision, in one sentence
 
@@ -71,10 +73,16 @@ time, or token count. `run.py`'s `build_blind_judge_prompt()` enforces this
 by construction, not by judge discipline alone.
 
 **Mechanical enforcement of this gate itself:** `run.py`'s `check_signoff()`
-refuses any invocation without `--dry-run` unless this exact file contains
-the string `Status: **ratified**` — verified today to correctly report
-`ratified=False` (see `tools/cse-bench/benches/ladder/README.md` "Dry-run
-output").
+refuses any invocation without `--dry-run` unless this file's header
+contains exactly one `Status:` field starting with `**ratified**` —
+verified today to correctly report `ratified=False` (see
+`tools/cse-bench/benches/ladder/README.md` "Dry-run output"). QA WP-23
+found two ways an earlier version of this check could false-positive: (a)
+an unrelated second `Status:` line in the header, and (b) a
+`Status: **ratified**` string hidden inside an HTML comment. Both are now
+closed by construction (comments stripped first; the gate requires exactly
+one `Status:` field and fails CLOSED otherwise) and covered by regression
+tests in `tools/cse-bench/benches/ladder/test_signoff_gate.py`.
 
 ## 4. Options and consequences
 
@@ -132,3 +140,21 @@ that fit Option B without requiring a full Option C redesign.
 - **Do nothing:** `tc task update 125 --status blocked --metadata '{"blocked_on":"owner rubric sign-off, DEC-6"}'` (this is this task's actual closing status today).
 - **Re-verify the gate is still closed:** `cd tools/cse-bench/benches/ladder && python3 run.py --dry-run 2>&1 | grep "signoff gate"`
 - **Once ratified, run the first live ladder pass:** `python3 run.py --i-know-this-is-blocked-on-signoff --judge-mode human`
+
+## 7. Quoting caveat (read before quoting ANY pass-rate table from a live run)
+
+`t_working` is mechanical, but mechanical is not the same as truthful:
+job-3-integration-report's acceptance check only verifies a well-formed
+report SHAPE (a `Services: N healthy` line or the literal phrase
+`integrations unavailable`) — it cannot itself tell a real service-health
+pull apart from a model that fabricated a plausible-looking `Services: 3
+healthy` line while `copilot` was never actually reachable. **A
+`t_working` pass-rate table must never be quoted on its own** — it must
+always be shown alongside that cell's rubric `t_loveable` scores,
+specifically job-3's hard fabrication floor on the error-help dimension
+(§3 above, `rubric.md` §1.3), which is the only part of this harness
+actually designed to catch that failure mode. This applies to
+`outcome-counterfactual-delta`/`outcome-token-efficiency` reporting too,
+once real numbers exist — see
+`tools/cse-bench/benches/ladder/README.md` "Quoting caveat" for the same
+statement kept alongside the harness itself.

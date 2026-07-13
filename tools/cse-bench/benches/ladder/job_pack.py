@@ -110,7 +110,8 @@ JOBS: list[dict] = [
             "digits, whitespace). Order results by count descending, then "
             "alphabetically ascending as a tiebreaker. If the file has fewer "
             "than 5 distinct words, print all of them in the same order. Test "
-            "it against the provided sample.txt in this directory."
+            "it against the provided sample.txt in this directory. Do not "
+            "modify sample.txt."
         ),
         "acceptance_check": {
             "mode": "external_checker",

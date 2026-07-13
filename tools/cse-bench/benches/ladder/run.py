@@ -63,6 +63,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import re
 import shutil
@@ -97,7 +98,32 @@ DEFAULT_TIMEOUT_SECONDS = 900  # real agentic coding jobs, not a closed-book Q&A
 DEFAULT_REPS = 1
 DEFAULT_CONCURRENCY = 2
 
-SIGNOFF_MARKER_RE = re.compile(r"Status:\s*\*\*ratified\*\*")
+# QA WP-23 finding 3 (fixed): two cost ceilings, both with safe non-None
+# defaults (previously --max-budget-usd defaulted to None -- no cap at
+# all -- and nothing bounded turns). `claude --help` (checked live,
+# 2026-07-13, this machine's installed version) has NO --max-turns or
+# equivalent flag -- verified, not assumed -- so the two REAL, natively
+# enforced ceilings available are wall-clock (--timeout, already existed)
+# and dollar spend (--max-budget-usd, native flag, now defaulted). A turn
+# count ceiling is therefore added as a HARNESS-LEVEL, POST-HOC warning
+# only (DEFAULT_MAX_TURNS_WARN) -- it flags a cell whose returned
+# `usage.num_turns` exceeded the threshold in that cell's audit record,
+# but cannot preemptively stop a runaway session mid-call the way
+# --timeout/--max-budget-usd do, since no CLI flag exists for that. All
+# three are documented with their reasoning in README.md "Cost ceilings"
+# and are explicit, overridable flags (--timeout/--max-budget-usd/
+# --max-turns-warn), never silently hardcoded.
+DEFAULT_MAX_BUDGET_USD = 3.0  # per job-call; ~30x resume_cost's ~$0.10 single-inference probe, enough headroom for a real multi-turn coding job without being unbounded
+DEFAULT_MAX_TURNS_WARN = 60  # informational only -- see note above
+
+# QA WP-23 finding 2 (fixed): matched per SINGLE line (never spanning a
+# line break — the original `Status:\s*\*\*ratified\*\*` bug let `\s*`
+# match a literal newline, so a "Status:" ending one line plus an unrelated
+# "**ratified**" starting the next line would false-positive) against the
+# value captured after the "Status:" label.
+HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+STATUS_FIELD_RE = re.compile(r"Status:\s*(.+)$")
+RATIFIED_VALUE_RE = re.compile(r"^\*\*ratified\*\*(\s|$)")
 
 RUBRIC_DIMENSIONS = ["Guided experience", "Sensible defaults", "Error help", "Polish"]
 
@@ -107,14 +133,23 @@ RUBRIC_DIMENSIONS = ["Guided experience", "Sensible defaults", "Error help", "Po
 # ---------------------------------------------------------------------------
 
 
-def _extract_header_block(text: str) -> str:
+def _extract_header_lines(text: str) -> list[str]:
     """Every DEC-N memo (DEC-1..5, 7, this one) states its Status in the
     leading blockquote (lines starting with '>' directly under the H1),
     exactly like this file's own header. Scanning ONLY that block — not
     the whole document — for the ratified marker avoids a false positive
     from this same file's own "Exact one-line actions" section, which
     necessarily shows the literal string 'Status: **ratified**' as the
-    instruction text for HOW to ratify it, not as a ratification itself."""
+    instruction text for HOW to ratify it, not as a ratification itself.
+
+    QA WP-23 finding 2 (fixed): HTML comments are stripped from the WHOLE
+    document first (a `<!-- Status: **ratified** -->` hidden inside the
+    blockquote must never count — it isn't rendered, isn't reviewed the
+    same way, and is exactly the kind of thing a bypass attempt would
+    use), and the block is returned as a LIST of individual lines, never
+    rejoined into one blob — see check_signoff() for why per-line matching
+    matters."""
+    text = HTML_COMMENT_RE.sub("", text)
     lines = text.splitlines()
     block: list[str] = []
     started = False
@@ -124,24 +159,58 @@ def _extract_header_block(text: str) -> str:
             block.append(line)
         elif started:
             break
-    return "\n".join(block)
+    return block
 
 
 def check_signoff(dec6_path: Path = DEC6_PATH) -> dict:
-    """Mechanical check for the W-3 hard gate: DEC-6's header blockquote
-    must literally contain "Status: **ratified**" before any live
-    t_loveable scoring runs. Returns {"ratified": bool, "detail": str,
-    "path": str} — never raises; a missing DEC-6 file is reported as NOT
-    ratified, not an error, since "the memo doesn't exist yet" is exactly
-    as blocking as "exists but not ratified.\""""
+    """Mechanical check for the W-3 hard gate: DEC-6's header must contain
+    EXACTLY ONE "Status:" field, and that field's value must start with
+    "**ratified**", before any live t_loveable scoring runs. Returns
+    {"ratified": bool, "detail": str, "path": str} — never raises; a
+    missing DEC-6 file is reported as NOT ratified, not an error, since
+    "the memo doesn't exist yet" is exactly as blocking as "exists but not
+    ratified."
+
+    QA WP-23 finding 2 (fixed), two bypasses closed:
+      (a) An unrelated SECOND "Status:" line in the header (e.g. a future
+          edit that quotes another claim's status) no longer risks a
+          false positive — this function requires exactly one "Status:"
+          field in the header and fails CLOSED (not ratified) on zero or
+          more than one, rather than substring-searching the whole block
+          and accepting any match anywhere in it.
+      (b) An HTML comment hiding the marker (`<!-- Status: **ratified**
+          -->`) is stripped before matching (see _extract_header_lines).
+    Matching is also per SINGLE line (STATUS_FIELD_RE.search(line), never
+    across a line break) — the original `Status:\\s*\\*\\*ratified\\*\\*`
+    regex let `\\s*` match a literal newline, so a "Status:" ending one
+    line plus an unrelated "**ratified**" starting the next would also
+    have false-positived; that class of bug is closed by construction
+    here, not merely avoided in today's DEC-6 text.
+    """
     if not dec6_path.is_file():
         return {"ratified": False, "detail": f"{dec6_path} does not exist", "path": str(dec6_path)}
-    header = _extract_header_block(dec6_path.read_text(encoding="utf-8"))
-    if SIGNOFF_MARKER_RE.search(header):
-        return {"ratified": True, "detail": "DEC-6's header contains 'Status: **ratified**'", "path": str(dec6_path)}
+
+    header_lines = _extract_header_lines(dec6_path.read_text(encoding="utf-8"))
+    status_values = []
+    for line in header_lines:
+        stripped = line.lstrip(">").strip()
+        m = STATUS_FIELD_RE.search(stripped)
+        if m:
+            status_values.append(m.group(1).strip())
+
+    if len(status_values) != 1:
+        return {
+            "ratified": False,
+            "detail": f"expected exactly one 'Status:' field in DEC-6's header, found {len(status_values)} — ambiguous, treated as NOT ratified (fail-closed)",
+            "path": str(dec6_path),
+        }
+
+    value = status_values[0]
+    if RATIFIED_VALUE_RE.match(value):
+        return {"ratified": True, "detail": f"DEC-6's header Status field reads {value!r}", "path": str(dec6_path)}
     return {
         "ratified": False,
-        "detail": "DEC-6's header does not contain the literal marker 'Status: **ratified**' — owner sign-off is still pending",
+        "detail": f"DEC-6's header Status field does not start with '**ratified**' (reads {value!r}) — owner sign-off is still pending",
         "path": str(dec6_path),
     }
 
@@ -178,6 +247,40 @@ def materialize_job_fixture(job: dict, workdir: Path) -> None:
     stray_checker = workdir / "check.py"
     if stray_checker.is_file() and job["acceptance_check"]["mode"] == "external_checker":
         stray_checker.unlink()
+
+
+def _sha256_file(path: Path) -> Optional[str]:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def capture_protected_hashes(job: dict, workdir: Path) -> dict:
+    """QA WP-23 finding 6 (fixed — mechanical enforcement, cheap): a
+    sha256 of every job_pack.py `protected_files` entry, taken right after
+    materialize_job_fixture() and before the model is ever invoked. Paired
+    with check_protected_files() after the job call. Returns
+    {relative_path: sha256_hex_or_None} — None means the file was already
+    missing at materialization time (itself worth flagging, not silently
+    skipped)."""
+    return {rel: _sha256_file(workdir / rel) for rel in job.get("protected_files", [])}
+
+
+def check_protected_files(job: dict, workdir: Path, pre_hashes: dict) -> dict:
+    """Mechanical post-run check: did the model modify or delete any file
+    job_pack.py's brief told it not to touch? A violation here means the
+    deliverable broke an explicit instruction — this bench treats that as
+    an acceptance (t_working) failure too (see do_cell's live branch),
+    not merely a footnote, since a mechanical check that ignores a broken
+    "do not modify X" instruction while still reporting t_working=True
+    would itself be dishonest."""
+    violated = []
+    for rel, pre_hash in pre_hashes.items():
+        post_hash = _sha256_file(workdir / rel)
+        if post_hash != pre_hash:
+            violated.append({"path": rel, "pre_sha256": pre_hash, "post_sha256": post_hash})
+    return {"protected_files": sorted(pre_hashes.keys()), "violated": violated, "clean": not violated}
 
 
 # ---------------------------------------------------------------------------
@@ -587,8 +690,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--job", choices=job_pack.JOB_IDS, default=None, help="Restrict to one job (default: all in the pack).")
     parser.add_argument("--reps", type=int, default=DEFAULT_REPS, help=f"Repetitions per (config, job) cell (default: {DEFAULT_REPS}).")
     parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help=f"Max concurrent claude calls (default: {DEFAULT_CONCURRENCY}).")
-    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help=f"Per-job-call timeout in seconds (default: {DEFAULT_TIMEOUT_SECONDS}).")
-    parser.add_argument("--max-budget-usd", type=float, default=None, help="Optional per-call --max-budget-usd safety cap passed straight to claude -p.")
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help=f"Per-job-call wall-clock timeout in seconds, natively enforced (default: {DEFAULT_TIMEOUT_SECONDS} -- see README.md 'Cost ceilings'). Pass a larger value explicitly to override.")
+    parser.add_argument("--max-budget-usd", type=float, default=DEFAULT_MAX_BUDGET_USD, help=f"Per-call dollar cap, natively enforced by claude -p's own --max-budget-usd flag (default: {DEFAULT_MAX_BUDGET_USD} -- see README.md 'Cost ceilings'). Pass a larger value explicitly to override; there is no 'unlimited' shortcut by design.")
+    parser.add_argument("--max-turns-warn", type=int, default=DEFAULT_MAX_TURNS_WARN, help=f"Informational-only turn-count threshold (default: {DEFAULT_MAX_TURNS_WARN}) -- flags a cell in its audit record if usage.num_turns exceeds this; NOT preventive (this claude version has no native turn-limiting flag, verified via --help). See README.md 'Cost ceilings'.")
     parser.add_argument("--judge-mode", choices=["model", "human"], default="human", help="t_loveable scoring mode (default: human — see rubric.md §2).")
     parser.add_argument("--dry-run", action="store_true", help="Materialize configs/fixtures and build every prompt, but never invoke claude. Nothing written to output/.")
     parser.add_argument("--i-know-this-is-blocked-on-signoff", action="store_true", help="Required in addition to omitting --dry-run; still refused if DEC-6 is not ratified. Exists so a live invocation can never be accidental.")
@@ -652,7 +756,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     def do_cell(cell: tuple) -> dict:
         nonlocal completed
         config_name, job, rep = cell
-        cfg = configs.materialize(config_name, run_root / job["id"], job["id"])
+        cfg = configs.materialize(config_name, run_root / job["id"], job["id"], rep)
         materialize_job_fixture(job, cfg.workdir)
 
         record: dict = {
@@ -681,9 +785,23 @@ def main(argv: Optional[list[str]] = None) -> int:
                 print(f"run.py: [{completed}/{len(cells)}] {job['id']} / {config_name} rep{rep} -> dry-run {flag}", flush=True)
             return record
 
+        protected_pre_hashes = capture_protected_hashes(job, cfg.workdir)
+
         raw = run_claude_job(job["brief"], args.model, cfg.workdir, cfg.env, cfg.claude_flags, args.timeout, args.max_budget_usd)
         usage = extract_usage(raw["envelope"])
         acceptance = run_acceptance_check(job, cfg.workdir, cfg.env)
+
+        protected_files_check = check_protected_files(job, cfg.workdir, protected_pre_hashes)
+        if not protected_files_check["clean"]:
+            # A violated "do not modify X" instruction is itself a broken
+            # deliverable — see check_protected_files()'s docstring.
+            acceptance["passed"] = False
+            acceptance["protected_files_violation"] = True
+
+        # Informational-only turn-count ceiling (see DEFAULT_MAX_TURNS_WARN's
+        # definition for why this cannot be preventive on this claude version).
+        num_turns = usage.get("num_turns")
+        turns_ceiling_exceeded = bool(num_turns is not None and num_turns > args.max_turns_warn)
 
         judge_fn = None  # wired to a real headless judge call once ratified; not built out further here (blocked)
         t_loveable_record = score_t_loveable(args.judge_mode, job, cfg.workdir, rubric_text, dry_run=False, judge_fn=judge_fn)
@@ -694,8 +812,11 @@ def main(argv: Optional[list[str]] = None) -> int:
                 "duration_seconds": raw["duration_seconds"],
                 "usage": usage,
                 "acceptance": acceptance,
+                "protected_files_check": protected_files_check,
                 "t_loveable": t_loveable_record,
                 "error": raw["error"],
+                "turns_ceiling_warn": args.max_turns_warn,
+                "turns_ceiling_exceeded": turns_ceiling_exceeded,
             }
         )
 
@@ -706,9 +827,10 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         with print_lock:
             completed += 1
+            turns_flag = f" TURNS_CEILING_EXCEEDED({num_turns}>{args.max_turns_warn})" if turns_ceiling_exceeded else ""
             print(
                 f"run.py: [{completed}/{len(cells)}] {job['id']} / {config_name} rep{rep} -> "
-                f"status={raw['status']} t_working={acceptance['passed']}",
+                f"status={raw['status']} t_working={acceptance['passed']}{turns_flag}",
                 flush=True,
             )
         return record
