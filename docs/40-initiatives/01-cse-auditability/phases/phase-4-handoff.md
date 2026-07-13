@@ -16,9 +16,9 @@ Your job has three strands, in this priority order:
 
 1. **Build the outcome instrumentation** that proves (or refutes) that goal —
    the Outcome Ledger, the token joins, the 4-config ladder test, the external
-   pilot. This is the main event ([`phases/phase-4-outcome-program-prd.md`](phases/phase-4-outcome-program-prd.md)).
+   pilot. This is the main event ([`phase-4-outcome-program-prd.md`](phase-4-outcome-program-prd.md)).
 2. **Keep the hygiene floor green** — the SOUL-conformance remediation
-   ([`phases/phase-3-soul-remediation.md`](phases/phase-3-soul-remediation.md)).
+   ([`phase-3-soul-remediation.md`](phase-3-soul-remediation.md)).
 3. **Feed the owner's decision queue** — several fixes are decisions, not
    work; your job is to make each decision one-click (evidence attached),
    never to make it for him. (§6)
@@ -202,7 +202,7 @@ python3 /Volumes/Dev/Sites/COPILOT/codex-copilot/scripts/check-upstream-parity.p
 ~/.local/bin/cc eval --agent qa --json         # run from claude-copilot
 ```
 
-Key documents: `phases/phase-4-outcome-program-prd.md` (the program) ·
-`phases/phase-3-soul-remediation.md` (hygiene) · `claims.yaml` (the law) ·
-`phases/phase-1-findings.md` + `phase-1-reaudit-report.html` (how we got here)
+Key documents (this directory unless noted): `phase-4-outcome-program-prd.md`
+(the program) · `phase-3-soul-remediation.md` (hygiene) · `../claims.yaml` (the
+law) · `phase-1-findings.md` + `phase-1-reaudit-report.html` (how we got here)
 · the three SOUL files (each component's promise).

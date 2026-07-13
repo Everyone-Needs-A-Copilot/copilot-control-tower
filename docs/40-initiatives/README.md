@@ -6,4 +6,4 @@
 
 | Folder | Title | Status | Owner | Note |
 | --- | --- | --- | --- | --- |
-| `01-cse-auditability/` | CSE Auditability — Make Every Claim Falsifiable | active | Pablo Alejo | Phase 1 probe produced 4 FALSIFIED verdicts (hook disabled on ship day, enforcement in 1 of 27 repos, model-tier claim false, protocol rate never recovered). Register still unwritten; retention is the urgent action. |
+| `01-cse-auditability/` | CSE Auditability — Make Every Claim Falsifiable | active | Pablo Alejo | Phase 1 + adversarial re-audit done (13/18 upheld, F-12 overturned). Register live (claims.yaml, 38 claims, pre-commit enforced); retention live; cse-bench harness + benches + dashboard shipped; capabilities built (usage ledger, extension loader, deadlock-free enforcement, content parity, conformance suite). Outcome bars O-1..O-9 ratified 2026-07-13. Next: Outcome Program (phases/phase-4-handoff.md). |

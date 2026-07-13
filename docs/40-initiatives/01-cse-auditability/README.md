@@ -2,20 +2,22 @@
 initiative: 01-cse-auditability
 title: CSE Auditability — Make Every Claim Falsifiable
 status: active
-status_note: Phase 1 probe produced 4 FALSIFIED verdicts (hook disabled on ship day, enforcement in 1 of 27 repos, model-tier claim false, protocol rate never recovered). Register still unwritten; retention is the urgent action.
+status_note: Phase 1 + adversarial re-audit done (13/18 upheld, F-12 overturned). Register live (claims.yaml, 38 claims, pre-commit enforced); retention live; cse-bench harness + benches + dashboard shipped; capabilities built (usage ledger, extension loader, deadlock-free enforcement, content parity, conformance suite). Outcome bars O-1..O-9 ratified 2026-07-13. Next: Outcome Program (phases/phase-4-handoff.md).
 owner: Pablo Alejo
 created: 2026-07-11
 execution_context:
-  prd: null
-  tasks: null
+  prd: "tc PRD-9 (verification & benchmark program) + PRD-10 (outcome program)"
+  tasks: "tc tasks under PRD-9/PRD-10; open work inventoried in phases/phase-4-handoff.md par.4"
 superseded_by: null
 ---
 
 # CSE Auditability — Make Every Claim Falsifiable
 
 > Mode: Initiative
-> Status: Discovery
-> Execution context: none yet — no PRD, no tasks. Phase 0 is what makes them plannable.
+> Status: Execution — outcome program (Phase 4)
+> Execution context: tc PRD-9 + PRD-10 in this repo.
+> **Taking this over? Start at [`phases/phase-4-handoff.md`](phases/phase-4-handoff.md)** — the
+> single entry point: setup, full work inventory, operating rules, decision queue.
 
 ## Goal
 
