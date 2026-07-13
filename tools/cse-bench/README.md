@@ -93,6 +93,18 @@ version before assuming a field exists.
   assertion engine (no LLM call, no network) — this collector always
   performs a real, complete suite run. `cc` missing, or either directory
   missing, degrades to an `errors` entry, never a crash.
+- **`solutions`** (TASK-123/W-1, Phase 4 outcome program) — the Outcome
+  Ledger collector. Scans the same `tasksdb` glob (de-duped the same way)
+  for the `solutions` table `tc solution` (claude-copilot `tools/tc/`)
+  writes, and emits O-1 (TTFLS: the t_working -> t_loveable gap), O-2
+  (Completeness: sessions/tokens-to-done and post-ship fix-vs-feature
+  share, for solutions shipped against a locked brief), and O-5 (Survival:
+  started -> shipped -> in_use counts and ratios). A store with no
+  `solutions` table yet (`ledger_present: false`) is the honest
+  pre-adoption state, not an error; every aggregate is `null`, not `0`,
+  when there's no data to compute it from — an empty ledger is the honest
+  state. Feeds claims `outcome-ttfls`, `outcome-completeness`,
+  `outcome-survival` (`../../docs/40-initiatives/01-cse-auditability/claims.yaml`).
 
 ## Dashboard (`render` — TASK-91/B-8 original build, reorganized by
 component/SOUL in TASK-111/S-5)

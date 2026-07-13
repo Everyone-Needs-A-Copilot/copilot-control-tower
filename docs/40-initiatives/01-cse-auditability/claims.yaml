@@ -325,17 +325,17 @@ claims:
   - id: outcome-ttfls
     statement: "A new user reaches a first loveable solution (t_loveable) within their first working session; the t_loveable minus t_working gap quantifies the design chain's value."
     definition_refs: [outcome_bars]
-    check: "gated on W-1 outcome ledger + W-3 ladder (phase-4-outcome-program-prd.md)"
-    status: gated
-    evidence: "phases/phase-4-outcome-program-prd.md par.0 (ratified 2026-07-13); no data yet by design"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only solutions && python3 -c \"import json; print(json.load(open('output/solutions-latest.json'))['metrics']['totals']['ttfls_seconds'])\""
+    status: unchecked
+    evidence: "W-1 Outcome Ledger landed (claude-copilot tools/tc/ `tc solution` verbs + tools/cse-bench/collectors/solutions.py, TASK-123): the ledger and collector are live and run clean (errors: []), but zero solutions have both t_working and t_loveable set yet -- an honestly empty ledger, not a measured result. Re-run the check above once the owner's next real solution reaches mark-loveable."
     last_checked: "2026-07-13"
 
   - id: outcome-completeness
     statement: "Shipped solutions match their locked brief, and post-ship activity is dominated by new features, not fixes, over the review window."
     definition_refs: [outcome_bars]
-    check: "gated on W-1 outcome ledger"
-    status: gated
-    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-2)"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only solutions && python3 -c \"import json; print(json.load(open('output/solutions-latest.json'))['metrics']['totals']['completeness'])\""
+    status: unchecked
+    evidence: "W-1 Outcome Ledger landed (claude-copilot tools/tc/ `tc solution` verbs + tools/cse-bench/collectors/solutions.py, TASK-123): sessions-to-done/tokens-to-done/post-ship fix-vs-feature-share are computed and run clean (errors: []), but zero solutions have shipped against a locked brief yet -- an honestly empty ledger, not a measured result."
     last_checked: "2026-07-13"
 
   - id: outcome-token-efficiency
@@ -349,9 +349,9 @@ claims:
   - id: outcome-survival
     statement: "Of solutions started, a stated majority ship; of shipped, a stated majority remain in active use at the N-week check. Sustained use is the primary loveability evidence."
     definition_refs: [outcome_bars]
-    check: "gated on W-1 outcome ledger usage logging"
-    status: gated
-    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-5)"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only solutions && python3 -c \"import json; print(json.load(open('output/solutions-latest.json'))['metrics']['totals']['survival'])\""
+    status: unchecked
+    evidence: "W-1 Outcome Ledger landed (claude-copilot tools/tc/ `tc solution` verbs + tools/cse-bench/collectors/solutions.py, TASK-123): started/shipped/in-use counts and ratios are computed and run clean (errors: []), but zero solutions have been started yet -- an honestly empty ledger, not a measured result."
     last_checked: "2026-07-13"
 
   - id: outcome-counterfactual-delta
