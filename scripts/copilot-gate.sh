@@ -1,0 +1,1 @@
+../../codex-copilot/scripts/copilot-gate.sh
