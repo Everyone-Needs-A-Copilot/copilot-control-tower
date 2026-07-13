@@ -1,0 +1,80 @@
+# W-5 STAGED PATCH — enforcement rollout to copilot-control-tower (C-3)
+#
+# Target repo: copilot-control-tower (this repo — a NEW file, not applied
+# by this patch; prepared here per TASK-127 rather than committed directly,
+# since the gate below is not yet cleared)
+# Target file: .claude/settings.json (does not exist here yet — this repo
+# is one of the 26/27 that DEC-2's own evidence found register NO
+# PreToolUse hook at all)
+#
+# Un-gates when:
+#   1. DEC-7 is ruled — docs/40-initiatives/01-cse-auditability/decisions/
+#      DEC-7-c3-hook-rollout-gate.md. Recommendation on file is "hold": the
+#      claude-copilot deadlock fix (77f5cdb0) and its path-defect follow-up
+#      fix (8608e24) are scripted-verified (48/49 assertions, standalone
+#      invocation) but Rollout Readiness condition 1 ("a full real working
+#      session, no unexpected denials") has NOT been cleared by an actual
+#      owner-driven Claude Code session in claude-copilot — only by
+#      synthetic replay. No consumer repo has had its hook matcher widened
+#      as of this writing.
+#   2. A ladder re-run per phase-4-outcome-program-prd.md §3 W-5 — this is
+#      the "enforcement context cost" item named in the W-5 waste list, so
+#      the same "every efficiency change ... ladder re-run" rule applies.
+#      Blocked on DEC-6 as of this writing.
+#
+# Content: mirrors claude-copilot's own .claude/settings.json verbatim
+# (absolute paths into claude-copilot's hook scripts — the shared-hooks
+# pattern every consumer repo in this framework uses, not a local copy).
+
+diff --git a/.claude/settings.json b/.claude/settings.json
+new file mode 100644
+index 0000000..0000000
+--- /dev/null	2026-07-13 15:23:42
++++ b/.claude/settings.json	2026-07-13 15:23:42
+@@ -0,0 +1,46 @@
++{
++  "hooks": {
++    "SessionStart": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "/Users/pabs/Sites/COPILOT/claude-copilot/.claude/hooks/session-start.sh"
++          }
++        ]
++      }
++    ],
++    "PreToolUse": [
++      {
++        "matcher": "Bash|Read|Edit|Agent",
++        "hooks": [
++          {
++            "type": "command",
++            "command": "/Users/pabs/Sites/COPILOT/claude-copilot/.claude/hooks/pretool-check.sh"
++          }
++        ]
++      }
++    ],
++    "SubagentStop": [
++      {
++        "matcher": "me|qa",
++        "hooks": [
++          {
++            "type": "command",
++            "command": "/Users/pabs/Sites/COPILOT/claude-copilot/.claude/hooks/subagent-stop.sh"
++          }
++        ]
++      }
++    ],
++    "UserPromptSubmit": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "/Users/pabs/Sites/COPILOT/claude-copilot/.claude/hooks/user-prompt-submit.sh"
++          }
++        ]
++      }
++    ]
++  }
++}

@@ -1,0 +1,50 @@
+# W-5 STAGED PATCH — agent return-size: R-1 "amend" option (Option B)
+#
+# Target repo: claude-copilot (NOT applied there — prepared here per TASK-127)
+# Target file: SOUL.md (§6 Quality Bar, §10 Evolution changelog)
+#
+# Un-gates when:
+#   1. Owner rules DEC-1 in favor of "amend" (or the combined path) —
+#      docs/40-initiatives/01-cse-auditability/decisions/DEC-1-agent-return-bar.md.
+#      Currently OPEN/not ruled. Binding constraint: no protocol/return-bar
+#      change may be MERGED before this ruling.
+#   2. SOUL.md's own §10 Evolution rule: a change lands only when "we learn
+#      something durable that contradicts a current principle" — the owner is
+#      the ratifying authority for that judgment, not this patch.
+#   3. A ladder re-run per phase-4-outcome-program-prd.md §3 W-5 (every
+#      efficiency change needs O-1/O-3 flat-or-better) — blocked on DEC-6
+#      as of this writing, same as the enforce option's patch.
+#
+# This is the alternative to w5-01-agent-return-enforce.patch, not a
+# complement to it — the owner picks one direction (or the combined path
+# DEC-1's memo offers as a third option), never both verbatim.
+#
+# Baseline measured (framework_soul-latest.json, generated_at
+# 2026-07-13T19:08:24Z, same by-type breakdown as DEC-1's 18:26:30Z
+# citation): design-chain agents run far hotter than the high-frequency
+# ones — uxd median 5,089 (n=3), sd median 3,786 (n=5), uids median 4,118
+# (n=1), sec median 3,556 (n=5) — vs me median 854.5 (n=36) and doc median
+# 490 (n=11). Overall aggregate shifted slightly between the two runs
+# (median 1,032->960, p90 3,921.8->3,786, n=100->111) as new me/qa/doc
+# invocations landed in the corpus; the design-chain per-type figures did
+# not move, consistent with no new design-chain invocations in that window.
+
+diff --git a/SOUL.md b/SOUL.md
+--- a/SOUL.md	2026-06-28 14:25:48
++++ b/SOUL.md	2026-07-13 15:22:42
+@@ -196,7 +196,7 @@
+ - [ ] No implementation ships without a `@agent-qa` pass that carries an `ARTIFACT:` marker (a bare `VERDICT: APPROVED` does not unblock the gate).
+ - [ ] Rules that matter are enforced by a hook or gate, each with a documented escape hatch (`COPILOT_*=off`).
+ - [ ] `VERSION.json` is the single source of truth for the framework version; `package.json` mirrors it, never leads.
+-- [ ] Agents return ~100 tokens to the main session; details go to work products.
++- [ ] Agents return a class-proportional token budget to the main session, not a flat ~100 tokens: ~150 tokens for high-frequency, low-complexity agents (`me`, `doc`); ~2,000 tokens for synthesis-heavy design-chain agents (`sd`, `uxd`, `uids`, `sec`) whose job is inherently token-dense. Evidence: `tools/cse-bench/output/framework_soul-latest.json` `agent_frugality.by_agent_type` (n=111, DEC-1/TASK-112) — every sampled agent type exceeds a flat ~100 bar, `me` (the highest-volume type) included, and the design-chain types run 4-6x the high-frequency types' own median. Details still go to work products either way.
+ - [ ] No time estimates anywhere — phases, priority, and complexity only.
+ - [ ] Base agents stay generic; no company-specific content.
+ - [ ] `cc`/`tc` contract changes preserve parity with downstream consumers (codex-copilot pins).
+@@ -297,5 +297,6 @@
+ 
+ | Date | Version | Change & rationale |
+ |------|---------|--------------------|
++| 2026-07-13 | v1.1 (PROPOSED — pending owner ratification, DEC-1 Option B) | §6's flat "~100 tokens" agent-return bar replaced with a class-proportional budget (~150 for `me`/`doc`, ~2,000 for design-chain agents). Rationale: `tools/cse-bench/output/framework_soul-latest.json` shows every sampled agent type exceeding the flat bar, including the highest-volume type (`me`) — "we learn something durable that contradicts a current principle" per this section's own update criteria. NOT yet ratified; staged as `docs/40-initiatives/01-cse-auditability/phases/w5-staged-patches/w5-01-agent-return-amend.patch` in `copilot-control-tower`, gated on DEC-1. |
+ | 2026-06-28 | v1.0 | **Ratified** at read-back. Set the principle priority order (identity boundaries above the enforcement-vs-budget tradeoff; enforcement outranks budget but pays its context cost once, never per-turn). Added a fifth anti-pattern, The Do-Everything Generalist (the generalist doing specialist work instead of delegating). Settled the ecosystem MCP/CLI boundary: within the ecosystem connection is CLI, never MCP; MCP is reserved for app-level servers serving external users (e.g., Convoco). Confirmed the five evidenced founding decisions. |
+ | 2026-06-28 | v0.1 | Drafted as root-level decision instrument, retrofitted from the repo's README, CLAUDE.md, philosophy doc, overview card, VERSION.json, and the hooks/agents surface. Inferences marked; owner-only sections (priority order, anti-pattern lines in the sand, founding-decision rationale) flagged for ratification. |

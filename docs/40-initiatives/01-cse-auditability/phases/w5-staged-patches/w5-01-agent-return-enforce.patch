@@ -1,0 +1,71 @@
+# W-5 STAGED PATCH — agent return-size: R-1 "enforce" option (Option A)
+#
+# Target repo: claude-copilot (NOT applied there — prepared here per TASK-127)
+# Target file: .claude/hooks/subagent-stop.sh
+#
+# Un-gates when:
+#   1. Owner rules DEC-1 in favor of "enforce" (or the combined enforce+amend
+#      path) — docs/40-initiatives/01-cse-auditability/decisions/DEC-1-agent-return-bar.md.
+#      Currently OPEN/not ruled. Binding constraint: no new enforcement of
+#      return sizes may be MERGED before this ruling.
+#   2. A ladder re-run (tools/cse-bench/benches/ladder/) shows O-1/O-3
+#      flat-or-better with this change active — phase-4-outcome-program-prd.md
+#      §3 W-5: "Every efficiency change must show: tokens down AND O-1/O-3
+#      flat-or-better on the ladder re-run." The ladder's first scored run is
+#      itself blocked on DEC-6 (owner MLP-rubric sign-off) as of this writing.
+#
+# Design notes: warn-only (COPILOT_RETURN_SIZE_ENFORCE=off by default, opt-in
+# via env var, matching every other escape-hatch in this hook file) — never a
+# hard deny, since a SubagentStop hook cannot re-open an already-stopped
+# subagent (this file's own header already documents "non-blocking"). Scoped
+# to `me`/`doc` only, the two agent types DEC-1's own memo names as already
+# closest to the ~100-token bar; design-chain agents are deliberately
+# excluded pending DEC-1's "amend" half (see the companion patch,
+# w5-01-agent-return-amend.patch) for that class.
+#
+# Baseline measured (framework_soul-latest.json, generated_at
+# 2026-07-13T19:08:24Z): median return 960 tokens (n=111), p90 3,786,
+# 95.5% over the 300-token collector threshold; `me` alone (n=36) medians
+# 854.5, `doc` (n=11) medians 490 — both still several times the ~100 bar.
+
+diff --git a/.claude/hooks/subagent-stop.sh b/.claude/hooks/subagent-stop.sh
+--- a/.claude/hooks/subagent-stop.sh	2026-06-28 14:25:48
++++ b/.claude/hooks/subagent-stop.sh	2026-07-13 15:22:01
+@@ -82,7 +82,36 @@
+ AGENT_TYPE="$(printf '%s' "$PAYLOAD" | "$JQ" -r '.agent_type // ""' 2>/dev/null || echo "")"
+ LAST_MSG="$(printf '%s' "$PAYLOAD" | "$JQ" -r '.last_assistant_message // ""' 2>/dev/null || echo "")"
+ 
+-# Only act on me and qa agent types
++# ---------------------------------------------------------------------------
++# R-1 / DEC-1 "enforce" option (STAGED -- see claims.yaml framework-agent-
++# frugality; owner has not yet ruled enforce vs amend, DEC-1). Runs for
++# EVERY agent_type (ahead of the me/qa-only filter below), warn-only: a
++# SubagentStop hook cannot re-open an already-stopped subagent (see this
++# file's own header, "OUTPUT: Exit 0 always... non-blocking"), so this is
++# advisory logging only, never a deny. Scoped to the two agent types DEC-1's
++# own memo names as closest to the ~100-token bar already (me, doc);
++# design-chain agents (sd/uxd/uids/sec) are deliberately excluded pending
++# DEC-1's "amend" half for that class. Writes directly to LOG_FILE (not via
++# log_warn(), which is defined further down this file -- this block runs
++# before that point). COPILOT_RETURN_SIZE_ENFORCE=off is the shipped
++# default -- this code path is inert until the owner rules.
++# ---------------------------------------------------------------------------
++RETURN_SIZE_ENFORCE="${COPILOT_RETURN_SIZE_ENFORCE:-off}"       # off|warn
++RETURN_SIZE_WARN_TOKENS=300                                     # cse-bench's own threshold_tokens (3x the SOUL ~100 bar)
++RETURN_SIZE_ENFORCED_AGENT_TYPES="me|doc"                       # DEC-1's recommended enforce-first set
++
++if [[ "$RETURN_SIZE_ENFORCE" == "warn" && "$AGENT_TYPE" =~ ^(${RETURN_SIZE_ENFORCED_AGENT_TYPES})$ ]]; then
++  RETURN_SIZE_CHAR_COUNT="$(printf '%s' "$LAST_MSG" | wc -c | tr -d ' ')"
++  RETURN_SIZE_EST_TOKENS=$(( RETURN_SIZE_CHAR_COUNT / 4 ))
++  if [[ "$RETURN_SIZE_EST_TOKENS" -gt "$RETURN_SIZE_WARN_TOKENS" ]]; then
++    printf '[%s] WARN: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
++      "agent-${AGENT_TYPE} return ~${RETURN_SIZE_EST_TOKENS} tokens (est., chars/4) exceeds the ${RETURN_SIZE_WARN_TOKENS}-token warn bar (SOUL section 6 ~100 bar) -- session: ${SESSION_ID}" \
++      >> "$LOG_FILE" 2>/dev/null || true
++  fi
++fi
++
++# Only act on me and qa agent types (unchanged -- QA-gate state management
++# below is independent of the return-size check above)
+ if [[ "$AGENT_TYPE" != "me" && "$AGENT_TYPE" != "qa" ]]; then
+   exit 0
+ fi

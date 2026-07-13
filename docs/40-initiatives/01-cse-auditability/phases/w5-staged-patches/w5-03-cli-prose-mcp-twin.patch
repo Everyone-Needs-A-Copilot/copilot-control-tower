@@ -1,0 +1,53 @@
+# W-5 STAGED PATCH — CLI grammar prose shipped to agents (the MCP-twin fix)
+#
+# Target repo: cli-copilot (NOT applied there — prepared here per TASK-127)
+# Target file: CLAUDE.md
+#
+# Un-gates when:
+#   A ladder re-run per phase-4-outcome-program-prd.md §3 W-5 shows tokens
+#   down and O-1/O-3 flat-or-better with this change active. Quote: "Every
+#   efficiency change must show: tokens down AND O-1/O-3 flat-or-better on
+#   the ladder re-run." The ladder's first scored run is blocked on DEC-6
+#   (owner MLP-rubric sign-off) as of this writing — see
+#   docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md.
+#   Not owner-decision-gated the way R-1/R-3 are (no open DEC blocks this
+#   specific change) — the ladder is the only named gate.
+#
+# Baseline measured (tools/cse-bench/output/... — see claims.yaml
+# cli-mcp-net-token-advantage, evidence quoting
+# bench_mcp_twin-latest.json run 20260712T175500Z): CLI Copilot's token
+# advantage over its two direct MCP-server twins is negative under
+# probe-everything grammar cost (crm -780, db -1894 tokens) and positive
+# only for crm (+1238) once the shipped prose doc is provided up front —
+# the claim as originally stated ("CLI's token advantage over MCP is
+# positive") is FALSIFIED without this change. The docs/services/*.md
+# prose already exists (07-nocodb.md, 06-postgresql.md, and the rest);
+# nothing currently tells an agent to read it before probing --help.
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+--- a/CLAUDE.md	2026-07-13 14:34:54
++++ b/CLAUDE.md	2026-07-13 15:23:19
+@@ -61,6 +61,23 @@
+ - HTTP services use `shared/http_client.py` wrapper
+ - Configuration via Pydantic Settings from `.env`
+ 
++## Using a service (for agents — read this before probing `--help`)
++
++Read `docs/services/XX-<name>.md` for a command group the FIRST time you use
++it in a session, instead of walking `copilot <group> --help` and every
++subcommand's own `--help` to reconstruct the grammar. This is the fix for a
++measured, falsified claim: `tools/cse-bench/output/bench_mcp_twin-latest.json`
++(run 20260712T175500Z, `copilot-control-tower`) found CLI Copilot's net
++token advantage over its two direct MCP-server twins (`crm`/nocodb-mcp,
++`db`/postgresql-mcp) is **negative** under probe-everything grammar cost
++(crm -780, db -1894 tokens vs the MCP twin) and only turns positive for
++`crm` (+1238) when the shipped prose doc is read up front instead. The
++`docs/services/*.md` files already exist for every service — reading the
++short reference doc first is cheaper than reconstructing the grammar by
++probing, and it is what makes the CLI's "one grammar instead of a bespoke
++MCP schema per service" claim actually true in practice, not just in
++principle.
++
+ ## Commands
+ 
+ ```bash
