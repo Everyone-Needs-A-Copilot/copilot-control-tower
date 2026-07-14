@@ -1237,45 +1237,94 @@ claims:
   - id: outcome-upkeep-tax
     statement: "The time and tokens spent maintaining the CSE itself are measured and netted against outcome value in every value statement."
     definition_refs: [outcome_bars, upkeep_tax]
-    check: "cd tools/cse-bench && python3 cse_bench.py collect --only upkeep && python3 -c \"import json; d=json.load(open('output/upkeep-latest.json'))['metrics']; print(d['totals'])\" -- passing iff at least one repo reports a non-null figure via a registered definitions.upkeep_tax method (task_count_heuristic or session_token_exact), errors: []."
-    status: passing
+    check: >-
+      CORRECTED 2026-07-14 (the original check tested only clause 1; see
+      evidence). `cd tools/cse-bench && python3 cse_bench.py collect
+      --only upkeep && python3 -c "import json; d=json.load(open(
+      'output/upkeep-latest.json'))['metrics']['totals']
+      ['session_token_exact']; up=d['upkeep_tokens_marginal_spend'];
+      out=d['outcome_tokens_marginal_spend']; print(d); measured = up is
+      not None; netted = out is not None and out > 0; print('MEASURED:',
+      measured, ' NETTED:', netted)"` -- the statement is a CONJUNCTION,
+      both clauses must hold for `passing`: (a) MEASURED -- upkeep token/
+      task spend is actually being measured (upkeep_tokens_marginal_spend
+      non-null, OR task_count_heuristic.upkeep_tasks > 0 -- either
+      registered method suffices for this clause alone); (b) NETTED --
+      outcome_tokens_marginal_spend > 0 for the SAME run, i.e. real
+      solution-attributed tokens exist to net upkeep against, not merely
+      a zero produced by there being no outcome-side data at all
+      (task_count_heuristic cannot satisfy this clause by itself -- it
+      does not net against outcome value, only against total task count;
+      see definitions.upkeep_tax.netting_rule). errors: [] required
+      either way. `unchecked` (not `failing`) when (a) holds and (b) does
+      not -- the instrument is honestly awaiting the Outcome Ledger's
+      first real solution, the same state outcome-ttfls/outcome-
+      completeness/outcome-survival are already registered `unchecked`
+      for. Re-run once a real solution ships with a joined, transcript-
+      matched session (`tc solution` W-1/W-2); this check then decides
+      the claim honestly in whichever direction the number lands.
+    status: unchecked
     evidence: >-
-      Instrumentation landed (claude-copilot tools/tc/ `tc upkeep` verbs,
-      TASK-138) and run for real against this repo's own task history
-      (copilot-control-tower .copilot/tasks.db) -- the first non-fabricated
-      O-9 numbers, quoted plainly whichever way they land, per operating
-      rule 4. task_count_heuristic (retrospective): `tc upkeep tag-prd 9`
-      bulk-tagged all 22 pre-existing tasks under PRD-9 ("CSE Verification
-      & Benchmark Program + SOUL Remediation" -- the auditability
+      CORRECTION 2026-07-14: this claim was flipped to `passing` earlier
+      this session on a check that tested only the statement's first
+      clause ("measured") and never tested the second ("netted against
+      outcome value") -- a check weaker than its own statement, the exact
+      t2-no-claim-outlives-its-check disease this register exists to make
+      impossible, caught in review and fixed here (never a silent
+      rewrite). The check above now tests both clauses; this row records
+      the honest result of running it.
+
+      Clause 1 (MEASURED) is genuinely true and stays true: instrumentation
+      landed (claude-copilot tools/tc/ `tc upkeep` verbs, TASK-138) and
+      ran for real. task_count_heuristic (retrospective): `tc upkeep
+      tag-prd 9` bulk-tagged all pre-existing tasks under PRD-9 ("CSE
+      Verification & Benchmark Program + SOUL Remediation" -- this
       initiative's own hygiene/registry/measurement work, not a customer
-      solution; editorial call, disclosed, not hidden) plus this task
-      itself (TASK-138, explicit) = 23/32 = 71.9% of this repo's tracked
-      tasks are upkeep -- unsurprising and not alarming: this repo is the
-      measurement/ops repo for the CSE-auditability initiative, not a
-      product repo, so a high share here is expected, not a finding.
-      Ecosystem-wide (10 repos scanned, only this one has run `tc upkeep`
-      so far): 23/198 = 11.6% -- honestly partial, most repos show
-      upkeep_instrumentation_present: false (pre-adoption, not zero).
-      session_token_exact (token-exact, prospective): tagging TASK-138
-      captured this live session's real id (CLAUDE_CODE_SESSION_ID),
-      joined to its transcript -- upkeep_tokens_marginal_spend ~=18.98M,
-      outcome_tokens_marginal_spend=0 (no solution_sessions exist anywhere
-      in the ecosystem yet -- W-1/W-2 adoption is still early, per
-      RULING-AGENDA.md §6), forcing upkeep_tax_ratio_marginal_spend=1.0.
-      STATED PLAINLY, this is a finding to caveat, not a clean baseline: n=1
-      tagged session: this method has never run before this task, so
-      there is nothing to compare against yet. The tagged session is this
-      one, whole -- 149 main-session messages + 29 subagent delegations
-      accumulated over more than just this task's own work (definitions.
-      upkeep_tax.methods.session_token_exact is unwindowed by design), so
-      the figure overstates what TASK-138 alone cost. And the ratio is
-      mechanically forced to 1.0 whenever ANY upkeep tokens exist and zero
-      solution-session tokens exist anywhere -- not evidence the ecosystem
-      is 100% upkeep, evidence that the Outcome Ledger's own token-join
-      side (W-2) has no solution data yet to net against. Both methods
-      run clean (errors: []); re-run: `cd tools/cse-bench && python3
-      cse_bench.py collect --only upkeep` ->
-      output/upkeep-latest.json.metrics.totals / .per_repo.
+      solution; editorial call, disclosed, not hidden) plus TASK-138
+      itself = 23 of this repo's tracked tasks are upkeep, ~68% of this
+      repo (23/34 at last re-run; this repo is the measurement/ops repo
+      for the initiative, not a product repo, so a high share here is
+      expected, not a finding) and ~11.5% ecosystem-wide (23/200; 10
+      repos scanned, only this one has run `tc upkeep` so far -- most
+      repos show upkeep_instrumentation_present: false, pre-adoption, not
+      zero). These task-count figures move slightly run to run as the
+      shared tasks.db gains tasks from concurrent work; re-run for the
+      exact current count.
+
+      Clause 2 (NETTED) is where the honest headline finding lives, and
+      it is stated here PLAINLY, not softened into a footnote:
+      session_token_exact (tagging TASK-138 captured this live session's
+      real id, joined to its transcript) computes
+      upkeep_tax_ratio_marginal_spend = 1.0, because
+      upkeep_tokens_marginal_spend is real and positive (~21M at last
+      re-run) while outcome_tokens_marginal_spend = 0. Read plainly:
+      **100% of the ecosystem's measured token effort, right now, is
+      upkeep; 0% is solution production.** That is the single most
+      important number this register has produced so far, and it answers
+      the owner's founding question -- "how do I prove any of this is
+      useful?" -- in a direction that is not flattering. Its caveats do
+      not soften that number, they scope it: n=1 tagged session (this
+      method has never run before this task -- there is nothing else to
+      compare it against yet); the tagged session is unwindowed by design
+      (definitions.upkeep_tax.methods.session_token_exact), so it also
+      carries this session's other work, not only TASK-138's; and the 0%
+      solution-production side is zero not because no solutions are being
+      built, but because the Outcome Ledger (W-1/W-2) has zero solutions
+      with joined, transcript-matched session tokens ANYWHERE in the
+      ecosystem yet (RULING-AGENDA.md §6) -- there is no outcome value on
+      record to net against. This number WILL move the moment one real
+      solution is tracked end-to-end with a joined session, and should be
+      re-run then, not assumed static.
+
+      Because clause 2 has no positive outcome-side figure to net
+      against, the claim's own truth condition is not met today --
+      status is `unchecked`, matching outcome-ttfls/outcome-completeness/
+      outcome-survival's identical honest state (an empty Outcome Ledger,
+      not a measured result), not `failing` (the instrument is not broken
+      and the statement is not disproven -- it correctly reports it has
+      nothing to net against yet). Both methods run clean (errors: []);
+      re-run: `cd tools/cse-bench && python3 cse_bench.py collect --only
+      upkeep` -> output/upkeep-latest.json.metrics.totals / .per_repo.
     last_checked: "2026-07-14"
 
   # --- Program truth conditions (phase-2-prd.md §2, T1-T8) ---------------
