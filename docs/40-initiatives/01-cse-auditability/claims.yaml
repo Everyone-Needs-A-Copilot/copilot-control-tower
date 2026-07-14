@@ -1632,20 +1632,24 @@ claims:
       framework/knowledge all used the honest "integrations unavailable"
       fallback -- zero fabrication across all 72 cells in the program.
 
-      STATISTICAL SIGNIFICANCE CORRECTION (TASK-149, 2026-07-14, disclosed
-      BEFORE any confirmation cell ran): both the KNOWLEDGE and INTEGRATIONS
-      "POSITIVE CONTRIBUTION SHOWN" verdicts directly above rest on n=3
-      cells per rung. Fisher's exact two-sided on job-2's bare-vs-knowledge
-      0/3-vs-3/3 split: p = 0.10 -- not significant at alpha = 0.05, and
-      structurally the smallest p-value any n=3-vs-n=3 comparison can
-      reach. The qualitative mechanism (QA WP-83's hand-read of all 12
-      deliverables; the exhaustive, not sampled, zero-fabrication finding)
-      is unaffected and stands on its own; the STATISTIC does not yet. Full
-      disclosure and a pre-registered n=10 confirmation (not yet run) live
-      on ladder-v2-o6-discriminating-verdict and ladder-v2-confirmation-n10
-      -- this claim's own "POSITIVE CONTRIBUTION SHOWN" wording above must
-      be read as "positive and mechanistically verified, statistical
-      significance pending" until that confirmation resolves either way.
+      STATISTICAL SIGNIFICANCE CORRECTION, RESOLVED (TASK-149, 2026-07-14,
+      disclosed BEFORE the confirmation cell ran, and updated here the
+      same day once it completed): both the KNOWLEDGE and INTEGRATIONS
+      "POSITIVE CONTRIBUTION SHOWN" verdicts directly above originally
+      rested on n=3 cells per rung (Fisher's exact two-sided on job-2's
+      bare-vs-knowledge 0/3-vs-3/3 split: p = 0.10, not significant). A
+      same-model n=10 confirmation (80 cells) has since run -- see
+      ladder-v2-confirmation-n10 for the full tables. KNOWLEDGE is now
+      GENUINELY STATISTICALLY ESTABLISHED (bare 0/10 vs knowledge 8/10,
+      p = 0.000714; pooled bare+framework 0/20 vs knowledge+integrations
+      16/20, p = 1.54e-07) -- but the separation is 80%-vs-0% at n=10, not
+      the clean 100%-vs-0% the n=3 sample showed; "POSITIVE CONTRIBUTION
+      SHOWN" above should be read as "positive, statistically significant
+      (p<0.001), and large, but not a perfect/complete separation."
+      INTEGRATIONS' own reliability is now a stronger 10/10 (up from 3/3),
+      zero fabrication across all 40 job-3 confirmation cells. Both
+      corrections are recorded in full, either direction, on
+      ladder-v2-o6-discriminating-verdict and ladder-v2-confirmation-n10.
 
       FRAMEWORK rung: NO POSITIVE CONTRIBUTION SHOWN -- AND NOT MEASURABLE
       BY THIS INSTRUMENT, a distinction this claim must preserve, not
@@ -1856,26 +1860,47 @@ claims:
       airtight) and UNPROVEN (the n is too small to prove it), and both of
       those are true at once, stated together, not traded off against each
       other.
-      CONFIRMATION PRE-REGISTERED, NOT YET RUN: a same-model (sonnet),
-      same-two-job, same-four-rung confirmation at n=10 reps/cell (80
-      cells total) is pre-registered BEFORE any of its cells ran -- see
-      claim ladder-v2-confirmation-n10 for the full design, the stop rule,
-      and the refutation condition committed to in advance. That claim's
-      own evidence, once populated, is this correction's resolution either
-      way: if the split holds at n=10, this claim's headline becomes
-      genuinely established (p ~= 1.1e-5 at a clean 0/10-vs-10/10 split,
-      computed the same way as the discouraging math above); if it does
-      not, this claim -- not just the confirmation claim -- must be
-      corrected downward, not defended. Until that claim resolves, this
-      claim's own honest verdict is: the DIRECTION and MECHANISM are real
-      and independently verified; the STATISTIC is not yet significant.
+      CONFIRMATION RUN, RESOLVED (2026-07-14, same day as this
+      correction): the n=10, 80-cell confirmation ran to completion -- see
+      claim ladder-v2-confirmation-n10 for the full design, stop rule,
+      refutation condition, and every contingency table/p-value. RESULT,
+      stated precisely, neither rounded up nor down: the KNOWLEDGE finding
+      IS NOW GENUINELY STATISTICALLY ESTABLISHED -- job-2-house-voice bare
+      0/10 vs knowledge 8/10, Fisher exact two-sided p = 0.000714
+      (significant at alpha=0.05, and the pooled {bare+framework} 0/20 vs
+      {knowledge+integrations} 16/20 comparison reaches p = 1.54e-07) --
+      but it is NOT the clean, complete 0%-vs-100% separation the n=3 run
+      showed. At n=10, knowledge and integrations each land at 8/10
+      (80%), not 10/10: this run's own refutation-condition check (>=3/10
+      failures on the positive rungs would refute the clean-separation
+      story) did NOT trigger (2/10 and 2/10, just under the line), so the
+      finding SURVIVES, but "clean separation" is corrected here to "a
+      large, statistically significant, but genuinely imperfect
+      separation" -- the n=3 sample was too small to show the ~20% failure
+      rate this larger sample reveals. bare and framework replicate a
+      clean 0/10-vs-0/10 null, unchanged from n=3. The INTEGRATIONS
+      reliability finding (job-3-integration-report, does +integrations
+      keep exactly matching live ground truth) is STRONGER at n=10 than
+      at n=3: 10/10, up from 3/3, with zero fabrication across all 40
+      job-3 cells in the confirmation (extending this program's
+      zero-fabrication record to 152 cells cumulative). This claim's own
+      honest verdict, updated: the DIRECTION and MECHANISM were always
+      real; the STATISTIC is now real too, for KNOWLEDGE at p<0.001 and
+      for INTEGRATIONS' own reliability at an even larger n -- but the
+      ORIGINAL WORDING'S "clean, complete separation" language for the
+      knowledge split is itself now corrected to "large and significant,
+      not complete." See ladder-v2-confirmation-n10 for the full
+      contingency tables, including a disclosed measurement artifact in 5
+      of 40 job-3 cells (a ground-truth check timeout under this run's own
+      higher concurrency, not a model-behavior failure) that this claim's
+      own headline does not depend on.
     last_checked: "2026-07-14"
 
   - id: ladder-v2-confirmation-n10
     statement: "PRE-REGISTERED (V-2), committed BEFORE any confirmation cell runs: a Fisher's-exact-powered confirmation of ladder-v2-o6-discriminating-verdict's n=3 split, at n=10 reps per (job, rung) cell, on job-2-house-voice and job-3-integration-report across all 4 original ladder rungs {bare, framework, knowledge, integrations} (NOT the O-4 residual-ablation rungs framework_minus_*) -- 80 cells total, same model (sonnet) as the v2 run this confirms, fixed n, no optional stopping."
     definition_refs: [outcome_bars, ladder_config_materialization, ladder_job_pack_v2, ladder_mlp_rubric]
-    check: "ls tools/cse-bench/output/bench_ladder-runs/ (one run directory per (job, config) invocation below, reps=10 each, 8 directories = 80 cells); Fisher's exact computed from the per-cell acceptance.passed field of every *.json record in those directories, two-sided, against the contingency tables named below."
-    status: unchecked
+    check: "ls tools/cse-bench/output/bench_ladder-runs/{20260714T192303Z,20260714T192612Z,20260714T192728Z,20260714T192830Z,20260714T193016Z,20260714T193145Z,20260714T193427Z,20260714T193544Z}/ (8 run directories = 80 cells); Fisher's exact computed from the per-cell acceptance.passed field of every *.json record in those directories, two-sided, against the contingency tables in RESULT below."
+    status: passing
     evidence: >-
       TASK-149, 2026-07-14, pre-registered BEFORE ANY LIVE CELL of this
       confirmation ran -- see ladder-v2-o6-discriminating-verdict's own
@@ -1971,12 +1996,95 @@ claims:
       task deliberately did not touch; see the confirmation run's own
       commit for the exact block order and seed used).
 
-      RESULT: not yet run. This claim stays `unchecked` until the 80
-      cells complete; see ladder-v2-o6-discriminating-verdict and
-      outcome-counterfactual-delta for where the result gets folded back
-      in, either as "genuinely established" (if the split holds) or as a
-      correction (if it does not) -- per this file's own V-2 discipline,
-      whichever way the data lands.
+      RESULT (2026-07-14, all 80 cells run, model=sonnet on every cell,
+      status=ok on all 80, 0 dropped): 17,964,425 tokens (billed_volume) --
+      12.3% over this claim's own pre-registered ~16M soft ceiling. Honest
+      disclosure of why, not hidden: the ceiling check only fires BETWEEN
+      blocks, and block 8/8 (the last block) pushed the running total from
+      15.66M to 17.96M with nothing left to stop before -- a real gap in
+      this run's own stop-mechanism granularity, not a violation of intent
+      (no block was launched that the check, if it had fired mid-block,
+      would have blocked). 0 cells exceeded the separate 8-cell error
+      ceiling (0 non-`ok` statuses across all 80).
+
+      CONTINGENCY TABLES (raw acceptance.passed counts, n=10 per cell,
+      no cells dropped, per the fixed stop rule):
+      job-2-house-voice   -- bare 0/10 pass, framework 0/10 pass,
+                              knowledge 8/10 pass, integrations 8/10 pass.
+      job-3-integration-report -- bare 10/10 pass, framework 7/10 pass,
+                              knowledge 8/10 pass, integrations 10/10 pass.
+
+      PRIMARY TEST RESULTS (pre-registered pairs, Fisher's exact,
+      two-sided):
+      K1 (job-2-house-voice) bare 0/10 vs knowledge 8/10: p = 0.000714
+      -- SIGNIFICANT at alpha=0.05 (by a wide margin).
+      I1 (job-3-integration-report) bare 10/10 vs integrations 10/10:
+      p = 1.0 -- NOT significant, and UNINFORMATIVE BY DESIGN, exactly as
+      this claim's own pre-registration anticipated: job-3's t_working is
+      engineered to pass at every rung (bare/framework/knowledge succeed
+      by honestly declining; integrations succeeds by exact-matching real
+      data), so it was never expected to discriminate on t_working alone
+      -- the real signal for I1 is +integrations' OWN reliability rate,
+      reported separately below, not this pairwise test.
+
+      SECONDARY TESTS: K1 framework 0/10 vs knowledge 8/10, p = 0.000714;
+      framework 0/10 vs integrations 8/10, p = 0.000714; knowledge 8/10 vs
+      integrations 8/10, p = 1 (no difference between the two positive
+      rungs); bare 0/10 vs framework 0/10, p = 1 (both null, replicates
+      the original finding). K1 POOLED {bare+framework} 0/20 vs
+      {knowledge+integrations} 16/20: p = 1.54e-07, the single strongest
+      statistic this confirmation produced. I1 bare 10/10 vs framework
+      7/10, p = 0.211; framework 7/10 vs integrations 10/10, p = 0.211;
+      knowledge 8/10 vs integrations 10/10, p = 0.474 -- all driven by the
+      timeout artifact named below, not by model behavior (see REFUTATION
+      CHECK).
+
+      REFUTATION CHECK (against the exact conditions committed to in
+      advance, before this run): K1 -- bare pass=0 (<3), framework pass=0
+      (<3), knowledge fail=2 (<3), integrations fail=2 (<3) -- NOT
+      REFUTED, by the letter of the pre-registered threshold. I1 -- zero
+      fabrication events on bare/framework/knowledge (checked directly
+      against every failing cell's stderr, not assumed), integrations
+      fail=0 (<3) -- NOT REFUTED.
+
+      VERDICT, STATED PRECISELY (do not round up or down from this): the
+      KNOWLEDGE finding SURVIVES AND IS NOW STATISTICALLY ESTABLISHED
+      (p=0.000714 pairwise, p=1.5e-7 pooled) -- but it is NOT the clean,
+      complete 100%-vs-0% separation the n=3 run showed. At n=10, knowledge
+      and integrations each reach 8/10 (80%), not 10/10: two knowledge-rung
+      failures wrote generic prose with no banned jargon but ALSO no
+      positive house-vocabulary evidence (check.py's own "necessary but
+      not sufficient" gate), and two integrations-rung failures did the
+      same plus one used a banned term ("consultant") -- real, disclosed
+      model variance the n=3 sample was too small to see. bare and
+      framework remain a clean, replicated 0/10-vs-0/10 null. The
+      INTEGRATIONS-reliability finding (does +integrations keep matching
+      live ground truth exactly) is STRONGER than before: 10/10, up from
+      3/3, zero fabrication across all 40 job-3 cells in this confirmation
+      (extending the program's zero-fabrication record to 152 cells
+      cumulative, 72 + 80). The t_working-based I1 primary test itself
+      stayed uninformative (p=1), exactly as anticipated, BECAUSE 5 of 40
+      job-3 cells (3 framework, 2 knowledge) failed for a reason unrelated
+      to model behavior: check.py's own independent ground-truth
+      `copilot --json health` call timed out (30s) under this run's
+      concurrency=4 (higher than prior official runs' concurrency 2-3,
+      verified by directly reading each failing cell's stderr_tail --
+      100% of these 5 failures are the identical timeout message, 0% are
+      a fabrication or mismatch message). This is a limitation of THIS
+      confirmation's own execution choices, disclosed per V-2 (no
+      post-hoc exclusion of these 5 cells from the reported contingency
+      tables above -- the stop rule said no cell gets dropped, and none
+      was), not a finding about the framework, the model, or +integrations
+      itself (which had zero timeouts and 10/10 real-data matches).
+
+      This claim's own resolution: the confirmation design ran to
+      completion, produced real primary/secondary statistics and a
+      refutation-condition check exactly as pre-registered, and is
+      genuinely informative in both directions (it downgrades "clean
+      separation" to "large, significant, imperfect separation" for K1,
+      and it upgrades I1's reliability evidence from n=3 to n=10). See
+      ladder-v2-o6-discriminating-verdict and outcome-counterfactual-delta
+      for how this folds back into those claims' own wording.
     last_checked: "2026-07-14"
 
   - id: ladder-o4-scaffold-attribution-wp79-closed
@@ -2215,9 +2323,9 @@ claims:
     last_checked: "2026-07-14"
 
   - id: ladder-o4-full-attribution-closed
-    statement: "The 23.5% unattributed O-4 residual left by ladder-o4-scaffold-attribution-wp79-closed is closed: all five components materialize_framework() places (CLAUDE.md, agents, commands, skills, .mcp.json) are now isolated in situ at the same model (sonnet) and same job pack (v2, 4 jobs), and their shares sum to ~97.8% of the mean turn-1 cache_creation premium -- the remaining ~2.2% (~66 tokens/job) is within measurement noise (smaller than the run-to-run spread already visible in the per-job deltas below) and is not attributed to any untested scaffold piece, since none remain untested."
+    statement: "The 23.5% unattributed O-4 residual left by ladder-o4-scaffold-attribution-wp79-closed is closed AMONG SCAFFOLD FILES: all five file-based components materialize_framework() places (CLAUDE.md, agents, commands, skills, .mcp.json) are now isolated in situ at the same model (sonnet) and same job pack (v2, 4 jobs), and their point-estimate shares sum to ~97.8% of the mean turn-1 cache_creation premium -- but at n=4 job-level means, only a coarse ordering is statistically supported (see CORRECTION below): {CLAUDE.md, agents} are the two dominant, roughly-tied costs, together far ahead of skills, which is itself ahead of {commands, .mcp.json}, whose own confidence intervals include zero. The remaining ~2.2% (~66 tokens/job) residual is within measurement noise and not attributed to any untested scaffold FILE, since none remain untested -- but two non-file bare-vs-framework differences (PATH, CC_KNOWLEDGE_REPO) are never ablated by this design and are out of this claim's scope; see CORRECTION."
     definition_refs: [ladder_o4_residual_ablation, ladder_config_materialization, ladder_job_pack_v2]
-    check: "cd tools/cse-bench/benches/ladder && python3 -c \"import configs; need={'framework_minus_commands','framework_minus_skills','framework_minus_mcp'}; assert need.issubset(set(configs.CONFIG_NAMES)), configs.CONFIG_NAMES; print('OK', sorted(need))\"  -- data check: tools/cse-bench/output/bench_ladder-runs/{20260714T190603Z,20260714T190828Z,20260714T191044Z}/*.json (12 cells each, framework_minus_commands/skills/mcp respectively) plus the pre-existing 20260714T144205Z (bare/framework baseline)"
+    check: "cd tools/cse-bench/benches/ladder && python3 -c \"import configs; need={'framework_minus_commands','framework_minus_skills','framework_minus_mcp'}; assert need.issubset(set(configs.CONFIG_NAMES)), configs.CONFIG_NAMES; print('OK', sorted(need))\"  -- data check: tools/cse-bench/output/bench_ladder-runs/{20260714T190603Z,20260714T190828Z,20260714T191044Z}/*.json (12 cells each, framework_minus_commands/skills/mcp respectively) plus the pre-existing 20260714T144205Z (bare/framework baseline). CI check: QA WP-92's t-distribution recomputation (n=4 job-level means, df=3) against the SAME per-job deltas already recorded in this claim's own evidence text below (skills 768/561/501/441; commands 283/196/76/-44; mcp 239/-180/-88/-208 -- reproducible from the same source data, no new run)."
     status: passing
     evidence: >-
       TASK-148, 2026-07-14, per the `ladder_o4_residual_ablation`
@@ -2271,14 +2379,74 @@ claims:
       statistically indistinguishable from measurement noise (cache-
       creation boundary rounding, minor tokenizer/session-bookkeeping
       variance) at this rep count, not a sixth undiscovered component.
-      Per this claim's own pre-registration, since all five components
-      materialize_framework() places have now been measured (verified
-      exhaustive by re-reading _copy_framework_files()), this residual
-      CANNOT be "an untested scaffold piece" by construction -- the
-      pre-registered fallback naming applies: most plausibly a genuine
-      model/session-bookkeeping floor (e.g. minor cache-boundary
-      variance in how the transcript's own turn-1 block is chunked), not
-      demonstrated further than that.
+      Per this claim's own pre-registration, since all five FILE-based
+      components materialize_framework() places have now been measured
+      (verified exhaustive OF FILES by re-reading
+      _copy_framework_files()), this residual CANNOT be "an untested
+      scaffold FILE" by construction -- the pre-registered fallback
+      naming applies: most plausibly a genuine model/session-bookkeeping
+      floor (e.g. minor cache-boundary variance in how the transcript's
+      own turn-1 block is chunked), not demonstrated further than that.
+
+      CORRECTION (QA WP-92, 2026-07-14, adversarial verification of this
+      task's own point estimates -- disclosed, not softened): the point
+      estimates above reproduce EXACTLY on re-check, but were originally
+      quoted with more precision than n=4 job-level means (df=3) supports.
+      95% confidence intervals (Student's t, t-crit at df=3), computed from
+      THE SAME per-job deltas already recorded above, not a new run:
+      CLAUDE.md 1227.8 tok (40.9%), CI [956, 1499]; agents 1070.8 tok
+      (35.7%), CI [799, 1342]; skills 567.8 tok (18.9%), CI [342, 794];
+      commands 127.8 tok (4.3%), CI [-99, 355]; .mcp.json -59.2 tok
+      (-2.0%), CI [-386, 267]. Three consequences this claim's own prose
+      must carry, not gloss over:
+      (1) CLAUDE.md's and agents' CIs OVERLAP by 343 tokens -- the ranking
+      "CLAUDE.md (40.9%) is the biggest lever, ahead of agents (35.7%)" is
+      NOT statistically established at this n; the two are roughly TIED as
+      the program's two dominant costs, not ordered relative to each
+      other. Any recommendation ranking CLAUDE.md above agents on cost
+      alone must be read as directional, not proven -- see the corrected
+      RECOMMENDATION below.
+      (2) skills' and commands' CIs also overlap (by 14 tokens), and
+      commands' own CI INCLUDES ZERO -- commands may cost nothing at all;
+      only "commands is small, at or near noise" is supported, not its
+      exact 4.3% point estimate.
+      (3) The only ordering this data actually supports is the coarse one:
+      {CLAUDE.md, agents} >> skills >> {commands, .mcp.json} ~= 0. The
+      67.9-token / 2.26% residual (restated to QA's own precision, matches
+      the "~66 tokens/job, ~2.2%" figure above within rounding) IS
+      confirmed smaller than every individual component's own
+      run-to-run SD -- that specific finding (residual = noise) stands
+      unchanged by this correction.
+
+      EXHAUSTIVENESS SCOPE, STATED EXPLICITLY (QA WP-92): "97.8%
+      attributed" and "all five components... now isolated" describe
+      exhaustiveness AMONG SCAFFOLD FILES ONLY -- _copy_framework_files()
+      is exhaustive of what gets COPIED, but bare and framework differ in
+      at least two OTHER ways this file-based ablation design never
+      touches: (a) PATH -- framework restores `tc`/`cc`
+      (`~/.local/bin`) to PATH, bare excludes it entirely (README.md "The
+      4 configs" table); (b) CC_KNOWLEDGE_REPO -- framework points it at
+      an EMPTY directory, bare leaves it unset/None. Neither PATH nor
+      CC_KNOWLEDGE_REPO is a file materialize_framework() places, so
+      neither is, or could be, ablated by a framework_minus_X rung; this
+      claim's own instrument cannot see their contribution to the
+      3003-token premium at all. "Fully attributed" in this claim's own
+      statement and prose above means fully attributed among the files
+      copied, not fully attributed among every bare-vs-framework
+      difference -- do not requote it as the broader claim.
+
+      DESIGN LIMIT, STATED EXPLICITLY (QA WP-92): every rung in this
+      ablation (WP-79's two plus this task's three) removes exactly ONE
+      component, marginally, against the same framework baseline -- there
+      is no leave-two-out or full-factorial rung. This design is
+      structurally BLIND to pairwise interactions between components (e.g.
+      whether removing CLAUDE.md AND agents together costs more or less
+      than the sum of removing each alone). No evidence of a LARGE
+      interaction was found -- the additivity discrepancy (100% - 97.8% =
+      2.2%) equals the noise residual exactly, with no unexplained excess
+      to attribute to interaction -- but a marginal-only design cannot
+      rule small interactions out; it can only fail to detect one bigger
+      than the noise floor already named above.
 
       CAPABILITY CONTROL (same convention as WP-79/WP-83, same scoped
       caveat): t_working was IDENTICAL to +framework on all 4 jobs for
@@ -2304,41 +2472,46 @@ claims:
       first, given knowledge/integration layers stay off the table as
       PROVEN and the agent layer stays off the table pending
       ladder-cannot-measure-framework-agent-layer's own separate
-      resolution):
-      1. CLAUDE.md, 1228 tok/job (40.9%) -- the single largest lever AND
-         the only one already DEMONSTRATED trimmable without capability
-         loss: TASK-127/W-5's real trim (commit 0c73f65) cut its raw
-         bytes 28.3% and its own measured session contribution 37.1%,
-         with 6 golden-set agent evals still 10/10 and 498/498 tc tests
-         passing -- and this 1228-token figure is POST-trim, meaning a
-         real cut already landed and CLAUDE.md still costs more than
-         double any other single component. Highest-leverage next step:
-         a second per-line audit of the current template, same
-         before/after discipline as the first pass.
-      2. skills, 568 tok/job (18.9%) -- second-largest of the NEWLY
-         measured components, zero explicit invocations observed in
+      resolution). CORRECTED 2026-07-14 (QA WP-92): the ranking below no
+      longer orders CLAUDE.md above agents by point estimate -- their 95%
+      CIs overlap (see CORRECTION above), so they are named as a TIED
+      top pair, not #1 vs #5:
+      1=2 (TIED, CIs overlap). CLAUDE.md, 1227.8 tok/job (40.9%, CI [956,
+         1499]) AND agents, 1070.8 tok/job (35.7%, CI [799, 1342]) --
+         together the two dominant costs, roughly tied at this sample
+         size, both far ahead of skills/commands/.mcp.json. Of the two,
+         ONLY CLAUDE.md is already DEMONSTRATED trimmable without
+         capability loss: TASK-127/W-5's real trim (commit 0c73f65) cut
+         its raw bytes 28.3% and its own measured session contribution
+         37.1%, with 6 golden-set agent evals still 10/10 and 498/498 tc
+         tests passing -- this 1227.8-token figure is POST-trim, meaning a
+         real cut already landed. agents is named here for its true,
+         tied-for-largest cost, but is explicitly NOT recommended for
+         cutting on this basis alone: ladder-cannot-measure-framework-
+         agent-layer already shows this harness cannot observe the agent
+         layer's value (0 Task-tool invocations across every rung in 108
+         total cells now run), and a separate, concurrent lane is building
+         the instrument that would measure it properly -- this claim does
+         not pre-empt that ruling. Highest-leverage next engineering step
+         that IS supported: a second per-line audit of the CLAUDE.md
+         template, same before/after discipline as the first trim.
+      3. skills, 567.8 tok/job (18.9%, CI [342, 794]) -- third, and the
+         first component whose CI does not overlap CLAUDE.md/agents'
+         range, so it is genuinely smaller than the top pair, not merely
+         a tied point estimate. Zero explicit invocations observed in
          this harness's 36 cells (though, per the capability-control
          caveat above, that is an instrument limit on THIS job pack, not
          proof skills are never used in real interactive sessions --
          same honesty discipline the agent-layer caveat already
          requires). Candidate for terser SKILL.md descriptions or a
-         narrower default roster; lower priority than CLAUDE.md by cost
-         but the next real lever after it.
-      3. commands, 128 tok/job (4.3%) -- small footprint, roughly a
-         quarter of skills' cost; not worth further engineering effort
-         relative to its size.
-      4. .mcp.json, ~0 tok/job (-2.0%, within noise) -- nothing to cut;
-         already a no-op placeholder, confirmed by this rung's own null
-         result.
-      5. agents, 1071 tok/job (35.7%) -- the SECOND-highest cost of any
-         component measured across this entire program, named plainly
-         here for completeness, but explicitly NOT recommended for
-         cutting: ladder-cannot-measure-framework-agent-layer already
-         shows this harness cannot observe the agent layer's value (0
-         Task-tool invocations across every rung in 108 total cells now
-         run), and a separate, concurrent lane is building the
-         instrument that would measure it properly. This claim does not
-         pre-empt that ruling.
+         narrower default roster.
+      4. commands, 127.8 tok/job (4.3%, CI [-99, 355] -- includes zero)
+         -- small, and the CI does not rule out a true cost of zero; not
+         worth further engineering effort relative to its size, and not
+         safe to quote at 4.3% precision.
+      5. .mcp.json, ~0 tok/job (-2.0%, CI [-386, 267], within noise) --
+         nothing to cut; already a no-op placeholder, confirmed by this
+         rung's own null result.
     last_checked: "2026-07-14"
 
   - id: ladder-harness-dry-run-validated

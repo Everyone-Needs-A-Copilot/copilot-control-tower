@@ -89,18 +89,32 @@ config. It is the first job in this program's history capable of discriminating 
 knowledge layer at all — an earlier job pack could not, by construction, and produced an
 uninformative 12/12 tie across every rung <!-- claim-check: ladder-v2-o6-discriminating-verdict -->.
 
-**Statistical honesty, added 2026-07-14.** Three reps per config is a small sample, and this
-document was silent on what that does and does not license. Fisher's exact test, two-sided,
-on the bare-vs-knowledge split above (0/3 vs 3/3): p = 0.10 <!-- claim-check: ladder-v2-o6-discriminating-verdict -->
+**Statistical honesty, added 2026-07-14, resolved same day.** Three reps per config is a small
+sample, and this document was originally silent on what that does and does not license.
+Fisher's exact test, two-sided, on the bare-vs-knowledge split above (0/3 vs 3/3): p = 0.10 <!-- claim-check: ladder-v2-o6-discriminating-verdict -->
 — not significant at the conventional α = 0.05 threshold <!-- claim-check: ladder-v2-o6-discriminating-verdict -->,
 and structurally the smallest p-value any n=3-vs-n=3 comparison can ever produce, however clean
-the split looks <!-- claim-check: ladder-v2-o6-discriminating-verdict -->.
-The mechanism check above (a second reviewer's direct read of all 12 deliverables) is a real,
-independent verification and stands on its own — but it verifies the *mechanism*, not the
-*statistic*, and the two must not be conflated. A same-model, same-jobs confirmation at n=10
-reps per rung (80 cells) is pre-registered and, as of this writing, not yet run <!-- claim-check: ladder-v2-confirmation-n10 -->.
-Until it completes, read this section as: real and mechanism-verified, not yet statistically
-established.
+the split looks <!-- claim-check: ladder-v2-o6-discriminating-verdict -->. A same-model,
+same-jobs confirmation at n=10 reps per rung (80 cells) has since run <!-- claim-check: ladder-v2-confirmation-n10 -->.
+
+| Config (n=10) | Result |
+|---|---|
+| bare | 0/10 <!-- claim-check: ladder-v2-confirmation-n10 --> |
+| +framework | 0/10 <!-- claim-check: ladder-v2-confirmation-n10 --> |
+| +knowledge | 8/10 <!-- claim-check: ladder-v2-confirmation-n10 --> |
+| +integrations | 8/10 <!-- claim-check: ladder-v2-confirmation-n10 --> |
+
+**The finding is now genuinely statistically established, and also genuinely smaller than it
+first looked.** Bare-vs-knowledge at n=10: p = 0.000714 <!-- claim-check: ladder-v2-confirmation-n10 -->
+(significant at α = 0.05); pooled bare+framework (0/20) vs knowledge+integrations (16/20): <!-- claim-check: ladder-v2-confirmation-n10 -->
+p = 1.54 × 10⁻⁷ <!-- claim-check: ladder-v2-confirmation-n10 -->. But the clean, complete
+separation at n=3 was not fully replicated: at n=10, knowledge and integrations each land at
+80% (8 of 10), not the full 100% the smaller sample showed <!-- claim-check: ladder-v2-confirmation-n10 -->
+— two knowledge-rung and two integrations-rung reps wrote generic prose with no banned jargon
+but also no positive house-vocabulary evidence, real model variance the smaller sample could
+not show <!-- claim-check: ladder-v2-confirmation-n10 -->.
+Read this section as: real, mechanism-verified, AND now statistically significant (p < 0.001 <!-- claim-check: ladder-v2-confirmation-n10 -->)
+— but "large and significant," not "perfect," is the accurate description of the effect size.
 
 ### 2.2 Private-fact accuracy: +98 percentage points
 
@@ -126,11 +140,18 @@ honestly declined <!-- claim-check: ladder-v2-o6-discriminating-verdict -->. Tha
 not one invented number across 72 independently scored attempts — is worth stating on its own
 merits, separate from whether any given rung "won."
 
-**Statistical honesty, added 2026-07-14.** The zero-fabrication property above is exhaustive
-(every one of 72 cells was checked, not sampled) and stands on its own. But the +integrations
-rung's 3/3 real-data-match record that opens this section <!-- claim-check: ladder-v2-o6-discriminating-verdict --> is, like §2.1's split, an n=3
-reliability sample, and the same Fisher's-exact reasoning in §2.1 applies to it. A same-model
-confirmation at n=10 reps is pre-registered and not yet run <!-- claim-check: ladder-v2-confirmation-n10 -->.
+**Statistical honesty, added 2026-07-14, resolved same day.** The zero-fabrication property
+above is exhaustive (every one of 72 cells was checked, not sampled) and stands on its own.
+The +integrations rung's 3/3 real-data-match record that opens this section <!-- claim-check: ladder-v2-o6-discriminating-verdict --> was, like §2.1's
+split, only an n=3 reliability sample. A same-model n=10 confirmation has since run: <!-- claim-check: ladder-v2-confirmation-n10 -->
+**+integrations reached 10/10** exact ground-truth matches, zero fabrication across all 40 <!-- claim-check: ladder-v2-confirmation-n10 -->
+job-3 confirmation cells — a stronger result than the original 3/3 <!-- claim-check: ladder-v2-confirmation-n10 -->,
+extending this program's zero-fabrication record to 152 cells cumulative (72 + 80) <!-- claim-check: ladder-v2-confirmation-n10 -->.
+One honest caveat on the confirmation run itself, not on the framework: 5 of the 40 job-3
+confirmation cells (bare/framework/knowledge rungs) failed their mechanical check only because
+the check's own independent live ground-truth call timed out under this run's higher
+concurrency — a measurement artifact in this specific run, verified by reading each failure's
+own error message directly, not a model or fabrication failure <!-- claim-check: ladder-v2-confirmation-n10 -->.
 
 ### 2.4 The knowledge layer's value comes from distillation, not from dumping the repo into context
 
@@ -249,10 +270,26 @@ the session where it is actually incurred:
 - **Mean premium: 3,003 tokens per job**, and **100% of it lands in the first turn**, before <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
   any tool result exists. This is a one-time entry fee, not a tax that accumulates with more
   tool calls <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->.
-- Of that premium: **CLAUDE.md's own contribution is 1,228 tokens (40.9%)**; **the 13-agent <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
-  roster's own contribution is 1,071 tokens (35.7%)** — combined, 76.5% is attributed to two <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
-  named sources. **704 tokens (23.5%) remain unattributed** — an open, named residual, not <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
-  rounded away <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->.
+- Of that premium, all five scaffold files this framework installs have now been individually <!-- claim-check: ladder-o4-full-attribution-closed -->
+  isolated in situ — but at the n=4 jobs this was measured on, only a COARSE ordering is
+  statistically supported, so this document quotes ranges, not a false ranking.
+  **CLAUDE.md's mean is 1,227.8 tokens (40.9% of the premium), 95% CI [956, 1499]** <!-- claim-check: ladder-o4-full-attribution-closed -->
+  **and the 13-agent roster's mean is 1,070.8 tokens (35.7%), 95% CI [799, 1342]** <!-- claim-check: ladder-o4-full-attribution-closed -->
+  **— the two intervals overlap by 343 tokens, so they are roughly TIED as the two dominant <!-- claim-check: ladder-o4-full-attribution-closed -->
+  costs**; this program cannot yet say CLAUDE.md costs more than the agent roster, only that
+  together (point estimates summing to ~76.6% of the premium) both are far larger than <!-- claim-check: ladder-o4-full-attribution-closed -->
+  everything else. **skills adds a smaller, genuinely distinguishable cost: 567.8 tokens <!-- claim-check: ladder-o4-full-attribution-closed -->
+  (18.9%), CI [342, 794]** <!-- claim-check: ladder-o4-full-attribution-closed -->; **commands (127.8 tokens, 4.3%, CI [-99, 355]) and <!-- claim-check: ladder-o4-full-attribution-closed -->
+  .mcp.json (-59.2 tokens, -2.0%, CI [-386, 267]) both have confidence intervals that include <!-- claim-check: ladder-o4-full-attribution-closed -->
+  zero** — .mcp.json is confirmed a no-op (an empty placeholder file); commands may cost
+  nothing at all. All five together sum to ~97.8% of the premium; the remaining ~2.2% is <!-- claim-check: ladder-o4-full-attribution-closed -->
+  smaller than any single component's own measurement noise, not a sixth undiscovered cost.
+  **Scope, stated plainly: "97.8% attributed" means attributed among the five FILES this <!-- claim-check: ladder-o4-full-attribution-closed -->
+  framework copies** — two other bare-vs-framework differences (PATH access to `tc`/`cc`;
+  whether the knowledge repo is even wired up) are not files, are never ablated by this design, <!-- claim-check: ladder-o4-full-attribution-closed -->
+  and sit outside what this number claims. This is also a marginal-only design — each rung
+  removes exactly one component against the full baseline, with no leave-two-out rung — so it
+  found no evidence of a large interaction between components, but cannot rule small ones out <!-- claim-check: ladder-o4-full-attribution-closed -->.
 - A separate, earlier measurement on a different job pack found every non-bare configuration
   (framework, knowledge, and integrations alike) used **more** tokens than bare, not fewer —
   a mean of 24.2% more, ranging from 18% to 35% more, across 9 of 9 measured non-bare cells <!-- claim-check: outcome-token-efficiency -->
@@ -298,15 +335,18 @@ alone) <!-- claim-check: delegation-rate-baseline -->. Zero percent in a control
 against roughly 40% in real use is not a contradiction this document resolves — it is an open <!-- claim-check: delegation-rate-baseline -->
 question this document names.
 
-**Two things, and only two things, would settle it, and neither has been built yet:**
+**One thing would settle it, and it has not been built yet; a second, related item is now
+done:**
 
 1. A harness mode where delegation can actually fire — an interactive, multi-turn session
    rather than a single headless call, or a job whose scope forces decomposition even within
    a single invocation (for example, a brief spanning several distinct specialist domains at
-   once, rather than this program's current single-file, single-skill jobs).
-2. Closing the 23.5% unattributed token residual from §4 by extending the same ablation to <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
-   the remaining untested scaffold pieces (slash commands, skills, `.mcp.json`) as their own
-   isolated rungs.
+   once, rather than this program's current single-file, single-skill jobs). Still open.
+2. DONE, updated 2026-07-14: the §4 token residual has since been closed among scaffold FILES <!-- claim-check: ladder-o4-full-attribution-closed -->
+   — commands, skills, and `.mcp.json` were each isolated as their own rung, taking file-level
+   attribution to ~97.8% of the premium (see §4 for the CIs and the "files-only" scope this <!-- claim-check: ladder-o4-full-attribution-closed -->
+   number carries — PATH and the knowledge-repo wiring are still outside what any file-based
+   ablation can measure).
 
 <!-- claim-check: ladder-cannot-measure-framework-agent-layer -->
 
