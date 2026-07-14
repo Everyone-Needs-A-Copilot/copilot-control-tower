@@ -274,14 +274,22 @@ has, not a new one introduced here.
 Closes `t2-no-claim-outlives-its-check` (see `claims.yaml`'s `claim_sweep`
 definition for the full, pre-registered spec — this is a summary).
 `check_claims.py` validates the register's own STRUCTURE; `claim_sweep.py`
-is the other half — it scans a curated set of each CSE product's
-self-description docs (README, SOUL, PURPOSE/ECOSYSTEM.md, and the small
-number of architecture docs F-18's own findings cite by path — see
-`SCAN_TARGETS` in the script) for **verifiable assertions** (percentages,
-"N of M", counts, versions, ratios, and "automatically"/"ensures"/
-"guarantees" mechanism claims) and classifies each one **BACKED** (an
-`<!-- claim-check: <id> -->` annotation nearby resolves to a real
-`claims.yaml` entry) or **UNBACKED**.
+is the other half — it scans each CSE product's self-description surface
+for **verifiable assertions** (percentages, "N of M", counts, versions,
+ratios, and "automatically"/"ensures"/"guarantees" mechanism claims) and
+classifies each one **BACKED** (an `<!-- claim-check: <id> -->` annotation
+resolves to a real `claims.yaml` entry) or **UNBACKED**.
+
+**Scope is a formula, not a hand-picked list** (see the script's own module
+docstring, "SCOPE," for the full detail — this is a summary): each repo's
+root self-description files (`README.md`, `SOUL.md`, `PURPOSE.md`,
+`ECOSYSTEM.md`, `CLAUDE.md`, `AGENTS.md`, whichever exist), `docs/`
+DEPTH-1 markdown files only (`docs/*.md`, never the recursive tree), and a
+small set of explicit, named exceptions (`_EXTRA_TARGETS` in the script —
+deeper architecture docs F-18's own findings cite by path). This
+deliberately excludes deep initiative/decision/phase trees, including
+every product's `docs/40-initiatives/` — see "Live vs. historical docs"
+below for the one, principled exception to that exclusion.
 
 ```bash
 # Human-readable report (every repo)
@@ -293,12 +301,13 @@ tools/cse-bench/claim_sweep.py --show-unbacked
 # Machine-readable
 tools/cse-bench/claim_sweep.py --json
 
-# Scope to one repo (matches SCAN_TARGETS keys: copilot-control-tower,
+# Scope to one repo (matches REPOS in the script: copilot-control-tower,
 # claude-copilot, knowledge-copilot, cli-copilot, codex-copilot)
 tools/cse-bench/claim_sweep.py --repo claude-copilot
 
 # Pre-commit mode: exit 1 only on a NEW unbacked assertion not already in
-# the baseline (a regression gate, not a zero-unbacked gate)
+# the baseline (a regression gate, not a zero-unbacked gate) -- plus a
+# zero-tolerance CLAIM HEALTH check for live docs, see below
 tools/cse-bench/claim_sweep.py --check
 
 # After a reviewed, intentional change to what's accepted as backlog
@@ -312,34 +321,114 @@ then annotate the doc sentence:
 Extensions install into consuming agents at sync time... <!-- claim-check: knowledge-extension-install-mechanism -->
 ```
 
-The annotation may sit on the assertion's own line, the line before, or
-the line after. An annotation whose `<id>` does not resolve to a real
+**BINDING (tightened 2026-07-14, QA WP-47):** an annotation backs an
+assertion only if (a) it trails on the assertion's own line, or (b) it
+sits alone on its own line (nothing else once the comment is stripped)
+immediately BEFORE the assertion's line. There is no "line after" reach
+and no backward bleed from a same-line trailing annotation onto a
+neighboring line — the older ±1-either-direction convention let one
+annotation nominally back an unrelated adjacent line and has been
+retired. An annotation whose `<id>` does not resolve to a real
 `claims.yaml` entry is reported **DANGLING**, never silently treated as
 backed.
+
+### Live vs. historical docs: bringing `docs/40-initiatives/` into scope, narrowly
+
+`docs/40-initiatives/` is excluded from the depth-1 formula above **on
+purpose**, and that exclusion is correct for almost everything under it:
+`phases/`, `decisions/`, and most of `retrospectives/` are point-in-time
+records. A phase-1 findings doc quoting a since-corrected figure is not a
+defect — it is the honest historical record of what was true when that
+phase ran, and forcing it to stay current would falsify history, not
+preserve it.
+
+But not every doc inside that tree is historical. A doc can be a
+**standing claim about the present** — written to be quoted, as-is, by a
+reader who is not tracking the initiative's internal history — even
+though it happens to live inside an otherwise-archival directory.
+`docs/40-initiatives/01-cse-auditability/retrospectives/VALUE.md` is
+exactly this: its own initiative README names it as *the* document its
+owner uses to describe the CSE to a client, a partner, or another
+organization. A stale number in that document is not a historical
+artifact; it is a live, externally-quotable false statement — and it was,
+for a time, invisible to this sweep for the same reason every other
+`docs/40-initiatives/` doc is invisible to it.
+
+The fix is **not** a subdirectory rule (`retrospectives/` as a whole is
+not live — most retrospectives are exactly as historical as a phase doc)
+and **not** a front-matter opt-in flag a doc can set on itself (a
+one-line, unreviewed edit to any of the ~20 historical docs in the tree
+would silently flood the baseline with frozen point-in-time numbers this
+program exists to leave alone — the opposite of "hardest to get wrong by
+accident"). It is the same convention this file already uses for
+`_EXTRA_TARGETS`: an explicit, by-name, reviewable list —
+`_LIVE_DOCS_IN_EXCLUDED_TREES` in `claim_sweep.py`. Opting a doc in
+requires a code change to the checker itself, in a diff a reviewer sees,
+never a doc-only edit inside a tree the sweep otherwise doesn't look at.
+
+### CLAIM HEALTH: a stronger guarantee for live docs specifically
+
+Backing (an annotation resolves to a real id) is necessary but not
+sufficient for a doc like VALUE.md, whose whole premise is that its
+numbers are true **now**, not merely once registered. A claim can resolve
+and still make its sentence false: the register moved the claim to
+`failing` after the prose was written, or the claim was
+`retired-by-ratification` / `retired-by-deletion` /
+`retired-by-unverifiability` and the doc never updated to say so.
+
+For every doc in `_LIVE_DOCS_IN_EXCLUDED_TREES`, the sweep additionally
+re-reads every `<!-- claim-check: <id> -->` citation (whether or not it
+backs a detected assertion) and looks up `<id>`'s **current** status. A
+citation of a `failing` or `retired-*` claim is flagged unless its own
+paragraph (or, for a citation on a heading line, the heading's paragraph
+plus the section's opening paragraph) also contains an explicit
+acknowledgment word or phrase — "false," "retired," "failing," "not
+fewer," and similar (see `_ACK_RE` in the script for the full list). The
+idea: a doc honestly reporting a failed or retired claim says so in the
+same breath; a doc quoting one as if it still holds does not.
+
+**This is a keyword-proximity heuristic, not a semantic verifier — stated
+plainly, not glossed over.** It catches the shape of failure this program
+exists to prevent: a citation with no nearby negation at all, e.g. a
+sentence added later that quotes a since-falsified number straight, or an
+annotation whose target the register quietly re-labels retired. It
+CANNOT verify that the acknowledgment word is actually about the *same*
+fact the citation backs, and it says nothing at all about a `passing`
+claim cited with the wrong number attached — only `failing`/`retired-*`
+citations are checked. Where it fires, treat it like an UNBACKED finding:
+fix the prose, fix the annotation, or (if it's a genuine false positive)
+extend `_ACK_RE` in a reviewed diff. **Unlike the UNBACKED baseline,
+CLAIM HEALTH findings are never baselined** — `--check` fails on every
+one, every time, for every doc in `_LIVE_DOCS_IN_EXCLUDED_TREES`. There is
+no `--update-baseline` escape hatch for this category, by design.
 
 **Baseline** (`claim-sweep-baseline.json`, same regression-gate shape as
 knowledge-copilot's `scripts/crosslinks-baseline.json`): every UNBACKED/
 DANGLING assertion at baseline-authoring time is recorded (repo, file,
 category, matched text — no line number, so unrelated line-shift edits
 don't churn the baseline). `--check` fails only on assertions NOT in this
-file — the ratchet only tightens.
+file — the ratchet only tightens. CLAIM HEALTH findings are exempt from
+this file entirely (see above).
 
 **Precision, stated plainly:** this is a regex/heuristic scanner, not a
 claim-extraction engine. It has real false positives (a non-claim decimal
-or count noun gets flagged) and real false negatives (anything outside
-`SCAN_TARGETS` — including knowledge-copilot's ~900-file content corpus
-and every `CLAUDE.md` — is invisible, as is any assertion inside a fenced
-code block, an inline code span, or phrased without a matched pattern).
-The tool does not try to fix this by parsing English better; it makes
-backing explicit and cheap via the annotation instead, and reports
-everything unannotated for a human to triage. See `claims.yaml`'s
-`claim_sweep` definition for the full precision caveat and the first real
-run's numbers.
+or count noun gets flagged — two are specifically exempted: a document's
+OWN changelog version numbers, and a markdown heading's own leading
+section number, e.g. `### 2.1 Title`) and real false negatives (anything
+outside scope — including knowledge-copilot's ~900-file content corpus
+and every product's `docs/40-initiatives/` tree except the explicit live
+exceptions above — is invisible, as is any assertion inside a fenced code
+block, an inline code span, a section cross-reference like `§3.3`, or
+phrased without a matched pattern). The tool does not try to fix this by
+parsing English better; it makes backing explicit and cheap via the
+annotation instead, and reports everything unannotated for a human to
+triage. See `claims.yaml`'s `claim_sweep` definition for the full
+precision caveat and the first real run's numbers.
 
 ### Pre-commit wiring (multi-repo)
 
 Unlike `install-claims-hook.sh`, `install-claim-sweep-hook.sh` is meant to
-be run from **any** of the repos `SCAN_TARGETS` covers — the checker
+be run from **any** of the repos in `REPOS` (see the script) — the checker
 (`claim_sweep.py`) always lives here, in `copilot-control-tower`, but the
 hook it installs belongs to whichever repo's own docs it is guarding, per
 the task's requirement to enforce "in the repos whose docs the sweep
@@ -353,5 +442,5 @@ tools/cse-bench/install-claim-sweep-hook.sh
 cd ../knowledge-copilot && /path/to/copilot-control-tower/tools/cse-bench/install-claim-sweep-hook.sh
 ```
 
-A repo whose basename isn't a `SCAN_TARGETS` key gets a vacuous "nothing
-to check" pass, never a hook failure — safe to install broadly.
+A repo whose basename isn't a `REPOS` entry gets a vacuous "nothing to
+check" pass, never a hook failure — safe to install broadly.

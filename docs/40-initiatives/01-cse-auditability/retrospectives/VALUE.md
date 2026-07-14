@@ -71,12 +71,10 @@ development-framework scaffold only, + the knowledge repo, + live integrations.
 
 | Config | Result |
 |---|---|
-| bare | 0/3 |
-| +framework | 0/3 |
-| +knowledge | 3/3 |
-| +integrations | 3/3 |
-
-<!-- claim-check: ladder-v2-o6-discriminating-verdict -->
+| bare | 0/3 <!-- claim-check: ladder-v2-o6-discriminating-verdict --> |
+| +framework | 0/3 <!-- claim-check: ladder-v2-o6-discriminating-verdict --> |
+| +knowledge | 3/3 <!-- claim-check: ladder-v2-o6-discriminating-verdict --> |
+| +integrations | 3/3 <!-- claim-check: ladder-v2-o6-discriminating-verdict --> |
 
 **Method and the check against string-injection.** `check.py` requires zero hits on a
 banned-jargon denylist *and* at least one hit on the organization's real private-vocabulary
@@ -89,26 +87,26 @@ keyword-stuffing artifact <!-- claim-check: ladder-v2-o6-discriminating-verdict 
 **Caveat.** This is one job, in one job pack, at one model (Sonnet), run three times per
 config. It is the first job in this program's history capable of discriminating the
 knowledge layer at all — an earlier job pack could not, by construction, and produced an
-uninformative 12/12 tie across every rung.
+uninformative 12/12 tie across every rung <!-- claim-check: ladder-v2-o6-discriminating-verdict -->.
 
 ### 2.2 Private-fact accuracy: +98 percentage points
 
-With an organization's private-fact dossier in context, the model answered 98.0% of private
-product-fact questions correctly (48/49); without it, 0.0% (49/49 — the model correctly
-reported "unknown" rather than guessing), a delta of +98.0 points
-<!-- claim-check: knowledge-factual-accuracy-delta -->. The 0% "without" figure is itself a
+With an organization's private-fact dossier in context, the model answered 98.0% of private <!-- claim-check: knowledge-factual-accuracy-delta -->
+product-fact questions correctly (48/49); without it, 0.0% (49/49 — the model correctly <!-- claim-check: knowledge-factual-accuracy-delta -->
+reported "unknown" rather than guessing), a delta of +98.0 points <!-- claim-check: knowledge-factual-accuracy-delta -->.
+The 0% "without" figure is itself a <!-- claim-check: knowledge-factual-accuracy-delta -->
 finding worth naming: it means the model did not hallucinate plausible-sounding private facts
 in the dossier's absence; it declined. **Caveat.** One 49-question bank, one model, one run.
 
 ### 2.3 The integrations layer earns its keep, and the whole program shows zero fabrication
 
 On the job whose correct answer requires live external-service data, only the
-`+integrations` rung ever produced real, byte-exactly-matching service data — 20 of 20
+`+integrations` rung ever produced real, byte-exactly-matching service data — 20 of 20 <!-- claim-check: ladder-v2-o6-discriminating-verdict -->
 services correct, independently re-fetched and compared a day later. The other 9 cells (bare,
 +framework, +knowledge) all used the honest "integrations unavailable" fallback rather than
 inventing numbers <!-- claim-check: ladder-v2-o6-discriminating-verdict -->.
 
-**The headline is not the 20/20 — it is what happened in the other 9.** Across the entire
+**The headline is not the 20/20 — it is what happened in the other 9.** <!-- claim-check: ladder-v2-o6-discriminating-verdict --> Across the entire
 72-cell program (48 main cells + 24 ablation cells, all six configurations), zero cells
 fabricated data at any point. Every cell either produced real, verified-correct output or
 honestly declined <!-- claim-check: ladder-v2-o6-discriminating-verdict -->. That property —
@@ -117,29 +115,27 @@ merits, separate from whether any given rung "won."
 
 ### 2.4 The knowledge layer's value comes from distillation, not from dumping the repo into context
 
-A separate bench measured voice-rule conformance (violations per 100 words) under three
+A separate bench measured voice-rule conformance (violations per 100 words) under three <!-- claim-check: voice-conformance-deltas -->
 prompting arms:
 
-| Arm | Violations / 100 words |
+| Arm | Violations / 100 words <!-- claim-check: voice-conformance-deltas --> |
 |---|---|
-| bare | 2.77 |
-| knowledge repo as raw context | 0.48 |
-| compiled rules pasted directly into the prompt | 0.10 |
-
-<!-- claim-check: voice-conformance-deltas -->
+| bare | 2.77 <!-- claim-check: voice-conformance-deltas --> |
+| knowledge repo as raw context | 0.48 <!-- claim-check: voice-conformance-deltas --> |
+| compiled rules pasted directly into the prompt | 0.10 <!-- claim-check: voice-conformance-deltas --> |
 
 Knowledge beats bare — real value. But **compiled rules-in-prompt beat the raw
-knowledge-as-context by roughly 5x.** The mechanism by which the knowledge layer helps is
+knowledge-as-context by roughly 5x.** <!-- claim-check: voice-conformance-deltas --> The mechanism by which the knowledge layer helps is
 distillation into a small, structured rule set, not bulk repo content in the model's context
 window. This is a genuine, transferable finding about *how* to deliver the value found in
 §2.1–2.3, not a discovery that the value is absent — and it directly falsified a narrower,
 adjacent claim (§3.3).
 
-### 2.5 Resume-with-state: 100% vs 0%, at a real but small token cost
+### 2.5 Resume-with-state: 100% vs 0%, at a real but small token cost <!-- claim-check: framework-resume-value -->
 
 When the framework's persisted task/memory state is available at the start of a session, a
-model resumes a cold task (task, completed step, next action) correctly 100% of the time;
-without it, 0% of the time — at a measured overhead of +3.9% tokens for the roughly
+model resumes a cold task (task, completed step, next action) correctly 100% of the time; <!-- claim-check: framework-resume-value -->
+without it, 0% of the time — at a measured overhead of +3.9% tokens for the roughly <!-- claim-check: framework-resume-value -->
 654-token state block <!-- claim-check: framework-resume-value -->. This is the framework's
 own stated job (persist state so work survives a session boundary), measured directly.
 **Caveat.** Contamination-controlled, three repetitions per arm — a real but small
@@ -173,28 +169,28 @@ Every one of them is now disproven by this program's own measurement. **Repeatin
 these — including by the person who built this ecosystem — is a false statement, not an
 optimistic rounding.**
 
-### 3.1 "~94% less context" (externalizing work through work products vs inlining)
+### 3.1 "~94% less context" (externalizing work through work products vs inlining) <!-- claim-check: framework-externalization-94pct -->
 
 **FALSE, and inverted.** Measured directly: a delegated agent's own final return is a median
 893 tokens; the work-product content it externalizes is a median 353 tokens. Agent returns
-are **~2.5x larger** than the artifacts they claim to externalize (a −153% savings ratio, the
+are **~2.5x larger** than the artifacts they claim to externalize (a −153% savings ratio, the <!-- claim-check: framework-externalization-94pct -->
 opposite sign of the claim) <!-- claim-check: framework-externalization-94pct -->. This figure
 has since been struck from the framework's own README and SOUL documents by an owner-ratified
 correction — but the correction retired the *claim*, not the underlying finding, which stays
 on record and remains the operative number whenever this topic comes up
 <!-- claim-check: framework-externalization-94pct -->.
 
-### 3.2 "Sonnet for ~94% of work" (the cheaper model does the bulk of orchestration)
+### 3.2 "Sonnet for ~94% of work" (the cheaper model does the bulk of orchestration) <!-- claim-check: model-tier-opus-dominant-main-session -->
 
-**FALSE.** Measured main-session share is Opus-dominant, not Sonnet-dominant: 92.5% of
-main-session assistant messages and 94.5% of main-session tool calls run on Opus — the
+**FALSE.** Measured main-session share is Opus-dominant, not Sonnet-dominant: 92.5% of <!-- claim-check: model-tier-opus-dominant-main-session -->
+main-session assistant messages and 94.5% of main-session tool calls run on Opus — the <!-- claim-check: model-tier-opus-dominant-main-session -->
 opposite of the design intent, under every denominator tested
 <!-- claim-check: model-tier-opus-dominant-main-session -->.
 
-### 3.3 "The mandatory protocol declaration / process enforcement ensures quality"
+### 3.3 "The mandatory protocol declaration / process enforcement ensures quality" <!-- claim-check: protocol-declaration-rate-baseline --><!-- claim-check: framework-qa-gate-adherence -->
 
 **FALSE on the evidence available.** The mandatory `[PROTOCOL: ...]`-prefix declaration
-requirement measured 0.0% adoption under both its strict and loose definitions in the most
+requirement measured 0.0% adoption under both its strict and loose definitions in the most <!-- claim-check: protocol-declaration-rate-baseline -->
 recent re-run — because the hook meant to enforce it contains zero references to "protocol"
 at all; nothing ever checked it
 <!-- claim-check: protocol-declaration-rate-baseline -->. The requirement has since been
@@ -214,12 +210,12 @@ worse. It is positive for only one twin (+1,238 tokens), and only when that serv
 prose documentation is provided to the agent up front rather than discovered live
 <!-- claim-check: cli-mcp-net-token-advantage -->.
 
-### 3.5 "CLI Copilot has 208 commands"
+### 3.5 "CLI Copilot has 208 commands" <!-- claim-check: cli-command-liveness-breakdown -->
 
-**FALSE — a roughly 2x undercount.** The real, re-audited surface is 439 leaf commands across
+**FALSE — a roughly 2x undercount.** <!-- claim-check: cli-command-liveness-breakdown --> The real, re-audited surface is 439 leaf commands across
 22 service groups <!-- claim-check: cli-command-liveness-breakdown -->. Correcting the count
 also surfaces an uncomfortable adjacent fact worth stating in the same breath: of those 439,
-only 103 (23%) show every liveness signal (config, recent activity, transcript use, and shell
+only 103 (23%) show every liveness signal (config, recent activity, transcript use, and shell <!-- claim-check: cli-command-liveness-breakdown -->
 history); 133 (30%) show none <!-- claim-check: cli-command-liveness-breakdown -->.
 
 ---
@@ -231,26 +227,26 @@ same-model, same-task-type ablation (not a synthetic probe) isolated the token p
 running with the full development-framework scaffold versus bare, per job, at the point in
 the session where it is actually incurred:
 
-- **Mean premium: 3,003 tokens per job**, and **100% of it lands in the first turn**, before
+- **Mean premium: 3,003 tokens per job**, and **100% of it lands in the first turn**, before <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
   any tool result exists. This is a one-time entry fee, not a tax that accumulates with more
   tool calls <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->.
-- Of that premium: **CLAUDE.md's own contribution is 1,228 tokens (40.9%)**; **the 13-agent
-  roster's own contribution is 1,071 tokens (35.7%)** — combined, 76.5% is attributed to two
-  named sources. **704 tokens (23.5%) remain unattributed** — an open, named residual, not
+- Of that premium: **CLAUDE.md's own contribution is 1,228 tokens (40.9%)**; **the 13-agent <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
+  roster's own contribution is 1,071 tokens (35.7%)** — combined, 76.5% is attributed to two <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
+  named sources. **704 tokens (23.5%) remain unattributed** — an open, named residual, not <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
   rounded away <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->.
 - A separate, earlier measurement on a different job pack found every non-bare configuration
   (framework, knowledge, and integrations alike) used **more** tokens than bare, not fewer —
-  a mean of 24.2% more, ranging from 18% to 35% more, across 9 of 9 measured non-bare cells
+  a mean of 24.2% more, ranging from 18% to 35% more, across 9 of 9 measured non-bare cells <!-- claim-check: outcome-token-efficiency -->
   <!-- claim-check: outcome-token-efficiency -->.
 
-**Against the outcome program's own bar:** the CSE's stated aspiration is a 90% token
-reduction versus a bare-harness counterfactual, with 60% treated as the "still work to do"
+**Against the outcome program's own bar:** the CSE's stated aspiration is a 90% token <!-- claim-check: outcome-token-efficiency -->
+reduction versus a bare-harness counterfactual, with 60% treated as the "still work to do" <!-- claim-check: outcome-token-efficiency -->
 floor. The measured result is the **opposite sign** of that bar in every measurement this
 program has taken — every rung costs more tokens than bare, not fewer
 <!-- claim-check: outcome-token-efficiency -->. A real mitigation has since shipped (a trim to
 the CLAUDE.md template) and it is a genuine win against its own before/after baseline
-(−37.1% on CLAUDE.md's own contribution) — but measured against the ladder's real per-cell
-premium, it recovers only roughly 8–12% of the overage, and does not change the sign
+(−37.1% on CLAUDE.md's own contribution) — but measured against the ladder's real per-cell <!-- claim-check: framework-claude-md-payload-trim -->
+premium, it recovers only roughly 8–12% of the overage, and does not change the sign <!-- claim-check: framework-claude-md-payload-trim -->
 <!-- claim-check: outcome-token-efficiency --><!-- claim-check: framework-claude-md-payload-trim -->.
 
 **Cost language rule, applied throughout this document and non-negotiable going forward:**
@@ -275,12 +271,12 @@ The correct reading of that zero is not "the agent layer adds nothing." It is: *
 instrument (a headless, single-shot, single-file, single-skill task run non-interactively)
 never gave the agent layer a chance to fire at all* <!-- claim-check: ladder-cannot-measure-framework-agent-layer -->.
 
-**This sits in real, unresolved tension with production data.** Real session transcripts —
+**This sits in real, unresolved tension with production data.** Real session transcripts — <!-- claim-check: delegation-rate-baseline -->
 ordinary day-to-day work, not the controlled ladder — show a tool-share delegation rate with a
-median around 40.5–40.9% (an order of magnitude apart from an event-share reading of the same
-sessions, ~3.0–3.2%; the two definitions disagree by roughly 10x and neither is authoritative
+median around 40.5–40.9% (an order of magnitude apart from an event-share reading of the same <!-- claim-check: delegation-rate-baseline -->
+sessions, ~3.0–3.2%; the two definitions disagree by roughly 10x and neither is authoritative <!-- claim-check: delegation-rate-baseline -->
 alone) <!-- claim-check: delegation-rate-baseline -->. Zero percent in a controlled instrument
-against roughly 40% in real use is not a contradiction this document resolves — it is an open
+against roughly 40% in real use is not a contradiction this document resolves — it is an open <!-- claim-check: delegation-rate-baseline -->
 question this document names.
 
 **Two things, and only two things, would settle it, and neither has been built yet:**
@@ -289,7 +285,7 @@ question this document names.
    rather than a single headless call, or a job whose scope forces decomposition even within
    a single invocation (for example, a brief spanning several distinct specialist domains at
    once, rather than this program's current single-file, single-skill jobs).
-2. Closing the 23.5% unattributed token residual from §4 by extending the same ablation to
+2. Closing the 23.5% unattributed token residual from §4 by extending the same ablation to <!-- claim-check: ladder-o4-scaffold-attribution-wp79-closed -->
    the remaining untested scaffold pieces (slash commands, skills, `.mcp.json`) as their own
    isolated rungs.
 
@@ -337,8 +333,8 @@ The strongest argument for trusting the numbers above is not a claim about their
 is a claim about what this measurement program has already done to its own owner's favorite
 numbers, and it is verifiable by reading the register yourself.
 
-**It falsified its own flagship claims.** The "~94% less context" figure, the "Sonnet for
-~94% of work" figure, the "CLI beats MCP on tokens" figure, and the 208-command count were all
+**It falsified its own flagship claims.** The "~94% less context" figure, the "Sonnet for <!-- claim-check: framework-externalization-94pct -->
+~94% of work" figure, the "CLI beats MCP on tokens" figure, and the 208-command count were all <!-- claim-check: model-tier-opus-dominant-main-session -->
 produced by this ecosystem's own prior documentation, and all four were disproven by this same
 program (§3). A knowledge-layer claim thought likely to pass was checked precisely because the
 answer was not obvious, and one of its two clauses came back falsified

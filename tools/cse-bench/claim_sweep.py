@@ -64,6 +64,52 @@ FORMULA, not a hand-picked list, so it stays honest as docs are added:
   a repo that does not have one at its root (silently absent, not an
   error — see resolve_scan_targets).
 
+  4. A second, SEPARATE explicit list — _LIVE_DOCS_IN_EXCLUDED_TREES — for
+     the narrow exception to (3)'s docs/40-initiatives/ exclusion: a doc
+     that LIVES inside an otherwise-historical tree but is not itself a
+     historical record.
+
+LIVE vs. HISTORICAL (added 2026-07-14, the claim-sweep ratchet gap):
+docs/40-initiatives/ is excluded on purpose (see EXCLUDED above), and that
+exclusion is correct for almost everything under it: phases/, decisions/,
+and most of retrospectives/ are point-in-time records. A phase-1 findings
+doc quoting a since-corrected figure is not a defect — it is the historical
+record of what was true when Phase 1 ran, and forcing it to stay current
+would falsify history, not preserve it. The sweep must not treat "this
+number moved" inside a dated phase doc as a violation.
+
+But not every doc under docs/40-initiatives/ is historical. Some — right
+now, exactly one — are STANDING claims about the present, written to be
+quoted by a reader who is not tracking this initiative's internal history:
+`docs/40-initiatives/01-cse-auditability/retrospectives/VALUE.md` is named,
+in its own initiative's README, as *the* document its owner uses to
+describe the CSE to a client, a partner, or another organization. A stale
+number in that document is not a historical artifact; it is a live,
+externally-quotable false statement. That is the exact gap this scan
+previously could not see (docs/40-initiatives/ was wholly excluded, so
+VALUE.md's `<!-- claim-check: ... -->` annotations were decorative — never
+mechanically checked).
+
+The distinction is NOT "which subdirectory" (retrospectives/ as a whole is
+not live — most retrospectives are exactly as historical as a phase doc;
+`retrospectives/` is merely where the initiatives standard puts this
+category of file, see scripts/initiatives/check-initiatives.sh) and it is
+NOT a front-matter marker a doc can opt itself into. A per-doc front-matter
+flag (e.g. `claim_sweep: live`) was considered and rejected: it can be
+added to any of the ~20 historical docs in this tree by an unreviewed,
+one-line edit, silently flooding the baseline with frozen point-in-time
+numbers this program exists to leave alone — the opposite of "hardest to
+get wrong by accident." Instead this uses the SAME convention this file
+already uses for _EXTRA_TARGETS: an explicit, by-name, reviewable list
+(`_LIVE_DOCS_IN_EXCLUDED_TREES` below). Opting a doc in requires a code
+change to this file, in a diff a reviewer sees — not a doc-only edit
+inside the initiative tree the sweep doesn't otherwise look at. Every
+entry is a deliberate exception, never a hidden allowlist, matching this
+module's existing standard for exceptions to the depth-1 formula.
+
+See "CLAIM HEALTH" below for the second, stronger guarantee this
+particular class of document gets beyond ordinary backing.
+
 PRECISION (stated plainly): this is a regex/heuristic scanner over
 markdown. It WILL have false positives (e.g. a version-looking decimal that
 is not actually a claim, a count noun used in a non-claim sentence) and
@@ -88,6 +134,59 @@ committed. `cmd_report`/`cmd_update_baseline` (human-invoked, not a commit
 gate) still read the working tree — that's the right content for "what does
 the repo look like right now," and neither of those commands makes a
 pass/fail decision about a commit.
+
+CLAIM HEALTH (added 2026-07-14, the claim-sweep ratchet gap — see LIVE vs.
+HISTORICAL above): backing (an annotation resolves to a real claims.yaml
+id) is necessary but not sufficient for a document like VALUE.md, whose
+whole premise is that its numbers are CURRENTLY true, not merely once
+registered. A claim can resolve and still make its surrounding sentence
+false: the register moved the claim to `failing` after the doc's prose was
+written, or the claim was `retired-by-ratification`/`retired-by-deletion`/
+`retired-by-unverifiability` (check_claims.py's STATUS_ENUM) and the doc
+never updated to say so.
+
+For every doc listed in `_LIVE_DOCS_IN_EXCLUDED_TREES`, this sweep
+additionally re-reads EVERY `<!-- claim-check: <id> -->` citation in the
+file (whether or not it backs a detected assertion — a citation can be
+health-relevant even where no regex-matched number sits on its own line)
+and looks up <id>'s CURRENT status. A citation of a `failing` or
+`retired-*` claim is flagged UNLESS its own paragraph (the blank-line-
+delimited block of prose around it) also contains an explicit
+acknowledgment word or phrase (see `_ACK_RE`) — "false", "falsified",
+"retired", "breached", "disproven", "superseded", "not fewer", and
+similar. The idea: a doc that is honestly reporting a failed or retired
+claim says so in the same breath; a doc quoting a failed or retired claim
+as if it still holds does not.
+
+**This is a keyword-proximity heuristic, not a semantic verifier, and its
+limits are stated plainly, not glossed over:**
+
+- It CAN catch the shape of failure this program exists to prevent: a
+  citation of a `failing`/`retired-*` id with no nearby negation at all
+  (e.g. a sentence added later that quotes a since-falsified number
+  straight, or an annotation that starts pointing at a claim the register
+  quietly re-labels retired next to unrelated prose).
+- It CANNOT verify that the acknowledgment word is actually about the
+  SAME fact the citation backs — a paragraph that happens to say "false"
+  about something else nearby would satisfy this check without truly
+  discussing the cited claim. It also cannot verify that a claim marked
+  `passing` is cited in a context that still matches its statement (only
+  `failing`/`retired-*` are checked at all — a `passing` claim quoted with
+  the wrong number attached to it is invisible to this check, exactly
+  like every other UNBACKED/BACKED distinction in this file: the
+  annotation's presence, not its semantic fit, is what is mechanically
+  verified).
+- Paragraph boundaries are blank-line-delimited on the raw text (not the
+  fenced/table-filtered scan lines) — good enough for prose, not immune to
+  an unusual layout defeating it.
+
+Where this check fires, treat it exactly like an UNBACKED finding: a
+human reads the flagged sentence and either fixes the prose, corrects the
+annotation, or (if genuinely a false alarm) extends `_ACK_RE`. Unlike the
+UNBACKED baseline, CLAIM HEALTH findings are never baselined — a live doc
+citing a failing/retired claim with no acknowledgment is not a "known
+gap" this sweep should learn to tolerate; `--check` fails on every one,
+every time, for every doc in `_LIVE_DOCS_IN_EXCLUDED_TREES`.
 
 ESCAPE HATCH, stated plainly: `git commit --no-verify` skips this hook like
 it skips every pre-commit hook — that is standard git behavior, not a gap
@@ -157,6 +256,20 @@ _EXTRA_TARGETS: dict[str, list[str]] = {
     ],
 }
 
+# Explicit, named, by-hand exceptions to the docs/40-initiatives/ exclusion
+# (see module docstring "LIVE vs. HISTORICAL"): a doc that lives inside an
+# otherwise-historical initiative tree but is itself a STANDING claim about
+# the present, not a point-in-time record. Every entry here is reviewable
+# in a code diff, same as _EXTRA_TARGETS — never a doc-only, unreviewed
+# front-matter opt-in. Docs in this list are also, additionally, subject to
+# the CLAIM HEALTH check (see module docstring and check_claim_health)
+# every other scan target is not.
+_LIVE_DOCS_IN_EXCLUDED_TREES: dict[str, list[str]] = {
+    "copilot-control-tower": [
+        "docs/40-initiatives/01-cse-auditability/retrospectives/VALUE.md",
+    ],
+}
+
 
 def _docs_depth1_worktree(repo_dir: Path) -> list[str]:
     docs_dir = repo_dir / "docs"
@@ -207,7 +320,15 @@ def resolve_scan_targets(root: Path, repo: str, staged: bool = False) -> list[st
     `--json`/`--show-unbacked`/`--update-baseline` report on)."""
     repo_dir = root / repo
     base = _staged_listing(repo_dir) if staged else _worktree_listing(repo_dir)
-    return sorted(set(base) | set(_EXTRA_TARGETS.get(repo, [])))
+    return sorted(
+        set(base) | set(_EXTRA_TARGETS.get(repo, [])) | set(_LIVE_DOCS_IN_EXCLUDED_TREES.get(repo, []))
+    )
+
+
+def _is_live_doc(repo: str, relpath: str) -> bool:
+    """True for a doc opted into CLAIM HEALTH via _LIVE_DOCS_IN_EXCLUDED_TREES
+    (see module docstring "LIVE vs. HISTORICAL" / "CLAIM HEALTH")."""
+    return relpath in _LIVE_DOCS_IN_EXCLUDED_TREES.get(repo, [])
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +360,27 @@ _INLINE_CODE_RE = re.compile(r"`[^`]*`")
 _TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$")
 _ANNOTATION_RE = re.compile(r"<!--\s*claim-check:\s*([A-Za-z0-9._-]+)\s*-->")
 
+# A section cross-reference ("§3.3", "§2.1-2.3", "see §4/§5") -- document
+# navigation, not a version-shaped claim about the product. Stripped before
+# scanning, same treatment as inline code spans below, so "§2.1-2.3" cannot
+# masquerade as a VERSION assertion the way a heading's own leading number
+# is separately exempted by _HEADING_SECTION_NUMBER_RE.
+_SECTION_REF_RE = re.compile(r"§\d+(?:\.\d+)?(?:\s*[-–]\s*\d+(?:\.\d+)?)?")
+
+# CLAIM HEALTH (see module docstring): words/phrases that, found anywhere in
+# the paragraph around a failing/retired-* claim citation, count as the
+# prose ACKNOWLEDGING the claim did not (or no longer) hold — as opposed to
+# quoting it as if it still does. Deliberately a fixed, reviewable list, not
+# an attempt at general negation detection (see the docstring's stated
+# limits). Extend this list, in a reviewed diff, if a genuine false
+# positive is found — do not work around one by editing prose only.
+_ACK_RE = re.compile(
+    r"\b(?:false|falsif\w*|disprov\w*|retir\w*|breach\w*|fail\w*|struck|supersed\w*|"
+    r"declin\w*|invert\w*|opposite|correct(?:ed|ion)?)\b"
+    r"|no longer|not fewer|no fewer",
+    re.IGNORECASE,
+)
+
 # The SOUL.md template convention (control-tower, claude-copilot, cli-copilot,
 # codex-copilot all share it) opens with a "STATUS: RATIFIED vX.Y" banner and
 # closes with a "### Changelog" table of the document's OWN revision
@@ -254,13 +396,24 @@ _CHANGELOG_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# A markdown ATX heading numbered by section ("### 2.1 The knowledge layer
+# changes output ..."), the convention this document (and others with a
+# numbered table of contents) uses. The leading "N.N" is section numbering,
+# not a version claim about the product -- exempted from VERSION-category
+# detection only, same treatment and same reason as _CHANGELOG_LINE_RE
+# above: a real VERSION-shaped assertion appearing elsewhere in the scanned
+# scope on a non-heading line is unaffected.
+_HEADING_SECTION_NUMBER_RE = re.compile(r"^\s{0,3}#{1,6}\s+\d+(?:\.\d+)*(?:[.\s]|$)")
+
 
 def _strip_line_for_scanning(line: str) -> str:
-    """Remove inline code spans (paths/commands, not prose claims) and any
-    claim-check annotation comment itself before running assertion regexes,
-    so the annotation's own text can never masquerade as an assertion."""
+    """Remove inline code spans (paths/commands, not prose claims), any
+    claim-check annotation comment, and section cross-references (§N.N)
+    before running assertion regexes, so none of the three can masquerade
+    as an assertion."""
     line = _INLINE_CODE_RE.sub(" ", line)
     line = _ANNOTATION_RE.sub(" ", line)
+    line = _SECTION_REF_RE.sub(" ", line)
     return line
 
 
@@ -268,10 +421,11 @@ def _line_assertions(line: str) -> list[tuple[str, str]]:
     """Return non-overlapping (category, matched_text) pairs for one line,
     scanned in _ASSERTION_PATTERNS priority order."""
     is_changelog_line = bool(_CHANGELOG_LINE_RE.search(line))
+    is_numbered_heading = bool(_HEADING_SECTION_NUMBER_RE.match(line))
     claimed: list[tuple[int, int]] = []
     found: list[tuple[int, str, str]] = []  # (start, category, text)
     for category, pattern in _ASSERTION_PATTERNS:
-        if category == "VERSION" and is_changelog_line:
+        if category == "VERSION" and (is_changelog_line or is_numbered_heading):
             continue
         for m in pattern.finditer(line):
             start, end = m.span()
@@ -327,6 +481,43 @@ def _line_annotation_ids(annotations: dict[int, set[str]], standalone: set[int],
     return ids
 
 
+_HEADING_LINE_RE = re.compile(r"^\s{0,3}#{1,6}\s")
+
+
+def _paragraph_text(all_lines: list[str], line_no: int) -> str:
+    """The blank-line-delimited block of text (on the RAW, unfiltered line
+    list — see CLAIM HEALTH docstring limits) surrounding 1-based `line_no`,
+    used to give `_ACK_RE` a little context rather than checking one line in
+    isolation.
+
+    Refinement for a citation ON a markdown heading line: this document's
+    own convention (see VALUE.md §3) is to quote a forbidden claim verbatim
+    AS its heading (e.g. `### 3.1 "~94% less context" ...`), with the
+    acknowledgment ("**FALSE, and inverted.**") in the paragraph
+    immediately below -- headings are blank-line-isolated from their own
+    body by construction, so a heading's "paragraph" is otherwise just
+    itself. For a heading line only, the window is extended through
+    exactly one more blank-line-delimited block (the section's opening
+    paragraph) so that acknowledgment counts."""
+    n = len(all_lines)
+    start = line_no
+    while start > 1 and all_lines[start - 2].strip() != "":
+        start -= 1
+    end = line_no
+    while end < n and all_lines[end].strip() != "":
+        end += 1
+    if _HEADING_LINE_RE.match(all_lines[line_no - 1]):
+        j = end
+        while j < n and all_lines[j].strip() == "":
+            j += 1
+        body_start = j
+        while j < n and all_lines[j].strip() != "":
+            j += 1
+        if j > body_start:
+            end = j
+    return "\n".join(all_lines[start - 1 : end])
+
+
 def _read_worktree_text(root: Path, repo: str, relpath: str) -> tuple[str | None, str | None]:
     path = root / repo / relpath
     if not path.is_file():
@@ -351,17 +542,52 @@ def _read_staged_text(root: Path, repo: str, relpath: str) -> tuple[str | None, 
     return proc.stdout, None
 
 
+def scan_claim_health(repo: str, relpath: str, text: str, claims_by_id: dict[str, dict]) -> list[dict]:
+    """CLAIM HEALTH (see module docstring). Only meaningful for a doc in
+    `_LIVE_DOCS_IN_EXCLUDED_TREES` -- callers should gate on `_is_live_doc`
+    before calling this (it does not check that itself, so it stays usable
+    on any text a caller wants to health-check later). Returns one entry
+    per citation of a `failing`/`retired-*` claim, each carrying whether its
+    surrounding paragraph acknowledges that status (`_ACK_RE`)."""
+    lines = text.split("\n")
+    out: list[dict] = []
+    for line_no, raw in enumerate(lines, start=1):
+        for m in _ANNOTATION_RE.finditer(raw):
+            claim_id = m.group(1)
+            claim = claims_by_id.get(claim_id)
+            if claim is None:
+                continue  # dangling annotation -- already reported by the normal sweep
+            status = str(claim.get("status") or "")
+            if status != "failing" and not status.startswith("retired"):
+                continue
+            paragraph = _paragraph_text(lines, line_no)
+            out.append(
+                {
+                    "repo": repo,
+                    "file": relpath,
+                    "line": line_no,
+                    "claim_id": claim_id,
+                    "status": status,
+                    "acknowledged": bool(_ACK_RE.search(paragraph)),
+                }
+            )
+    return out
+
+
 def scan_file(repo: str, relpath: str, root: Path, known_claim_ids: set[str], staged: bool = False) -> dict:
     """Scan one file. Returns a dict with 'findings' (list) and 'errors'
     (list) — a missing file is an error entry, never a crash. `staged=True`
     reads the file's content from the git INDEX (see module docstring
-    STAGED-CONTENT SCANNING), not the working tree."""
+    STAGED-CONTENT SCANNING), not the working tree. Also returns 'text'
+    (the content just scanned, or None on error) so callers doing an
+    additional pass over the same file (see CLAIM HEALTH / scan_claim_health)
+    don't need to re-read it."""
     if staged:
         text, err = _read_staged_text(root, repo, relpath)
     else:
         text, err = _read_worktree_text(root, repo, relpath)
     if text is None:
-        return {"findings": [], "errors": [{"repo": repo, "file": relpath, "error": err}]}
+        return {"findings": [], "errors": [{"repo": repo, "file": relpath, "error": err}], "text": None}
 
     lines = _iter_scan_lines(text)
     annotations, standalone = _annotations_by_line(lines)
@@ -390,7 +616,7 @@ def scan_file(repo: str, relpath: str, root: Path, known_claim_ids: set[str], st
                     "annotation_ids": sorted(nearby) if nearby else [],
                 }
             )
-    return {"findings": findings, "errors": []}
+    return {"findings": findings, "errors": [], "text": text}
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +640,20 @@ def _load_known_claim_ids(claims_path: Path) -> set[str]:
     return ids
 
 
+def _load_claims_by_id(claims_path: Path) -> dict[str, dict]:
+    """Like _load_known_claim_ids, but keeps each claim's full record (so
+    CLAIM HEALTH can read `status`) rather than just the id set."""
+    if not claims_path.exists():
+        return {}
+    import check_claims  # local module, same directory
+
+    data = check_claims.load_yaml(claims_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        return {}
+    claims = data.get("claims") or []
+    return {c["id"]: c for c in claims if isinstance(c, dict) and isinstance(c.get("id"), str)}
+
+
 # ---------------------------------------------------------------------------
 # Sweep + baseline
 # ---------------------------------------------------------------------------
@@ -426,8 +666,11 @@ def run_sweep(
     staged: bool = False,
 ) -> dict:
     known_ids = _load_known_claim_ids(claims_path)
+    claims_by_id = _load_claims_by_id(claims_path)
     all_findings: list[dict] = []
     errors: list[dict] = []
+    claim_health_findings: list[dict] = []
+    live_docs_checked: list[str] = []
     repos = [only_repo] if only_repo else REPOS
     files_scanned = 0
     for repo in repos:
@@ -437,6 +680,12 @@ def run_sweep(
             result = scan_file(repo, relpath, root, known_ids, staged=staged)
             all_findings.extend(result["findings"])
             errors.extend(result["errors"])
+            # CLAIM HEALTH (see module docstring): only for the explicit
+            # _LIVE_DOCS_IN_EXCLUDED_TREES list, and only when the file was
+            # actually read (a scan_file error already reported it above).
+            if result.get("text") is not None and _is_live_doc(repo, relpath):
+                live_docs_checked.append(f"{repo}/{relpath}")
+                claim_health_findings.extend(scan_claim_health(repo, relpath, result["text"], claims_by_id))
 
     n_backed = sum(1 for f in all_findings if f["status"] == "BACKED")
     n_unbacked = sum(1 for f in all_findings if f["status"] == "UNBACKED")
@@ -448,6 +697,8 @@ def run_sweep(
         r["scanned"] += 1
         r[f["status"].lower()] += 1
 
+    claim_health_unacknowledged = [f for f in claim_health_findings if not f["acknowledged"]]
+
     return {
         "metrics": {
             "known_claim_ids": len(known_ids),
@@ -458,6 +709,13 @@ def run_sweep(
             "assertions_dangling_annotation": n_dangling,
             "per_repo": per_repo,
             "findings": all_findings,
+        },
+        "claim_health": {
+            "live_docs_checked": sorted(set(live_docs_checked)),
+            "citations_checked": len(claim_health_findings),
+            "acknowledged": len(claim_health_findings) - len(claim_health_unacknowledged),
+            "unacknowledged": len(claim_health_unacknowledged),
+            "findings": claim_health_findings,
         },
         "errors": errors,
     }
@@ -499,10 +757,11 @@ def cmd_report(args: argparse.Namespace) -> int:
     root = resolve_copilot_root()
     result = run_sweep(root, only_repo=args.repo)
     if args.json:
-        print(json.dumps({"schema_version": "cse-bench/claim-sweep/1", **result}, indent=2, sort_keys=True))
+        print(json.dumps({"schema_version": "cse-bench/claim-sweep/2", **result}, indent=2, sort_keys=True))
         return 0
 
     m = result["metrics"]
+    ch = result["claim_health"]
     print(f"claim_sweep: root={root}")
     print(f"claim_sweep: {m['files_scanned']} file(s) scanned across {len(m['per_repo'])} repo(s), {m['known_claim_ids']} known claim id(s)")
     print(
@@ -512,6 +771,19 @@ def cmd_report(args: argparse.Namespace) -> int:
     )
     for repo, r in sorted(m["per_repo"].items()):
         print(f"  {repo}: {r['scanned']} scanned, {r['backed']} backed, {r['unbacked']} unbacked, {r['dangling']} dangling")
+    if ch["live_docs_checked"]:
+        print(
+            f"claim_sweep: claim health — {len(ch['live_docs_checked'])} live doc(s) checked "
+            f"({', '.join(ch['live_docs_checked'])}): {ch['citations_checked']} failing/retired "
+            f"citation(s) found, {ch['acknowledged']} acknowledged, {ch['unacknowledged']} NOT acknowledged"
+        )
+        for f in ch["findings"]:
+            if not f["acknowledged"]:
+                print(
+                    f"  [CLAIM HEALTH] {f['repo']}/{f['file']}:{f['line']} cites '{f['claim_id']}' "
+                    f"(status={f['status']}) with no nearby acknowledgment",
+                    file=sys.stderr,
+                )
     if result["errors"]:
         print(f"claim_sweep: {len(result['errors'])} error(s):", file=sys.stderr)
         for e in result["errors"]:
@@ -535,20 +807,47 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     new_violations = [f for f in unbacked if _baseline_key(f) not in baseline_keys]
 
-    if new_violations:
-        print(
-            f"claim_sweep --check: {len(new_violations)} NEW unbacked verifiable assertion(s) not in the baseline:",
-            file=sys.stderr,
-        )
-        for f in new_violations:
-            print(f"  {f['repo']}/{f['file']}:{f['line']} ({f['category']}) {f['text']!r}", file=sys.stderr)
-        print(
-            "\nBack it with a registered claims.yaml entry + "
-            "<!-- claim-check: <id> --> annotation, correct the prose if it's "
-            "false, delete it if unverifiable, or (after review) run "
-            "--update-baseline to accept it as a known gap.",
-            file=sys.stderr,
-        )
+    # CLAIM HEALTH (see module docstring): never baselined -- a live doc
+    # citing a failing/retired claim with no acknowledgment fails --check
+    # every time, unconditionally, for every doc in
+    # _LIVE_DOCS_IN_EXCLUDED_TREES. There is no --update-baseline escape
+    # hatch for this category, by design.
+    health_violations = [f for f in result["claim_health"]["findings"] if not f["acknowledged"]]
+
+    if new_violations or health_violations:
+        if new_violations:
+            print(
+                f"claim_sweep --check: {len(new_violations)} NEW unbacked verifiable assertion(s) not in the baseline:",
+                file=sys.stderr,
+            )
+            for f in new_violations:
+                print(f"  {f['repo']}/{f['file']}:{f['line']} ({f['category']}) {f['text']!r}", file=sys.stderr)
+            print(
+                "\nBack it with a registered claims.yaml entry + "
+                "<!-- claim-check: <id> --> annotation, correct the prose if it's "
+                "false, delete it if unverifiable, or (after review) run "
+                "--update-baseline to accept it as a known gap.",
+                file=sys.stderr,
+            )
+        if health_violations:
+            print(
+                f"claim_sweep --check: {len(health_violations)} CLAIM HEALTH violation(s) — "
+                "a live doc cites a failing/retired claim with no nearby acknowledgment:",
+                file=sys.stderr,
+            )
+            for f in health_violations:
+                print(
+                    f"  {f['repo']}/{f['file']}:{f['line']} cites '{f['claim_id']}' (status={f['status']})",
+                    file=sys.stderr,
+                )
+            print(
+                "\nEither the claim.yaml status changed since this sentence was written (fix the "
+                "prose to say so, or to no longer rely on the now-false/retired number), or this is "
+                "a genuine false positive in _ACK_RE (extend it in a reviewed diff -- see "
+                "tools/cse-bench/claim_sweep.py's CLAIM HEALTH docstring). This category is never "
+                "baselined.",
+                file=sys.stderr,
+            )
         return 1
 
     # Scope the "now backed" note to the same repo(s) --check just ran
@@ -564,8 +863,10 @@ def cmd_check(args: argparse.Namespace) -> int:
             f"claim_sweep --check: note — {now_backed} previously-baselined assertion(s) are now "
             "backed/gone; consider --update-baseline to shrink the baseline."
         )
+    ch = result["claim_health"]
+    health_note = f", {ch['citations_checked']} claim-health citation(s) OK" if ch["live_docs_checked"] else ""
     print(
-        f"claim_sweep --check: OK ({len(unbacked)} known/baselined unbacked, 0 new)"
+        f"claim_sweep --check: OK ({len(unbacked)} known/baselined unbacked, 0 new{health_note})"
         + (f" [scope: {args.repo}]" if args.repo else "")
     )
     return 0
