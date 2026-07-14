@@ -1,5 +1,28 @@
 # DEC-9 — Consolidated delete-or-defend list, per product (B-17)
 
+> **RULED 2026-07-14 (in-conversation, explicit authorization):** all of
+> DEC-9's cross-referenced items EXECUTED per their originating memos —
+> `cpa`/`cs`/`04-shared-systems` design-notes (DEC-8), fireflies/reddit/
+> metabase/method/**notion** (DEC-5, `notion` folded into TASK-122's scope
+> exactly as this memo's §4b recommended), `frosty-perlman` worktree
+> (DEC-4), and the 3 registry-flagged dormant repos below. `kc` held per
+> DEC-8 (investigate, not cut). The 13 no-coverage products (§4a) were
+> **not** touched — correctly left defend-by-default, no new evidence
+> arose for any of them this session. See DEC-4/DEC-5/DEC-8's own RULED
+> blocks for exact commits; not re-quoted here.
+>
+> **EXECUTED — 3 dormant repos (§4c), verified live before archiving (not
+> just trusting the registry's prior recommendation):** `gh repo view`
+> confirmed none had recent activity — `workflow-copilot` last pushed
+> 2025-08-26 (~11 months stale), `ops-copilot` last pushed 2026-01-13
+> (~6 months stale, not empty), `ops-copilot-platform` last pushed
+> 2026-01-09 and **confirmed empty** (`isEmpty: true`), matching the
+> memo's description exactly. All 3 archived via `gh repo archive`
+> (reversible — `gh repo unarchive` if ever needed). No repo showed
+> activity that would have warranted stopping.
+>
+> TASK-100 marked `completed`.
+
 > tc task: **TASK-100** (B-17, `phases/phase-4-outcome-program-prd.md` §3 W-6
 > acceptance + §4 owner-decision-queue row *"R-9 / R-13 / B-17 — all
 > deletions: stale clones, dead services, claim/product removals"*) ·

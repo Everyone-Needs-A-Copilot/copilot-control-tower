@@ -1,12 +1,61 @@
 # DEC-8 — First removal review: mechanical nominations (W-6)
 
-> tc task: **TASK-100** (B-17, `phases/phase-4-outcome-program-prd.md` §3
-> W-6) · Source task: **TASK-128** (W-6, `collectors/value_density.py`) ·
-> Claim: `removal-review-first-pass`, `agent-eval-coverage` (`claims.yaml`) ·
-> Status: prepared, **not ruled**. **Nothing has been deleted, disabled, or
-> cut on the basis of this memo.** Nominations here are MECHANICAL
-> (computed by `collectors/value_density.py` per the definition registered
-> in `claims.yaml` before this review ran); rulings are the owner's.
+> **RULED 2026-07-14 (in-conversation, explicit authorization):** CUT
+> `cpa`, `cs`. **HOLD** `kc` — investigate the attribution path rather
+> than cut. `04-shared-systems` — cut the `design-system/` build-phase
+> summary docs specifically, not `platform/`.
+>
+> **EXECUTED — `cpa`/`cs` (claude-copilot commit `6be4fb3`, codex-copilot
+> parity sync `98fe78d`):** removed `.claude/agents/{cpa,cs}.md`, their
+> `manifest.json` entries + the `cs→cpa` routing edge, and every live
+> roster reference across README/CLAUDE.md/docs/hook fallback lists;
+> `VERSION.json` agents count 16→14 (version 5.6.0→5.7.0). codex-copilot's
+> content-hash parity baseline regenerated (70→68 tracked files) so the
+> parity check doesn't report false drift; codex-copilot's own,
+> separately-scoped `packs/business-creative/skills/{cpa,cs}/` (Codex-
+> native, not a literal `.claude/agents/*.md` mirror) was deliberately
+> **not** touched — DEC-9 classifies codex-copilot itself as no-coverage/
+> defend-by-default, outside this ruling's evidence base.
+>
+> **EXECUTED — `04-shared-systems` (knowledge-copilot commit `2f2af975`):**
+> removed `design-system/{PHASE-2-NAVIGATION-LAYOUT,PHASE-5-SUMMARY,
+> PHASE-6B-SUMMARY}.md` (each confirmed "Status: Complete" build-phase
+> progress notes, matching the memo's characterization exactly).
+> `platform/`'s 4 files and `design-system/README.md` /
+> `LANDING-PAGE-VARIATIONS-UID.md` untouched, per the ruling's explicit
+> scope. "Cut" was read from the ruling's "cut/re-link" phrasing as the
+> definitive action (re-linking would only mask the orphan-rate signal,
+> not resolve whether the content has a current audience); reversible via
+> git history like every other cut in this pass.
+>
+> **`kc` investigation (no code changed — investigate-only, per the
+> ruling):** verdict is **structurally unmeasurable, and — on the evidence
+> reachable from this machine — not observed to have been invoked at all**
+> (mixed finding, not cleanly "unused" or "miscounted"). Two independent
+> findings: (1) `framework_soul.py`'s `attributionAgent` field is derived
+> strictly from a subagent's own `subagents/agent-*.jsonl` transcript file
+> existing — i.e. an actual `Task`/`Agent` tool delegation. The
+> `/knowledge-copilot` command's Step 4 says "delegating... to
+> `@agent-kc`," but the 624-line methodology doc it actually hands off to
+> (`knowledge-copilot/docs/00-knowledge-copilot/01-build-a-kms.md`)
+> contains **zero** mentions of `@agent-kc`, the `Task` tool, or
+> "subagent" anywhere — a faithful, good-faith run of the documented flow
+> proceeds entirely inline in the main session and would never produce
+> `attributionAgent=="kc"`, regardless of real usage. (2) A full-corpus
+> search of every accessible session transcript on this machine
+> (`~/.claude/projects/*/*.jsonl`, all repos) for a literal
+> `/knowledge-copilot` slash-command dispatch (`command-name`/
+> `command-message` fields) found **zero** invocations — the corpus that
+> would show a genuine attempt is itself empty, not just uncounted.
+> **Proposed collector fix:** (a) make `/knowledge-copilot` Step 4 an
+> actual `Task`-tool call with `subagent_type: kc` instead of "read the
+> methodology file and follow it," so real usage is structurally
+> capturable; (b) independently, add a command-invocation event ledger
+> (analogous to the C-3 hook/skill-invocation gap DEC-8 §3d already names)
+> so slash commands that are designed to run partly inline still register
+> a usage signal without depending on subagent delegation. `kc` was
+> **not** cut. TASK-100 marked `completed` for the executed portions;
+> `kc` left exactly as-is pending a future collector fix.
 
 ## 1. The decision, in one sentence
 

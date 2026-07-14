@@ -1,5 +1,31 @@
 # DEC-5 — Configure-or-cut: fireflies, reddit, metabase, method
 
+> **RULED 2026-07-14 (in-conversation, explicit authorization):** CUT
+> fireflies and reddit; FINISH the metabase cut already ruled 2026-06-29;
+> CUT the method credentials (no build). Also folds in DEC-9 3a/4b's
+> `notion` finding (same shape as metabase/method) — CUT. **EXECUTED in
+> cli-copilot commit `ba99edb`:** removed
+> `copilot_cli/services/{fireflies,reddit}/` (code + tests + docs entry +
+> `main.py` registrations + `Settings` fields), removed the empty
+> `copilot_cli/services/{metabase,notion}/` directories (stale
+> `__pycache__` only, no source), removed `METABASE_API_KEY`,
+> `NOTION_API_KEY`/`NOTION_N8N_ID`, and all `METHOD_COPILOT_*` from local
+> `.env` (gitignored, not in the commit) and `.env.example`. Conformance
+> suite's `KNOWN_GAPS` table is now empty; suite went from 135
+> passed/3 xfailed to **126 passed, 0 xfailed** (fewer total cases because
+> 2 services' per-criterion parametrized cases are gone, not because
+> anything newly fails). Full pytest suite: 1741 passed/16 skipped (was
+> 1808/16/3-xfailed). `ruff check`/`ruff format --check` clean for
+> everything in the commit. Pushed; CI green (run `29339409881`).
+> **Outstanding, owner-only:** revoke `METABASE_API_KEY` at the Metabase
+> admin console (never done, confirmed still live) and re-verify
+> `NOTION_API_KEY` is actually dead at Notion — a separate initiative doc
+> (`docs/initiatives/infisical-rollout/01-secrets-rotation-worklist.md`)
+> claimed on 2026-06-29 it was "already deleted by Pablo," but the value
+> was still physically present, non-empty, in `.env` until this session;
+> that doc has been corrected in place (same commit) rather than left
+> contradicting this record. TASK-122/TASK-120 marked `completed`.
+
 > tc task: **TASK-122** (R-13, `phases/phase-3-soul-remediation.md`) ·
 > Claim: `cli-soul-conformance` (`claims.yaml`) · Status: prepared, **not
 > ruled**. **Nothing has been cut, configured, or deleted.** This ruling

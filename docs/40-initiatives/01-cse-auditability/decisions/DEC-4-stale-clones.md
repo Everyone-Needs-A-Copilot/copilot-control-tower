@@ -1,5 +1,17 @@
 # DEC-4 — Delete or keep the stale clones (`conversations-copilot`, `shared-docs`)
 
+> **RULED 2026-07-14 (in-conversation, explicit authorization):** Option A —
+> remove the stale `frosty-perlman` worktree. **EXECUTED:** `git -C
+> /Users/pabs/Sites/COPILOT/knowledge-copilot worktree remove
+> /Users/pabs/.claude-worktrees/shared-docs/frosty-perlman` (clean working
+> tree, no uncommitted work lost; re-confirmed via `git worktree list`
+> before removal — still 6 months stale, matched the memo's evidence
+> exactly). Not a commit (worktree metadata operation, no repo content
+> changed); `frosty-perlman` branch itself left intact in
+> knowledge-copilot, only the worktree checkout was removed.
+> `conversations-copilot` required no action (confirmed still nothing to
+> delete). TASK-118 marked `completed`.
+
 > tc task: **TASK-118** (R-9, `phases/phase-3-soul-remediation.md`) · Claim:
 > `knowledge-registry-completeness` (`claims.yaml`) · Status: prepared,
 > **not ruled**. **Nothing has been deleted.** This memo only locates and
