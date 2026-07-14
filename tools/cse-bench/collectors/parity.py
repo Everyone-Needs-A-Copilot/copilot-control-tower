@@ -87,16 +87,36 @@ def _run_json(args: list[str], item: str, errors: list[dict]) -> Optional[dict]:
 
 
 def _detect_content_flag(help_text: str) -> Optional[str]:
-    """Scan --help output for a line mentioning content/hash-level parity
-    and return the flag token on that line, e.g. '--content-check'. This
-    is deliberately not tied to a specific flag name since C-4 (adding
-    the mode) is landing independently of this collector.
+    """Scan --help output for the OPTIONS-LIST line (not the usage summary
+    line, which packs multiple flags together and would return whichever
+    flag happens to appear first on that shared line) that DEFINES a flag
+    mentioning content/hash-level parity, and return that flag token, e.g.
+    '--content-check'. This is deliberately not tied to a specific flag
+    name since C-4 (adding the mode) is landing independently of this
+    collector.
+
+    BUGFIX (found while closing t6-two-harnesses-one-behavior, 2026-07-14):
+    the original version searched EVERY line (including argparse's usage
+    summary, which lists several flags on one wrapped line, e.g.
+    '[--json] [--content] [--update-baseline]') and returned the first
+    '--flag'-shaped token on the first matching line. Since '--update-
+    baseline's own description also mentions "content" ("...content
+    baseline manifest...") and the usage line lists '--json' before
+    '--content', this silently resolved to '--json' -- re-running the
+    version-only check instead of the content-hash check, and reporting a
+    false 'pass' with no content field at all. Fixed by requiring the
+    matched line to be an options-list DEFINITION line (starts with the
+    flag itself, i.e. '  --content            Also run content-level...'),
+    which argparse's --help always renders one-flag-per-definition-line.
     """
     for line in help_text.splitlines():
-        lowered = line.lower()
+        stripped = line.strip()
+        if not stripped.startswith("--"):
+            continue
+        lowered = stripped.lower()
         if "content" not in lowered and "hash" not in lowered:
             continue
-        match = _CONTENT_FLAG_RE.search(line)
+        match = _CONTENT_FLAG_RE.match(stripped)
         if match:
             return match.group(1)
     return None

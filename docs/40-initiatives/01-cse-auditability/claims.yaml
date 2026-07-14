@@ -270,12 +270,21 @@ definitions:
         AGREE on version numbers; it says nothing about whether the
         underlying agent/command/skill CONTENT actually matches.
       content_hash: >-
-        Extends the version-tuple check to content hashes of
-        agents/commands/skills, so drift is visible the day it happens
-        rather than only when a maintainer notices by inspection.
-        PROPOSED, NOT YET BUILT — scoped as C-4 (phase-2-prd.md C-series,
-        owning repo codex-copilot, extends check-upstream-parity.py).
-    source: "codex-copilot/parity/claude-baseline.json; codex-copilot check-upstream-parity.py (version_tuple only, as of this register's writing)"
+        Extends the version-tuple check to sha256 content hashes of every
+        upstream `.claude/agents/*.md`, `.claude/commands/*.md`, and
+        `.claude/skills/**/SKILL.md` file, so drift is visible the day it
+        happens rather than only when a maintainer notices by inspection.
+        BUILT (C-4, TASK-104, codex-copilot commit 740aa10, 2026-07-12) —
+        `check-upstream-parity.py --content [--json]`, compared against
+        the committed manifest `codex-copilot/parity/upstream-content-hashes.json`
+        ({generated_at, upstream_commit, files: {relpath: sha256},
+        versions}). `--update-baseline` is the explicit "we caught up"
+        action (never implicit); see codex-copilot
+        docs/05-reference/03-parity-contract.md "Sweep Workflow". This
+        register's earlier note ("PROPOSED, NOT YET BUILT") is corrected
+        here, not silently — see claim t6-two-harnesses-one-behavior for
+        the current content-check result.
+    source: "codex-copilot/parity/claude-baseline.json (version_tuple); codex-copilot/parity/upstream-content-hashes.json (content_hash); codex-copilot scripts/check-upstream-parity.py (both levels)"
 
   live_integration:
     description: >-
@@ -981,10 +990,53 @@ claims:
   - id: t6-two-harnesses-one-behavior
     statement: "Claude/Codex parity is checked at content and behavior level; drift is bounded and alarmed — 'same solution, different harness' is a tested property, not a slogan."
     definition_refs: [parity]
-    check: "manual — codex-copilot check-upstream-parity.py (version_tuple level only today; content_hash level is C-4, not yet built)"
+    check: "cd /Users/pabs/Sites/COPILOT/codex-copilot && python3 scripts/check-upstream-parity.py --content --json (both parity levels, C-4 now built); cross-checked via cd tools/cse-bench && python3 cse_bench.py collect --only parity"
     status: failing
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md (T6 row: 'Parity check covers 3 version strings only')"
-    last_checked: "2026-07-12"
+    evidence: >-
+      Was failing under "content_hash level is C-4, not yet built"
+      (phase-2-prd.md T6 row: "Parity check covers 3 version strings
+      only") — that gap has since closed: C-4 landed (codex-copilot commit
+      740aa10, 2026-07-12; see definitions.parity.levels.content_hash,
+      corrected in the same commit as this claim). RE-RUN 2026-07-14 (this
+      task): version_tuple level PASSES (`mismatches: {}` — framework/cc/tc
+      version strings agree). content_hash level shows DRIFT: 2 of 70
+      tracked upstream files changed since the last baseline update
+      (baseline @ claude-copilot 70de3d3, current upstream @ 4c976f4) --
+      `.claude/agents/kc.md` and `.claude/commands/knowledge-copilot.md`,
+      both from an in-progress, not-yet-committed claude-copilot edit
+      (frontmatter `last_updated`/`status` fields added to the `kc` agent
+      and its bootstrapper command). Diagnosis: this is NOT mechanical sync
+      drift eligible for a routine catch-up — both files are exactly the
+      `kc` surface DEC-8 has nominated for removal (agent-eval-coverage /
+      removal-review-first-pass; decisions/DEC-8-first-removal-review.md
+      §6: "kc — cut anyway: ... rm claude-copilot/.claude/agents/kc.md
+      and .claude/commands/knowledge-copilot.md's dependency on it").
+      Syncing (or baselining) kc content now would pre-judge that ruling
+      by design ("respect the relevance rule" — copilot-control-tower
+      CLAUDE.md), so it is deliberately NOT synced and the content
+      baseline is deliberately NOT updated (`--update-baseline` is the
+      explicit "we caught up" action; not run, since we haven't). No other
+      file in the 70-file tracked surface (`.claude/agents`,
+      `.claude/commands`, `.claude/skills/**/SKILL.md`) drifted between
+      the baseline and today, including everything landed this session
+      (tc `solution` entity, 5 new golden-set eval dirs, the hook-path
+      fix) — none of those touch the tracked glob patterns (evals live
+      under `.claude/evals/`, the hook fix under `.claude/settings.json`,
+      the Solution entity under `tools/tc/`), so there was nothing else to
+      sync or diagnose. Before/after divergence: 2 files / 2 files
+      (unchanged — nothing mechanical was found to close). Also fixed in
+      this task, as a precondition for trusting the above: the cse-bench
+      `parity` collector's `_detect_content_flag` had a latent bug (picked
+      "--json" off the shared usage-summary line instead of "--content",
+      because "--update-baseline"'s own help text also contains the word
+      "content") that made `cse_bench.py collect --only parity` silently
+      report content_check as unavailable/pass-only; fixed
+      (tools/cse-bench/collectors/parity.py, regression test
+      tools/cse-bench/collectors/test_parity.py) and re-verified it now
+      reproduces the direct script's real drift result. Status stays
+      failing: 2 items awaiting DEC-8's ruling on `kc`, not a mechanical
+      gap this task can close.
+    last_checked: "2026-07-14"
 
   - id: t7-inheritance-ladder-in-practice
     statement: "At least one real Foundation->Org->Personal chain syncs through Control Tower, entitlement by repo access, secrets outside git."
@@ -1078,10 +1130,34 @@ claims:
   - id: cli-copilot-test-suite-verified
     statement: "CLI Copilot's test suite passes: 1,588 tests pass, 16 deselected, 53% coverage, CI green (ruff + format-check + pytest, py3.11/3.12) on push-to-main and PRs."
     definition_refs: []
-    check: "cd /Volumes/Dev/Sites/COPILOT/cli-copilot && python3 -m pytest --cov (external repo — not run by this program's own checker)"
-    status: unchecked
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-13, the only VERIFIED verdict in Phase 1); phase-1-review-handoff.md (item 4: 'I did not re-run it... Re-run it', flagged and still open)"
-    last_checked: "2026-07-12"
+    check: "cd /Users/pabs/Sites/COPILOT/cli-copilot && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/ -q --cov=copilot_cli --cov-report=term-missing -m \"not e2e\" (the CI-matching invocation, cli-copilot/.github/workflows/ci.yml; .venv is dead, uv run rebuilds a working env; /Volumes/Dev is not mounted on this machine, real path is /Users/pabs/Sites/COPILOT)"
+    status: failing
+    evidence: >-
+      Was unchecked since Phase 1 (phase-1-findings.md F-13, the only
+      VERIFIED verdict in Phase 1; phase-1-review-handoff.md item 4: "I did
+      not re-run it... Re-run it", flagged and left open). RUN 2026-07-14
+      (this task; cli-copilot main @ 1695731, R-11/R-12 merged): `uv run
+      --extra dev pytest tests/ -q --cov=copilot_cli --cov-report=term-missing
+      -m "not e2e"` -> 1808 passed, 16 deselected, 3 xfailed, 55% coverage
+      (TOTAL line) -- pytest itself is healthy, and both the pass count and
+      coverage % have grown past the pre-registered 1,588/53% (expected: the
+      R-11/R-12 soul-remediation tests landed since Phase 1; this is a stale
+      pre-registered number, not a regression). `uv run --extra dev ruff
+      check .` -> "All checks passed!". `uv run --extra dev ruff format
+      --check .` -> "Would reformat: tests/test_services/test_infisical.py"
+      (FAILS -- 1 file not formatted). Cross-checked against LIVE CI, not
+      just local repro: `gh run list --branch main` / `gh run view
+      29280957243` (HEAD's own push-to-main run, commit 1695731 "Merge
+      branch 'feat/r11-r12-soul-remediation'") shows BOTH matrix jobs
+      (py3.11, py3.12) FAILED at the "Ruff format check" step -- the job was
+      aborted before "Run tests" ever ran. Per the claim's own conjunction
+      ("... CI green ... on push-to-main and PRs"), the statement is
+      currently FALSE: HEAD's own CI is red today, on a formatting
+      violation, not a test failure. Marked failing on that basis, plainly
+      -- not because the tests don't pass (they do, and more of them than
+      claimed), but because "CI green on push-to-main" does not currently
+      hold.
+    last_checked: "2026-07-14"
 
   - id: enforcement-hook-wiring-ratio
     statement: "Exactly 1 of 27 repos carrying .claude/agents/ (26 real directories plus 1 symlink, research-copilot -> knowledge-copilot) registers a PreToolUse hook in .claude/settings.json."
