@@ -1417,6 +1417,40 @@ definitions:
       tools/tc/src/tc/services/upkeep.py; claude-copilot
       tools/tc/src/tc/db/schema.py (UPKEEP_SCHEMA_SQL)
 
+  delegation_capable_harness_mode:
+    description: >-
+      A ladder rung/mode (`tools/cse-bench/benches/ladder/
+      delegation_harness.py`) in which the job brief handed to `claude -p`
+      is prefixed with the fixed, job-agnostic string `/protocol ` -- the
+      project slash command `configs.py`'s `_copy_framework_files()`/
+      `materialize_framework()` already copies into every framework-rung
+      workdir from claude-copilot's own `VERSION.json` roster (the
+      framework's own real routing entry point, not a benchmark-specific
+      instruction). Delegation is counted by structurally parsing the main
+      session transcript's `message.content[]` for `type=="tool_use"`
+      blocks whose `name` is in `{"Agent", "Task"}` (the tool is named
+      "Agent" in this machine's installed Claude Code CLI -- verified
+      live, not assumed; "Task" is kept for portability to other CLI
+      versions/configurations, matching `tools/cse-audit/
+      session_metrics.py`'s own `AGENT_TOOL_NAMES` set). Subagent token
+      spend is read from each delegation's sibling `<sessionId>/
+      subagents/agent-*.jsonl` file(s), summed and reported SEPARATELY
+      from main-session spend, never conflated into one figure.
+    source: "tools/cse-bench/benches/ladder/delegation_harness.py; docs/40-initiatives/01-cse-auditability/phases/phase-4-delegation-capable-harness.md"
+    caveat: >-
+      Job complexity/turn-count alone, without the `/protocol` prefix, was
+      separately verified NOT to induce delegation (a 12-turn, 3-domain
+      brief with no prefix produced zero delegations) -- this mode's
+      mechanism is specifically the routing entry point, not merely "a
+      harder job" or "more turns." A generic/fallback `subagent_type`
+      (`"claude"`) can still be invoked even when `.claude/agents/` is
+      absent (the `framework_minus_agents` rung) -- delegation firing is
+      therefore NOT itself proof that named custom agents were available;
+      each cell's own `delegated_agent_types` list must be read, not just
+      `n_agent_delegations > 0` (observed live: `framework_minus_agents`
+      delegated once on job-4-toolkit, to `subagent_type: "claude"`, a
+      built-in fallback identity, not a project-defined agent).
+
 claims:
 
   - id: outcome-ttfls
@@ -2145,6 +2179,39 @@ claims:
       human-in-the-loop back-and-forth). This register does not pick
       between them -- both remain open until a harness that can actually
       exercise delegation is built and run, per the next-step above.
+
+      FOLLOW-UP (2026-07-14, TASK-150 -- the next step this claim itself
+      named): the open question above is now CLOSED, by a controlled,
+      repeatable, structurally-verified test, not by assertion. Explanation
+      (i) is the correct one, refined: `claude -p` headless mode DOES
+      expose and fire the delegation tool -- it is named "Agent" in this
+      machine's installed Claude Code CLI, never literally "Task" (this
+      claim's own `check:` above only filters `name=="Task"`; re-running it
+      against the SAME 72-cell corpus scanning for "Agent" too still finds
+      ZERO hits, so the zero finding above is not a tool-name artifact of
+      that narrower filter). A 12-turn, 3-domain brief (security + UX +
+      data-migration, no routing framing) still did NOT delegate -- job
+      size/breadth alone, within one un-routed `-p` shot, is insufficient,
+      narrowing explanation (i) further. The SAME brief, prefixed with
+      `/protocol` -- the framework's own real routing entry point, already
+      materialized at every framework rung by `configs.py`, not a
+      benchmark-specific hack -- delegated NATURALLY (5 real `Agent` calls,
+      sensible routing reasoning, all deliverables correct). A new
+      delegation-capable harness mode (`tools/cse-bench/benches/ladder/
+      delegation_harness.py`) built on this finding fired real delegations
+      in 2/4 `framework`-rung cells on `job_pack.py` v2's discriminating
+      pack. See `delegation-capable-harness-mode-built` and
+      `agent-layer-marginal-value-underpowered` (new claims, this same
+      register) for the mode's pre-registered definition and the
+      framework-vs-framework_minus_agents comparison it enables. This
+      claim's own STATEMENT -- that the v2 ladder run's own headless,
+      single-shot, un-prefixed harness mode is structurally incapable of
+      exercising delegation -- remains TRUE and is not superseded (that
+      exact mode still delegates at 0%, re-confirmed); what changes is that
+      the "why" is now closed, and a working alternative mode exists
+      alongside it. Full record:
+      docs/40-initiatives/01-cse-auditability/phases/
+      phase-4-delegation-capable-harness.md.
     last_checked: "2026-07-14"
 
   - id: ladder-o4-full-attribution-closed
@@ -3320,4 +3387,124 @@ claims:
     check: "find .claude/agents -maxdepth 1 -name '*.md' | grep -v manifest | wc -l"
     status: passing
     evidence: "Verified 2026-07-14: exactly 15 .md files under copilot-control-tower/.claude/agents/ (cco, cpa, cs, cw, do, doc, ind, me, qa, sd, sec, ta, uid, uids, uxd), matching CLAUDE.md's 'agents (.claude/agents/, 15 specialists)'."
+    last_checked: "2026-07-14"
+
+  - id: delegation-capable-harness-mode-built
+    statement: "A controlled, repeatable ladder harness mode exists in which the Agent/Task subagent-delegation tool genuinely fires under headless `claude -p`: prefixing the job brief with the framework's own `/protocol` slash command (already materialized at every framework rung, not a benchmark-specific instruction) induces real, unforced subagent delegation, structurally verified via `tool_use.name` in the raw transcript (not grepped) -- closing the open question ladder-cannot-measure-framework-agent-layer left unresolved."
+    definition_refs: [delegation_capable_harness_mode]
+    check: "cd tools/cse-bench/benches/ladder && python3 delegation_harness.py --dry-run  # wiring, 0 model calls; python3 delegation_harness.py  # live, 8 cells; each cell's audit JSON under output/delegation_harness-runs/<stamp>/*.json carries delegation.n_agent_delegations / .delegated_agent_types, derived by structurally parsing message.content[] for type==tool_use and name in {Agent,Task}"
+    status: passing
+    evidence: >-
+      Registered 2026-07-14 (TASK-150), V-2: the mode's definition
+      (docs/40-initiatives/01-cse-auditability/phases/
+      phase-4-delegation-capable-harness.md Sec 1-2) was committed
+      (commit 0667205) and pushed BEFORE the 8-cell comparison this claim
+      and agent-layer-marginal-value-underpowered report was run or
+      viewed. Feasibility (Sec 1, 3 probe cells, $1.617 total real cost):
+      (a) the delegation tool is named "Agent" in this machine's Claude
+      Code CLI, never literally "Task" -- re-scanning the EXISTING 72-cell
+      ladder corpus (ladder-cannot-measure-framework-agent-layer) for
+      "Agent" too still finds zero hits, so that claim's zero finding is
+      not a tool-name artifact; (b) explicit forcing produces a real
+      Agent tool_use call and a correctly-delegated deliverable, proving
+      the mechanism is available and functional under `-p`; (c) a
+      12-turn, 3-domain brief (security + UX + data-migration) with NO
+      forcing and NO `/protocol` prefix still produced ZERO delegation --
+      job complexity/turn-count alone is insufficient; (d) the IDENTICAL
+      brief, prefixed with `/protocol`, delegated NATURALLY: 5 real Agent
+      calls (subagent_types me, sec, cw, qa, me), sensible routing
+      reasoning in the result text, all deliverables correct. Corroborated
+      by real production data (tools/cse-audit/output/session_metrics.csv,
+      n=113, no new cost): delegating sessions average 21 turns/249
+      main-session assistant messages vs 4 turns/51 for non-delegating --
+      consistent with, though not solely explained by, the causal
+      mechanism (c)/(d) isolate directly (the routing entry point, not
+      raw session length: (c) already reached 12 turns without
+      delegating).
+
+      LIVE RUN (delegation_harness.py, job_pack.py v2's 4 jobs x
+      framework/framework_minus_agents rungs x 1 rep = 8 cells, $2.664
+      real cost): delegation fired in 2/4 framework-rung cells
+      (job-3-integration-report, job-4-toolkit, both to subagent_type
+      "me", structurally verified) -- a 50% framework-rung delegation
+      rate on this pack, vs 0/72 in the original v2 corpus. Named
+      anomaly, not hidden: framework_minus_agents also delegated once
+      (job-4-toolkit), to subagent_type "claude" -- a generic/built-in
+      fallback identity, not a named custom agent (.claude/agents/ is
+      absent at that rung) -- proving the delegation MECHANISM is not
+      itself gated by whether custom agent definitions exist; see
+      delegation_capable_harness_mode's own caveat. Full per-cell record:
+      phase-4-delegation-capable-harness.md Sec 4;
+      tools/cse-bench/output/delegation_harness-runs/20260714T191515Z/*.json.
+    source: "tools/cse-bench/benches/ladder/delegation_harness.py; docs/40-initiatives/01-cse-auditability/phases/phase-4-delegation-capable-harness.md; tools/cse-bench/output/delegation_harness-runs/20260714T191515Z/*.json"
+    last_checked: "2026-07-14"
+
+  - id: agent-layer-marginal-value-underpowered
+    statement: "On job_pack.py v2's 4-job discriminating pack, run under the delegation-capable mode (both framework and framework_minus_agents rungs, /protocol-prefixed briefs, reps=1), mechanical t_working outcome is IDENTICAL between the two rungs on every job (4/4 no_effect) -- including the 2 jobs where framework genuinely delegated -- but n=4 paired job-cells with 0 discordant pairs is statistically underpowered to establish OR rule out a real effect; this is a suggestive null, not an established one. Delegation carries a real, quantified token/cost premium on the one clean delegate-vs-not comparison available (job-3: $0.4472 delegated vs $0.2693 not delegated, identical outcome, +66%)."
+    definition_refs: [delegation_capable_harness_mode]
+    check: "cd tools/cse-bench/benches/ladder && python3 delegation_harness.py  # reruns the SAME 4-job pack under the same delegation-capable mode; reps=1 in this run -- reps>1 and/or a larger job pack would strengthen n, per this claim's own explicit power caveat below"
+    status: passing
+    evidence: >-
+      Registered 2026-07-14 (TASK-150), V-2 (see
+      delegation-capable-harness-mode-built for the pre-registration
+      commit/timestamp this run followed). Per-job result (framework
+      t_working / framework_minus_agents t_working / agent_layer_effect):
+      job-1-bugfix control True/True no_effect (0 delegations either
+      side -- a trivial 1-line fix, the model judged decomposition not
+      worth it); job-2-house-voice knowledge False/False no_effect
+      (EXPECTED, not evidence against agents -- CC_KNOWLEDGE_REPO is an
+      empty tree at this rung on both sides, per
+      phase-4-cross-harness-behavior.md's own precedent for the same
+      job, so this cell is knowledge-gated, not agent-gated); job-3-
+      integration-report integrations True/True no_effect (framework
+      delegated to "me", framework_minus_agents did not -- the one clean
+      delegate-vs-not pair in this run); job-4-toolkit framework True/True
+      no_effect (BOTH rungs delegated, framework to "me",
+      framework_minus_agents to the generic fallback "claude" -- not a
+      clean delegate-vs-not pair, reported separately from job-3's
+      figure, not averaged into it).
+
+      PACK-LEVEL: 4/4 no_effect, 0 "helps", 0 "hurts", 0 discordant pairs
+      (McNemar b=c=0).
+
+      COST PREMIUM (job-3, the one clean pair): framework (delegated)
+      total cost $0.4472 vs framework_minus_agents (not delegated)
+      $0.2693 for an IDENTICAL mechanical outcome -- +66%. Mechanism: a
+      subagent opens a fresh context that cannot reuse the main session's
+      already-warmed prompt cache (framework's subagent turn alone spent
+      14,364 cache-creation + 48,141 cache-read + 937 output tokens on
+      top of a SMALLER main-session spend than the non-delegating
+      alternative). job-4 shows the opposite direction ($0.3618 framework
+      vs $0.4572 framework_minus_agents) but is confounded (both
+      delegated, to different subagent identities, with
+      framework_minus_agents needing an extra main-session turn) and is
+      NOT used to compute "the" delegation premium.
+
+      STATISTICAL POWER, STATED HONESTLY (per this task's own explicit
+      instruction not to overstate a small-n result, and this register's
+      own precedent at outcome-token-efficiency's n=3/Fisher's-exact
+      p=0.10 disclosure): n=4 paired job-cells, 0 discordant pairs cannot
+      distinguish "the agent layer truly has no effect on mechanical
+      acceptance for jobs like these" from "the agent layer has a real
+      but small/rare effect that 4 paired trials were not enough to
+      catch" -- both readings are equally consistent with this data. Per
+      standard paired-proportion (McNemar) sample-size guidance,
+      detecting even a moderate discordance rate at conventional (80%)
+      power typically requires several dozen discordant pairs; given the
+      true discordance rate here is unknown and could plausibly be well
+      under 50% of jobs, an honest ballpark is an ESTIMATED several dozen
+      to 100+ paired job-cells (more reps per job and/or a larger/more
+      varied job pack) before any "agents help/hurt/do nothing" verdict
+      can be asserted with confidence. This claim reports a suggestive
+      null on THIS 4-job pack -- the first real, mechanically-verified
+      data point this program has had on the question (vs zero before
+      it) -- not a settled verdict.
+
+      COST: 8-cell run $2.664 real (list-price-equivalent, Claude Code
+      subscription usage -- never separately billed, per
+      phase-4-cross-harness-behavior.md Sec 6's standing convention);
+      combined with delegation-capable-harness-mode-built's 3 feasibility
+      probes ($1.617), grand total this investigation $4.28, against a
+      pre-registered $33 worst case (13% of ceiling).
+    source: "tools/cse-bench/output/delegation_harness-runs/20260714T191515Z/*.json; tools/cse-bench/benches/ladder/delegation_harness.py; docs/40-initiatives/01-cse-auditability/phases/phase-4-delegation-capable-harness.md Sec 4"
     last_checked: "2026-07-14"
