@@ -1896,6 +1896,16 @@ claims:
       which unit it's expressed in. 12,351,188 tokens, list-price
       equivalent ~$12.35, is the number this register now quotes for the
       v2 run; the remainder stays disclosed and open, not papered over.
+
+      RESIDUAL CLOSED (TASK-148, 2026-07-14, pointer only -- this entry's
+      own 76.5%/23.5% figures are historical and left unchanged, per this
+      register's own convention of correcting in place rather than
+      rewriting past evidence): the "named next step" this evidence
+      called out above (".claude/commands/, templates/skills/, .mcp.json
+      as their own isolated rungs -- not done here") is now done. See
+      ladder-o4-full-attribution-closed for the full 5-component
+      decomposition (97.8% attributed, ~2.2% residual within noise) at
+      the same model/job-pack method this claim established.
     last_checked: "2026-07-14"
 
   - id: ladder-cannot-measure-framework-agent-layer
@@ -1966,6 +1976,133 @@ claims:
       human-in-the-loop back-and-forth). This register does not pick
       between them -- both remain open until a harness that can actually
       exercise delegation is built and run, per the next-step above.
+    last_checked: "2026-07-14"
+
+  - id: ladder-o4-full-attribution-closed
+    statement: "The 23.5% unattributed O-4 residual left by ladder-o4-scaffold-attribution-wp79-closed is closed: all five components materialize_framework() places (CLAUDE.md, agents, commands, skills, .mcp.json) are now isolated in situ at the same model (sonnet) and same job pack (v2, 4 jobs), and their shares sum to ~97.8% of the mean turn-1 cache_creation premium -- the remaining ~2.2% (~66 tokens/job) is within measurement noise (smaller than the run-to-run spread already visible in the per-job deltas below) and is not attributed to any untested scaffold piece, since none remain untested."
+    definition_refs: [ladder_o4_residual_ablation, ladder_config_materialization, ladder_job_pack_v2]
+    check: "cd tools/cse-bench/benches/ladder && python3 -c \"import configs; need={'framework_minus_commands','framework_minus_skills','framework_minus_mcp'}; assert need.issubset(set(configs.CONFIG_NAMES)), configs.CONFIG_NAMES; print('OK', sorted(need))\"  -- data check: tools/cse-bench/output/bench_ladder-runs/{20260714T190603Z,20260714T190828Z,20260714T191044Z}/*.json (12 cells each, framework_minus_commands/skills/mcp respectively) plus the pre-existing 20260714T144205Z (bare/framework baseline)"
+    status: passing
+    evidence: >-
+      TASK-148, 2026-07-14, per the `ladder_o4_residual_ablation`
+      pre-registration (committed BEFORE this run, commit 269b1a7):
+      3 rungs x 4 jobs x 3 reps = 36 live cells, all model=sonnet
+      (verified per-cell), all status=ok. 5,580,836 tokens / $5.7312
+      list-price-equivalent (subscription auth, not billed --
+      ladder_config_materialization.cost_accounting_convention), inside
+      the pre-registered ~$5.3-$5.7 budget.
+
+      Turn-1 cache_creation isolated per rung via the same
+      extract_turn_breakdown() instrument WP-79/WP-81 used, reading the
+      real session transcript (message.id-deduped). Recomputed the
+      baseline independently from the SAME 20260714T144205Z run WP-79
+      used (not re-run): bare and framework turn-1 means per job
+      reproduce a MEAN PREMIUM of 3003 tokens across the 4 jobs -- exact
+      match to the already-registered figure, confirming this
+      decomposition is built on the identical baseline, not a fresh one.
+
+      PER-COMPONENT IN-SITU CONTRIBUTION (framework vs framework_minus_X,
+      mean turn-1 cache_creation delta across all 4 jobs -- job-1-bugfix /
+      job-2-house-voice / job-3-integration-report / job-4-toolkit):
+      - CLAUDE.md (registered, WP-79): 1228 tok, 40.9%.
+      - agents (registered, WP-79): 1071 tok, 35.7%.
+      - skills (NEW, this task): 568 tok, 18.9% -- per-job deltas 768 /
+        561 / 501 / 441, positive and consistent in sign across all 4
+        jobs (no job shows a negative skills delta), the largest of the
+        3 new components, matching the largest raw content footprint
+        (~25.6KB across 5 SKILL.md files -- though the 568-token cost is
+        far below what loading all 25.6KB verbatim would imply, meaning
+        this is closer to a metadata/discovery-index cost than full-body
+        loading, consistent with progressive disclosure).
+      - commands (NEW, this task): 128 tok, 4.3% -- per-job deltas 283 /
+        196 / 76 / -44 (job-4's delta is slightly negative, i.e. within
+        noise); small and consistent with commands' own small raw
+        footprint (7 short .md files).
+      - .mcp.json (NEW, this task): -59 tok, -2.0% -- per-job deltas 239 /
+        -180 / -88 / -208, net slightly NEGATIVE, confirming this rung's
+        own pre-registered null hypothesis: the file it ablates is
+        already a no-op placeholder (`{"mcpServers":{}}`, zero servers),
+        so removing it costs ~0 tokens within noise. This is a real,
+        informative null (RULES .mcp.json OUT of the residual), not a
+        wasted rung.
+
+      TOTAL ATTRIBUTED = 40.9 + 35.7 + 18.9 + 4.3 + (-2.0) = 97.8% of the
+      mean 3003-token premium. SURVIVING RESIDUAL = 2.2% (~66 tokens/job).
+      Named exactly, per this claim's own truth condition, not rounded
+      away: 66 tokens/job is smaller than the run-to-run spread already
+      visible above (e.g. skills' own per-job deltas range 441-768, a
+      327-token spread at n=3 reps/job) -- i.e. this residual is
+      statistically indistinguishable from measurement noise (cache-
+      creation boundary rounding, minor tokenizer/session-bookkeeping
+      variance) at this rep count, not a sixth undiscovered component.
+      Per this claim's own pre-registration, since all five components
+      materialize_framework() places have now been measured (verified
+      exhaustive by re-reading _copy_framework_files()), this residual
+      CANNOT be "an untested scaffold piece" by construction -- the
+      pre-registered fallback naming applies: most plausibly a genuine
+      model/session-bookkeeping floor (e.g. minor cache-boundary
+      variance in how the transcript's own turn-1 block is chunked), not
+      demonstrated further than that.
+
+      CAPABILITY CONTROL (same convention as WP-79/WP-83, same scoped
+      caveat): t_working was IDENTICAL to +framework on all 4 jobs for
+      all 3 new rungs (job-1 3/3, job-2 0/3, job-3 3/3, job-4 3/3, in
+      every one of framework_minus_commands/skills/mcp) -- zero
+      regressions from removing commands, skills, or .mcp.json on this
+      job pack, at this difficulty, with Sonnet. job-2's 0/3 matches
+      +framework's own 0/3 exactly (it fails for lack of the knowledge
+      tree, unrelated to commands/skills/mcp) -- not a new failure mode.
+      Structurally re-verified, same method as
+      ladder-cannot-measure-framework-agent-layer: across all 36 new
+      cells' transcripts (0 missing on disk), the only tool names ever
+      invoked are {Bash, Edit, Read, Write} -- no distinct "Skill" or
+      command-invocation tool_use block appears either, so (matching that
+      claim's own caveat for the agent layer) this ladder's headless,
+      single-shot jobs cannot demonstrate skills/commands add capability
+      value here -- only that removing them, on THIS job pack, cost
+      nothing observable. Scoped finding, not a general claim these
+      components are worthless.
+
+      RECOMMENDATION (the question the owner actually cares about --
+      ranked by tokens-per-unit-of-demonstrated-value, cheapest-to-cut
+      first, given knowledge/integration layers stay off the table as
+      PROVEN and the agent layer stays off the table pending
+      ladder-cannot-measure-framework-agent-layer's own separate
+      resolution):
+      1. CLAUDE.md, 1228 tok/job (40.9%) -- the single largest lever AND
+         the only one already DEMONSTRATED trimmable without capability
+         loss: TASK-127/W-5's real trim (commit 0c73f65) cut its raw
+         bytes 28.3% and its own measured session contribution 37.1%,
+         with 6 golden-set agent evals still 10/10 and 498/498 tc tests
+         passing -- and this 1228-token figure is POST-trim, meaning a
+         real cut already landed and CLAUDE.md still costs more than
+         double any other single component. Highest-leverage next step:
+         a second per-line audit of the current template, same
+         before/after discipline as the first pass.
+      2. skills, 568 tok/job (18.9%) -- second-largest of the NEWLY
+         measured components, zero explicit invocations observed in
+         this harness's 36 cells (though, per the capability-control
+         caveat above, that is an instrument limit on THIS job pack, not
+         proof skills are never used in real interactive sessions --
+         same honesty discipline the agent-layer caveat already
+         requires). Candidate for terser SKILL.md descriptions or a
+         narrower default roster; lower priority than CLAUDE.md by cost
+         but the next real lever after it.
+      3. commands, 128 tok/job (4.3%) -- small footprint, roughly a
+         quarter of skills' cost; not worth further engineering effort
+         relative to its size.
+      4. .mcp.json, ~0 tok/job (-2.0%, within noise) -- nothing to cut;
+         already a no-op placeholder, confirmed by this rung's own null
+         result.
+      5. agents, 1071 tok/job (35.7%) -- the SECOND-highest cost of any
+         component measured across this entire program, named plainly
+         here for completeness, but explicitly NOT recommended for
+         cutting: ladder-cannot-measure-framework-agent-layer already
+         shows this harness cannot observe the agent layer's value (0
+         Task-tool invocations across every rung in 108 total cells now
+         run), and a separate, concurrent lane is building the
+         instrument that would measure it properly. This claim does not
+         pre-empt that ruling.
     last_checked: "2026-07-14"
 
   - id: ladder-harness-dry-run-validated
