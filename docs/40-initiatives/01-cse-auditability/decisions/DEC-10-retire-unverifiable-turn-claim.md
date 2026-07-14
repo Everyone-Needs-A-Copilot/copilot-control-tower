@@ -1,5 +1,15 @@
 # DEC-10 — Retire the unverifiable April turn-comparison claim
 
+> **RULED 2026-07-14: RETIRE (Option A), as `retired-by-unverifiability`.**
+> No `claims.yaml` edit is made by this memo update (the register is
+> off-limits this session — several agents are editing it concurrently);
+> the exact patch is carried as a PROPOSED REGISTER PATCH in this session's
+> report, ready for the next serialized register-patch pass:
+> `turn-definition-incompatible-with-april` `status: failing` →
+> `status: retired-by-unverifiability`, evidence appended per this memo §6.
+> The underlying F-6 finding is unaffected; only the claim row's
+> bookkeeping status changes.
+
 > tc task: **none** (this claim is not gated behind a workstream deliverable
 > in the `tc` store — it is a register-hygiene finding surfaced while
 > preparing `docs/40-initiatives/01-cse-auditability/decisions/RULING-AGENDA.md`

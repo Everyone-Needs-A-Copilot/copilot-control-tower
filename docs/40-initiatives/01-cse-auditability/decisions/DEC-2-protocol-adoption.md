@@ -1,5 +1,21 @@
 # DEC-2 — Protocol declaration: enforce, simplify, or retire
 
+> **RULED 2026-07-14: RETIRE (Option C)** — the declaration-*prefix*
+> obligation, not the underlying delegation/routing discipline, which is
+> retained and remains separately measured and passing
+> (`delegation-rate-baseline`, tool-share median ~40.5–40.9%). Struck the
+> "MUST start with a Protocol Declaration" requirement from
+> `.claude/commands/protocol.md`, `.claude/commands/continue.md`, and
+> `docs/30-operations/01-working-protocol.md`; updated the two real
+> consumers found (`docs/60-qa/01-framework-validation-strategy.md` IT-05's
+> Pass Criteria, `docs/60-qa/00-testing.md`'s E2E-03 illustration). No
+> CLAUDE.md file in claude-copilot, codex-copilot, or copilot-control-tower
+> was found to mandate the prefix (verified by grep; nothing to strike
+> there). EXECUTED in `claude-copilot@1b67851`. See the session report for
+> the PROPOSED REGISTER PATCH (`protocol-declaration-rate-baseline` →
+> retired-by-deletion) and the vestigial-collector-metric note
+> (`transcripts.py`'s `protocol_declaration_rate_*` submetric).
+
 > tc task: **TASK-113** (R-3, `phases/phase-3-soul-remediation.md`) · Claim:
 > `protocol-declaration-rate-baseline` (`claims.yaml`) · Status: prepared,
 > **not ruled** — owner decides. This memo is TASK-113's deliverable.

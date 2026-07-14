@@ -1,5 +1,15 @@
 # DEC-3 — Ratify the SOUL §3 correction (strike the falsified "~94%")
 
+> **RULED 2026-07-14: RATIFY, Option B (rewrite, not strike).** All three
+> sites (§3 Principle 3, §5 Feature Filter case law, §7 Voice & Tone) now
+> state the externalization *mechanism* (work products externalize detail
+> out of the main context; agents return a summary + pointer) and defer
+> the *number* to the claims register instead of hard-coding a new
+> percentage into SOUL. Added a §10 Evolution changelog entry (v1.1) per
+> SOUL's own amendment rule. EXECUTED in `claude-copilot@e1e1501`. See the
+> session report for the PROPOSED REGISTER PATCH
+> (`framework-externalization-94pct` → retired-by-ratification).
+
 > tc task: **TASK-114** (R-5, `phases/phase-3-soul-remediation.md`) · Claim:
 > `framework-externalization-94pct` (`claims.yaml`) · Status: prepared,
 > **not ruled** — owner ratification is the gate.

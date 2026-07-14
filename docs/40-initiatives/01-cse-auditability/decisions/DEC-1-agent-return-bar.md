@@ -1,5 +1,26 @@
 # DEC-1 — Agent-return bar: enforce vs amend
 
+> **RULED 2026-07-14: AMEND (a third path, per-class ratchet at measured
+> reality — offered in §5 as a variant of Option B, not pure enforce).**
+> SOUL §6's flat ~100-token bar (met by zero agent classes when measured)
+> is replaced by a per-class bar set at each class's current measured
+> reality (`me` ~854, `doc` ~490, `sd` ~3,786, `uxd` ~5,089, `uids` ~4,118,
+> `sec` ~3,556; all other classes ~893 overall median), framed explicitly
+> as a ratchet that tightens as the return-contract work lands. EXECUTED in
+> `claude-copilot@9359505`. Does not touch `.claude/agents/*.md` — the
+> return contracts themselves are a separate, concurrently-owned
+> workstream; this ruling only amends the bar they're measured against.
+> **Honest status of `framework-agent-frugality`:** the amended bars equal
+> today's measured class medians, so the *restated* claim (each class's
+> median ≤ its own bar) is trivially true today — a legitimate but
+> tautological pass by construction, not evidence of improved behavior. The
+> collector's mechanical `check` (`threshold_tokens=300`, a proxy for the
+> OLD flat 100-token bar) is unchanged and still reports 95%+ of returns
+> "over 300" — that specific sub-check is now vestigial against the new
+> per-class bars, not evidence the claim still fails. See the session
+> report's PROPOSED REGISTER PATCH for the restatement this implies
+> (`claims.yaml` not edited here per this session's hard constraint).
+
 > tc task: **TASK-112** (R-1, `phases/phase-3-soul-remediation.md`) · Claim:
 > `framework-agent-frugality` (`claims.yaml`) · Status: prepared, **not
 > ruled** — owner decides.

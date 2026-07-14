@@ -9,6 +9,11 @@
 > **Updated 2026-07-14** — factual tallies in §1.2 and §5 refreshed after the serialized register pass
 > (t4's falsification, the cli-test-suite-verified flip, DEC-10's projection row); no analysis or
 > recommendation below was rewritten.
+>
+> **RULED 2026-07-14 (same day, later pass): DEC-1, DEC-2, DEC-3, DEC-10 are ruled and executed** —
+> see the ⚠/RULED callouts inline at §2⑤ and §3 (DEC-3, DEC-2, DEC-10), and each decision's own memo
+> header. TASK-112/113/114 are `completed`. DEC-10's register edit is a PROPOSED PATCH, not yet
+> applied (`claims.yaml` was off-limits to this pass — concurrent edits in progress).
 
 ---
 
@@ -136,6 +141,8 @@ tc task update 122 --status in_progress --metadata '{"fireflies":"cut","reddit":
 
 ### ⑤ DEC-1 — Agent-return bar: enforce vs amend
 
+> **RULED 2026-07-14: amend, per-class ratchet at measured reality — EXECUTED (`claude-copilot@9359505`), TASK-112 `completed`.** See [`DEC-1`](DEC-1-agent-return-bar.md)'s header for the exact bars and the honest verdict on whether `framework-agent-frugality` can now pass (short answer: the restated claim is trivially true today because the bar equals today's median — a legitimate pass by construction, not a behavior improvement; the collector's `threshold_tokens=300` sub-check is now vestigial against the new per-class bars).
+
 **Sequenced behind DEC-6, deliberately.** You *can* rule it today — the memo is complete and its evidence is independent of the ladder. But **both** staged patches are ladder-gated regardless ([`../phases/phase-4-w5-efficiency-wave.md`](../phases/phase-4-w5-efficiency-wave.md) §2.1), so ruling early buys only the removal of one future round-trip — while the ladder's O-4 decomposition is the one thing that would tell you whether the token gap actually costs an outcome bar. W-5's own priority order puts DEC-1 third, after the first ladder run (§6).
 
 **The decision.** SOUL §6 says agents return **~100 tokens**; they return roughly **10x** that. Build enforcement toward the existing bar, or replace the bar with a number the measured distribution supports.
@@ -167,6 +174,8 @@ These four are rulable in **any order**, in this sitting or later. None gates an
 
 ### DEC-3 — Ratify the SOUL §3 correction (strike the falsified "~94%")
 
+> **RULED 2026-07-14: ratify, Option B (rewrite) — EXECUTED (`claude-copilot@e1e1501`), TASK-114 `completed`.** All three sites now state the mechanism and defer the number to the register; §10 changelog updated.
+
 **The decision.** `claude-copilot/SOUL.md` still quotes *"~94% less context"* in three places (lines 84, 178, 231 — [`DEC-3`](DEC-3-soul-94pct-correction.md) §3). The measurement is falsified **and inverted**: agent returns median **893** tokens vs work-product content median **353**, `savings_ratio_median −1.53` (−153%) — returns are ~2.5x *larger* than the artifacts they externalize ([`../claims.yaml`](../claims.yaml), `framework-externalization-94pct`). The README was already corrected (commit `7274e6b`). SOUL was not.
 
 **The recommendation (advice, from [`DEC-3`](DEC-3-soul-94pct-correction.md) §5).** **Option B** — rewrite to state the *mechanism* and defer to the register for the *number*, rather than hard-coding a new percentage into SOUL text. This avoids the exact failure mode that put SOUL here: a number frozen in a document that measurement later moved past.
@@ -181,6 +190,8 @@ tc task update 114 --status in_progress --metadata '{"decision":"ratify-rewrite"
 ---
 
 ### DEC-2 — Protocol declaration: enforce, simplify, or retire
+
+> **RULED 2026-07-14: retire (Option C) — EXECUTED (`claude-copilot@1b67851`), TASK-113 `completed`.** The declaration-prefix obligation is struck from `protocol.md`/`continue.md`/`working-protocol.md` and its two real test consumers; the underlying delegation/routing discipline is retained and stays measured by `delegation-rate-baseline`.
 
 **The decision.** Every main-session reply is supposed to open with `[PROTOCOL: ...]`. Fresh collect (`transcripts-latest.json`, `generated_at: 2026-07-13T18:23:39Z`): **0.0% median under the loose definition, 0.0% under the strict definition** — flat zero across all 15 sessions measured strictly. **Why, verified against the code:** `.claude/hooks/user-prompt-submit.sh` (258 lines) contains **zero** references to "protocol." Nothing checks. It is unenforced, not too heavy ([`DEC-2`](DEC-2-protocol-adoption.md) §3).
 
@@ -231,6 +242,8 @@ gh repo archive Everyone-Needs-A-Copilot/workflow-copilot && gh repo archive Eve
 ---
 
 ### DEC-10 — Retire the unverifiable April turn-comparison claim
+
+> **RULED 2026-07-14: retire (Option A), `retired-by-unverifiability`.** Register edit PROPOSED, not yet applied — `claims.yaml` was off-limits to this pass (concurrent edits in progress). See the memo header and this session's report for the exact patch.
 
 **The cheapest ruling on the page.** No `tc task` gates it — it surfaced as a register-hygiene finding, not a workstream deliverable.
 
