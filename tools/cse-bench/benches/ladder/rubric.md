@@ -180,3 +180,19 @@ cell (an honest miss, not a forced score).
   Every anchor is a considered prediction of what "adequate" looks like,
   not a description calibrated against evidence — exactly what owner
   sign-off (§0) exists to check before that changes.
+
+**ADDENDUM, 2026-07-14 (TASK-142, job pack v2 — not a revision of the
+ratified anchors above, which stay exactly as ratified and remain
+job-agnostic):** §§1.2/1.3's "Deterministic sub-check" notes above name
+v1 job ids by way of illustration. job-2 is now `job-2-house-voice` (a
+different job entirely — its own mechanical check,
+`fixtures/job-2-house-voice/check.py`, already enforces a stricter,
+job-specific bar than this rubric's general dimension anchors). job-3's
+`integration unavailable` / fabrication-floor note is unaffected — the
+new `job-3-integration-report` check.py enforces that same floor more
+strongly (service-by-service ground-truth comparison, not shape only).
+`job-4-toolkit` (framework-discriminating, NEW) has no rubric-specific
+sub-check yet; its own `test_toolkit.py` (17 assertions, all-or-nothing)
+is its ONLY mechanical bar today. This paragraph clarifies which jobs the
+existing illustrative examples point to; it does not change any level
+anchor, threshold, or scoring rule ratified in §0.

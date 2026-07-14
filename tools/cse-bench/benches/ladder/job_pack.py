@@ -1,8 +1,60 @@
-"""job_pack.py — Ladder bench job pack v1 (TASK-125 / W-3).
+"""job_pack.py — Ladder bench job pack v2 (TASK-125 follow-on / QA WP-76 fix).
+
+WHY v2 EXISTS: QA WP-76 (adversarial verification of the first live ladder
+run, 20260714T135253Z) proved v1 was an INSTRUMENT that could not detect a
+framework advantage even if one existed — job-3's own check.py docstring
+admitted it "never asks did it reach real service data," and job-1/job-2
+required zero org knowledge or live integration data to solve correctly
+from ANY rung. The v1 run's 12/12 t_working tie across all rungs was
+therefore not evidence of "no advantage" — it was evidence of an
+instrument with no discriminating power on that axis, by construction.
+v2 fixes this directly: every non-control job's correct answer is now
+UNREACHABLE from a lower rung, and every job's check.py mechanically
+verifies the discriminating property rather than merely a well-formed
+shape (see each job's own check.py docstring for its specific fabrication
+guard). See ladder_job_pack_v2 in the register
+(`docs/40-initiatives/01-cse-auditability/claims.yaml`) for the
+pre-registered definition and the "v1 could not discriminate" finding —
+that register entry is a PROPOSED PATCH pending the register's own
+single-writer agent landing it; do not quote any v2 run before it is
+committed (see this bench's README.md "Job pack v2" section).
+
+THE 4 JOBS, one per role:
+  - job-1-bugfix          CONTROL — unchanged from v1. Any rung can solve
+                           it; a rung's failure to beat bare here is
+                           itself a meaningful (not noisy) null result,
+                           since it requires no knowledge/integration/
+                           decomposition advantage to pass.
+  - job-2-house-voice      KNOWLEDGE-discriminating — NEW. Correct output
+                           requires knowledge-copilot's real, org-specific
+                           voice glossary (01-company/02-voice/
+                           06-glossary.md), which exists ONLY in the real
+                           knowledge tree (+knowledge/+integrations), not
+                           in this project's CLAUDE.md (+framework's
+                           pointer-only materialization) and not anywhere
+                           a generic model would plausibly guess. See
+                           fixtures/job-2-house-voice/check.py.
+  - job-3-integration-report  INTEGRATION-discriminating — brief mostly
+                           unchanged from v1, but check.py now
+                           independently re-fetches REAL service health
+                           (by absolute path, never through the
+                           config-under-test's own PATH) and mechanically
+                           asserts the deliverable's claims match it,
+                           service by service — closing exactly the gap
+                           QA WP-76 found. See
+                           fixtures/job-3-integration-report/check.py.
+  - job-4-toolkit          FRAMEWORK-discriminating — NEW. 6 independent,
+                           equally-sized functions in one brief; t_working
+                           requires ALL 6 (17 assertions) to pass at once
+                           — a completeness-across-parts bar big enough
+                           that decomposition/systematic checklisting
+                           should matter, not a task any single-shot
+                           free-write reliably nails end to end. See
+                           fixtures/job-4-toolkit/test_toolkit.py.
 
 Register-first (V-2): this file IS the job-pack definition the register
 (`docs/40-initiatives/01-cse-auditability/claims.yaml`, definition
-`ladder_job_pack_v1`) points at — write/extend it before any ladder data
+`ladder_job_pack_v2`) points at — write/extend it before any ladder data
 exists, never after looking at a run's results.
 
 WHY A PYTHON MODULE, NOT bank.yaml/rules.yaml LIKE THE OTHER BENCHES: this
@@ -75,7 +127,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 FIXTURES_DIR = SCRIPT_DIR / "fixtures"
 
-JOB_PACK_VERSION = "v1"
+JOB_PACK_VERSION = "v2"
 
 JOBS: list[dict] = [
     {
@@ -83,6 +135,7 @@ JOBS: list[dict] = [
         "title": "Fix the average() off-by-one bug in calc.py",
         "size": "small",
         "exercises_integrations": False,
+        "discriminates": "control",
         "fixture_dir": FIXTURES_DIR / "job-1-bugfix",
         "protected_files": ["test_calc.py"],
         "brief": (
@@ -95,27 +148,29 @@ JOBS: list[dict] = [
         "acceptance_check": {"mode": "run_in_workdir", "command": ["python3", "test_calc.py"]},
     },
     {
-        "id": "job-2-web-utility",
-        "title": "Build a command-line word-frequency utility",
+        "id": "job-2-house-voice",
+        "title": "Write a client-facing 'About' paragraph in the org's house voice",
         "size": "medium",
         "exercises_integrations": False,
-        "fixture_dir": FIXTURES_DIR / "job-2-web-utility",
-        "protected_files": ["sample.txt"],
+        "discriminates": "knowledge",
+        "fixture_dir": None,
+        "protected_files": [],
         "brief": (
-            "Build a command-line utility called wordfreq.py that takes one "
-            "argument (a path to a text file) and prints the 5 most frequent "
-            "words in the file, one per line, in the exact format "
-            "'word: count'. Words are case-insensitive and defined as maximal "
-            "runs of ASCII letters (a-z); strip everything else (punctuation, "
-            "digits, whitespace). Order results by count descending, then "
-            "alphabetically ascending as a tiebreaker. If the file has fewer "
-            "than 5 distinct words, print all of them in the same order. Test "
-            "it against the provided sample.txt in this directory. Do not "
-            "modify sample.txt."
+            "Write a short paragraph (roughly 80-180 words) for our organization's "
+            "website 'About' section, describing what we do for a client team that "
+            "has been putting off a hard organizational choice. Before writing, check "
+            "whether this project has any house voice/tone guidance reachable from "
+            "here (for example, under the directory named by the CC_KNOWLEDGE_REPO "
+            "environment variable, if it is set) and follow it if you find it — do "
+            "not invent or guess at house-specific terminology you have not actually "
+            "found in reachable project documentation; if you find no such guidance, "
+            "write in your own best professional judgment instead. Save your final "
+            "paragraph to about.md, with no other files and no meta-commentary about "
+            "your process — about.md should contain only the finished paragraph."
         ),
         "acceptance_check": {
             "mode": "external_checker",
-            "command": ["python3", str(FIXTURES_DIR / "job-2-web-utility" / "check.py")],
+            "command": ["python3", str(FIXTURES_DIR / "job-2-house-voice" / "check.py")],
         },
     },
     {
@@ -123,24 +178,66 @@ JOBS: list[dict] = [
         "title": "Pull a service-health report via the copilot CLI",
         "size": "large",
         "exercises_integrations": True,
+        "discriminates": "integrations",
         "fixture_dir": None,
         "protected_files": [],
         "brief": (
             "Using the copilot CLI (check whether it is on PATH first), run "
-            "its health check (e.g. `copilot health --json`) and write a "
-            "markdown report to report.md that lists each service's name and "
-            "status from the health check output, plus a one-line summary in "
-            "the exact form 'Services: N healthy' (N = an integer). If the "
+            "its health check (`copilot --json health`) and write a "
+            "markdown report to report.md. For EVERY service line the health check "
+            "printed, add one line to report.md in the exact form "
+            "'- <service_name>: <status>' (service_name and status exactly as the "
+            "health check printed them, e.g. '- docker: healthy'), then a final "
+            "summary line in the exact form 'Services: N healthy' (N = the integer "
+            "count of services whose status is exactly 'healthy'). If the "
             "copilot CLI is NOT available on PATH, do not fabricate service "
             "data — instead write report.md stating plainly that integrations "
             "are unavailable (include the literal phrase 'integrations "
             "unavailable') and explain what a person would need to do to "
-            "enable them."
+            "enable them. Only use the 'Services: N healthy' summary form if you "
+            "actually ran the health check and are reporting its real output."
         ),
         "acceptance_check": {
             "mode": "external_checker",
             "command": ["python3", str(FIXTURES_DIR / "job-3-integration-report" / "check.py")],
         },
+    },
+    {
+        "id": "job-4-toolkit",
+        "title": "Build a 6-function utility toolkit (completeness across parts)",
+        "size": "large",
+        "exercises_integrations": False,
+        "discriminates": "framework",
+        "fixture_dir": FIXTURES_DIR / "job-4-toolkit",
+        "protected_files": ["test_toolkit.py"],
+        "brief": (
+            "Create a file called toolkit.py implementing 6 independent functions, "
+            "described below. A test suite (test_toolkit.py, already in this "
+            "directory) checks all 6 — do not modify test_toolkit.py. When you "
+            "believe all 6 are complete and correct, verify with: "
+            "python3 test_toolkit.py\n\n"
+            "1. is_prime(n) -> bool: True if n is a prime number, False otherwise "
+            "(0, 1, and negative numbers are not prime).\n"
+            "2. reverse_words(s) -> str: reverse the order of words in s, "
+            "collapsing any run of whitespace between words to a single space and "
+            "stripping leading/trailing whitespace. reverse_words('the sky is "
+            "blue') == 'blue is sky the'.\n"
+            "3. flatten(nested) -> list: flatten an arbitrarily nested list of "
+            "lists into a single flat list, preserving left-to-right order. "
+            "flatten([1, [2, 3], [4, [5, 6]]]) == [1, 2, 3, 4, 5, 6].\n"
+            "4. run_length_encode(s) -> str: compress consecutive repeated "
+            "characters into '<char><count>' pairs. "
+            "run_length_encode('aaabbc') == 'a3b2c1'.\n"
+            "5. most_common_word(text) -> str: given free text, return the single "
+            "most frequent word, case-insensitive, ignoring punctuation/digits "
+            "(words are maximal runs of ASCII letters). Break ties alphabetically "
+            "ascending.\n"
+            "6. caesar_cipher(s, shift) -> str: shift each alphabetic character by "
+            "shift positions (wrapping a-z and A-Z separately, shift may be "
+            "negative), leaving non-alphabetic characters unchanged, preserving "
+            "case. caesar_cipher('abcXYZ', 3) == 'defABC'."
+        ),
+        "acceptance_check": {"mode": "run_in_workdir", "command": ["python3", "test_toolkit.py"]},
     },
 ]
 
