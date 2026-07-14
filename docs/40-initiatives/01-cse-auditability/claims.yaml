@@ -740,6 +740,36 @@ definitions:
       Whether an isolated HOME still resolves Anthropic auth (OAuth/
       keychain) the same way the real HOME does is UNTESTED, not asserted
       as fact; verify on one throwaway cell before a full live run.
+    cost_accounting_convention: >-
+      CORRECTED 2026-07-14 (a truth defect, not a formatting nit — a
+      number that reads as money spent when nothing was billed): TASK-125's
+      auth fix (WP-44, `_seed_home_for_auth()`) symlinks the real
+      `~/Library/Keychains` and copies `~/.claude.json` into each cell's
+      fresh, isolated `HOME` so `claude -p` can authenticate at all inside
+      it — every ladder/cross-harness cell therefore runs under the
+      OWNER'S OWN Claude Code SUBSCRIPTION, exactly like his interactive
+      sessions, never a separate metered API key. `envelope.modelUsage.
+      *.costUSD` / `total_cost_usd` in every cell's raw JSON is Claude
+      Code's own computed LIST-PRICE-AT-METERED-RATES EQUIVALENT — the
+      figure a metered account would have been billed for the same token
+      volume — not an amount actually charged to anyone; `--max-budget-usd`
+      is a real per-cell circuit breaker (the harness aborts a cell if this
+      computed equivalent crosses the ceiling) but the ceiling it enforces
+      is against the same non-billed equivalent, not a live invoice. RULE
+      FOR EVERY FUTURE RUN AND EVERY FUTURE CLAIM/WP THAT CITES ONE: lead
+      with TOKENS (the real, unambiguous, metering-model-independent
+      resource: `usage.total_tokens` / `marginal_spend` in every cell's
+      JSON); a USD figure may be reported ALONGSIDE tokens only as a
+      clearly-labeled "list-price equivalent, not billed" under
+      subscription auth, exactly the same discipline
+      `two_harness_behavior_equivalence`'s own Codex side already applies
+      (ChatGPT-subscription auth, no metered key, no dollar figure quoted
+      at all) — a Claude-side dollar figure must never be quoted as if it
+      were more real than that just because a number exists to quote. This
+      note does not change any already-registered token count; it changes
+      how the dollar figures alongside them must be read, going forward and
+      retroactively across this register.
+    source: "tools/cse-bench/benches/ladder/configs.py (_seed_home_for_auth); WP-44 (tc wp get 44, TASK-125's pre-flight auth fix)"
 
   ladder_job_pack_v1:
     description: >-
@@ -1322,11 +1352,100 @@ claims:
 
   - id: outcome-token-efficiency
     statement: "Creating a finished solution through the CSE uses at least 60 percent fewer tokens than the bare-harness counterfactual (aspiration: 90 percent), with O-1/O-3 non-degraded. Constraint, not objective."
-    definition_refs: [outcome_bars, solution_token_accounting]
-    check: "cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; print(json.load(open('output/economy-latest.json'))['metrics']['totals'])\""
-    status: unchecked
-    evidence: "W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join table + tools/cse-bench/collectors/economy.py), then CORRECTED same-day per QA WP-17 (windowing + billed_volume/marginal_spend split -- see definitions.solution_token_accounting.windowing and .methods): the CSE-side half of O-4 (a solution's tokens, computed two independent ways -- ledger vs transcripts, windowed to each solution's own touch span, joined via repo+time+session-id -- and cross-checked against the tolerance) is now real and runnable, replacing the prior no-instrumentation gate. Flipped gated->unchecked because the check command is now real, not because the full statement has been evaluated: this claim's 60/90 percent figure also needs a bare-harness counterfactual denominator, which is W-3's ladder harness (harness now built and dry-run validated, TASK-125 -- but still unchecked pending owner rubric sign-off, see outcome-counterfactual-delta and ladder-harness-dry-run-validated), so no percentage can be reported yet. The production ledger (tools/cse-bench's own repo glob) has zero real solutions as of this run, same honest-empty state as outcome-ttfls/outcome-completeness/outcome-survival -- see token-accounting-dual-method-agreement for the real-transcript verification this task ran instead (a scratch DB, not a production solution record)."
-    last_checked: "2026-07-13"
+    definition_refs: [outcome_bars, solution_token_accounting, ladder_job_pack_v2]
+    check: "Outcome-Ledger side (still zero real solutions, kept for future re-verification): cd tools/cse-bench && python3 cse_bench.py collect --only economy && python3 -c \"import json; print(json.load(open('output/economy-latest.json'))['metrics']['totals'])\"  --  Ladder side (the currently-decisive half): ladder-o4-scaffold-attribution-wp79-closed's own check (configs.CONFIG_NAMES for framework_minus_claudemd/framework_minus_agents) plus direct summation of usage.marginal_spend by config vs bare across tools/cse-bench/output/bench_ladder-runs/{20260714T135253Z,20260714T144205Z,20260714T150155Z,20260714T150358Z}/*.json"
+    status: failing
+    evidence: >-
+      W-2 landed (TASK-124, claude-copilot tools/tc/ solution_sessions join
+      table + tools/cse-bench/collectors/economy.py), then CORRECTED
+      same-day per QA WP-17 (windowing + billed_volume/marginal_spend split
+      -- see definitions.solution_token_accounting.windowing and .methods):
+      the CSE-side half of O-4 (a solution's tokens, computed two
+      independent ways -- ledger vs transcripts, windowed to each
+      solution's own touch span, joined via repo+time+session-id -- and
+      cross-checked against the tolerance) is now real and runnable,
+      replacing the prior no-instrumentation gate. Flipped gated->unchecked
+      2026-07-13 because the check command was then real, not because the
+      full statement had been evaluated: this claim's 60/90 percent figure
+      also needed a bare-harness counterfactual denominator, which was
+      W-3's ladder harness -- built and dry-run validated (TASK-125) but,
+      at that time, still unchecked pending owner rubric sign-off.
+
+      RE-RUN 2026-07-14 (this correction pass): the ladder-counterfactual
+      denominator this claim's own prior text named as the blocker now
+      exists, twice (v1 and v2), and is negative both times -- this is
+      stale and superseded here, not silently. `definition_refs` corrected:
+      added `ladder_job_pack_v2` (the pack the real result below is drawn
+      from).
+
+      THE REAL RESULT is the OPPOSITE SIGN of this claim's own 60/90
+      percent bar, stated plainly: the framework/knowledge/integrations
+      rungs use MORE tokens than bare, not fewer, in every measurement this
+      program has taken.
+
+      TASK-125 v1 (WP-44, marginal_spend, PRIMARY per
+      ladder_config_materialization.corrections): every non-bare cell (9/9,
+      covering framework/knowledge/integrations across v1's 3-job pack) is
+      NEGATIVE vs bare, mean -24.2% (range -18.2% to -35.35%) -- i.e.,
+      18-35% MORE marginal tokens than bare, not fewer.
+
+      TASK-142 v2 in-situ ablation (WP-79/WP-83,
+      ladder-o4-scaffold-attribution-wp79-closed, matched model/task-type,
+      closing the prior cross-model attribution gate): mean turn-1 premium
+      (+framework vs bare) = 3,003 tokens/job, incurred 100% in turn 1,
+      BEFORE any tool result exists -- a fixed entry fee paid once at
+      session start, not a per-work tax that grows with more tool calls
+      (WP-79's own core finding, ruling out the earlier hand-waved "more
+      turns of extra work" explanation). Attribution: CLAUDE.md's own
+      in-situ contribution = 1,228 tokens (40.9%); the 13-agent roster's
+      own in-situ contribution = 1,071 tokens (35.7%); combined 2,298
+      tokens (76.5% of the premium) attributed; 704 tokens (23.5%)
+      unattributed residual, named as the explicit next step (commands/
+      skills/.mcp.json as their own ablation rungs), not rounded away.
+
+      The CLAUDE.md trim (claude-copilot 0c73f65, TASK-127/W-5,
+      framework-claude-md-payload-trim) does NOT change this verdict:
+      measured, same-method, before/after, it recovers CLAUDE.md's OWN
+      ablation-baseline contribution by -37.1% (1,081 -> 680 tokens) -- a
+      real win against the ABLATION's own baseline -- but against the
+      LADDER's actual per-cell premium (3,003-3,442 tokens depending on
+      which average is used) this recovers only ~7.8-11.6% of the real
+      premium (framework-claude-md-payload-trim's own arithmetic:
+      (1,081-680)/3,442 ~= 11.6%, or 278/3,581 ~= 7.8% using the
+      full-scaffold delta) -- nowhere close to closing an 18-35% overage,
+      let alone reaching a 60% REDUCTION. No measurement in this program,
+      at either job pack, at any rung, has ever shown tokens going DOWN vs
+      bare.
+
+      STATUS: unchecked -> FAILING, per this claim's own truth condition
+      ("uses at least 60 percent FEWER tokens... aspiration 90 percent").
+      The measured result is not merely short of 60% -- it is the opposite
+      sign: every rung this program has measured costs MORE tokens than
+      bare, by a wide margin (18-35% at v1; a ~3,000-token/job fixed entry
+      fee, 76.5% attributed, at v2), and the one real mitigation applied so
+      far (the CLAUDE.md trim) recovers only ~8-12% of that premium and
+      does not flip the sign. O-1/O-3 non-degradation (this claim's own
+      second clause) is separately, roughly true where measured (job-2/
+      job-3's real O-1 wins above cost extra tokens to reach, not fewer;
+      O-3 wall-clock was mostly a wash at v1 except +integrations/job-3,
+      +46.03s slower than bare) -- but a non-degraded O-1 does not rescue a
+      failing O-4; per `outcome_bars`' own definition, O-4 is "a
+      constraint, never traded against O-1/O-3," which cuts against this
+      claim here, not for it.
+
+      The PRODUCTION side (a real solution's own tokens vs a real
+      bare-harness counterfactual, via the Outcome Ledger) remains
+      genuinely empty, unchanged by this correction -- zero real solutions
+      have both a joined session and a ladder-style counterfactual on
+      record. This correction resolves the LADDER-counterfactual half of
+      this claim's own previously-named dependency; nothing further is
+      needed from the ladder side to keep this claim in a scored (not
+      merely instrumentation-pending) state. All dollar-shaped figures
+      referenced above are token counts first; where a $ equivalent is
+      quoted in the claims this evidence cites, it is a list-price
+      equivalent under subscription auth, not a charge -- see
+      ladder_config_materialization.cost_accounting_convention.
+    last_checked: "2026-07-14"
 
   - id: token-accounting-dual-method-agreement
     statement: "For at least one completed solution with a joined session, tokens computed via the ledger and via transcripts (transcripts_marginal_spend, primarily) agree within the registered tolerance (definitions.solution_token_accounting)."
@@ -1346,11 +1465,117 @@ claims:
 
   - id: outcome-counterfactual-delta
     statement: "The 4-config ladder (bare -> +framework -> +knowledge -> +integrations) shows each component contributing positively to O-1..O-4; a component with no positive contribution enters the removal queue."
-    definition_refs: [outcome_bars, ladder_config_materialization, ladder_job_pack_v1, ladder_mlp_rubric]
-    check: "cd tools/cse-bench/benches/ladder && python3 run.py --dry-run"
-    status: unchecked
-    evidence: "TASK-125 (W-3): the ladder harness is built (tools/cse-bench/benches/ladder/{run.py,configs.py,job_pack.py,rubric.md}) and fully dry-run validated -- 4 configs x 3 jobs = 12 cells materialize cleanly (0 wiring problems, 0 claude invocations, nothing written to output/, per the command above). Flipped gated->unchecked because the check command is now real (the dry-run), not because the full statement has been evaluated: NO live scored ladder run has executed. This is deliberate, not an oversight -- the PRD's own MLP rubric requires owner sign-off BEFORE first scoring (phase-4-handoff.md §6 row 6), and run.py's check_signoff() mechanically refuses any non-dry-run invocation until docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md's header reads 'Status: **ratified**' (AS OF 2026-07-13, the date this evidence was written: not yet ratified, verified by the dry-run's own printed gate line). CORRECTED 2026-07-14 (QA WP-47): DEC-6 was ratified by the owner 2026-07-14 (in-conversation, Option A, no edits to rubric.md) -- the sign-off gate this paragraph describes as blocking is therefore now open. This claim's own `status` is left exactly as this task found it (`unchecked`) and NOT flipped here: whether a live scored ladder run has since happened, and what it found, is the ladder lane's own result to report, not restated or guessed at by this correction. See ladder-harness-dry-run-validated for the mechanism-level check, and DEC-6 for the ratification record. No O-1..O-4 numbers exist for any config or job as of THIS evidence's own last_checked date. CORRECTED same-day per QA WP-23 (see ladder_config_materialization.corrections and ladder-harness-dry-run-validated's own evidence for the four capture-method fixes: O-4 now primarily marginal_spend not billed_volume alone, an F-8-class conflation fix; the sign-off gate closes two false-positive bypasses; per-call cost ceilings default to real values instead of None/unbounded; per-rep workdir/HOME isolation replaces prior config-only keying). Nothing about the ladder's counterfactual delta or token-efficiency percentages is known yet -- these are capture-method corrections to instrumentation that still has zero real data, not new findings."
-    last_checked: "2026-07-13"
+    definition_refs: [outcome_bars, ladder_config_materialization, ladder_job_pack_v2, ladder_mlp_rubric]
+    check: "This claim's verdict synthesizes three already-registered, independently-runnable checks rather than re-deriving a fourth mechanism: ladder-v2-o6-discriminating-verdict's own check (per-rung t_working split on job-2-house-voice/job-3-integration-report/job-4-toolkit, tools/cse-bench/output/bench_ladder-runs/20260714T144205Z/); ladder-o4-scaffold-attribution-wp79-closed's own check (configs.CONFIG_NAMES for framework_minus_claudemd/framework_minus_agents, plus its evidence's turn-1 premium figures); ladder-cannot-measure-framework-agent-layer's own check (0 Task-tool invocations across all 72 cells, structurally parsed)."
+    status: failing
+    evidence: >-
+      TASK-125 (W-3): the ladder harness is built (tools/cse-bench/benches/ladder/{run.py,configs.py,job_pack.py,rubric.md})
+      and fully dry-run validated -- 4 configs x 3 jobs = 12 cells materialize cleanly (0 wiring problems, 0 claude invocations, nothing written to output/). Flipped gated->unchecked 2026-07-13 because the check command was then real (the dry-run), not because the full statement had been evaluated -- at that time NO live scored ladder run had executed, deliberately, pending DEC-6's owner sign-off gate.
+
+      RE-RUN 2026-07-14 (this correction pass): the sentence above is now
+      STALE and is superseded here, not silently -- DEC-6 was ratified
+      2026-07-14 and BOTH ladder v1 (TASK-125, WP-44, 20260714T135253Z, 12
+      cells) and v2 (TASK-142, WP-81/WP-83/WP-85, 20260714T144205Z /
+      150155Z / 150358Z, 72 cells) have since run live. `definition_refs`
+      corrected: `ladder_job_pack_v1` -> `ladder_job_pack_v2` (v1 is
+      registered as unable to discriminate, see
+      ladder-job-pack-v1-could-not-discriminate; v2 is the pack this real
+      result is drawn from). `check` corrected from a stale `--dry-run`
+      invocation (which no longer tests this claim's real truth condition
+      once live data exists) to the real run artifacts, reusing the three
+      claims already built to read them.
+
+      THE RESULT IS MIXED, recorded per-component per this claim's own
+      "each component" wording -- not averaged into one word:
+
+      KNOWLEDGE rung: POSITIVE CONTRIBUTION SHOWN. job-2-house-voice: bare
+      0/3, framework 0/3, vs knowledge 3/3, integrations 3/3 -- a clean,
+      complete, mechanically-verified separation (check.py is a
+      byte-accurate match against knowledge-copilot's own Anti-Glossary/
+      Core-Terms glossary, not a keyword-injection artifact; QA WP-83
+      independently read all 12 deliverables off disk and confirmed bare/
+      framework write generic consulting prose while knowledge/
+      integrations use the org's real private vocabulary coherently). See
+      ladder-v2-o6-discriminating-verdict.
+
+      INTEGRATIONS rung: POSITIVE CONTRIBUTION SHOWN. job-3-integration-report:
+      only +integrations (3/3 reps) ever produced real, exactly-matching
+      live service data (20/20 services, independently re-fetched and
+      byte-matched the next day by QA); the other 9 cells across bare/
+      framework/knowledge all used the honest "integrations unavailable"
+      fallback -- zero fabrication across all 72 cells in the program.
+
+      FRAMEWORK rung: NO POSITIVE CONTRIBUTION SHOWN -- AND NOT MEASURABLE
+      BY THIS INSTRUMENT, a distinction this claim must preserve, not
+      collapse. job-4-toolkit (the framework/decomposition-discriminating
+      job) is a robust 12/12 null across all 4 original rungs AND both O-4
+      ablation rungs (ladder-o4-scaffold-attribution-wp79-closed) -- Sonnet
+      solves this 6-part completeness bar reliably even bare, so no rung
+      showed a decomposition advantage on this job. Separately and more
+      fundamentally, ladder-cannot-measure-framework-agent-layer found
+      ZERO Task-tool invocations across all 72 cells, including the 3
+      rungs where the full 13-agent roster was materialized and available
+      -- this harness's headless, single-shot `claude -p` mode never gives
+      the framework/agent delegation layer a chance to fire at all. The
+      defensible reading is "we could not construct a job on which the
+      agent layer was even invoked, let alone shown to help" -- never
+      "agents add nothing" (that overclaim is exactly what
+      ladder-cannot-measure-framework-agent-layer exists to prevent).
+
+      O-4 CROSS-CHECK (this claim's own statement folds O-4 into its truth
+      condition, "O-1..O-4"): O-4 is measured NEGATIVE for every rung this
+      program has run tokens on, not only framework -- TASK-125's v1 run
+      found marginal_spend NEGATIVE vs bare on 9/9 non-bare cells (mean
+      -24.2%, covering framework/knowledge/integrations alike, at v1's own
+      job pack); TASK-142's v2 in-situ ablation isolates the
+      framework-specific turn-1 premium at ~3,003 tokens/job, 76.5%
+      attributed to CLAUDE.md+agents (see outcome-token-efficiency and
+      ladder-o4-scaffold-attribution-wp79-closed for the full figures, now
+      stated in tokens first per ladder_config_materialization's
+      cost_accounting_convention). No rung in this program has ever shown
+      a positive (token-saving) O-4 contribution. Per `outcome_bars`' own
+      definition, O-4 is "a constraint, never traded against O-1/O-3" --
+      so knowledge's and integrations' real O-1 wins above are not
+      cancelled by this, but no component satisfies the full "O-1..O-4"
+      bar this statement requires while O-4 is negative everywhere it has
+      been measured.
+
+      STATUS: unchecked -> FAILING, per this claim's own truth condition
+      ("shows EACH component contributing positively to O-1..O-4"; a
+      2-of-3 per-rung split on O-1 alone, and zero components positive
+      once O-4 is included, does not satisfy "each"). This is a MIXED, not
+      a uniform, failure: knowledge and integrations are genuine,
+      mechanically-verified wins on O-1 that must not be read as failures
+      just because the pack-level conjunction fails; framework is a
+      genuine non-result whose correct reading is "unmeasured by this
+      instrument," not "disproven."
+
+      REMOVAL-QUEUE CLAUSE, HELD BACK, NOT FIRED: this claim's own second
+      sentence ("a component with no positive contribution enters the
+      removal queue") is a real, live trigger on framework's data above --
+      but per ladder-cannot-measure-framework-agent-layer's own explicit,
+      already-registered caution ("any zero-regression finding on this
+      instrument is evidence the agent layer was never exercised -- not
+      evidence it adds nothing"; "must not be requoted... as evidence the
+      agent layer is unnecessary"), this register does NOT nominate
+      framework for removal on this data alone. Firing the removal-queue
+      clause here would be exactly the kind of instrument-blind overclaim
+      this program exists to prevent. What would actually move this claim:
+      (a) a harness mode where delegation can fire at all (interactive/
+      multi-turn, or a job whose scope forces decomposition even
+      single-shot -- named, not built, in
+      ladder-cannot-measure-framework-agent-layer); (b) closing O-4's own
+      23.5% unattributed residual (commands/skills/.mcp.json as their own
+      ablation rungs). Neither exists yet.
+
+      TASK METADATA CORRECTION: TASK-125's own `o6_verdict:
+      "no_positive_contribution_shown"` field (`tc task get 125`) was set
+      2026-07-14T14:07:11, BEFORE the v2 run (14:41+ per the run
+      directories' own timestamps) -- it describes v1's own
+      (non-discriminating) result only, not a final program verdict; kept
+      as v1's honest historical record but must not be read as superseding
+      v2's real per-rung wins recorded above.
+    last_checked: "2026-07-14"
 
   - id: ladder-v2-o6-discriminating-verdict
     statement: "The job-pack-v2 discriminating ladder run (TASK-142) shows whether ANY rung beats bare on a job whose correct answer is genuinely unreachable from a lower rung -- the first honest test of this, since v1 could not discriminate (see ladder-job-pack-v1-could-not-discriminate)."
@@ -1359,8 +1584,11 @@ claims:
     status: passing
     evidence: >-
       TASK-142, 2026-07-14, real scored run (4 configs x 4 jobs x 3 reps =
-      48 cells, model=sonnet, --max-budget-usd 4.0, total cost $8.70 for
-      this batch): YES, a rung beats bare on a discriminating job, twice,
+      48 cells, model=sonnet, --max-budget-usd 4.0 as a per-cell circuit
+      breaker; 8,772,115 total tokens for this batch, a $8.70 LIST-PRICE
+      EQUIVALENT, not billed -- subscription auth, see
+      ladder_config_materialization.cost_accounting_convention): YES, a
+      rung beats bare on a discriminating job, twice,
       mechanically verified, not judged. job-2-house-voice (KNOWLEDGE):
       bare 0/3, framework 0/3, knowledge 3/3, integrations 3/3 -- a clean,
       complete separation; bare/framework cells honestly report no house
@@ -1466,7 +1694,10 @@ claims:
       now recorded per-cell via `record["model"]`, not only in the
       top-level aggregate, per WP-79's own "this confound can never recur
       silently" requirement) against all 4 job-pack-v2 jobs x 3 reps (24
-      cells, $1.78 + $1.90 = $3.68); turn-1 cache_creation isolated from
+      cells, 1,740,000 + 1,839,073 = 3,579,073 total tokens, a $1.78 +
+      $1.90 = $3.68 LIST-PRICE EQUIVALENT, not billed -- subscription
+      auth, see ladder_config_materialization.cost_accounting_convention);
+      turn-1 cache_creation isolated from
       later turns for every cell in the run (48 original + 24 ablation =
       72 cells total) via run.py's new extract_turn_breakdown(), reading
       the real Claude Code session transcript (message.id-deduped), not
@@ -1537,25 +1768,41 @@ claims:
       requoted on its own as evidence the agent layer is unnecessary; it
       is evidence this specific instrument never exercised it.
 
-      COST CORRECTION (QA WP-83, same pass): WP-81's own headline
-      "RESULTS (72 live cells total, $13.74)" does not reconcile with its
-      own stated components. Summing `envelope.modelUsage.*.costUSD`
-      directly from every cell JSON across the 3 relevant run directories
-      (independently re-verified by this correction, same method as QA):
-      $8.6978 (20260714T144205Z, 48-cell main run) + $1.7777
-      (20260714T150155Z, framework_minus_claudemd, 12 cells) + $1.8793
-      (20260714T150358Z, framework_minus_agents, 12 cells) = $12.3549, i.e.
-      $12.35 -- the verified figure, ~11% (~$1.39) below WP-81's quoted
-      $13.74. Most likely explanation, per QA: the 6 throwaway
+      COST CORRECTION (QA WP-83, same pass) + UNITS CORRECTION (same task
+      as this claim's other 2026-07-14 edits, a truth defect not a
+      formatting nit): WP-81's own headline "RESULTS (72 live cells total,
+      $13.74)" does not reconcile with its own stated components, AND that
+      whole framing quoted a dollar figure as if it were money spent when
+      it never was. Summing `usage.total_tokens` / `envelope.modelUsage.
+      *.costUSD` directly from every cell JSON across the 3 relevant run
+      directories (independently re-verified by this correction, same
+      method as QA, tokens added here for the first time): 8,772,115
+      tokens / $8.6978 (20260714T144205Z, 48-cell main run) + 1,740,000
+      tokens / $1.7777 (20260714T150155Z, framework_minus_claudemd, 12
+      cells) + 1,839,073 tokens / $1.8793 (20260714T150358Z,
+      framework_minus_agents, 12 cells) = 12,351,188 tokens / $12.3549,
+      i.e. ~12.35M tokens / a $12.35 LIST-PRICE EQUIVALENT -- the verified
+      figure, ~11% (~$1.39 list-price-equivalent) below WP-81's quoted
+      $13.74. NEITHER figure was ever billed: this machine runs the ladder
+      under the owner's Claude Code SUBSCRIPTION auth (configs.py's
+      `_seed_home_for_auth()` seeds each isolated HOME with his real
+      credentials), not a metered API key -- `costUSD` is Claude Code's own
+      computed list-price-at-metered-rates equivalent, not a charge; see
+      ladder_config_materialization.cost_accounting_convention for the
+      standing rule this correction exists to establish (tokens first,
+      dollars only as a labeled equivalent). Most likely explanation for
+      the ~$1.39/~11% (list-price-equivalent) gap, per QA: the 6 throwaway
       pipeline-verification cells the 4dbfd44 pre-registration commit
       message itself describes ("only 6 throwaway pipeline-verification
       cells... never written to output/, were used to confirm the
-      mechanism itself works") were folded into the dollar total but not
-      into the "72 live cells" count -- plausible (a handful of cells at
-      ~$0.20-0.25 each closes the gap) but NOT verified, since that
-      scratch directory no longer exists on this machine. $12.35 is the
-      number this register now quotes for the v2 run; the ~$1.39
-      remainder stays disclosed and open, not papered over.
+      mechanism itself works") were folded into WP-81's original dollar
+      total but not into the "72 live cells" count -- plausible (a handful
+      of cells at a list-price-equivalent of ~$0.20-0.25 each) but NOT
+      verified in either unit, since that scratch directory no longer
+      exists on this machine -- the gap is real and open regardless of
+      which unit it's expressed in. 12,351,188 tokens, list-price
+      equivalent ~$12.35, is the number this register now quotes for the
+      v2 run; the remainder stays disclosed and open, not papered over.
     last_checked: "2026-07-14"
 
   - id: ladder-cannot-measure-framework-agent-layer
@@ -2071,13 +2318,26 @@ claims:
       True/True, job-2-house-voice False/False, job-3-integration-report
       True/True, job-4-toolkit True/True — 4/4 jobs behavior-equivalent
       (`claude_t_working == codex_t_working` per job, the pre-registered
-      criterion). Claude side cost, re-summed from the 4 raw envelopes'
-      own `total_cost_usd` fields: $0.7781 total (not the corrupted
-      `/bin/zsh.7781` figure an earlier work-product note briefly carried
-      and self-corrected). Codex side: 994,643 total tokens across 4
-      calls, no USD figure exists (ChatGPT-subscription auth, no metered
-      key, no `--max-budget-usd`-equivalent flag — verified via `codex
-      exec --help`, stated honestly rather than fabricated).
+      criterion). Claude side resource use, re-summed from the 4 raw
+      envelopes' own `usage`/`total_cost_usd` fields: 908,473 total tokens,
+      a $0.7781 LIST-PRICE EQUIVALENT (NOT billed -- see
+      ladder_config_materialization's cost_accounting_convention: this
+      machine's `claude -p` cells authenticate under the owner's Claude
+      Code SUBSCRIPTION, seeded into each isolated HOME by configs.py's
+      `_seed_home_for_auth()`, not a metered API key; `total_cost_usd` is
+      Claude Code's own computed list-price-at-metered-rates equivalent,
+      the same number a metered account would have been charged, not an
+      amount actually charged here) (not the corrupted `/bin/zsh.7781`
+      figure an earlier work-product note briefly carried and
+      self-corrected -- that correction fixed the digits, this one fixes
+      what the digits mean). Codex side: 994,643 total tokens across 4
+      calls, no USD figure at all, list-price or otherwise (ChatGPT-
+      subscription auth, no metered key, no `--max-budget-usd`-equivalent
+      flag — verified via `codex exec --help`, stated honestly rather than
+      fabricated) — the Codex harness got this framing right from the
+      start; the Claude side is corrected here to match the same standard,
+      not held to a looser one just because a dollar figure exists to
+      quote.
 
       MANDATORY CAVEATS (kept explicit so this claim is never read as
       covering more than it does):

@@ -332,3 +332,27 @@ already references its own design doc) rather than re-summarizing it.
 
 **No number in §4 was quoted before this file's §1–§3 were committed**
 (commit `36721e3`, prior to any `cross_harness.py` file existing).
+
+## 6. CORRECTION (2026-07-14, appended, not rewriting §1/§4 above)
+
+§1's billing-model caveat asserted Claude "does have a native
+`--max-budget-usd` and a metered API key" — the first half is true, the
+second is not on this machine. `configs.py`'s `_seed_home_for_auth()`
+seeds every isolated ladder/cross-harness `HOME` with the owner's real
+credentials (symlinked `~/Library/Keychains` + copied `~/.claude.json`),
+so every `claude -p` cell in §4 authenticated under the owner's Claude
+Code **subscription**, exactly like his interactive sessions — never a
+separate metered key. Every dollar figure in §4 (Claude side: $0.7781,
+per-job $0.1547/$0.2553/$0.1534/$0.2148) is Claude Code's own computed
+**list-price-equivalent** (`total_cost_usd`, the figure a metered account
+would have been charged for the same token volume), not an amount
+actually billed to anyone. The Codex side's own framing in §1
+("Codex is authenticated via a ChatGPT subscription... not a metered
+Anthropic-style API key... no dollar figure for Codex") was already
+correct and did not need this correction — only the Claude-side
+"metered API key" clause did. Token counts in §4 (908,473 total on the
+Claude side, 994,643 on the Codex side) are unaffected and remain the
+primary, unambiguous figures; see
+`docs/40-initiatives/01-cse-auditability/claims.yaml`'s
+`ladder_config_materialization.cost_accounting_convention` for the
+standing rule this correction establishes for every future run.
