@@ -416,7 +416,14 @@ def cmd_check(args: argparse.Namespace) -> int:
         )
         return 1
 
-    now_backed = len(baseline_keys - {_baseline_key(f) for f in unbacked})
+    # Scope the "now backed" note to the same repo(s) --check just ran
+    # against — comparing against the WHOLE baseline file when --repo is
+    # given would count every OTHER repo's untouched baseline entries as
+    # "gone" too, which is misleading, not just imprecise.
+    scoped_baseline_keys = (
+        {k for k, e in baseline.items() if e["repo"] == args.repo} if args.repo else baseline_keys
+    )
+    now_backed = len(scoped_baseline_keys - {_baseline_key(f) for f in unbacked})
     if now_backed:
         print(
             f"claim_sweep --check: note — {now_backed} previously-baselined assertion(s) are now "

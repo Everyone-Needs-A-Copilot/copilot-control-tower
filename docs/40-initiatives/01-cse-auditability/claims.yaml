@@ -1290,11 +1290,78 @@ claims:
 
   - id: t2-no-claim-outlives-its-check
     statement: "Every public CSE claim maps to a pre-registered, runnable check; unverifiable claims are deleted; the F-18 artifact-without-mechanism count is zero, enforced on commit."
-    definition_refs: []
-    check: "tools/cse-bench/check_claims.py (structural half only — does not yet sweep product docs for unregistered claims)"
+    definition_refs: [claim_sweep]
+    check: "tools/cse-bench/check_claims.py (register structure); tools/cse-bench/claim_sweep.py (the CSE-wide sweep, TASK-137 — BUILT this task); tools/cse-bench/claim_sweep.py --check (pre-commit enforcement, installed this task in all 5 repos)"
     status: failing
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-18: 7 artifact-without-mechanism instances found); this file itself registers only this program's own quoted numbers, not the full ~40-claim CSE surface (see SCOPE NOTE at top of file)"
-    last_checked: "2026-07-12"
+    evidence: >-
+      TASK-137 (2026-07-14): the mechanism this claim was blocked on ("needs
+      the full CSE-wide ~40-claim sweep... plus F-18's 7 instances driven to
+      zero, enforced on commit" — decisions/RULING-AGENDA.md §6) is BUILT and
+      RUN, not just proposed. F-18's SEVEN NAMED INSTANCES are individually
+      resolved (0 of 7 remain artifact-without-mechanism): #1 PreToolUse
+      matcher — BACKED (hook-deadlock-fix-verified: TASK-106/C-6 fixed and
+      tested, 48/49 replay assertions pass, live matcher = Bash|Read|Edit|
+      Agent). #2 Restructure doc's "After" column — CORRECTED (the false
+      "Sonnet ~94%" model-tier row, still uncorrected in-doc until this
+      task, now carries a correction note + claim-check annotation to
+      model-tier-opus-dominant-main-session, which proves it false: 94.5%
+      Opus, not 94% Sonnet). #3 Extension loader — BACKED
+      (knowledge-extension-install-mechanism: install-extensions.py is
+      real, tested, wired into sync-knowledge.sh; PURPOSE.md's prose was
+      already accurate, now annotated). #4 Glossary — BACKED
+      (knowledge-glossary-manifest-resolves: the manifest's `.glossary` key
+      now resolves to an existing file; PURPOSE.md annotated). #5
+      task-copilot MCP dist/index.js — BACKED
+      (task-copilot-mcp-dist-exists: the file now exists, 66,120 bytes,
+      verified built; no doc annotation needed, the original artifact was
+      a config file outside SCAN_TARGETS). #6 "--json versioned contract" —
+      CORRECTED (cli-json-contract-not-versioned: cli-copilot's own doc no
+      longer says "versioned" — found already fixed pre-task; schema_version
+      itself remains genuinely absent, an open gap, honestly registered as
+      such, not claimed fixed). #7 Codex parity scorecard — BACKED-AS-HONEST
+      (codex-specialist-chain-scorecard-not-run, status unchecked: the
+      template really is unrun, the product's own docs never claimed
+      otherwise, so there was no false claim to correct — the artifact now
+      has a mechanism tracking its true state instead of silence). See each
+      claim's own evidence for full detail; phase-1-findings.md's F-18
+      table is otherwise unchanged (a historical record, not rewritten per
+      V-2).
+
+
+      BUT the claim's OWN TRUTH CONDITION IS BROADER than F-18's 7 named
+      instances, and does NOT pass: claim_sweep.py's first real run against
+      the ecosystem's curated self-description docs (README/SOUL/PURPOSE/
+      ECOSYSTEM.md + the F-18-cited architecture docs — see the claim_sweep
+      definition's SCAN_TARGETS and precision_caveat) found 94 verifiable
+      assertions across 4 of 5 scanned repos (codex-copilot's curated docs
+      had zero after the SOUL-changelog exclusion): 12 BACKED (all via this
+      task's own annotations — the <!-- claim-check: --> convention did not
+      exist in any product doc before this task), 82 UNBACKED, 0 DANGLING.
+      Per repo: claude-copilot 54 scanned / 11 backed / 43 unbacked;
+      cli-copilot 5 scanned / 0 backed / 5 unbacked; copilot-control-tower
+      32 scanned / 0 backed / 32 unbacked (all in SOUL.md's own body prose —
+      version numbers already excluded via the changelog-line rule, so
+      these are FRACTION/MECHANISM_CLAIM/VERSION hits in the document's
+      substantive content); knowledge-copilot 3 scanned / 1 backed / 2
+      unbacked. "Every public CSE claim maps to a pre-registered check" is
+      false while 82 assertions sit outside the register — the sweep makes
+      this VISIBLE and MEASURABLE for the first time, which is this task's
+      job, but visibility is not resolution. The 82 are baselined
+      (tools/cse-bench/claim-sweep-baseline.json) as the honest, disclosed
+      starting backlog — NOT silently accepted: `claim_sweep.py --check`
+      (installed on commit in all 5 repos this task) blocks any NEW
+      unbacked assertion from this point forward, so the backlog can only
+      shrink, never silently grow. What remains for this claim to ever
+      pass: someone triages the 82 baselined assertions one at a time
+      (annotate with a real registered claim + check, correct the prose if
+      false, or delete it if unverifiable) the same way this task closed
+      F-18's 7 — that is real, un-shortcuttable editorial work this task
+      does not do wholesale, both because most of the 82 are pre-existing
+      SOUL.md/README.md claims unrelated to F-18 and because forcing that
+      triage in one pass, under time pressure, is exactly the "produced by
+      choosing operational definitions after seeing the data" failure mode
+      V-2 exists to prevent. Not forcing a pass.
+    last_checked: "2026-07-14"
 
   - id: t3-instruction-layer-changes-behavior
     statement: "Enforcement fires where the docs say it does (or the docs stop saying it); delegation/protocol adoption is measured at source; every specialist agent has a passing golden-set eval."
@@ -1711,3 +1778,51 @@ claims:
     status: passing
     evidence: "tools/cse-bench/output/value_density-latest.json (nominations block); docs/40-initiatives/01-cse-auditability/decisions/DEC-8-first-removal-review.md (the owner-facing memo)"
     last_checked: "2026-07-13"
+
+  - id: hook-deadlock-fix-verified
+    statement: "claude-copilot's PreToolUse force-delegate/QA-gate hooks fire correctly on Read/Edit/Agent post-fix (TASK-106/C-6): the widened matcher (Bash|Read|Edit|Agent) is live, the shared-session_id subagent-exemption fix is in place, and the hook's own replay test suite passes (48 of 49 assertions; the sole failure is a pre-existing, unrelated <50ms timing flake, not a regression from this fix)."
+    definition_refs: []
+    check: "cd claude-copilot && bash tests/hooks/test-pretool-check.sh; grep -A2 '\"PreToolUse\"' .claude/settings.json"
+    status: passing
+    evidence: "claude-copilot commit 77f5cdb0 (TASK-106/C-6: subagent exemption via agent_type, CC_HOOK_ENFORCE kill switch, fail-open hardening); docs/10-architecture/06-hook-deadlock-root-cause-2026-07.md (root cause, the fix, the 48/49 replay-suite result, and a live smoke test against a real throwaway claude -p session). Live .claude/settings.json verified 2026-07-14: PreToolUse matcher = 'Bash|Read|Edit|Agent'. Closes F-18 instance #1 (phase-1-findings.md F-18 table row 1, 'PreToolUse matcher | never fires on Read/Edit/Agent (F-1)') -- the artifact (the matcher plus the force-delegate/QA-gate hooks it feeds) now has a real, tested, live mechanism behind it, annotated in-doc via <!-- claim-check: hook-deadlock-fix-verified --> at the replay-suite result line. Rollout beyond claude-copilot itself remains staged (C-3, per the root-cause doc's own 'Rollout Readiness' section) -- see enforcement-hook-wiring-ratio, unaffected by this claim and still true (1 of 27 repos)."
+    last_checked: "2026-07-14"
+
+  - id: knowledge-extension-install-mechanism
+    statement: "Knowledge Copilot's agent extensions (cw/do/ind/sd/uxd) install into a consuming project's .claude/agents/*.md files via a real, tested sync-time installer (claude-copilot scripts/knowledge-sync/install-extensions.py, invoked from sync-knowledge.sh) -- not by Claude Code 'loading them automatically' at runtime, which is not a real injection point Claude Code offers."
+    definition_refs: []
+    check: "cd claude-copilot && python3 scripts/knowledge-sync/install-extensions.py --help && bash scripts/knowledge-sync/test-knowledge-sync.sh"
+    status: passing
+    evidence: "claude-copilot scripts/knowledge-sync/install-extensions.py (fenced <!-- kc-extension:begin/:end --> marker installer; idempotent re-run via a sha256 hash check; --remove uninstall path; extension vs override manifest types). scripts/knowledge-sync/test-knowledge-sync.sh Tests 8-9 verify install-extensions.py exists/compiles/--help works AND that sync-knowledge.sh actually invokes it (grep -q wiring check) -- verified 2026-07-14 by direct inspection of both files. Closes F-18 instance #3 (phase-1-findings.md F-9: 'Extensions load automatically... Nothing loads them'). knowledge-copilot's PURPOSE.md line ('Reduced context building -- Extensions install into consuming agents at sync time...') already describes this real mechanism accurately (not a wording change made by this task -- found already corrected during investigation, presumably alongside the mechanism's own build); this task added the <!-- claim-check: knowledge-extension-install-mechanism --> annotation linking that sentence to this entry."
+    last_checked: "2026-07-14"
+
+  - id: knowledge-glossary-manifest-resolves
+    statement: "knowledge-copilot's knowledge-manifest.json 'glossary' entry resolves to a file that exists on disk."
+    definition_refs: []
+    check: "cd knowledge-copilot && python3 -c \"import json, pathlib; d = json.load(open('knowledge-manifest.json')); p = pathlib.Path(d['glossary']); print(p, p.exists())\""
+    status: passing
+    evidence: "Verified 2026-07-14: knowledge-manifest.json's 'glossary' key reads '03-ai-enabling/03-operations/04-shared-glossary.md', which exists on disk. Closes F-18 instance #4 (phase-1-findings.md F-10: the original broken target was '...operations/12-shared-glossary.md', which did not exist -- the one dead reference of 228 the original finding named). PURPOSE.md's prose claim ('Proper terminology -- Glossary ensures correct language') is annotated to this claim (<!-- claim-check: knowledge-glossary-manifest-resolves -->) rather than reworded, since the manifest fix (not a text change) is what makes the sentence true today; a future re-break of the manifest path would make the annotation dangling-in-spirit even though the sweep only checks annotation PRESENCE, not the underlying check's live result -- re-running this claim's own check command is still required to catch that, same as every other registered claim."
+    last_checked: "2026-07-14"
+
+  - id: task-copilot-mcp-dist-exists
+    statement: "The task-copilot MCP server's built entrypoint (~/.claude/copilot/mcp-servers/task-copilot/dist/index.js), referenced by knowledge-copilot's (and sibling repos') .mcp.json, exists on disk."
+    definition_refs: []
+    check: "test -f ~/.claude/copilot/mcp-servers/task-copilot/dist/index.js"
+    status: passing
+    evidence: "Verified 2026-07-14: /Users/pabs/.claude/copilot/mcp-servers/task-copilot/dist/index.js exists (66,120 bytes), alongside dist/database.js, dist/http-server.js, dist/types.js, and a populated node_modules/ -- the server is genuinely built, not a stub. Closes F-18 instance #5 (phase-1-findings.md F-18 table row 5, 'task-copilot MCP config (2 repos) | dist/index.js doesn't exist'). No product doc in claim_sweep.py's SCAN_TARGETS asserts this in prose -- the original artifact was a config file (.mcp.json), not a doc sentence -- so this claim is registered directly rather than doc-annotated; see the claim_sweep definition's precision_caveat for why config-file artifacts outside SCAN_TARGETS are invisible to the sweep itself even though they are still trackable in this register."
+    last_checked: "2026-07-14"
+
+  - id: cli-json-contract-not-versioned
+    statement: "CLI Copilot's --json output carries no schema_version/$schema/contract_version field anywhere in the package (F-15's finding is still true and unchanged); the product's OWN docs no longer claim otherwise."
+    definition_refs: []
+    check: "cd cli-copilot && grep -rn schema_version copilot_cli/ | wc -l   # expect 0; grep -n 'json.*contract' docs/00-overview.md"
+    status: passing
+    evidence: "Verified 2026-07-14: `grep -rn schema_version copilot_cli/` returns 0 matches -- F-15's underlying gap (no schema_version anywhere) is real and unchanged; Control Tower's own docs/01-architecture/cli-contract.md still names schema_version as a WS-A prerequisite explicitly 'not yet in upstream scope,' i.e. correctly framed as a design target, not a shipped fact. cli-copilot/docs/00-overview.md:11 reads '...one grammar, one `--json` contract, one portable `.env`...' -- the word 'versioned' is gone (present when F-15 was originally filed); this correction predates this task (found already fixed during investigation, consistent with cli-soul-conformance's R-12 'fix residual service-count untruths in CLAUDE.md/overview docs' commit touching this same doc). Closes F-18 instance #6 by CORRECTING the claim to match reality (the doc no longer overclaims) rather than building the still-missing feature -- this claim's own truth condition is narrower than 'the CLI is schema-versioned' (still false, a real open product gap, not asserted fixed here) -- it is 'the CLI's docs do not claim it is' (true), which is the specific F-18 concern (an artifact with no mechanism backing an assertion about it)."
+    last_checked: "2026-07-14"
+
+  - id: codex-specialist-chain-scorecard-not-run
+    statement: "Codex Copilot's specialist-chain-evaluation scorecard (evals/specialist-chain/scorecard-template.json) is an unrun template (every criterion scored 0.0, 'Replace with...' placeholder evidence strings); the product's own docs describe it honestly as a template to copy and complete, and never claim it has been run."
+    definition_refs: []
+    check: "cd codex-copilot && python3 -c \"import json; d = json.load(open('evals/specialist-chain/scorecard-template.json')); scores = [c['score'] for case in d['cases'] for c in case['criteria'].values()]; print(scores)\""
+    status: unchecked
+    evidence: "Verified 2026-07-14: scorecard-template.json's sole case has all 4 criteria (correctness, requirement_coverage, maintainability, context_efficiency) scored 0.0 with literal 'Replace with...' placeholder evidence -- genuinely never run, confirmed by direct file inspection, not by trusting the filename. docs/03-developer-guides/03-specialist-chain-evaluation.md step 4 ('Copy evals/specialist-chain/scorecard-template.json for each variant') describes the intended workflow accurately and never claims completion -- no false claim exists in this doc to correct. Closes F-18 instance #7 (phase-1-findings.md F-18 table row 7, 'Codex parity scorecard | a template of zeros, never run') by giving the artifact's true, incomplete state a registered, re-checkable mechanism for the first time, rather than leaving it an unbacked implication that someone might one day misquote as a real result. Status unchecked, not failing: no claim is being falsified here, only unfinished work made visible and trackable."
+    last_checked: "2026-07-14"
