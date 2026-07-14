@@ -1598,6 +1598,21 @@ claims:
       framework/knowledge all used the honest "integrations unavailable"
       fallback -- zero fabrication across all 72 cells in the program.
 
+      STATISTICAL SIGNIFICANCE CORRECTION (TASK-149, 2026-07-14, disclosed
+      BEFORE any confirmation cell ran): both the KNOWLEDGE and INTEGRATIONS
+      "POSITIVE CONTRIBUTION SHOWN" verdicts directly above rest on n=3
+      cells per rung. Fisher's exact two-sided on job-2's bare-vs-knowledge
+      0/3-vs-3/3 split: p = 0.10 -- not significant at alpha = 0.05, and
+      structurally the smallest p-value any n=3-vs-n=3 comparison can
+      reach. The qualitative mechanism (QA WP-83's hand-read of all 12
+      deliverables; the exhaustive, not sampled, zero-fabrication finding)
+      is unaffected and stands on its own; the STATISTIC does not yet. Full
+      disclosure and a pre-registered n=10 confirmation (not yet run) live
+      on ladder-v2-o6-discriminating-verdict and ladder-v2-confirmation-n10
+      -- this claim's own "POSITIVE CONTRIBUTION SHOWN" wording above must
+      be read as "positive and mechanistically verified, statistical
+      significance pending" until that confirmation resolves either way.
+
       FRAMEWORK rung: NO POSITIVE CONTRIBUTION SHOWN -- AND NOT MEASURABLE
       BY THIS INSTRUMENT, a distinction this claim must preserve, not
       collapse. job-4-toolkit (the framework/decomposition-discriminating
@@ -1774,6 +1789,160 @@ claims:
       data, verified by eye, not just by check.py's own PASS -- zero
       fabrication across all 72 cells in this program, not only these 12.
       Both stand as published, unchanged.
+
+      STATISTICAL SIGNIFICANCE CORRECTION (TASK-149, 2026-07-14, disclosed
+      BEFORE any confirmation cell ran -- surfaced by the battery-design
+      agent, verified here by direct computation, not softened): both
+      splits above are, EACH, an n=3-per-arm comparison, and this register
+      was previously silent on what that does and does not license.
+      Fisher's exact test, two-sided, on job-2-house-voice's bare-vs-
+      knowledge 2x2 table (0/3 pass vs 3/3 pass): p = 0.10 -- NOT
+      significant at the conventional alpha = 0.05 threshold. This is not
+      a marginal miss to argue around: at n=3 per arm, a perfect 0/3-vs-3/3
+      separation is the MOST extreme table two groups of 3 can produce, and
+      p = 0.10 is the smallest two-sided p-value ANY n=3-vs-n=3 comparison
+      can ever reach -- p < 0.05 is structurally impossible at this sample
+      size, independent of how clean the split looks. The same
+      small-n exposure applies to the job-3-integration-report result: the
+      +integrations rung's 3/3-reps real-data-match record is itself an
+      n=3 reliability sample.
+      WHAT IS AND IS NOT TOUCHED BY THIS CORRECTION: the QUALITATIVE
+      finding is untouched and remains independently verified on its own,
+      separate grounds -- QA WP-83 hand-read all 12 job-2 deliverables off
+      disk and confirmed bare/framework write generic consulting prose
+      while knowledge/integrations coherently use the organization's real
+      private vocabulary (a mechanism-level, human-read verification, never
+      a statistical one), and the zero-fabrication finding across all 72
+      cells is a separate, exhaustive (not sampled) property, not a
+      significance claim at all. Conflating "mechanism independently
+      verified" with "difference unlikely to be chance" is exactly the
+      error this correction exists to prevent. What changes, precisely: the
+      claim that this split is unlikely to have arisen by chance is NOT yet
+      established by n=3 data alone -- it is PLAUSIBLE (the mechanism is
+      airtight) and UNPROVEN (the n is too small to prove it), and both of
+      those are true at once, stated together, not traded off against each
+      other.
+      CONFIRMATION PRE-REGISTERED, NOT YET RUN: a same-model (sonnet),
+      same-two-job, same-four-rung confirmation at n=10 reps/cell (80
+      cells total) is pre-registered BEFORE any of its cells ran -- see
+      claim ladder-v2-confirmation-n10 for the full design, the stop rule,
+      and the refutation condition committed to in advance. That claim's
+      own evidence, once populated, is this correction's resolution either
+      way: if the split holds at n=10, this claim's headline becomes
+      genuinely established (p ~= 1.1e-5 at a clean 0/10-vs-10/10 split,
+      computed the same way as the discouraging math above); if it does
+      not, this claim -- not just the confirmation claim -- must be
+      corrected downward, not defended. Until that claim resolves, this
+      claim's own honest verdict is: the DIRECTION and MECHANISM are real
+      and independently verified; the STATISTIC is not yet significant.
+    last_checked: "2026-07-14"
+
+  - id: ladder-v2-confirmation-n10
+    statement: "PRE-REGISTERED (V-2), committed BEFORE any confirmation cell runs: a Fisher's-exact-powered confirmation of ladder-v2-o6-discriminating-verdict's n=3 split, at n=10 reps per (job, rung) cell, on job-2-house-voice and job-3-integration-report across all 4 original ladder rungs {bare, framework, knowledge, integrations} (NOT the O-4 residual-ablation rungs framework_minus_*) -- 80 cells total, same model (sonnet) as the v2 run this confirms, fixed n, no optional stopping."
+    definition_refs: [outcome_bars, ladder_config_materialization, ladder_job_pack_v2, ladder_mlp_rubric]
+    check: "ls tools/cse-bench/output/bench_ladder-runs/ (one run directory per (job, config) invocation below, reps=10 each, 8 directories = 80 cells); Fisher's exact computed from the per-cell acceptance.passed field of every *.json record in those directories, two-sided, against the contingency tables named below."
+    status: unchecked
+    evidence: >-
+      TASK-149, 2026-07-14, pre-registered BEFORE ANY LIVE CELL of this
+      confirmation ran -- see ladder-v2-o6-discriminating-verdict's own
+      STATISTICAL SIGNIFICANCE CORRECTION for why this exists: n=3 perfect
+      separation cannot reach p<0.05, structurally, so the underlying
+      finding is real (QA WP-83) but not yet statistically established.
+
+      DESIGN: 2 jobs -- K1 = job-2-house-voice (KNOWLEDGE-discriminating),
+      I1 = job-3-integration-report (INTEGRATIONS-discriminating) -- x 4
+      rungs (bare, framework, knowledge, integrations; the original O-6
+      rungs, not the O-4 residual-ablation rungs added by a concurrent
+      task) x 10 reps = 80 cells. PRIMARY binary outcome per cell:
+      t_working, from the SAME mechanical acceptance_check each job used
+      in the n=3 run (job-2's fixtures/job-2-house-voice/check.py
+      BANNED_TERMS/REQUIRED_TERMS gate; job-3's fixtures/
+      job-3-integration-report/check.py env-appropriate honest-fallback-
+      or-exact-ground-truth-match gate) -- an unmodified reuse, not a
+      redefinition, so this confirmation tests the SAME truth condition
+      the n=3 run did. No t_loveable graded score is pre-registered as
+      primary: rubric.md's job-2 dimensions 1.1/1.3 are structurally
+      unattainable on a prose-only about.md
+      (ladder-v2-o6-discriminating-verdict's own RUBRIC-FIT
+      CLARIFICATION, re-asserted here, not re-litigated). If a graded or
+      count-based signal exists per cell (e.g. job-3's per-service
+      correctness count from check.py's own comparison), it is reported
+      as a SECONDARY descriptive statistic only, never substituted for the
+      primary Fisher-exact-on-t_working test.
+
+      MODEL: sonnet, fixed, identical to the v2 run being confirmed;
+      recorded per-cell (the WP-79 model-recording fix already wired into
+      run.py).
+
+      PRIMARY STATISTICAL TEST per job: Fisher's exact, two-sided, alpha =
+      0.05, on the 2x2 contingency table {bare: pass count / fail count}
+      x {knowledge: pass count / fail count} for job K1, and {bare: pass
+      count / fail count} x {integrations: pass count / fail count} for
+      job I1 -- the exact pair the original n=3 headline asserted a clean
+      separation on, and the pair this confirmation exists to settle.
+
+      SECONDARY tests (reported alongside the primary, never substituted
+      for it): every other pairwise rung comparison per job (bare vs
+      framework -- expected to replicate the null; framework vs
+      knowledge; framework vs integrations; knowledge vs integrations --
+      expected to replicate near-parity, both high), plus one pooled
+      {bare + framework} (n=20) vs {knowledge + integrations} (n=20) 2x2
+      table per job as a higher-power omnibus check of the same
+      direction.
+
+      STOP RULE, fixed before any cell ran: exactly n=10 reps per (job,
+      rung) cell, no optional stopping (no early stop on a favorable
+      interim split, no extension past 10 chasing significance), and no
+      dropping any of the 80 cells after the fact regardless of individual
+      results (a timeout/error cell is reported as its own outcome, not
+      excluded from the denominator).
+
+      REFUTATION CONDITION, stated in advance, before any cell ran:
+      Job K1 (job-2-house-voice) -- the clean-separation finding does
+      NOT hold if bare passes t_working on >= 3/10 reps, OR framework
+      passes on >= 3/10 reps, OR knowledge fails on >= 3/10 reps, OR
+      integrations fails on >= 3/10 reps.
+      Job I1 (job-3-integration-report) -- the finding does NOT hold if
+      any of bare/framework/knowledge FABRICATES service data (a
+      populated "Services: N healthy" line in a rung whose own env has no
+      `copilot` on PATH) on >= 1/10 reps -- this is the zero-fabrication
+      invariant VALUE.md Sec 2.3 asserts across the whole program, so even
+      one occurrence is reported as breaking it, not merely counted toward
+      a 3/10 threshold -- OR if integrations fails to exactly match live
+      ground truth on >= 3/10 reps.
+
+      COST CEILING, stated in advance: this run draws on the owner's
+      Claude Code SUBSCRIPTION (usage/rate-limit budget, NOT dollars),
+      identical accounting convention to every other ladder run in this
+      register (ladder_config_materialization.cost_accounting_convention).
+      The v2 run this confirms was 72 cells at ~12.35M total tokens. This
+      confirmation (80 cells, same 2 discriminating jobs, same model) is
+      budgeted at a comparable ceiling: STOP the run if cumulative tokens
+      across the 80 cells exceed ~16M (about 30% headroom over
+      straight-line 72->80 scaling) or if more than 8 of the 80 cells
+      error or timeout outright (a signal of an environment problem, not
+      a result to interpret) -- whichever triggers first. Any dollar
+      figure this run reports is Claude Code's own list-price-equivalent,
+      never billed.
+
+      EXECUTION ORDER: the 8 (job, config) invocation blocks below are
+      block-randomized (their run order is shuffled with a recorded,
+      fixed seed) rather than run in the original bare/framework/
+      knowledge/integrations x job-2/job-3 sequence, to avoid confounding
+      rung identity with time-of-day/API-load effects. Reps within one
+      block still execute in the harness's own fixed rep1..rep10 order
+      under ThreadPoolExecutor concurrency (run.py's existing, unmodified
+      scheduling) -- the harness has no finer-grained shuffle hook, and
+      none was added here (run.py is a shared, actively-edited file this
+      task deliberately did not touch; see the confirmation run's own
+      commit for the exact block order and seed used).
+
+      RESULT: not yet run. This claim stays `unchecked` until the 80
+      cells complete; see ladder-v2-o6-discriminating-verdict and
+      outcome-counterfactual-delta for where the result gets folded back
+      in, either as "genuinely established" (if the split holds) or as a
+      correction (if it does not) -- per this file's own V-2 discipline,
+      whichever way the data lands.
     last_checked: "2026-07-14"
 
   - id: ladder-o4-scaffold-attribution-wp79-closed

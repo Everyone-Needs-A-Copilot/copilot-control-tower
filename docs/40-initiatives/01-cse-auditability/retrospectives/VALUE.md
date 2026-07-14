@@ -89,6 +89,19 @@ config. It is the first job in this program's history capable of discriminating 
 knowledge layer at all — an earlier job pack could not, by construction, and produced an
 uninformative 12/12 tie across every rung <!-- claim-check: ladder-v2-o6-discriminating-verdict -->.
 
+**Statistical honesty, added 2026-07-14.** Three reps per config is a small sample, and this
+document was silent on what that does and does not license. Fisher's exact test, two-sided,
+on the bare-vs-knowledge split above (0/3 vs 3/3): p = 0.10 <!-- claim-check: ladder-v2-o6-discriminating-verdict -->
+— not significant at the conventional α = 0.05 threshold <!-- claim-check: ladder-v2-o6-discriminating-verdict -->,
+and structurally the smallest p-value any n=3-vs-n=3 comparison can ever produce, however clean
+the split looks <!-- claim-check: ladder-v2-o6-discriminating-verdict -->.
+The mechanism check above (a second reviewer's direct read of all 12 deliverables) is a real,
+independent verification and stands on its own — but it verifies the *mechanism*, not the
+*statistic*, and the two must not be conflated. A same-model, same-jobs confirmation at n=10
+reps per rung (80 cells) is pre-registered and, as of this writing, not yet run <!-- claim-check: ladder-v2-confirmation-n10 -->.
+Until it completes, read this section as: real and mechanism-verified, not yet statistically
+established.
+
 ### 2.2 Private-fact accuracy: +98 percentage points
 
 With an organization's private-fact dossier in context, the model answered 98.0% of private <!-- claim-check: knowledge-factual-accuracy-delta -->
@@ -112,6 +125,12 @@ fabricated data at any point. Every cell either produced real, verified-correct 
 honestly declined <!-- claim-check: ladder-v2-o6-discriminating-verdict -->. That property —
 not one invented number across 72 independently scored attempts — is worth stating on its own
 merits, separate from whether any given rung "won."
+
+**Statistical honesty, added 2026-07-14.** The zero-fabrication property above is exhaustive
+(every one of 72 cells was checked, not sampled) and stands on its own. But the +integrations
+rung's 3/3 real-data-match record that opens this section <!-- claim-check: ladder-v2-o6-discriminating-verdict --> is, like §2.1's split, an n=3
+reliability sample, and the same Fisher's-exact reasoning in §2.1 applies to it. A same-model
+confirmation at n=10 reps is pre-registered and not yet run <!-- claim-check: ladder-v2-confirmation-n10 -->.
 
 ### 2.4 The knowledge layer's value comes from distillation, not from dumping the repo into context
 
