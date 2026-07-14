@@ -209,3 +209,126 @@ job. §4 is appended in a **separate commit**, after real cells run, so the
 git history itself shows the definition preceded the data — no number
 above this line at the time of the first commit; §4 below (once appended)
 is the only section quoting real results.
+
+## 4. Results (appended after the definition above was committed)
+
+Built: `tools/cse-bench/benches/ladder/codex_harness.py` (new, the
+Codex-side materializer/job-runner) and `tools/cse-bench/benches/ladder/
+cross_harness.py` (new, the comparator — reuses `configs.py`/`run.py`
+verbatim for the Claude side, per §2.1). `test_cross_harness.py` (12
+tests, pure-function coverage, no live calls) and `--dry-run` (validated
+4/4 jobs on both harnesses, 0 wiring problems, 0 model calls) both pass.
+One throwaway pipeline-verification cell (job-1-bugfix, scratch out-dir,
+never under `output/`) was run first to confirm the mechanism itself
+works end-to-end, matching this bench's own established precedent
+(`ladder_config_materialization`'s "verify on one throwaway cell before a
+full live run" caveat, `ladder_job_pack_v2`'s "6 throwaway
+pipeline-verification cells... run first" note) — not a violation of §2's
+pre-registration, since only the harness's mechanics were being checked,
+not a job's outcome.
+
+The full, real, 4-job × 2-harness × 1-rep = 8-cell pack then ran live
+(`python3 cross_harness.py --timeout 600`), writing every cell's full raw
+envelope to `tools/cse-bench/output/cross_harness-runs/20260714T155309Z/`.
+
+| job | discriminates | claude `t_working` | claude cost | codex `t_working` | codex tokens | behavior-equivalent |
+|---|---|---|---|---|---|---|
+| job-1-bugfix | control | **True** | $0.1547 (18.6s) | **True** | 342,650 (55.8s) | **True** |
+| job-2-house-voice | knowledge | **False** | $0.2553 (36.0s) | **False** | 170,009 (38.2s) | **True** |
+| job-3-integration-report | integrations | **True** | $0.1534 (18.8s) | **True** | 179,557 (31.2s) | **True** |
+| job-4-toolkit | framework | **True** | $0.2148 (33.8s) | **True** | 302,427 (62.1s) | **True** |
+
+**Pack-level result: `behavior_equivalent = True`, 4/4 jobs agree**
+(`cross_harness.py`'s own printed summary, reproduced verbatim above from
+its audit JSON, not hand-transcribed).
+
+**Reading the two "False" cells correctly (job-2, both harnesses):** this
+is the EXPECTED, CORRECT outcome at `+framework`, not a defect either
+harness's own report should be read as — §2.3 pre-registered that job-2's
+correct answer is unreachable at this rung (both harnesses materialize an
+EMPTY `CC_KNOWLEDGE_REPO`), so both harnesses honestly failing it is
+itself an agreement, exactly as behavior-equivalence is defined (§2.4:
+`claude_result == codex_result`, not `both True`). No `protected_files`
+violation and no acceptance-check error occurred on either side for any
+of the 8 cells (`config_warnings: []` on all 8, `call_status: "ok"` on
+all 8) — every divergence-or-agreement result reflects the model's actual
+work product, not a harness malfunction.
+
+**Cost, real, not projected:** Claude side **$0.7781 total** (8× under
+the pre-registered $12 worst case; 908,473 total tokens across 4 calls).
+Codex side **994,643 total tokens** across 4 calls — no USD figure exists
+(§1's billing-model caveat: ChatGPT-subscription auth, no metered API
+key, no `--max-budget-usd` equivalent). No cell approached the 600s
+timeout (longest: Codex job-4-toolkit, 62.1s).
+
+**What this proves, precisely, and no more:** at the `+framework` rung,
+for these 4 jobs, on this run (reps=1 — a second rep was not run; a single
+divergent rep in a future re-run would be a real finding, not something
+this result rules out), Claude's and Codex's single-shot, non-delegating
+harnesses reach the SAME mechanical PASS/FAIL outcome under the SAME
+acceptance check. It does not show (and this memo does not claim) that
+the two harnesses' deliverables are qualitatively equivalent, that
+multi-agent delegation behaves equivalently (§2.2 — neither harness's
+headless mode delegates at all), or that this holds at any other rung.
+
+## 5. PROPOSED PATCH to `claims.yaml` (t6) — NOT applied by this memo
+
+`claims.yaml` is off-limits to this session (a concurrent register-patch
+pass may be in flight — see TASK-146's own instructions). The exact patch,
+for the next serialized register-patch pass:
+
+```yaml
+- id: t6-two-harnesses-one-behavior
+  statement: "Claude/Codex parity is checked at content and behavior level; drift is bounded and alarmed — 'same solution, different harness' is a tested property, not a slogan."
+  definition_refs: [parity, two_harness_behavior_equivalence]   # NEW definition ref added
+  check: "cd /Users/pabs/Sites/COPILOT/codex-copilot && python3 scripts/check-upstream-parity.py --content --json (content level); cd copilot-control-tower/tools/cse-bench/benches/ladder && python3 cross_harness.py (behavior level, +framework rung, 4-job pack, see phase-4-cross-harness-behavior.md for the pre-registered equivalence definition)"
+  status: passing   # was: failing
+  evidence: >-
+    RE-RUN 2026-07-14 (TASK-146, this task): BOTH levels now hold.
+    Content: check-upstream-parity.py --content --json reports
+    status: pass, 68 files, 0 drift (codex-copilot commit 7f7d6f6, which
+    also lands Task 3's --update-baseline port guard -- see below).
+    Behavior (NEW this task -- no check existed before it):
+    cross_harness.py ran the SAME 4-job job_pack.py v2 pack through BOTH
+    harnesses at the +framework rung (Claude: configs.materialize_framework,
+    reused verbatim; Codex: codex_harness.py, new, AGENTS.md-equivalent
+    materialization) and found ALL 4 jobs behavior-equivalent
+    (claude_t_working == codex_t_working per job, the V-2 pre-registered
+    definition in phase-4-cross-harness-behavior.md Sec 2.4, committed
+    BEFORE this run): job-1-bugfix True/True, job-2-house-voice
+    False/False (EXPECTED at this rung -- both harnesses materialize an
+    empty CC_KNOWLEDGE_REPO, so both correctly cannot reach the org fact;
+    an agreement, per the definition, not a defect), job-3-integration-report
+    True/True, job-4-toolkit True/True. Real, not simulated: Claude cost
+    $0.7781 total (8 live calls' worth across the two harnesses,
+    908,473 tokens); Codex 994,643 total tokens (no USD figure exists --
+    ChatGPT-subscription auth, no metered key, stated honestly rather than
+    fabricated). EXPLICITLY NOT TESTED, stated so this claim can never be
+    read as covering more than it does: t_loveable/MLP-rubric equivalence;
+    multi-agent delegation equivalence (neither harness's headless mode
+    delegates -- the ladder's own separately-documented 0-Task-tool-calls-
+    across-72-cells finding applies to both harnesses' non-interactive
+    modes, not just Claude's); equivalence at bare/+knowledge/+integrations
+    rungs; byte-level deliverable equivalence. Also landed this task (Task
+    3, the trust-based-baseline defect): codex-copilot's
+    --update-baseline could previously "resolve" real upstream drift with
+    zero verification that the corresponding port had landed; a port
+    guard (codex-copilot commit 7f7d6f6) now refuses the update unless
+    codex-copilot's own working tree has a live uncommitted change outside
+    parity/, or the caller explicitly attests nothing needed porting --
+    proven firing in a scratch clone (refuse-then-succeed-then-attest, all
+    3 paths), 2 new regression tests, 38/38 tests pass.
+  source: "tools/cse-bench/benches/ladder/cross_harness.py; codex_harness.py; phase-4-cross-harness-behavior.md; tools/cse-bench/output/cross_harness-runs/20260714T155309Z/*.json (raw envelopes); codex-copilot commit 7f7d6f6"
+  last_checked: "2026-07-14"
+```
+
+**One new `definitions:` entry is also proposed** (referenced by
+`definition_refs` above), `two_harness_behavior_equivalence`, whose text
+is §2 of this memo verbatim (description + levels: the criterion, the
+named instrument limitation, what is/isn't tested) — not re-typed here to
+avoid the two copies drifting; the register-patch pass should copy §2's
+prose (or reference this file by path, matching how `ladder_job_pack_v2`
+already references its own design doc) rather than re-summarizing it.
+
+**No number in §4 was quoted before this file's §1–§3 were committed**
+(commit `36721e3`, prior to any `cross_harness.py` file existing).

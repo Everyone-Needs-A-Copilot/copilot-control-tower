@@ -305,3 +305,20 @@ reporting too, once real numbers exist.
 - `outcome-counterfactual-delta` and `outcome-token-efficiency` remain
   `unchecked` in `claims.yaml` — this bench makes them checkable, not yet
   checked.
+
+## Cross-harness behavior check (`cross_harness.py`, TASK-146, t6)
+
+`codex_harness.py` + `cross_harness.py` (new, separate from this bench's
+own 4-config ladder above) run this job pack's SAME jobs through BOTH
+Claude's `+framework` rung (reused verbatim) and a new Codex
+`+framework`-equivalent, comparing mechanical `t_working` outcomes — the
+BEHAVIOR half of `t6-two-harnesses-one-behavior`, which content-hash
+parity alone cannot satisfy. The pre-registered equivalence definition
+(V-2, committed before any cell ran), the named instrument limitation
+(neither harness's headless mode delegates), and the real results live at
+[`../../../../docs/40-initiatives/01-cse-auditability/phases/
+phase-4-cross-harness-behavior.md`](../../../../docs/40-initiatives/01-cse-auditability/phases/phase-4-cross-harness-behavior.md).
+Re-run: `python3 cross_harness.py --dry-run` (validates both harnesses,
+zero model calls) or `python3 cross_harness.py` (live, 8 cells, real
+cost — see that memo's Sec 2.6 for the pre-registered ceiling). Tests:
+`python3 test_cross_harness.py -v`.
