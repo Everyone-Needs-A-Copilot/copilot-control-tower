@@ -18,7 +18,19 @@ WHAT IT VALIDATES (structural only — it does not re-run each claim's
   - every claim has non-empty `statement`, `check`, `status`.
   - every claim's `definition_refs` (if present) is a list, and every
     entry in it resolves to a key under `definitions`.
-  - `status` is one of the closed enum: passing, failing, unchecked, gated.
+  - `status` is one of the closed enum: passing, failing, unchecked, gated,
+    retired-by-unverifiability, retired-by-ratification, retired-by-deletion.
+    The three `retired-by-*` values (added 2026-07-14, closing DEC-10's
+    blocked patch -- its ruling to retire `turn-definition-incompatible-
+    with-april` could not actually be applied against the old 4-value enum)
+    are for claims the register keeps on record but no longer scores as an
+    open pass/fail: unverifiability (the check can never be re-run again,
+    e.g. a lost script -- DEC-10), ratification (an owner-ratified doc
+    correction supersedes what the claim was falsifying -- DEC-3), or
+    scope-removed (the surface the claim was about no longer exists, e.g. a
+    cut service/product). Retiring a claim never retires the underlying
+    finding -- see each retired claim's own `evidence` field, which stays
+    in place.
   - `last_checked` is present and looks like an ISO date (YYYY-MM-DD)
     whenever `status` != "unchecked".
 
@@ -52,7 +64,15 @@ DEFAULT_CLAIMS_PATH = (
     REPO_ROOT / "docs" / "40-initiatives" / "01-cse-auditability" / "claims.yaml"
 )
 
-STATUS_ENUM = {"passing", "failing", "unchecked", "gated"}
+STATUS_ENUM = {
+    "passing",
+    "failing",
+    "unchecked",
+    "gated",
+    "retired-by-unverifiability",
+    "retired-by-ratification",
+    "retired-by-deletion",
+}
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 

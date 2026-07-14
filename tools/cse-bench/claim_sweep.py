@@ -9,59 +9,96 @@ CSE-wide ~40-claim sweep the register's own SCOPE NOTE says it is *not yet*,
 plus F-18's 7 artifact-without-mechanism instances driven to zero, enforced
 on commit." This script is that mechanism.
 
-WHAT IT DOES: scans a CURATED set of each CSE product's self-description
-docs (README, SOUL, PURPOSE, and a small number of explicitly-named
-architecture docs — see SCAN_TARGETS) for VERIFIABLE ASSERTIONS: quantified
+WHAT IT DOES: scans each CSE product's self-description surface (see SCOPE
+below for the exact, principled rule) for VERIFIABLE ASSERTIONS: quantified
 claims (percentages, counts, "N of M", version numbers, ratios) and
 mechanism-guarantee claims ("automatically", "ensures", "guarantees"). Each
 assertion found is classified BACKED or UNBACKED:
 
-  BACKED   — an `<!-- claim-check: <id> -->` annotation appears on the same
-             line, or the line immediately before/after, AND <id> resolves
-             to a real entry in claims.yaml. This is the "backing is
-             explicit and cheap" convention this tool is built around,
+  BACKED   — an `<!-- claim-check: <id> -->` annotation backs it (see
+             BINDING below for exactly which annotations count) AND <id>
+             resolves to a real entry in claims.yaml. This is the "backing
+             is explicit and cheap" convention this tool is built around,
              chosen over trying to be clever at parsing English (see the
              "Precision" section below and README.md).
   UNBACKED  — no such annotation, or the annotation's <id> does not resolve
              (a DANGLING annotation — reported as its own sub-count, not
              silently treated as backed).
 
-ENFORCEMENT: `--check` (used by pre-commit, see install-claim-sweep-hook.sh)
-fails (exit 1) only on a NEW unbacked assertion — one not already present in
-claim-sweep-baseline.json — the same regression-gate shape
-knowledge-copilot's scripts/check-crosslinks.py uses (baseline, not
-zero-tolerance), so the ratchet only ever tightens. `--update-baseline`
-regenerates the baseline from the current sweep (run only after a reviewed,
-intentional acceptance of new unbacked assertions).
+BINDING (tightened 2026-07-14, QA WP-47): an annotation backs an assertion
+only if:
+  (a) the annotation is on the assertion's OWN line (a trailing comment), or
+  (b) the annotation sits ALONE on its own line (nothing else on that line
+      once the comment is stripped) and is the line IMMEDIATELY BEFORE the
+      assertion's line (annotation precedes assertion, one direction only).
+There is no "line after" reach and no backward bleed from a trailing
+same-line annotation onto a neighboring line. The prior ±1-either-direction
+rule let one annotation nominally "back" an unrelated adjacent table row
+(e.g. a model-tier annotation trailing one markdown-table row also
+backing the UNRELATED row directly above it, purely because both rows sit
+one line apart) — a real over-backing bug QA found and this binding closes.
+Every doc using the old backward-reach convention has been updated to a
+same-line trailing annotation instead (see git history around this date).
 
-SCOPE (stated plainly, not buried): this sweeps a CURATED list of root-level
-self-description docs per repo (README.md, SOUL.md, PURPOSE.md, ECOSYSTEM.md,
-and a handful of explicitly-named architecture docs that F-18's own findings
-cite by path) — not the full doc tree of any product. knowledge-copilot
-alone carries 900+ content markdown files; sweeping all of them would bury
-real framework/product self-claims under an unbounded volume of ordinary
-knowledge-content statistics that are not claims ABOUT the product. This is
-a deliberate, disclosed false-negative source: a verifiable assertion
-sitting outside SCAN_TARGETS is invisible to this tool. CLAUDE.md files are
-also deliberately excluded from the default targets (governance/instruction
-files, not product-claim surfaces, and edited only by their owners) — see
-README.md "Precision" for the full list of what is and is not covered.
+SCOPE (tightened 2026-07-14, QA WP-47 — the old SCAN_TARGETS was 19
+hand-picked files, an implicit allowlist that missed a live unbacked
+assertion in copilot-control-tower's own CLAUDE.md). The scope is now a
+FORMULA, not a hand-picked list, so it stays honest as docs are added:
+
+  1. Root self-description files, whichever of these the repo actually has:
+     README.md, SOUL.md, PURPOSE.md, ECOSYSTEM.md, CLAUDE.md, AGENTS.md.
+  2. docs/ DEPTH-1 markdown files only — immediate children of docs/, not
+     the recursive tree (glob docs/*.md, never docs/**/*.md). This is the
+     repo's own doc ROOT, the layer a reader lands on first; it deliberately
+     excludes deep initiative/product/decision trees (see EXCLUDED below).
+  3. A small set of EXPLICIT, NAMED additions — deeper architecture docs
+     F-18's own findings cite by path (see _EXTRA_TARGETS). Every exception
+     is listed by name in this file, reviewable, not a hidden allowlist.
+
+  EXCLUDED, explicitly (not an oversight — a deliberate, disclosed
+  boundary): anything below docs/ depth-1 except the _EXTRA_TARGETS names
+  (this is what keeps knowledge-copilot's 900+-file content corpus, every
+  product's docs/40-initiatives/ tree, and this program's own
+  benches/decisions/phases dirs out of scope); non-.md files; fenced code
+  blocks and inline code spans (see PRECISION); CLAUDE.md/SOUL.md/etc. for
+  a repo that does not have one at its root (silently absent, not an
+  error — see resolve_scan_targets).
 
 PRECISION (stated plainly): this is a regex/heuristic scanner over
 markdown. It WILL have false positives (e.g. a version-looking decimal that
 is not actually a claim, a count noun used in a non-claim sentence) and
 false negatives (an assertion phrased without a matched pattern, or one that
-lives outside SCAN_TARGETS, or inside a fenced code block or inline code
+lives outside scope, or inside a fenced code block or inline code
 span — both are skipped on purpose, since they're overwhelmingly commands/
 paths, not prose claims). The tool does not try to resolve this by parsing
 English better; it resolves it by making the ANNOTATION the ground truth for
 "is this backed," and reporting every unannotated verifiable-looking
 assertion for a human to triage (annotate, correct, or delete the prose).
 
+STAGED-CONTENT SCANNING (TOCTOU fix, 2026-07-14, QA WP-47): `--check` (the
+pre-commit mode) now reads each target file's content from the GIT INDEX
+(`git show :<path>`), not the working tree, and enumerates which files are
+in scope from the index too (`git ls-files`) rather than a filesystem glob.
+Before this fix, `scan_file` always read the working tree: staging a bad
+assertion, then editing the working-tree copy back to something clean
+WITHOUT re-staging, made the hook scan the (clean-looking) working tree
+while the actual commit — built from the index — still carried the bad,
+unbacked assertion. The hook now scans exactly what is about to be
+committed. `cmd_report`/`cmd_update_baseline` (human-invoked, not a commit
+gate) still read the working tree — that's the right content for "what does
+the repo look like right now," and neither of those commands makes a
+pass/fail decision about a commit.
+
+ESCAPE HATCH, stated plainly: `git commit --no-verify` skips this hook like
+it skips every pre-commit hook — that is standard git behavior, not a gap
+in this tool, and this script does not attempt to prevent it (no tool can,
+short of a server-side check). Treat `--no-verify` on a doc-touching commit
+as something to notice in review, not something this script can stop.
+
 Usage:
     tools/cse-bench/claim_sweep.py                    # human-readable report, exit 0
     tools/cse-bench/claim_sweep.py --json              # machine-readable report, exit 0
-    tools/cse-bench/claim_sweep.py --check              # pre-commit mode: exit 1 on NEW unbacked
+    tools/cse-bench/claim_sweep.py --check              # pre-commit mode: exit 1 on NEW unbacked (scans the git index)
     tools/cse-bench/claim_sweep.py --check --repo NAME  # scope --check to one repo
     tools/cse-bench/claim_sweep.py --update-baseline [--repo NAME]
 """
@@ -71,6 +108,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -85,40 +123,92 @@ DEFAULT_CLAIMS_PATH = REPO_ROOT / "docs" / "40-initiatives" / "01-cse-auditabili
 BASELINE_PATH = SCRIPT_DIR / "claim-sweep-baseline.json"
 
 # ---------------------------------------------------------------------------
-# Scope: curated self-description docs per repo. See module docstring
-# "SCOPE" for why this is not a full-tree sweep.
+# Scope: see module docstring "SCOPE" for the full, principled rule and why
+# it replaced the old hand-picked SCAN_TARGETS list.
 # ---------------------------------------------------------------------------
-SCAN_TARGETS: dict[str, list[str]] = {
-    "copilot-control-tower": [
-        "README.md",
-        "SOUL.md",
-        "docs/00-overview/product-brief.md",
-        "docs/00-overview/soul.md",
-    ],
+REPOS: list[str] = [
+    "copilot-control-tower",
+    "claude-copilot",
+    "knowledge-copilot",
+    "cli-copilot",
+    "codex-copilot",
+]
+
+_ROOT_SELF_DESCRIPTION_NAMES: list[str] = [
+    "README.md",
+    "SOUL.md",
+    "PURPOSE.md",
+    "ECOSYSTEM.md",
+    "CLAUDE.md",
+    "AGENTS.md",
+]
+
+# Explicit, named additions beyond the formula (root self-description files +
+# docs/ depth-1) -- deeper architecture docs F-18's own findings cite by
+# path. Every entry here is a reviewable exception, not a hidden allowlist.
+_EXTRA_TARGETS: dict[str, list[str]] = {
     "claude-copilot": [
-        "README.md",
-        "SOUL.md",
         "docs/10-architecture/04-framework-restructure-2026-04.md",
         "docs/10-architecture/06-hook-deadlock-root-cause-2026-07.md",
     ],
-    "knowledge-copilot": [
-        "README.md",
-        "SOUL.md",
-        "PURPOSE.md",
-        "ECOSYSTEM.md",
-    ],
-    "cli-copilot": [
-        "README.md",
-        "SOUL.md",
-        "docs/00-overview.md",
-    ],
     "codex-copilot": [
-        "README.md",
-        "SOUL.md",
         "docs/05-reference/03-parity-contract.md",
         "docs/03-developer-guides/03-specialist-chain-evaluation.md",
     ],
 }
+
+
+def _docs_depth1_worktree(repo_dir: Path) -> list[str]:
+    docs_dir = repo_dir / "docs"
+    if not docs_dir.is_dir():
+        return []
+    return sorted(f"docs/{p.name}" for p in docs_dir.iterdir() if p.is_file() and p.suffix == ".md")
+
+
+def _worktree_listing(repo_dir: Path) -> list[str]:
+    names = [n for n in _ROOT_SELF_DESCRIPTION_NAMES if (repo_dir / n).is_file()]
+    names += _docs_depth1_worktree(repo_dir)
+    return names
+
+
+def _git_ls_files(repo_dir: Path, pathspecs: list[str]) -> list[str]:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_dir), "ls-files", "--"] + pathspecs,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except OSError:
+        return []
+    if proc.returncode != 0:
+        return []
+    return [line for line in proc.stdout.splitlines() if line]
+
+
+def _staged_listing(repo_dir: Path) -> list[str]:
+    # Root self-description files: ask git directly (index-based) so a
+    # staged-but-not-yet-flushed-to-disk file is still counted.
+    root_hits = [f for f in _git_ls_files(repo_dir, _ROOT_SELF_DESCRIPTION_NAMES) if "/" not in f]
+    # docs/ depth-1: git's own pathspec globbing for "docs/*.md" matches
+    # ACROSS directory boundaries (its `*` is not path-bounded the way a
+    # shell glob is), so ask for everything under docs/ and filter to
+    # depth-1 .md files ourselves.
+    docs_all = _git_ls_files(repo_dir, ["docs/"])
+    docs_depth1 = sorted(f for f in docs_all if f.endswith(".md") and f.count("/") == 1)
+    return sorted(set(root_hits) | set(docs_depth1))
+
+
+def resolve_scan_targets(root: Path, repo: str, staged: bool = False) -> list[str]:
+    """The list of relpaths in scope for one repo. See module docstring
+    SCOPE. `staged=True` resolves against the git INDEX (what `--check`
+    guards); `staged=False` resolves against the working tree (what
+    `--json`/`--show-unbacked`/`--update-baseline` report on)."""
+    repo_dir = root / repo
+    base = _staged_listing(repo_dir) if staged else _worktree_listing(repo_dir)
+    return sorted(set(base) | set(_EXTRA_TARGETS.get(repo, [])))
+
 
 # ---------------------------------------------------------------------------
 # Assertion detection
@@ -210,42 +300,77 @@ def _iter_scan_lines(text: str) -> list[tuple[int, str]]:
     return out
 
 
-def _annotations_by_line(lines: list[tuple[int, str]]) -> dict[int, set[str]]:
-    """Map line_no -> set of annotation ids found on that raw line."""
+def _annotations_by_line(lines: list[tuple[int, str]]) -> tuple[dict[int, set[str]], set[int]]:
+    """Map line_no -> set of annotation ids found on that raw line, plus the
+    set of line numbers that are STANDALONE (the annotation comment, and
+    nothing else, once stripped) -- see module docstring BINDING."""
     result: dict[int, set[str]] = {}
+    standalone: set[int] = set()
     for line_no, raw in lines:
         ids = set(_ANNOTATION_RE.findall(raw))
         if ids:
             result[line_no] = ids
-    return result
+            if _ANNOTATION_RE.sub("", raw).strip() == "":
+                standalone.add(line_no)
+    return result, standalone
 
 
-def _nearby_annotation_ids(annotations: dict[int, set[str]], line_no: int) -> set[str]:
-    """An assertion is annotated if a claim-check comment sits on its own
-    line, the line before, or the line after (lets an author put the
-    annotation as a trailing note or a preceding preface)."""
-    ids: set[str] = set()
-    for ln in (line_no - 1, line_no, line_no + 1):
-        ids |= annotations.get(ln, set())
+def _line_annotation_ids(annotations: dict[int, set[str]], standalone: set[int], line_no: int) -> set[str]:
+    """An assertion is backed by (a) an annotation trailing its OWN line, or
+    (b) a standalone annotation-only line immediately BEFORE it. No other
+    adjacency counts -- see module docstring BINDING for why the old
+    ±1-either-direction rule was tightened."""
+    ids: set[str] = set(annotations.get(line_no, set()))
+    prev = line_no - 1
+    if prev in standalone:
+        ids |= annotations.get(prev, set())
     return ids
 
 
-def scan_file(repo: str, relpath: str, root: Path, known_claim_ids: set[str]) -> dict:
-    """Scan one file. Returns a dict with 'findings' (list) and 'errors'
-    (list) — a missing file is an error entry, never a crash."""
+def _read_worktree_text(root: Path, repo: str, relpath: str) -> tuple[str | None, str | None]:
     path = root / repo / relpath
     if not path.is_file():
-        return {"findings": [], "errors": [{"repo": repo, "file": relpath, "error": "file not found"}]}
+        return None, "file not found"
+    return path.read_text(encoding="utf-8", errors="replace"), None
 
-    text = path.read_text(encoding="utf-8", errors="replace")
+
+def _read_staged_text(root: Path, repo: str, relpath: str) -> tuple[str | None, str | None]:
+    repo_dir = root / repo
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_dir), "show", f":{relpath}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except OSError as e:
+        return None, f"git show failed: {e}"
+    if proc.returncode != 0:
+        return None, "not present in the git index (untracked, deleted, or never staged)"
+    return proc.stdout, None
+
+
+def scan_file(repo: str, relpath: str, root: Path, known_claim_ids: set[str], staged: bool = False) -> dict:
+    """Scan one file. Returns a dict with 'findings' (list) and 'errors'
+    (list) — a missing file is an error entry, never a crash. `staged=True`
+    reads the file's content from the git INDEX (see module docstring
+    STAGED-CONTENT SCANNING), not the working tree."""
+    if staged:
+        text, err = _read_staged_text(root, repo, relpath)
+    else:
+        text, err = _read_worktree_text(root, repo, relpath)
+    if text is None:
+        return {"findings": [], "errors": [{"repo": repo, "file": relpath, "error": err}]}
+
     lines = _iter_scan_lines(text)
-    annotations = _annotations_by_line(lines)
+    annotations, standalone = _annotations_by_line(lines)
 
     findings = []
     for line_no, raw in lines:
         scannable = _strip_line_for_scanning(raw)
         for category, matched_text in _line_assertions(scannable):
-            nearby = _nearby_annotation_ids(annotations, line_no)
+            nearby = _line_annotation_ids(annotations, standalone, line_no)
             resolved = nearby & known_claim_ids
             dangling = nearby - known_claim_ids
             if resolved:
@@ -294,14 +419,22 @@ def _load_known_claim_ids(claims_path: Path) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
-def run_sweep(root: Path, claims_path: Path = DEFAULT_CLAIMS_PATH, only_repo: str | None = None) -> dict:
+def run_sweep(
+    root: Path,
+    claims_path: Path = DEFAULT_CLAIMS_PATH,
+    only_repo: str | None = None,
+    staged: bool = False,
+) -> dict:
     known_ids = _load_known_claim_ids(claims_path)
     all_findings: list[dict] = []
     errors: list[dict] = []
-    repos = {only_repo: SCAN_TARGETS[only_repo]} if only_repo else SCAN_TARGETS
-    for repo, relpaths in repos.items():
+    repos = [only_repo] if only_repo else REPOS
+    files_scanned = 0
+    for repo in repos:
+        relpaths = resolve_scan_targets(root, repo, staged=staged)
+        files_scanned += len(relpaths)
         for relpath in relpaths:
-            result = scan_file(repo, relpath, root, known_ids)
+            result = scan_file(repo, relpath, root, known_ids, staged=staged)
             all_findings.extend(result["findings"])
             errors.extend(result["errors"])
 
@@ -318,7 +451,7 @@ def run_sweep(root: Path, claims_path: Path = DEFAULT_CLAIMS_PATH, only_repo: st
     return {
         "metrics": {
             "known_claim_ids": len(known_ids),
-            "files_scanned": sum(len(v) for v in repos.values()),
+            "files_scanned": files_scanned,
             "assertions_total": len(all_findings),
             "assertions_backed": n_backed,
             "assertions_unbacked": n_unbacked,
@@ -393,7 +526,9 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     root = resolve_copilot_root()
-    result = run_sweep(root, only_repo=args.repo)
+    # Pre-commit mode scans the git INDEX (staged content), not the working
+    # tree -- see module docstring STAGED-CONTENT SCANNING (the TOCTOU fix).
+    result = run_sweep(root, only_repo=args.repo, staged=True)
     unbacked = [f for f in result["metrics"]["findings"] if f["status"] in ("UNBACKED", "DANGLING")]
     baseline = _load_baseline()
     baseline_keys = set(baseline.keys())
@@ -463,10 +598,10 @@ def cmd_update_baseline(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="claim_sweep.py", description=__doc__.splitlines()[0])
-    parser.add_argument("--repo", help="Scope to one repo (see SCAN_TARGETS keys).")
+    parser.add_argument("--repo", help="Scope to one repo (see REPOS).")
     parser.add_argument("--json", action="store_true", help="Machine-readable report.")
     parser.add_argument("--show-unbacked", action="store_true", help="List every unbacked/dangling finding.")
-    parser.add_argument("--check", action="store_true", help="Pre-commit mode: exit 1 on NEW unbacked assertions.")
+    parser.add_argument("--check", action="store_true", help="Pre-commit mode: exit 1 on NEW unbacked assertions (scans the git index).")
     parser.add_argument("--update-baseline", action="store_true", help="Regenerate the baseline from current findings.")
     return parser
 
@@ -474,15 +609,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.repo and args.repo not in SCAN_TARGETS:
+    if args.repo and args.repo not in REPOS:
         if args.check:
-            # Pre-commit mode, installed generically: a repo outside
-            # SCAN_TARGETS has nothing this sweep covers yet — vacuously
-            # OK, never a hook failure (mirrors check_claims.py's own
-            # "register does not exist yet in this repo" no-op).
-            print(f"claim_sweep --check: OK — '{args.repo}' is not in SCAN_TARGETS, nothing to check.")
+            # Pre-commit mode, installed generically: a repo outside REPOS
+            # has nothing this sweep covers yet — vacuously OK, never a
+            # hook failure (mirrors check_claims.py's own "register does not
+            # exist yet in this repo" no-op).
+            print(f"claim_sweep --check: OK — '{args.repo}' is not in REPOS, nothing to check.")
             return 0
-        print(f"claim_sweep: unknown --repo '{args.repo}' (known: {', '.join(sorted(SCAN_TARGETS))})", file=sys.stderr)
+        print(f"claim_sweep: unknown --repo '{args.repo}' (known: {', '.join(sorted(REPOS))})", file=sys.stderr)
         return 1
     if args.update_baseline:
         return cmd_update_baseline(args)

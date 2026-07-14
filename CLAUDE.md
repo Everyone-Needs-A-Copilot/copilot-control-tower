@@ -32,7 +32,7 @@ The [PRD](docs/02-prd/prd.md) is the plan: **WS-A (the CLI `--json`/`flock` cont
 
 ## Framework
 
-The Claude Copilot framework is **installed** in this repo — agents (`.claude/agents/`, 15 specialists), the protocol and continue commands (`.claude/commands/`), memory (`.claude/memory/`), and `cc/config.json` are all present and wired to the shared registry (`shared_docs`/`knowledge_repo` → `@machine`). Codex Copilot is installed alongside it (`AGENTS.md`, `plugins/codex-copilot`). Use the protocol, agents, and memory for build work; keep this file as the project's source of truth for the invariants above. Re-run `/setup-project` only to refresh or repair the install.
+The Claude Copilot framework is **installed** in this repo — agents (`.claude/agents/`, 15 specialists <!-- claim-check: control-tower-agent-count -->), the protocol and continue commands (`.claude/commands/`), memory (`.claude/memory/`), and `cc/config.json` are all present and wired to the shared registry (`shared_docs`/`knowledge_repo` → `@machine`). Codex Copilot is installed alongside it (`AGENTS.md`, `plugins/codex-copilot`). Use the protocol, agents, and memory for build work; keep this file as the project's source of truth for the invariants above. Re-run `/setup-project` only to refresh or repair the install.
 
 ## Guardrails for this session
 
