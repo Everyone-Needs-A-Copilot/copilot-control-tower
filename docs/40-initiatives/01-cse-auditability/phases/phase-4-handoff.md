@@ -1,9 +1,8 @@
 # HANDOFF — CSE Verification, Remediation & Outcome Program
 
-> For: the developer taking this program over · Prepared 2026-07-13
-> Owner: Pablo Alejo · Working repo: `copilot-control-tower` (branch `main`
-> **[Corrected 2026-07-13: was `app-build`, now 18 commits behind `main`;
-> check out `main`]**)
+> For: the developer taking this program over — or the owner, in six months.
+> Refreshed 2026-07-14 (QA pass; supersedes the 2026-07-13 version).
+> Owner: Pablo Alejo · Working repo: `copilot-control-tower` (branch `main`)
 > **You should be able to finish everything from this document alone.** Every
 > claim here is backed by a committed artifact; nothing lives in anyone's head.
 
@@ -14,17 +13,6 @@
 The Copilot Solutioning Ecosystem (CSE) has **one goal**: *support people in
 creating solutions they love — quickly, efficiently, and intuitively.*
 
-Your job has three strands, in this priority order:
-
-1. **Build the outcome instrumentation** that proves (or refutes) that goal —
-   the Outcome Ledger, the token joins, the 4-config ladder test, the external
-   pilot. This is the main event ([`phase-4-outcome-program-prd.md`](phase-4-outcome-program-prd.md)).
-2. **Keep the hygiene floor green** — the SOUL-conformance remediation
-   ([`phase-3-soul-remediation.md`](phase-3-soul-remediation.md)).
-3. **Feed the owner's decision queue** — several fixes are decisions, not
-   work; your job is to make each decision one-click (evidence attached),
-   never to make it for him. (§6)
-
 Two rules override everything else:
 - **Performance over efficiency.** Loveable solutions, fast, is the objective;
   token efficiency is a constraint pushed as hard as possible (aspiration 90%
@@ -32,216 +20,269 @@ Two rules override everything else:
 - **The removal rule.** Surface that moves no outcome bar in its review window
   gets mechanically nominated for deletion. Deletions are the owner's call.
 
+**Where this stands today, in one sentence:** the measuring instrument is
+built, proven correct, and running; the ecosystem it measures has not yet
+been allowed to run on real work — the register is 62 claims (34 passing /
+14 failing / 8 unchecked / 3 gated / 3 retired), and the honest floor is
+**two acts only the owner can perform** (§4). Everything else this program
+could do without him, it has done.
+
 ## 2. Day one — setup and self-verification
 
-**The machine layout.** **[Corrected 2026-07-13]** The prior version of this
-doc assumed everything lives under `/Volumes/Dev/Sites/COPILOT/` with
-`/Users/pabs/Sites` as a symlink to the same tree. That holds on the owner's
-*primary* machine only. On the machine this correction was made from,
-`/Volumes/Dev` is **not mounted at all** and `/Users/pabs/Sites/COPILOT` is
-the real, only tree — not a symlink. Every collector now tries BOTH known
-roots and uses whichever exists (`tools/cse-bench/collectors/paths.py`,
-`resolve_copilot_root()` / `COPILOT_ROOT_CANDIDATES`); do not assume either
-path a priori, and never count both if you ever work across two machines.
-
-| Repo | Branch | What it is |
-|---|---|---|
-| `copilot-control-tower` | `main` **[Corrected 2026-07-13: was `app-build`, now 18 commits behind `main` — all program work lands on `main`; check out `main`]** | This program's home: `docs/40-initiatives/01-cse-auditability/` + `tools/cse-bench/` |
-| `claude-copilot` | `docs/40-initiatives-migration` | Development framework (agents, hooks, `cc`, `tc` in `tools/`) |
-| `codex-copilot` | `main` | Same framework, Codex harness (downstream mirror) |
-| `knowledge-copilot` | `main` | Knowledge framework (aka shared-docs) |
-| `cli-copilot` | `main` **[Corrected 2026-07-13: `feat/r11-r12-soul-remediation` (R-11/R-12, TASK-120/121) merged to `main` this session, commits 21e7c61+4f90d7b; `feat/convoco-launch-readiness` was already merged to `main` earlier (1b90cb7)]** | Integration framework (`copilot` binary) |
+**The machine layout.** Every collector tries both known workspace roots
+(`/Volumes/Dev/Sites/COPILOT` first, then `/Users/pabs/Sites/COPILOT`) and
+uses whichever exists (`tools/cse-bench/collectors/paths.py`,
+`resolve_copilot_root()`). On a machine where `/Volumes/Dev` isn't mounted —
+confirmed still true, re-verified 2026-07-14 (`mkdir /Volumes/Dev` →
+`Permission denied`) — `/Users/pabs/Sites/COPILOT` is the real, only tree.
+This affects `tools/cse-bench/` uniformly; it does **not** yet extend to the
+product itself — `claude-copilot`'s `.claude/agents/kc.md` and
+`.claude/commands/knowledge-copilot.md` still hardcode
+`/Volumes/Dev/Sites/COPILOT/knowledge-copilot` and will fail the same way on
+a stranger's machine (confirmed live 2026-07-14, walking the pilot kit — see
+`phase-4-w4-external-pilot-kit.md` §1a). Reported to the owner, not fixed
+this session (a different lane has both files open).
 
 **Traps that will waste your day if you skip this:**
-- Interactive `copilot` is a **shell alias for `cd`**. Always call binaries by
-  absolute path. **[Corrected 2026-07-13]** `/opt/homebrew/bin/copilot` does
-  **not exist on this machine** — the integrations collector errors on it
-  honestly rather than silently degrading (`tools/cse-bench/output/
-  integrations-latest.json`); the real, working dev binary is cli-copilot's
-  own venv, `cli-copilot/.venv313/bin/copilot` (verified live via `--help`),
-  which is what the W-3 ladder harness's `+integrations` config uses
-  explicitly (`benches/ladder/configs.py`). Also use `~/.local/bin/cc`
-  (claude-copilot's tool — a *different product*; `/usr/bin/cc` is the C
-  compiler).
-- cli-copilot's `.venv` is dead. Run everything via
-  `uv run --extra dev pytest -q` (and `uv run ruff check .`).
+- Interactive `copilot` is a **shell alias for `cd`** on this machine (the
+  owner's personal `.zshrc`, not shipped by the framework). Always call
+  binaries by absolute path. `/opt/homebrew/bin/copilot` does **not** exist
+  here; the real dev binary is `cli-copilot/.venv313/bin/copilot`.
+- `alias which='type -all'` (also personal, not shipped) reproducibly breaks
+  bare `which` under zsh. Re-confirmed 2026-07-14: it does **not** break any
+  shipped script (`setup.md`/`setup-project.md` both already resolve
+  `cc`/`tc` via `command -v`) — it is a trap for a human debugging manually,
+  not a pilot-blocking defect.
+- `cc config init --project` requires the target directory to **already be a
+  git repository** — nothing in `SETUP.md` or `setup-project.md` says so.
+  Confirmed live 2026-07-14: a fresh, non-git project directory hits `Error:
+  Not inside a git repository.` with no earlier warning. `git init` first.
 - Cargo builds in control-tower need `CC=/usr/bin/cc PATH=/usr/bin:$PATH`.
-- launchd cannot read `/Volumes/Dev` (TCC): the retention installer deploys a
-  runtime copy under `~/Library/Application Support/` — re-run
-  `tools/cse-bench/retention/install.sh` after editing the retention script.
-  **[Corrected 2026-07-13]** On this machine the retention `launchd` service
-  is not installed at all (`launchctl print` reports "Could not find
-  service") — this is a per-machine install step, not a global fact; run
-  `tools/cse-bench/retention/install.sh` here before relying on it.
 
 **Verify your setup (all must pass before you write a line):**
 
 ```bash
-cd /Users/pabs/Sites/COPILOT/copilot-control-tower   # or /Volumes/Dev/Sites/COPILOT/... on the owner's primary machine — both resolve, see collectors/paths.py
-python3 tools/cse-bench/check_claims.py                      # register valid (42 claims, 17 definitions as of 2026-07-13 — was 38/11)
-cd tools/cse-bench && python3 cse_bench.py collect           # 12 collectors as of 2026-07-13 (was 9); errors: [] on 11 of them — integrations errors honestly (/opt/homebrew/bin/copilot absent on this machine, see Traps above)
-python3 cse_bench.py render && open output/dashboard.html    # 3 component sections + trust ledger
-cd benches/knowledge_qa && python3 run.py --dry-run          # bench harness intact
-tc progress                                                  # Task Copilot store readable (PRD-9, PRD-10; 23 tasks total as of 2026-07-13 — the store was found empty this session and rebuilt same-day with the original task IDs)
-launchctl print gui/$UID/com.copilot.cse.transcript-retention | head -3   # retention alive — NOT installed on this machine as of 2026-07-13 (see Traps above); install it here first if you need it live
+cd /Users/pabs/Sites/COPILOT/copilot-control-tower
+python3 tools/cse-bench/check_claims.py          # 62 claims, 23 definitions, 0 violations (2026-07-14)
+cd tools/cse-bench && python3 cse_bench.py collect   # 14 collectors; integrations still errors honestly (/opt/homebrew/bin/copilot absent)
+python3 cse_bench.py render && open output/dashboard.html
+tc progress                                       # 33 completed / 4 blocked / 3 cancelled tasks (2026-07-14)
 ```
 
-## 3. What you're inheriting (the system, in one page)
+## 3. Where the program actually stands (2026-07-14)
 
-**The measurement stack** (all in `tools/cse-bench/`, all committed):
-`claims.yaml` (the pre-registered register — **[Corrected 2026-07-13: 17
-definitions, 42 claims, was 11/38]**, the single source of truth for every
-quotable number; pre-commit-enforced) →
-**collectors** (tasksdb, transcripts, velocity, parity, integrations, evals,
-framework_soul, knowledge_soul, cli_soul, economy, solutions, value_density —
-12 total as of 2026-07-13, was 9 — each emits the
-`cse-bench/1` JSON envelope) → **benches** (knowledge_qa, voice_lint,
-mcp_twin, resume_cost, ladder — live model runs with audit trails) →
-**render** (the dashboard: ecosystem scoreboard, three component sections
-each headed by its SOUL promise, trust ledger).
+- **The register.** 62 claims, `check_claims.py` reports 0 violations. 34
+  passing / 14 failing / 8 unchecked / 3 gated / 3 retired. Nothing is
+  un-triaged; every failing/unchecked row has a named reason and, where
+  applicable, a named blocker (§4, §5).
+- **The ten decision memos are ruled and executed**, except one held on
+  purpose: DEC-1, DEC-2, DEC-3, DEC-5, DEC-6, DEC-8, DEC-9, DEC-10 are ruled
+  (`decisions/DEC-*.md` headers) and their tasks `completed`. **DEC-7 is
+  held** — its own recommendation was "run one real Claude Code session in
+  `claude-copilot` first, then rule" (TASK-103 stays `blocked` on this, on
+  purpose, not on neglect). DEC-4's own claim effect
+  (`knowledge-registry-completeness`, still `failing`, re-checked 2026-07-14)
+  turned out to be mostly mechanical, non-owner-gated work (the missing
+  `copilot-control-tower`/`knowledge-copilot` `ECOSYSTEM.md` rows landed
+  independently of the ruling) — 10 top-level dirs remain uncovered, not
+  gated on any decision here.
+- **The ladder has run twice, live, for real money and real tokens.** v1
+  (TASK-125, 4 configs × 3 jobs = 12 cells) and v2 (TASK-142, the
+  discriminating job pack, 72 cells). Two outcome bars now have a first real
+  number, both **FAILING**:
+  - **O-4 (`outcome-token-efficiency`): FAILING, and not narrowly.** Every
+    rung measured costs *more* tokens than bare, never fewer — v1: 9/9
+    non-bare cells negative vs bare, mean −24.2%; v2's in-situ ablation
+    isolates a ~3,000-token/job fixed entry fee for `+framework`, paid
+    entirely in turn 1 before any tool result exists, 76.5% attributed to
+    `CLAUDE.md` + the agent roster. The one mitigation shipped so far (the
+    `CLAUDE.md` payload trim, `claude-copilot@0c73f65`) recovers only
+    ~8–12% of that premium and does not flip the sign.
+  - **O-6 (`outcome-counterfactual-delta`): FAILING, mixed per-component —
+    read the components separately, not averaged.** Knowledge and
+    integrations show a **real, positive, mechanically-verified**
+    contribution (byte-matched against real service data / a real private
+    glossary, independently re-checked). **Framework shows none — but is
+    explicitly UNMEASURED, not disproven**: `ladder-cannot-measure-framework-
+    agent-layer` found **zero** Task-tool invocations across all 72 cells,
+    including the rungs where the full 13-agent roster was materialized and
+    available. The harness's headless, single-shot `claude -p` mode never
+    gives the agent-delegation layer a chance to fire at all. The honest
+    reading is "we could not construct a job on which the agent layer was
+    even invoked" — never "agents add nothing." Do not let anyone round this
+    down to a disproof.
+- **[`retrospectives/VALUE.md`](../retrospectives/VALUE.md)** is the
+  **"what can I honestly say"
+  document** — the load-bearing artifact for anyone about to quote this
+  program externally. Read it before you cite a single number outside this
+  initiative.
 
-**Proven and safe to cite** (each with a re-run command in its claim):
-knowledge +98pp private-fact accuracy; resume-with-state 100% vs 0% at +3.9%
-tokens; voice rules-format beats prose-format; **[Corrected 2026-07-13]**
-golden-set evals now cover 6 of 16 agents (qa, me, ta, doc, sd, uxd), each
-10/10 (was qa only); CLI conformance now a 138-case test, **135 passing, 3
-tracked gaps** (was 125/13), all 3 remaining gaps scoped to the
-fireflies/reddit removal candidates (DEC-5); knowledge cross-link integrity
-70.99% resolving with the remainder baselined as non-decision content (was
-52.5%); knowledge freshness frontmatter 100% coverage (was 0%/1.3%); the
-tone-of-voice reference doc itself now passes its own linter at 0.0
-violations/100w (was 2.74).
+## 4. The two acts nothing else can substitute for
 
-**Falsified — never quote:** "~94% less context" (inverted; **[Corrected
-2026-07-13, fresh collect]** agent returns median 893 tokens vs WP content
-median 353, n=124/126 — was median 658 vs 217, n=1099 WPs/658 returns; the
-old numbers were measured against a since-fixed path-resolution bug that
-silently missed this machine's real, smaller tree, not a real corpus
-shrinkage — see `collectors/paths.py`); "Sonnet for ~94% of work"; CLI-vs-MCP
-token advantage (negative unless usage prose ships); "extensions load
-automatically" (now true, but only since `70de3d3`); the 208-command count
-(it's 439); protocol-declaration rate (**[Corrected 2026-07-13]** median is
-**0.0%** under both the loose and strict definitions on this machine's fresh
-collect, not "0.9%" — see the R-3 decision-queue row in §6).
+Everything else in this program that could be done without the owner has
+been done. These two are not decisions — they are the only things that put
+real data into an honestly empty ledger.
 
-**Read-in-order list** for full context: phase-4 PRD §1 has it. Minimum:
-the three SOUL files → `claims.yaml` → phase-4 PRD → phase-3 plan.
+### Act A — track your next real solution end-to-end
 
-## 4. The work, in execution order
+`tc solution create` → `lock-brief` → `mark-working` → `mark-loveable` →
+`log-usage` → `close`, used as you actually work, spread across real elapsed
+time (not a burst at the end — see the windowing note below).
 
-Task IDs are live in this repo's Task Copilot (`tc task get <id>`). Done means
-**the task's claim flips in `claims.yaml`** — never merely "code exists."
+**The machinery is proven ready — verified 2026-07-14, QA pass, in a
+disposable scratch store, never the production ledger.** Three solutions were
+walked through the full lifecycle in a temp store (`tc init` in a scratch
+directory, deleted afterward), with realistic elapsed gaps engineered into
+the ledger's own timestamps, then run through
+`cse_bench.py collect --only solutions,economy,upkeep`. Every number was
+hand-checked against the timestamps that produced it and matched exactly, to
+the decimal, in every case: O-1 (TTFLS), O-2 (completeness), O-3 (speed,
+observed), O-5 (survival), and O-9's netting. **No bug was found or needed
+fixing.** The one thing worth re-stating for whoever tracks the real
+solution:
 
-### Wave 1 — the keystone (do first, in order)
-| Task | What | Flips | Status (2026-07-13) |
+- **Windowing is real and correctly discriminating.** A solution touched
+  once, within a 10-second span, attributed ~2.6K marginal-spend tokens from
+  its session; a second solution in the *same session* but touched across
+  ~7.5 real minutes attributed ~505K — the per-(solution, session) window,
+  not the whole session, drives the number, confirmed on real transcript
+  data, not a fixture.
+- **O-9's netting flip is real and was reproduced.** `outcome-upkeep-tax` is
+  currently `unchecked` in production specifically because clause 2
+  ("netted against outcome value") can't hold with zero outcome-session
+  tokens anywhere — the production `session_token_exact` ratio sits at
+  **100% upkeep** for exactly that reason (verified this session,
+  `claims.yaml` `outcome-upkeep-tax` evidence). In the scratch test, tagging
+  one real historical session as upkeep and touching a solution in a
+  *different* real session dropped that ratio from 100% to **0.45%** —
+  the netting mechanism works exactly as designed the moment outcome tokens
+  exist. Nothing further needs building; it needs a real solution.
+- **`tc solution` records the session id correctly** — every mutating call,
+  every time, joined against the real live transcript, confirmed by hand
+  against the raw `solution_sessions` rows.
+- **One pre-existing, already-documented limitation, re-confirmed, not
+  newly found:** the waste-decomposition heuristic's literal
+  `<promise>COMPLETE</promise>` check doesn't recognize other agents' own
+  completion vocabulary (e.g. `qa`'s `VERDICT`/`ARTIFACT` markers), so it
+  likely over-counts `failed_direction` in a normal multi-role session — see
+  `token-accounting-dual-method-agreement`'s evidence in `claims.yaml`. Not
+  fixed this session (out of this pass's scope; flagged, not silently
+  patched, same as the prior QA pass that first found it).
+- **The production ledger is confirmed empty** in all five repos
+  (`copilot-control-tower`, `claude-copilot`, `knowledge-copilot`,
+  `cli-copilot`, `codex-copilot`) as of the end of this session
+  (`tc solution list --json` → `[]` everywhere).
+
+What flips the moment a real solution ships: `outcome-ttfls`,
+`outcome-completeness`, `outcome-speed-observed`, `outcome-survival`,
+`token-accounting-dual-method-agreement`, `outcome-upkeep-tax`, and the
+real-solution half of `outcome-token-efficiency` (the ladder half is already
+in, and failing — see §3).
+
+### Act B — pick 2–3 external pilots
+
+Kit: [`phase-4-w4-external-pilot-kit.md`](phase-4-w4-external-pilot-kit.md).
+**Walked literally as a stranger this session** (fresh `git clone` of
+`claude-copilot@main` into a scratch directory, no shortcuts) — see the
+kit's own new §1a for the full findings. The most material one: `cc config
+init --project` needs an already-`git init`'d project directory and nothing
+upstream says so (facilitator note added; not fixed in `claude-copilot`
+itself this session). Everything else checked (`/opt/homebrew/bin/copilot`
+absence, the `which`/`copilot` shell aliases, the `/Volumes/Dev`
+`knowledge-copilot` hardcode) is confirmed **non-blocking** for the kit's
+own required steps 1–5.
+
+The pre-registered **O-8 tolerance is intact and untouched** this session
+(`claims.yaml` `definitions.outcome_transfer_tolerance`, drafted 2026-07-14,
+pending owner ratification — kit §2). Ratify it before looking at any
+pilot's data (V-2); nothing else blocks recruiting.
+
+Recruits: empty slot, kit §4. Owner's call — 2–3 people, at least one
+non-developer, genuinely external, bringing a real problem of their own.
+**Urgent, not last** — nothing else can de-confound the single-author caveat
+that sits on every panel this program has produced.
+
+## 5. What's left that isn't one of the two acts
+
+- **TASK-103 (C-3 hook rollout)** — held on DEC-7 by design: run one real
+  Claude Code session in `claude-copilot`, check `.claude/hooks/state/
+  streak-*.json` for sane values and no unexpected `hook-deny`, then rule.
+- **TASK-132 (`t2-no-claim-outlives-its-check`)** — the CSE-wide claim-sweep
+  mechanism exists and runs pre-commit in all 5 repos (re-confirmed firing
+  live this session, §6); the claim itself stays `failing` until the
+  remaining artifact-without-mechanism instances are driven to zero.
+- **TASK-127 (W-5 efficiency wave)** — blocked, and its job has changed
+  shape: with O-4 negative everywhere measured, this is no longer "optimize
+  a passing constraint," it's "find any mitigation that moves O-4 toward
+  less-negative without degrading O-1/O-3."
+
+## 6. Loose ends closed this session (2026-07-14, QA pass)
+
+- **cli-copilot's unpushed commit `03cb4e0`** ("add canonical launch
+  readiness command") is **not** part of this program. Reviewed: Convoco
+  conversations-launch feature work, fails closed on production auth (never
+  falls back to agent-auth in prod), no secrets or credentials embedded.
+  **Not pushed.** Owner's call whether to push, amend, or drop it.
+- **27 untracked `.claude/memory/entries/*.md` files** in this repo —
+  **committed** this session. This repo's own convention already had 74
+  tracked entries and a tracked `.gitkeep`, with no repo-local `.gitignore`
+  rule against them, matching `SETUP.md`'s documented project layout
+  (`.claude/memory/entries/` — "committed to git"). Spot-checked for secrets
+  first (none found).
+- **Pre-commit hooks confirmed installed and firing in every repo that
+  should have them:** claim-sweep (all 5 repos — fired live, twice, via two
+  real commits in this session, both `OK`); crosslinks + freshness
+  (`knowledge-copilot` — both run clean); parity-drift-warn
+  (`claude-copilot` → `codex-copilot`'s `warn-parity-drift.sh` — runs clean,
+  no drift on the currently-staged tree).
+- **All 5 repos clean and pushed** as of the end of this session — see §7.
+
+## 7. Repo status (end of session, 2026-07-14)
+
+| Repo | Branch | HEAD | `git status -sb` |
 |---|---|---|---|
-| **TASK-123 (W-1)** | **Outcome Ledger**: `tc solution` entity + verbs (`create/lock-brief/mark-working/mark-loveable/log-usage/close`) in claude-copilot `tools/tc/`, + `collectors/solutions.py`. Spec: phase-4 PRD §3 W-1. Start tracking the owner's next real solution immediately. | `outcome-ttfls`, `outcome-completeness`, `outcome-survival` → checkable | **completed** |
-| **TASK-124 (W-2)** | Per-solution token accounting, two independent methods, tolerance registered first. | `outcome-token-efficiency` → checkable | **completed** |
-| **TASK-125 (W-3)** | **Ladder harness** (4 configs × 3-job pack) + MLP rubric — rubric goes to the owner for sign-off BEFORE first scoring. | `outcome-counterfactual-delta` → first number | **blocked** (dry-run validated; live scoring gated on DEC-6 sign-off) |
+| `copilot-control-tower` | `main` | `660bb14` | clean, pushed |
+| `claude-copilot` | `docs/40-initiatives-migration` | `0c73f65` | 2 files modified by a concurrent lane (`.claude/agents/kc.md`, `.claude/commands/knowledge-copilot.md`) — not this session's, left alone |
+| `knowledge-copilot` | `main` | `716bae10` | clean, pushed |
+| `cli-copilot` | `main` | `03cb4e0` | ahead 1 (unpushed, not ours — §6); local `.copilot/tasks.db` drift pre-existing, not touched |
+| `codex-copilot` | `main` | `7f7d6f6` | clean, pushed |
 
-### Wave 2 — parallel with Wave 1 (no dependencies, all mechanical)
-| Task | What | Status (2026-07-13) |
-|---|---|---|
-| TASK-115 (R-6) | Fix 124 broken knowledge cross-links (28 wrong-depth batch first) + link-check pre-commit in knowledge-copilot | **completed** |
-| TASK-116 (R-7) | Freshness frontmatter (`last_updated`+`status`) backfill + pre-commit | **completed** |
-| TASK-117 (R-8) | Rewrite `02-tone-of-voice.md` to pass its own linter; convert `cw` extension to distilled-rules format | **completed** |
-| TASK-119 (R-10) | Fix contradictory product versions (start: insights-copilot 2.7.0 vs 2.6.0) | **completed** |
-| TASK-120 (R-11) | Close the CLI conformance gaps — **scoped by the relevance rule:** skip removal-candidate services (fireflies/reddit/metabase/method) until R-13 is ruled; close the rest (infisical tests, error-hierarchy migration, kept-service env docs) now | **completed** (merged to cli-copilot `main` 2026-07-13) |
-| TASK-121 (R-12) | Two residual doc-truth lines in cli-copilot | **completed** (merged to cli-copilot `main` 2026-07-13) |
-
-> **Relevance rule (phase-3 §Sequencing):** never polish surface the removal
-> rule may delete. It also scopes R-6 (fix the 28-link batch + actively-read
-> files first; orphan-candidate links wait) and C-5 (eval agents that survive
-> the W-6 relevance pass, not all 15 blanket).
-
-### Wave 3 — after the first ladder run
-| Task | What | Status (2026-07-13) |
-|---|---|---|
-| TASK-127 (W-5) | Efficiency wave: attack measured waste (agent return sizes, enforcement cost, knowledge format, CLI prose). Every change re-laddered; tokens ↓ with O-1/O-3 flat-or-better, else revert. | **blocked** (plan + staged patches landed, honestly empty merge — nothing yet re-laddered) |
-| TASK-128 (W-6) | `collectors/value_density.py` + first removal review → nominations to the owner | **completed** (DEC-8 memo) |
-| TASK-126 (W-4) | External pilot: 2–3 non-author users (owner picks recruits), install-as-a-stranger measured, O-7/O-8 collected. **Nothing else can de-confound the data; treat as urgent, not last.** | **blocked** (owner recruits pending) |
-
-### Staged (readiness-gated, run alongside)
-| Task | What | Status (2026-07-13) |
-|---|---|---|
-| TASK-103 (C-3) | Enforcement/observability hook rollout beyond claude-copilot — per-repo readiness checks in claude-copilot `docs/10-architecture/06-hook-deadlock-root-cause-2026-07.md`. The deadlock fix is proven (`77f5cdb0`); do not roll out the pre-fix hook anywhere. | **blocked** |
-| TASK-105 (C-5) | Golden-set evals for the next agents (me, ta, doc, sd, uxd), each baselined before merge | **completed** (all 5 landed at 10/10; agent-eval-coverage is now 6/16, see claims.yaml) |
-| TASK-100 (B-17) | Delete-or-defend list per product, fed by W-6 nominations | **blocked** (deliverable: DEC-9, the consolidated per-product delete-or-defend list; DEC-8, the W-6 first-removal-review memo, also cites TASK-100 in its own header as the decision-queue task it feeds — a QA nit flagged that DEC-8 referenced TASK-100 before TASK-100's `blocked` status had actually landed in the Task Copilot store; both are now consistent) |
-
-(TASK-95/96/97 are cancelled as superseded — don't resurrect them.)
-
-## 5. How to work (non-negotiable operating rules)
+## 8. How to work (non-negotiable operating rules, condensed)
 
 1. **Register first (V-2).** Definition into `claims.yaml` before you look at
-   data; claim entry before you quote a number. The pre-commit hook blocks
-   invalid registers; corrections are new commits, never silent rewrites.
-2. **Done = claim flip.** Every task ends with its `check` command passing and
-   the status honestly updated (`last_checked` bumped).
-3. **SOUL gates.** Any product change runs through that repo's SOUL feature
-   filter before implementation. Additive, tested, scoped commits. Commit
-   messages end with your model's `Co-Authored-By:` line. Push the branch you
-   found checked out.
-4. **Honesty style.** Negative results are findings — report them plainly, no
-   silver linings. Single-author data carries its caveat until W-4 lands. No
-   time estimates anywhere (phases/priority/complexity only).
-5. **Envelope contract.** Collectors/benches emit
-   `{schema_version:"cse-bench/1", collector, generated_at, host_scope,
-   metrics, errors}` + a `-latest.json` pointer; the dashboard consumes only
-   that. Raw bench responses are saved under `output/` for audit.
-6. **Use Task Copilot.** Statuses maintained as you go (`tc task update <id>
-   --status in_progress|completed`); work products stored via `tc wp`; the
-   owner reads `tc progress`.
-7. **The owner communicates via Discord** when away — the bridge hooks handle
-   it; an active handoff thread exists ("CSE benchmark program", started
-   2026-07-12). Post major milestones there; questions that block you go there
-   too.
+   data; claim entry before you quote a number. Pre-commit-enforced.
+2. **Done = claim flip**, with `last_checked` bumped — never merely "code
+   exists."
+3. **Honesty style.** Negative results are findings — report them plainly.
+   Single-author data carries its caveat until Act B lands.
+4. **Envelope contract.** Collectors/benches emit `{schema_version:
+   "cse-bench/1", collector, generated_at, host_scope, metrics, errors}` +
+   a `-latest.json` pointer.
+5. **Use Task Copilot.** Statuses maintained as you go; work products stored
+   via `tc wp`; the owner reads `tc progress`.
 
-## 6. The owner's decision queue (make one-click; never decide for him)
-
-| # | Decision | Evidence to attach |
-|---|---|---|
-| 1 | R-1 (TASK-112): enforce the ~100-token agent-return bar vs amend the SOUL bar | `framework_soul-latest.json` distribution — **[Corrected 2026-07-13, fresh collect]** median 893, p90 3,474, 95.97% >300 (was median 658, p90 2,749, 86.2% >300 — worse, not better; see `framework-agent-frugality` in claims.yaml) |
-| 2 | R-3 (TASK-113): protocol at **0.0%** — enforce, simplify, or retire **[Corrected 2026-07-13: was stated as "0.9%"; a fresh transcripts collect shows the median is 0.0% under BOTH the loose and strict protocol-declaration definitions]** | decision memo (task deliverable) |
-| 3 | R-5 (TASK-114): ratify the SOUL §3 correction (falsified ~94%, now measured at -153%, i.e. further inverted — see `framework-externalization-94pct`) | framework_soul verdict; README already corrected (`7274e6b`) |
-| 4 | R-9 (TASK-118) deletions: stale clones `conversations-copilot`, `shared-docs` dirs; registry gaps (copilot-control-tower absent, knowledge-copilot's own path missing) | knowledge_soul registry block — **[Corrected 2026-07-13]** the registry_integrity metric itself had a path-prefix bug (silently vacuous 0/0 forward check, over-flagged reverse check) fixed this session; honest post-fix numbers are in `knowledge-registry-completeness` (claims.yaml) |
-| 5 | R-13 (TASK-122) / B-17: configure-or-cut fireflies, reddit, metabase, method; then each W-6 nomination | cli_soul + usage ledger + value_density — **[Corrected 2026-07-13]** cli-copilot's conformance scorecard is now 135/138 (was 125/138); the 3 remaining gaps are entirely fireflies/reddit, i.e. exactly what this decision is about |
-| 6 | W-3 MLP rubric sign-off; W-4 pilot recruits | rubric draft; candidate list |
-
-## 7. Definition of done for this engagement
-
-From phase-4 PRD §6, verbatim in spirit: the Outcome Ledger tracks real
-solutions end-to-end; one full ladder run has produced honest O-1..O-4
-numbers; ≥2 external pilots have generated O-7/O-8 data; the efficiency trend
-is measured against the 60→90% band with performance non-degraded; the first
-removal review has owner rulings; **all nine outcome claims are passing,
-failing, or retired — none gated.** Plus: the hygiene floor (R-series) green,
-and the decision queue empty or escalated.
-
-When that's true, the owner's founding question — *"how do I prove any of
-this is useful?"* — has an evidence-backed answer either way, and the CSE is
-ready to be handed to another organization with a straight face.
-
-## 8. Quick reference
+## 9. Quick reference
 
 ```bash
 # The register (the law)
 python3 tools/cse-bench/check_claims.py
 # Refresh all metrics + dashboard
 cd tools/cse-bench && python3 cse_bench.py collect && python3 cse_bench.py render
-# Benches (each README has details)
-python3 benches/knowledge_qa/run.py            # +98pp knowledge ablation
-python3 benches/voice_lint/run.py              # 3-arm voice conformance
-python3 benches/resume_cost/run.py             # resume value (run build_state.sh first)
-python3 benches/mcp_twin/run.py                # CLI-vs-MCP economics
-# CLI conformance scorecard (in cli-copilot)
+# Track a real solution (Act A)
+tc solution create --title "..." --brief "..."
+tc solution lock-brief <id>
+tc solution mark-working <id>
+tc solution mark-loveable <id>
+tc solution close <id> --status shipped
+tc solution log-usage <id> --kind usage|fix|feature --tokens N --sessions N
+# CLI conformance scorecard
 CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/test_soul_conformance.py -v --tb=no -rxX
-# Codex parity (sync plumbing, not a measurement)
-python3 codex-copilot/scripts/check-upstream-parity.py --content --json   # path is relative to whichever COPILOT root resolves on your machine — see collectors/paths.py
-# Agent evals — [Corrected 2026-07-13] 6 agents now have a golden set, not just qa
-~/.local/bin/cc eval --agent qa --json         # run from claude-copilot; also: --agent me|ta|doc|sd|uxd
 ```
 
-Key documents (this directory unless noted): `phase-4-outcome-program-prd.md`
-(the program) · `phase-3-soul-remediation.md` (hygiene) · `../claims.yaml` (the
-law) · `phase-1-findings.md` + `phase-1-reaudit-report.html` (how we got here)
-· the three SOUL files (each component's promise).
+Key documents (this directory unless noted): [`retrospectives/VALUE.md`](../retrospectives/VALUE.md) (what
+can honestly be said, externally) · `phase-4-outcome-program-prd.md` (the
+program) · `phase-4-w4-external-pilot-kit.md` (Act B, with 2026-07-14's
+stranger-dry-run findings) · `../claims.yaml` (the law) ·
+`decisions/RULING-AGENDA.md` (the ten memos, ruled) · `phase-3-soul-
+remediation.md` (hygiene, complete) · the three SOUL files (each
+component's promise).
