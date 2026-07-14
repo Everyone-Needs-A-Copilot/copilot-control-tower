@@ -1238,8 +1238,44 @@ claims:
     statement: "The time and tokens spent maintaining the CSE itself are measured and netted against outcome value in every value statement."
     definition_refs: [outcome_bars, upkeep_tax]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only upkeep && python3 -c \"import json; d=json.load(open('output/upkeep-latest.json'))['metrics']; print(d['totals'])\" -- passing iff at least one repo reports a non-null figure via a registered definitions.upkeep_tax method (task_count_heuristic or session_token_exact), errors: []."
-    status: unchecked
-    evidence: "definitions.upkeep_tax registered this session (methodology only, BEFORE any `tc upkeep tag-*` command had been run anywhere -- V-2). The maintenance-session tagging instrumentation itself (claude-copilot tools/tc/ `tc upkeep` verbs + tools/cse-bench/collectors/upkeep.py) is landing in the same session's next commit; this row will flip again, with a real quoted number, once it has actually run against real tagged data -- see phase-4-outcome-program-prd.md operating rule 2 ('done = claim flip, never when code merely exists')."
+    status: passing
+    evidence: >-
+      Instrumentation landed (claude-copilot tools/tc/ `tc upkeep` verbs,
+      TASK-138) and run for real against this repo's own task history
+      (copilot-control-tower .copilot/tasks.db) -- the first non-fabricated
+      O-9 numbers, quoted plainly whichever way they land, per operating
+      rule 4. task_count_heuristic (retrospective): `tc upkeep tag-prd 9`
+      bulk-tagged all 22 pre-existing tasks under PRD-9 ("CSE Verification
+      & Benchmark Program + SOUL Remediation" -- the auditability
+      initiative's own hygiene/registry/measurement work, not a customer
+      solution; editorial call, disclosed, not hidden) plus this task
+      itself (TASK-138, explicit) = 23/32 = 71.9% of this repo's tracked
+      tasks are upkeep -- unsurprising and not alarming: this repo is the
+      measurement/ops repo for the CSE-auditability initiative, not a
+      product repo, so a high share here is expected, not a finding.
+      Ecosystem-wide (10 repos scanned, only this one has run `tc upkeep`
+      so far): 23/198 = 11.6% -- honestly partial, most repos show
+      upkeep_instrumentation_present: false (pre-adoption, not zero).
+      session_token_exact (token-exact, prospective): tagging TASK-138
+      captured this live session's real id (CLAUDE_CODE_SESSION_ID),
+      joined to its transcript -- upkeep_tokens_marginal_spend ~=18.98M,
+      outcome_tokens_marginal_spend=0 (no solution_sessions exist anywhere
+      in the ecosystem yet -- W-1/W-2 adoption is still early, per
+      RULING-AGENDA.md §6), forcing upkeep_tax_ratio_marginal_spend=1.0.
+      STATED PLAINLY, this is a finding to caveat, not a clean baseline: n=1
+      tagged session: this method has never run before this task, so
+      there is nothing to compare against yet. The tagged session is this
+      one, whole -- 149 main-session messages + 29 subagent delegations
+      accumulated over more than just this task's own work (definitions.
+      upkeep_tax.methods.session_token_exact is unwindowed by design), so
+      the figure overstates what TASK-138 alone cost. And the ratio is
+      mechanically forced to 1.0 whenever ANY upkeep tokens exist and zero
+      solution-session tokens exist anywhere -- not evidence the ecosystem
+      is 100% upkeep, evidence that the Outcome Ledger's own token-join
+      side (W-2) has no solution data yet to net against. Both methods
+      run clean (errors: []); re-run: `cd tools/cse-bench && python3
+      cse_bench.py collect --only upkeep` ->
+      output/upkeep-latest.json.metrics.totals / .per_repo.
     last_checked: "2026-07-14"
 
   # --- Program truth conditions (phase-2-prd.md §2, T1-T8) ---------------
