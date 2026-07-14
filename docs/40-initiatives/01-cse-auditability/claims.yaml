@@ -917,6 +917,99 @@ definitions:
       later fact).
     source: "QA WP-76 (tc wp get 76), .copilot/wp/76.md Q4"
 
+  ladder_o4_residual_ablation:
+    description: >-
+      TASK-148 (W-3c, parent TASK-125), closing ladder-o4-scaffold-
+      attribution-wp79-closed's own named next step. Registered BEFORE any
+      of the three new rungs was run against a real job (V-2). WP-79/WP-81
+      isolated CLAUDE.md (40.9% of the mean 3003-token turn-1 cache_creation
+      premium) and the 13-agent roster (35.7%) in situ, at the SAME model
+      (sonnet) and SAME real job pack as the scored ladder cells — combined
+      76.5% attributed, 23.5% (~704 tokens/job, range 14.5%-29.9% across the
+      4 jobs) left as an explicitly-named, not-rounded-away residual. That
+      claim's own evidence text named the untested remainder: ".claude/
+      commands/, templates/skills/, .mcp.json as their own isolated rungs
+      -- not done here."
+
+      DESIGN (verbatim method match, no confound reintroduced): three new
+      rungs, each identical to `+framework` minus exactly ONE component,
+      via `configs.py`'s `_copy_framework_files(include_commands=,
+      include_skills=, include_mcp=)`:
+      - `framework_minus_commands` — omits `.claude/commands/` (7 project
+        slash commands from claude-copilot's VERSION.json projectCommands).
+      - `framework_minus_skills` — omits `.claude/skills/` (the full
+        templates/skills/ tree, 5 skills, ~25.6KB of SKILL.md content).
+      - `framework_minus_mcp` — omits `.mcp.json` entirely (note:
+        `+framework`'s own `.mcp.json` is itself a no-op placeholder,
+        `{"mcpServers":{}}`, zero servers configured — this rung's
+        pre-registered null hypothesis is that its own in-situ cost is ~0
+        tokens; a confirmed null is itself a real, informative result that
+        RULES .mcp.json OUT of the residual, not a wasted rung).
+      Verified before writing these three rungs, not assumed: re-reading
+      `_copy_framework_files()` line by line confirms it places exactly
+      five things total (agents, commands, skills, CLAUDE.md, .mcp.json) —
+      no settings.json, no hooks output, no other file. These three rungs
+      plus the two WP-79 rungs (`framework_minus_claudemd`,
+      `framework_minus_agents`) are therefore JOINTLY EXHAUSTIVE of every
+      component `materialize_framework()` places — if a residual still
+      survives after all five are measured, it cannot be attributed to
+      "an untested scaffold piece" and must be named as something else
+      (most plausibly, per WP-79's own reconciliation of the prior
+      haiku/trivial-prompt confound, something intrinsic to how the real
+      model processes a real multi-turn coding session's first turn — e.g.
+      tool-schema serialization, the model's own system-prompt scaffolding,
+      or a genuine cache-boundary/rounding effect — not silently rounded
+      away either way).
+
+      METHOD PARITY WITH WP-79/WP-81 (the explicit instruction this
+      pre-registration exists to satisfy): same model (sonnet, recorded
+      per-cell via `record["model"]`), same job pack (`ladder_job_pack_v2`,
+      all 4 jobs — job-1-bugfix, job-2-house-voice, job-3-integration-
+      report, job-4-toolkit), same instrument (`run.py`'s
+      `extract_turn_breakdown()`, turn-1 cache_creation isolated from later
+      turns via the real session transcript, message.id-deduped), same
+      isolation levers (per-run HOME override, `--setting-sources project`,
+      per-config PATH — `ladder_config_materialization`). NOT switching
+      model or prompt type — that exact confound (haiku/trivial-prompt vs
+      sonnet/real-task) is what produced WP-79's own disagreement with the
+      ladder in the first place and must not recur.
+
+      REP COUNT AND BUDGET (stated before running, per this program's cost-
+      discipline convention): 3 reps x 4 jobs x 3 new rungs = 36 cells —
+      the SAME rep count (3) and SAME job set (4) the WP-79/WP-81 ablation
+      used for `framework_minus_claudemd`/`framework_minus_agents` (24
+      cells total there), chosen for direct comparability, not picked
+      fresh; that prior 3-rep design already produced deltas (1228 and 1071
+      tokens against a bare's own turn-1 noise floor visibly smaller than
+      either delta — see WP-79's own reconciliation table) large enough to
+      read as signal, not noise, at n=3, so 3 reps is the minimum this
+      program has already shown works for a scaffold-component ablation of
+      this kind; going lower would break comparability with the two
+      existing rungs without a demonstrated need. Cost ceiling: this
+      machine runs under the owner's Claude Code SUBSCRIPTION (`_seed_home_
+      for_auth()`), never a metered key — any dollar figure this run
+      produces is Claude Code's own computed LIST-PRICE-AT-METERED-RATES
+      EQUIVALENT, not a charge (`ladder_config_materialization.
+      cost_accounting_convention`); based on the WP-79/81 ablation's own
+      observed rate (~$0.148-$0.157/cell, 24 cells / $3.657), this run's
+      36 cells are budgeted at approximately $5.3-$5.7 list-price
+      equivalent, well inside `run.py`'s existing native per-call ceilings
+      (`--timeout` 900s, `--max-budget-usd` $3.00/cell).
+
+      WHAT "FULL ATTRIBUTION" WOULD MEAN, pre-committed before seeing a
+      single number: the five ablated components' own in-situ shares
+      (CLAUDE.md 40.9%, agents 35.7%, plus this run's three new shares)
+      summing to a total attributed percentage. If that sum reaches
+      approximately 100% (within measurement noise) of the mean turn-1
+      premium, the token story is FULLY PROVEN and closeable as such. If a
+      residual still survives after all five components are measured, this
+      claim's status must record that residual's exact size and state
+      plainly what it is NOT (not an untested scaffold piece, since none
+      remain) rather than asserting what it IS without evidence — matching
+      WP-79's own discipline of naming what a gap is NOT before speculating
+      on what it might be.
+    source: "tools/cse-bench/benches/ladder/configs.py (framework_minus_{commands,skills,mcp})"
+
   ladder_mlp_rubric:
     description: >-
       TASK-125 (W-3): the written MLP expectation rubric that scores
