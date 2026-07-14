@@ -268,3 +268,90 @@ both the initiatives-standard check and `check_claims.py` on every commit.
 script (or `scripts/initiatives`'s own installer pattern extended to call
 it) run once — this is the same bootstrap gap the initiatives hook already
 has, not a new one introduced here.
+
+## claim_sweep.py — the CSE-wide claim sweep (TASK-137 / t2)
+
+Closes `t2-no-claim-outlives-its-check` (see `claims.yaml`'s `claim_sweep`
+definition for the full, pre-registered spec — this is a summary).
+`check_claims.py` validates the register's own STRUCTURE; `claim_sweep.py`
+is the other half — it scans a curated set of each CSE product's
+self-description docs (README, SOUL, PURPOSE/ECOSYSTEM.md, and the small
+number of architecture docs F-18's own findings cite by path — see
+`SCAN_TARGETS` in the script) for **verifiable assertions** (percentages,
+"N of M", counts, versions, ratios, and "automatically"/"ensures"/
+"guarantees" mechanism claims) and classifies each one **BACKED** (an
+`<!-- claim-check: <id> -->` annotation nearby resolves to a real
+`claims.yaml` entry) or **UNBACKED**.
+
+```bash
+# Human-readable report (every repo)
+tools/cse-bench/claim_sweep.py
+
+# List every unbacked/dangling finding
+tools/cse-bench/claim_sweep.py --show-unbacked
+
+# Machine-readable
+tools/cse-bench/claim_sweep.py --json
+
+# Scope to one repo (matches SCAN_TARGETS keys: copilot-control-tower,
+# claude-copilot, knowledge-copilot, cli-copilot, codex-copilot)
+tools/cse-bench/claim_sweep.py --repo claude-copilot
+
+# Pre-commit mode: exit 1 only on a NEW unbacked assertion not already in
+# the baseline (a regression gate, not a zero-unbacked gate)
+tools/cse-bench/claim_sweep.py --check
+
+# After a reviewed, intentional change to what's accepted as backlog
+tools/cse-bench/claim_sweep.py --update-baseline
+```
+
+**Backing an assertion.** Add a claim to `claims.yaml` with a real `check`,
+then annotate the doc sentence:
+
+```markdown
+Extensions install into consuming agents at sync time... <!-- claim-check: knowledge-extension-install-mechanism -->
+```
+
+The annotation may sit on the assertion's own line, the line before, or
+the line after. An annotation whose `<id>` does not resolve to a real
+`claims.yaml` entry is reported **DANGLING**, never silently treated as
+backed.
+
+**Baseline** (`claim-sweep-baseline.json`, same regression-gate shape as
+knowledge-copilot's `scripts/crosslinks-baseline.json`): every UNBACKED/
+DANGLING assertion at baseline-authoring time is recorded (repo, file,
+category, matched text — no line number, so unrelated line-shift edits
+don't churn the baseline). `--check` fails only on assertions NOT in this
+file — the ratchet only tightens.
+
+**Precision, stated plainly:** this is a regex/heuristic scanner, not a
+claim-extraction engine. It has real false positives (a non-claim decimal
+or count noun gets flagged) and real false negatives (anything outside
+`SCAN_TARGETS` — including knowledge-copilot's ~900-file content corpus
+and every `CLAUDE.md` — is invisible, as is any assertion inside a fenced
+code block, an inline code span, or phrased without a matched pattern).
+The tool does not try to fix this by parsing English better; it makes
+backing explicit and cheap via the annotation instead, and reports
+everything unannotated for a human to triage. See `claims.yaml`'s
+`claim_sweep` definition for the full precision caveat and the first real
+run's numbers.
+
+### Pre-commit wiring (multi-repo)
+
+Unlike `install-claims-hook.sh`, `install-claim-sweep-hook.sh` is meant to
+be run from **any** of the repos `SCAN_TARGETS` covers — the checker
+(`claim_sweep.py`) always lives here, in `copilot-control-tower`, but the
+hook it installs belongs to whichever repo's own docs it is guarding, per
+the task's requirement to enforce "in the repos whose docs the sweep
+covers, following each repo's existing pre-commit conventions."
+
+```bash
+# Install into copilot-control-tower's own pre-commit hook
+tools/cse-bench/install-claim-sweep-hook.sh
+
+# Install into a sibling repo's pre-commit hook, scoped to that repo
+cd ../knowledge-copilot && /path/to/copilot-control-tower/tools/cse-bench/install-claim-sweep-hook.sh
+```
+
+A repo whose basename isn't a `SCAN_TARGETS` key gets a vacuous "nothing
+to check" pass, never a hook failure — safe to install broadly.
