@@ -1371,6 +1371,61 @@ claims:
       it correctly found) -- the rubric rewards explanatory prose over
       verified-correct data on this job, a rubric-fit finding recorded in
       t_loveable_blind_scoring/README.md, not smoothed over.
+
+      PROCEDURAL NOTE -- V-2 TIMING (QA WP-83, 2026-07-14, disclosed, not
+      hidden): the pre-registration commit (4dbfd44, "Committed BEFORE
+      looking at the v2 scored 4x4x3 run's aggregate results, per V-2") is
+      narrowly true by file timestamps but tighter than its own framing
+      implies. Exact sequence, verified via `git log` and this run
+      directory's own file mtimes: the scored 48-cell run's directory
+      (20260714T144205Z) was CREATED at 10:42:05 -- 4 minutes BEFORE
+      4dbfd44 landed at 10:46:19 -- and the run's own aggregate was not
+      generated until 10:49:50, after the pre-registration commit. The
+      "aggregate not looked at" wording is literally true (the aggregate
+      genuinely did not exist yet at commit time) but understates that the
+      scored run itself was already in flight, with some fast individual
+      cells (e.g. job-1) plausibly already on disk, when job-2/3/4's v2
+      design was locked in by that commit. Not a violation of the narrow
+      wording as written, and not remedied here by deleting or quietly
+      rewording the claim's own text -- disclosed per this register's own
+      precedent (same treatment as
+      claude-copilot-skill-description-coverage's procedural note): the
+      underlying O-6 result stands unchanged; the timing looseness is now
+      on record for whoever next relies on this claim's V-2 provenance.
+
+      RUBRIC-FIT CLARIFICATION (QA WP-83): the job-2 t_loveable uniform
+      null above is not a soft scoring gap -- rubric.md dimensions 1.1
+      ("how to run this") and 1.3 (error-handling guidance) are structural
+      requirements a static prose about.md cannot satisfy BY CONSTRUCTION
+      (there is no invocation and no error condition for such a document
+      to describe), confirmed by reading the rubric text directly.
+      t_loveable is therefore UNATTAINABLE on job-2 for every config
+      alike, not a signal that distinguishes configs on that job -- a
+      future reader must not compare t_loveable scores across jobs where
+      one job structurally cannot score it (job-2 vs job-1/3/4). This gap
+      does not reach either headline number: the O-6 verdict above (0/3 vs
+      3/3 split) and the O-4 76.5% attribution
+      (ladder-o4-scaffold-attribution-wp79-closed) are both
+      t_working/token-count based, not t_loveable-based.
+
+      SAFE-TO-PUBLISH CONFIRMATION (QA WP-83, independently reproduced,
+      not merely re-asserted): (a) the O-6 knowledge split is real, not a
+      guessable-token artifact -- QA read all 12 job-2 about.md
+      deliverables directly off disk: bare/framework cells write fluent,
+      generic consulting prose (one literally contains "stakeholder"),
+      while knowledge/integrations cells use knowledge-copilot's real
+      private vocabulary ("tension", "co-creation", "struggling moment")
+      coherently, not keyword-stuffed; check.py's BANNED_TERMS/
+      REQUIRED_TERMS are byte-accurate quotes of the glossary's own
+      Anti-Glossary and Core Terms "Never Say / Instead" columns. (b) the
+      integration 20/20 result is real -- QA independently re-ran check.
+      py's own `_fetch_ground_truth()` live the same day and got a
+      byte-identical result (20 services, 15 healthy) to what all 3
+      +integrations reps reported a day earlier; all 9 non-integrations
+      cells honestly stated "integrations unavailable" with no invented
+      data, verified by eye, not just by check.py's own PASS -- zero
+      fabrication across all 72 cells in this program, not only these 12.
+      Both stand as published, unchanged.
     last_checked: "2026-07-14"
 
   - id: ladder-o4-scaffold-attribution-wp79-closed
@@ -1423,6 +1478,127 @@ claims:
       measured average tokens (1228 and 1071 respectively). Scoped
       finding, not a general claim that these components are worthless --
       stated plainly per this program's own honesty convention.
+
+      CORRECTION (QA WP-83, 2026-07-14, adversarial verification of this
+      task's own WP-81): the capability-control paragraph above is true on
+      the data but was stated more broadly than the evidence supports, and
+      is corrected here rather than silently reworded. QA structurally
+      parsed every one of this run's 72 transcripts (48 main + 24 ablation
+      cells, reading real `tool_use` content blocks, not a text grep) and
+      found ZERO Task-tool invocations anywhere -- including in the 3
+      rungs (framework/knowledge/integrations) where the full 13-agent
+      roster WAS present and available (13 real .claude/agents/*.md files
+      materialized on disk, verified). INDEPENDENTLY RE-VERIFIED by this
+      correction, same day, against the same 72 transcript files (still on
+      disk under /var/folders/.../T/cse-bench-ladder-*/, a fresh
+      structural parse of every message.content[].type=="tool_use" block,
+      not a re-run of QA's own script): the only tool names any of the 72
+      cells ever invoke, across all 6 rungs, are {Bash, Edit, Read, Write}
+      -- "Task" never appears once. This changes the correct reading of
+      "neither ablation caused a single regression" from the STRONG claim
+      ("the agent layer adds nothing") to the WEAK one this program's own
+      honesty convention requires: we could not construct a job on which
+      the agent layer was even invoked, let alone shown to help. The
+      ladder (headless `claude -p`, single-shot cells) is structurally
+      incapable of evaluating the framework/agent delegation layer at all
+      in this run, because delegation never fired in its harness mode --
+      see the new first-class claim
+      ladder-cannot-measure-framework-agent-layer for the full
+      instrument-limitation finding and the open question this raises
+      against delegation-rate-baseline's real-session ~40% tool-share
+      figure. "Removing agents caused zero regressions" must not be
+      requoted on its own as evidence the agent layer is unnecessary; it
+      is evidence this specific instrument never exercised it.
+
+      COST CORRECTION (QA WP-83, same pass): WP-81's own headline
+      "RESULTS (72 live cells total, $13.74)" does not reconcile with its
+      own stated components. Summing `envelope.modelUsage.*.costUSD`
+      directly from every cell JSON across the 3 relevant run directories
+      (independently re-verified by this correction, same method as QA):
+      $8.6978 (20260714T144205Z, 48-cell main run) + $1.7777
+      (20260714T150155Z, framework_minus_claudemd, 12 cells) + $1.8793
+      (20260714T150358Z, framework_minus_agents, 12 cells) = $12.3549, i.e.
+      $12.35 -- the verified figure, ~11% (~$1.39) below WP-81's quoted
+      $13.74. Most likely explanation, per QA: the 6 throwaway
+      pipeline-verification cells the 4dbfd44 pre-registration commit
+      message itself describes ("only 6 throwaway pipeline-verification
+      cells... never written to output/, were used to confirm the
+      mechanism itself works") were folded into the dollar total but not
+      into the "72 live cells" count -- plausible (a handful of cells at
+      ~$0.20-0.25 each closes the gap) but NOT verified, since that
+      scratch directory no longer exists on this machine. $12.35 is the
+      number this register now quotes for the v2 run; the ~$1.39
+      remainder stays disclosed and open, not papered over.
+    last_checked: "2026-07-14"
+
+  - id: ladder-cannot-measure-framework-agent-layer
+    statement: "The v2 ladder run (TASK-142/WP-81, 72 cells: 48 main + 24 O-4 ablation) is structurally incapable of evaluating the framework/agent delegation layer in its current harness mode (headless, single-shot `claude -p`): the model invokes the Task tool zero times in any of the 72 cells, INCLUDING the 3 rungs (framework/knowledge/integrations) where the full 13-agent roster is materialized and available. Therefore any 'zero regression from removing agents' finding on this instrument is evidence the agent layer was never exercised -- not evidence it adds nothing. A valid framework-layer test requires a harness mode where delegation actually fires (e.g. interactive/multi-turn sessions rather than single-shot claude -p, or a job whose scope/complexity structurally forces decomposition -- a multi-domain brief spanning several specialist skill areas in one task) -- this ladder's single-file, single-skill jobs never create that pressure."
+    definition_refs: [delegation_rate_tool_share, delegation_rate_event_share]
+    check: "python3 -c \"import json, glob, os; files=[f for d in ('20260714T144205Z','20260714T150155Z','20260714T150358Z') for f in sorted(glob.glob('tools/cse-bench/output/bench_ladder-runs/%s/*.json' % d))]; paths=[(json.load(open(f)).get('turn_breakdown') or {}).get('transcript_path') for f in files]; checked=[p for p in paths if p and os.path.exists(p)]; hits=[p for p in checked if any(isinstance(c, dict) and c.get('type')=='tool_use' and c.get('name')=='Task' for line in open(p, encoding='utf-8') for obj in [json.loads(line)] for c in ((obj.get('message') or {}).get('content') or []))]; print(len(files), 'cells,', len(checked), 'transcripts found,', len(hits), 'with a Task-tool invocation'); assert len(hits)==0, hits\"  -- transcripts live under ephemeral /var/folders temp dirs (tempfile.mkdtemp() per cell, per this bench's own README convention); if a future re-run finds fewer than 72 transcripts still on disk, that corpus shrinkage must be disclosed, not silently treated as compliance"
+    status: passing
+    evidence: >-
+      Registered 2026-07-14 per QA WP-83 (adversarial verification of
+      TASK-142/WP-81's O-6 + O-4 results), as the first-class instrument-
+      limitation entry that finding #3 calls for -- this claim exists so no
+      future reader re-derives "zero regression from removing agents" as
+      "agents add nothing" from ladder-o4-scaffold-attribution-wp79-closed's
+      capability-control paragraph (corrected in place, same pass, to point
+      here). QA's method: scanned every .jsonl transcript across this run's
+      72 cells (all 6 rungs: bare, framework, knowledge, integrations,
+      framework_minus_claudemd, framework_minus_agents), structurally
+      parsing each `message.content[]` block for `type=="tool_use"` entries
+      (not a text grep), and found zero entries named "Task" anywhere,
+      including in the 3 rungs where 13 real .claude/agents/*.md files were
+      materialized on disk and available for delegation.
+
+      INDEPENDENTLY RE-VERIFIED by this task, same day, same method, fresh
+      code (not a re-run of QA's own script): all 72 transcript files are
+      still present on disk under /var/folders/.../T/cse-bench-ladder-*/
+      (0 missing); the check above runs clean -- 72 cells, 72 transcripts
+      found, 0 with a Task-tool invocation. The full set of tool names any
+      cell in this run ever invokes, across all 72 cells and all 6 rungs,
+      is exactly {Bash, Edit, Read, Write} -- confirmed by enumerating
+      every distinct `tool_use.name` seen, not merely checking for the
+      absence of "Task". This is a mechanically checked, reproducible
+      result (as of 2026-07-14, while these ephemeral temp directories
+      persist on this machine), not an inference from the capability-
+      control finding alone.
+
+      NAMING WHAT A VALID FRAMEWORK-LAYER TEST WOULD REQUIRE (per the
+      task's own instruction, not left implicit): this ladder's jobs are
+      each scoped to a single file / single skill area (fix one function,
+      write one about.md, report on one health check, build one small
+      toolkit) -- none of them present a brief an orchestrator would be
+      structurally pushed to decompose and delegate. A test that could
+      actually exercise the agent layer needs either (a) a harness mode
+      where delegation is possible at all -- this ladder's cells run
+      headless, single-shot `claude -p` invocations, which by construction
+      never reach a second turn where a Task-tool call could even be
+      considered mid-conversation the way it would be in an interactive
+      multi-turn session; or (b) a job whose size/domain-breadth forces
+      decomposition even within a single invocation (e.g. a brief spanning
+      security review + UI design + data migration in one task, closer to
+      this program's own real-world sessions). Neither exists in job-pack
+      v2. This is named as the concrete next step, not assumed to be
+      sufficient on its own -- even a harness that CAN delegate might still
+      not, for reasons this ladder cannot distinguish from "the layer adds
+      nothing" without first closing this gap.
+
+      OPEN QUESTION, RECORDED HONESTLY, NOT RESOLVED BY ASSERTION (per QA
+      WP-83's finding #3 and this task's own instruction): this is also a
+      live question about the ecosystem, not only about the instrument.
+      delegation-rate-baseline (passing, this same register) reports a
+      real-session tool-share delegation rate of ~40.5-40.9% from actual
+      production transcripts -- yet this ladder's 72 controlled cells
+      delegate at 0%. Two explanations are both consistent with the data
+      and neither is favored here: (i) the harness suppresses delegation
+      (single-shot `claude -p`, small single-domain jobs, no multi-turn
+      pressure -- the "structural" explanation above), or (ii) delegation
+      in real sessions only happens under conditions this ladder simply
+      does not reproduce (larger/messier real tasks, longer sessions,
+      human-in-the-loop back-and-forth). This register does not pick
+      between them -- both remain open until a harness that can actually
+      exercise delegation is built and run, per the next-step above.
     last_checked: "2026-07-14"
 
   - id: ladder-harness-dry-run-validated
