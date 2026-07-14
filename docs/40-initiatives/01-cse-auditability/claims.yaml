@@ -855,6 +855,70 @@ definitions:
       re-deriving the same finding.
     source: "tools/cse-bench/collectors/value_density.py"
 
+  outcome_transfer_tolerance:
+    description: >-
+      O-8 (Transfer Coefficient)'s pre-registered pass/fail tolerance: what
+      "within a stated tolerance of the owner's numbers" (outcome_bars'
+      O-8 definition) means precisely, for at least 2 non-author pilots
+      each attempting O-1..O-5 unassisted. Registered 2026-07-14 BEFORE any
+      pilot has been recruited and before any pilot data exists (V-2) —
+      this is the only reason picking a number is defensible right now:
+      nobody has seen a result this number could be bent toward. Full
+      spec drafted in
+      docs/40-initiatives/01-cse-auditability/phases/phase-4-w4-external-pilot-kit.md
+      §2 ("O-8 tolerance — PROPOSED, owner ratification pending").
+    status: "proposed — owner ratification pending"
+    ratio_bars: >-
+      O-1 (TTFLS), O-3 (Speed), O-4 (Token efficiency), and O-2's
+      sessions-to-done all use the SAME single ratio: pilot's figure <=
+      2.0x the author's size-matched comparable solution (lower/faster/
+      fewer-tokens always clears). Rationale for 2.0x: the loosest
+      widely-defensible "same order of magnitude" bound — tight enough to
+      fail a visibly-struggling pilot (3x+), loose enough not to fail
+      ordinary first-time-tool ramp-up variance trivially at a 1.0x
+      (exact-match) bar, which would tell us nothing. One consistent
+      multiplier across all four ratio bars, deliberately, rather than
+      four separately-tuned numbers with no data to justify the
+      differences.
+    flat_band_bars: >-
+      O-2's post-ship fix-vs-feature ratio uses a flat 20-percentage-point
+      band (pilot's fix-fraction must not exceed the author's fix-fraction
+      by more than 20pp, absolute) instead of a ratio — a multiplicative
+      bound is degenerate near a fix-fraction close to zero (e.g. an
+      author fix-fraction of 0.05 would force a pilot ceiling of 0.10
+      under a 2.0x rule, far tighter than intended).
+    binary_bars: >-
+      O-5 (Survival) is binary, not a ratio: small-N pilot data (2-3
+      people) makes a percentage meaningless. O-5 clears for a pilot iff
+      their solution both shipped AND was confirmed still in active use
+      at the SAME N-weeks checkpoint used for the author's own O-5
+      measurement. No partial credit.
+    matching_rule: >-
+      "Author's own most comparable solution" is matched by tokens_total
+      order of magnitude (same decade band, e.g. both in the 10k-100k
+      token range) — the one sizing dimension every tc solution record is
+      guaranteed to carry via the ledger. If no author solution in a
+      comparable size band exists yet when a pilot's data is ready to
+      score, that bar is not-yet-measurable for that pilot (mirrors O-7's
+      own not-yet-measured convention) — never a fabricated ratio against
+      a mismatched solution.
+    aggregate_rule: >-
+      O-8 requires ALL FIVE of O-1..O-5 to clear their own tolerance, for
+      at least 2 of the >=2 required pilots. Per-pilot, per-bar pass/fail
+      is reported in full in each pilot's own report regardless of the
+      aggregate outcome — a pilot clearing 4 of 5 bars is a real,
+      informative partial result, not noise to discard.
+    caveat: >-
+      V-2-legitimate ONLY because zero pilot data exists on this machine
+      or anywhere in this program as of registration — the moment any
+      pilot's numbers are looked at, this tolerance can no longer be
+      chosen or revised without breaking pre-registration. Marked
+      owner-overridable before the first pilot: the owner may accept this
+      proposal as-is, edit it, or replace it outright before W-4's first
+      pilot's data is scored; once scored, changing it becomes a
+      post-hoc adjustment, not a pre-registration.
+    source: "docs/40-initiatives/01-cse-auditability/phases/phase-4-w4-external-pilot-kit.md §2"
+
 claims:
 
   - id: outcome-ttfls
@@ -931,11 +995,11 @@ claims:
 
   - id: outcome-transfer
     statement: "Non-author users achieve O-1..O-5 unassisted within a stated tolerance of the owner's numbers (>=2 external users)."
-    definition_refs: [outcome_bars]
-    check: "gated on W-4 external pilot"
+    definition_refs: [outcome_bars, outcome_transfer_tolerance]
+    check: "gated on W-4 external pilot; tolerance pre-registered 2026-07-14 (see definitions.outcome_transfer_tolerance) pending owner ratification — see phase-4-w4-external-pilot-kit.md §2"
     status: gated
-    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-8)"
-    last_checked: "2026-07-13"
+    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-8). V-2-legitimate pre-registration ONLY because zero pilot data exists on this machine or anywhere in this program as of 2026-07-14 — the tolerance (definitions.outcome_transfer_tolerance) was drafted and registered before any pilot was recruited or any pilot number was looked at, and is marked owner-overridable up until the first pilot's data is scored. Status STAYS gated: pre-registering the yardstick does not manufacture the >=2 external users this claim's own truth condition requires; see outcome-return-rate and t8-value-transfers-beyond-author for the same Act-B dependency."
+    last_checked: "2026-07-14"
 
   - id: outcome-upkeep-tax
     statement: "The time and tokens spent maintaining the CSE itself are measured and netted against outcome value in every value statement."
@@ -974,10 +1038,10 @@ claims:
   - id: t4-knowledge-layer-changes-output
     statement: "With-knowledge output beats without-knowledge output on private-fact accuracy; voice conformance shows a delta attributable to the knowledge repo rather than to prompting alone."
     definition_refs: [knowledge_read]
-    check: "manual — pending B-9 (private-fact Q&A bench) and B-10 (voice-conformance bench), phase-2-prd.md P2"
-    status: unchecked
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-2-prd.md (T4 row: 'Never measured (was wrongly declared unmeasurable)')"
-    last_checked: "2026-07-12"
+    check: "manual — checked 2026-07-14 against the already-registered B-9/B-10 claims (knowledge-factual-accuracy-delta, voice-conformance-deltas), both passing, last_checked 2026-07-12; no fresh live-model run needed, existing dated evidence answers both clauses"
+    status: failing
+    evidence: "Clause A (private-fact accuracy) PASSES: knowledge-factual-accuracy-delta, with=98.0% vs without=0.0%, delta +98.0pp. Clause B (voice delta attributable to the repo rather than prompting alone) FALSIFIED: voice-conformance-deltas shows knowledge(0.48)<bare(2.77) but rules-in-prompt(0.10)<knowledge(0.48) — compiled-rules prompting alone outperforms the raw repo-as-context, so the repo's marginal value over prompting is not demonstrated (in fact negative). T4 statement is a conjunction; one falsified clause fails the whole claim. See tools/cse-bench/benches/voice_lint/README.md (\"Does the REPO add value over just pasting the compiled rules into the prompt?\" — the sharp question this run answers no to) and benches/knowledge_qa/README.md's Results section. This is a finding about how the knowledge layer actually delivers value — via distillation into prompts, not via raw repo context — not a failure of the knowledge layer to help at all (clause A still passes decisively)."
+    last_checked: "2026-07-14"
 
   - id: t5-integration-layer-pays-its-way
     statement: "Live integrations authenticate; retained CLI commands show usage; dead surface is pruned or revived; the CLI-vs-MCP advantage is measured and honestly bounded."
@@ -1065,12 +1129,12 @@ claims:
     last_checked: "2026-07-12"
 
   - id: protocol-declaration-rate-baseline
-    statement: "Post-hook protocol-declaration rate never recovered from the April 2026 pre-hook baseline (3.5%): median ~0.8-0.9% under the all-messages definition, 0.0% under the strict first-of-turn definition."
+    statement: "Post-hook protocol-declaration rate never recovered from the April 2026 pre-hook baseline (3.5%): median ~0.8-0.9% under the all-messages definition, 0.0% under the strict first-of-turn definition. CORRECTED 2026-07-14: the all-messages ('loose') median no longer reproduces at ~0.8-0.9% -- fresh collect reads 0.0% under BOTH definitions."
     definition_refs: [protocol_declaration]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only transcripts (reads metrics.global.protocol_declaration_rate_loose / protocol_declaration_rate_strict .median from output/transcripts-latest.json; supersedes the tools/cse-audit/run_probe.py invocation as the runnable check now that B-5 exists)"
-    status: passing
-    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-4); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-4 row: 'Reproduces: 0.9% median, 0.0% strict (n=76)'); B-5 re-run 2026-07-12 via tools/cse-bench/collectors/transcripts.py, n=108 sessions (archive UNION live): loose median 0.86%, strict median 0.0% — reproduces within the registered range"
-    last_checked: "2026-07-12"
+    status: failing
+    evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-4); docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html (F-4 row: 'Reproduces: 0.9% median, 0.0% strict (n=76)'); B-5 re-run 2026-07-12 via tools/cse-bench/collectors/transcripts.py, n=108 sessions (archive UNION live): loose median 0.86%, strict median 0.0% — reproduced within the registered range at that time. This figure was already flagged stale by RULING-AGENDA.md's DEC-2 section ('the register still cites median ~0.8-0.9%; the fresh collect says 0.0%. The registered figure no longer reproduces. A correction commit is owed either way') ahead of this correction landing. RE-RUN 2026-07-14 (this task, fresh cse_bench.py collect --only transcripts): protocol_declaration_rate_loose median 0.0 (n=25), protocol_declaration_rate_strict median 0.0 (n=17) -- the strict conjunct still reproduces exactly, but the loose conjunct does NOT: the registered ~0.8-0.9% figure no longer matches a live re-run, a materially larger deviation (complete disappearance, not a small drift) than the ~21% relative deviation that already set this register's own precedent for marking a quoted, non-reproducing figure failing (see knowledge-never-read-rate). Marked failing on reproducibility grounds, consistent with that precedent -- NOT because the claim's directional thrust ('adoption never recovered from 3.5%') is any less true; if anything the fresh number is a MORE extreme instance of the same finding (0.0%, not ~0.86%, further from 3.5% than previously registered), so this is a correction to a stale precise figure, not a reversal of the underlying finding. Disclosed, not hidden: this run's transcript corpus differs in composition from the B-5 baseline run (corpus block: archive_jsonl_files 0, live_jsonl_files 294, merged 294 -- live-only on this machine right now, vs the B-5 run's archive-UNION-live n=108), so part of the n=108->n=25/17 sample-size drop reflects a smaller/different corpus snapshot, not necessarily behavior change alone; the 0.0% loose figure is reported as measured, not adjusted for this, and the corpus-composition difference is flagged here for whoever next reconciles it. V-2 correction commit, not a silent rewrite of the pre-registered figure."
+    last_checked: "2026-07-14"
 
   - id: turn-definition-incompatible-with-april
     statement: "April 2026's reported '671 turns/session' figure is directly comparable to (reproducible under) this register's `turn` definition."
@@ -1128,35 +1192,39 @@ claims:
     last_checked: "2026-07-12"
 
   - id: cli-copilot-test-suite-verified
-    statement: "CLI Copilot's test suite passes: 1,588 tests pass, 16 deselected, 53% coverage, CI green (ruff + format-check + pytest, py3.11/3.12) on push-to-main and PRs."
+    statement: "CLI Copilot's test suite passes: 1,588 tests pass, 16 deselected, 53% coverage, CI green (ruff + format-check + pytest, py3.11/3.12) on push-to-main and PRs. UPDATED 2026-07-14: 1,808 tests pass, 16 deselected, 3 xfailed, 55% coverage, CI green on push-to-main (run 29333615840, both matrix jobs, all steps incl. Ruff format check)."
     definition_refs: []
-    check: "cd /Users/pabs/Sites/COPILOT/cli-copilot && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/ -q --cov=copilot_cli --cov-report=term-missing -m \"not e2e\" (the CI-matching invocation, cli-copilot/.github/workflows/ci.yml; .venv is dead, uv run rebuilds a working env; /Volumes/Dev is not mounted on this machine, real path is /Users/pabs/Sites/COPILOT)"
-    status: failing
+    check: "cd /Users/pabs/Sites/COPILOT/cli-copilot && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/ -q --cov=copilot_cli --cov-report=term-missing -m \"not e2e\" (the CI-matching invocation, cli-copilot/.github/workflows/ci.yml; .venv is dead, uv run rebuilds a working env; /Volumes/Dev is not mounted on this machine, real path is /Users/pabs/Sites/COPILOT); cross-checked live via gh run list -R Everyone-Needs-A-Copilot/cli-copilot --branch main / gh run view <run-id> --job=<job-id>"
+    status: passing
     evidence: >-
-      Was unchecked since Phase 1 (phase-1-findings.md F-13, the only
-      VERIFIED verdict in Phase 1; phase-1-review-handoff.md item 4: "I did
-      not re-run it... Re-run it", flagged and left open). RUN 2026-07-14
-      (this task; cli-copilot main @ 1695731, R-11/R-12 merged): `uv run
-      --extra dev pytest tests/ -q --cov=copilot_cli --cov-report=term-missing
-      -m "not e2e"` -> 1808 passed, 16 deselected, 3 xfailed, 55% coverage
-      (TOTAL line) -- pytest itself is healthy, and both the pass count and
-      coverage % have grown past the pre-registered 1,588/53% (expected: the
-      R-11/R-12 soul-remediation tests landed since Phase 1; this is a stale
-      pre-registered number, not a regression). `uv run --extra dev ruff
-      check .` -> "All checks passed!". `uv run --extra dev ruff format
-      --check .` -> "Would reformat: tests/test_services/test_infisical.py"
-      (FAILS -- 1 file not formatted). Cross-checked against LIVE CI, not
-      just local repro: `gh run list --branch main` / `gh run view
-      29280957243` (HEAD's own push-to-main run, commit 1695731 "Merge
-      branch 'feat/r11-r12-soul-remediation'") shows BOTH matrix jobs
-      (py3.11, py3.12) FAILED at the "Ruff format check" step -- the job was
-      aborted before "Run tests" ever ran. Per the claim's own conjunction
-      ("... CI green ... on push-to-main and PRs"), the statement is
-      currently FALSE: HEAD's own CI is red today, on a formatting
-      violation, not a test failure. Marked failing on that basis, plainly
-      -- not because the tests don't pass (they do, and more of them than
-      claimed), but because "CI green on push-to-main" does not currently
-      hold.
+      Was failing (last_checked 2026-07-14, same day): HEAD's own live CI
+      (run 29280957243, commit 1695731 "Merge branch
+      'feat/r11-r12-soul-remediation'") had both matrix jobs (py3.11,
+      py3.12) FAIL at the "Ruff format check" step -- pytest itself was
+      healthy (1808 passed, 16 deselected, 3 xfailed, 55% coverage, past
+      the pre-registered 1,588/53%) but the claim's own "CI green on
+      push-to-main" conjunct was false. Root cause: this program's own
+      R-11 commit (21e7c61, cli-soul-conformance remediation) merged
+      tests/test_services/test_infisical.py unformatted. FIXED same day:
+      cli-copilot commit be895d6 ("fix(ci): ruff-format
+      tests/test_services/test_infisical.py"). RE-RUN 2026-07-14 (this
+      task; cli-copilot main @ 78617b3, be895d6 included): local `uv run
+      --extra dev pytest tests/ -q --cov=copilot_cli
+      --cov-report=term-missing -m "not e2e"` -> 1808 passed, 16
+      deselected, 3 xfailed, 55% coverage (TOTAL line), 119.44s; `uv run
+      --extra dev ruff check .` -> "All checks passed!"; `uv run --extra
+      dev ruff format --check .` -> "199 files already formatted" (clean,
+      the prior violation is gone). Cross-checked against LIVE CI, not
+      just local repro: `gh run view 29333615840` (be895d6's own
+      push-to-main run) shows BOTH matrix jobs (py3.11, py3.12) green
+      end-to-end -- Set up job / checkout / Set up Python / Install
+      dependencies / Ruff check / Ruff format check / Run tests / Complete
+      job all passed; job log confirms "1808 passed, 16 deselected, 3
+      xfailed" and "TOTAL ... 55%". A later push (run 29334163178, commit
+      78617b3) is also green, confirming this is stable, not a one-off.
+      Per the claim's own conjunction, both conjuncts now hold: pytest
+      passes (and exceeds the pre-registered baseline), and CI is green on
+      push-to-main. Marked passing, plainly.
     last_checked: "2026-07-14"
 
   - id: enforcement-hook-wiring-ratio
@@ -1266,12 +1334,12 @@ claims:
     last_checked: "2026-07-13"
 
   - id: knowledge-registry-completeness
-    statement: "The ecosystem registry tracks the ecosystem (anti-pattern: registry staleness). CORRECTED 2026-07-13: copilot-control-tower is still entirely absent from ECOSYSTEM.md and knowledge-copilot still never lists its own local path; 12 top-level dirs unmentioned (unchanged headline count, now honestly re-derived -- see evidence). The 'Current: 17/17 listed paths resolve' half of this claim's prior statement is CORRECTED to 11/17 on this machine -- see evidence for why."
+    statement: "The ecosystem registry tracks the ecosystem (anti-pattern: registry staleness). CORRECTED 2026-07-14: the two named 2026-07-13 defects are FIXED -- ECOSYSTEM.md now lists both copilot-control-tower and knowledge-copilot's own local path (knowledge-copilot commit 5f729946) -- but the registry still does not fully track the ecosystem: 10 top-level dirs remain unmentioned/uncovered (down from 12). Forward-resolving paths improved to 13/19 on this machine."
     definition_refs: []
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only knowledge_soul"
     status: failing
-    evidence: "REFRESHED 2026-07-13 as part of this session's §2 registry_integrity collector fix (collectors/knowledge_soul.py, collectors/paths.py): before the fix, the forward check silently reported a vacuous '0/0' (ECOSYSTEM.md's prose hardcodes /Volumes/Dev/Sites/COPILOT/... paths; this machine resolves COPILOT_ROOT to /Users/pabs/Sites/COPILOT, so no backtick-wrapped path in the doc ever matched the prefix the old code built) and the reverse check over-flagged all 23 top-level directories as 'uncovered' (same prefix mismatch, opposite direction). Fixed: both checks now match against EITHER known root prefix and translate to this machine's actually-resolved root before checking existence. Honest post-fix numbers (tools/cse-bench/output/knowledge_soul-latest.json, registry_integrity block): forward_check 11/17 resolving (6 broken: product-creation-copilot, n8n-copilot, the-collective, project-copilot, _archive/everyone-needs-knowledge-management, transformation -- these repos are simply not cloned onto THIS secondary machine, a machine-inventory gap, not necessarily a registry defect on the owner's primary machine where the prior 17/17 was presumably measured); reverse_check n_uncovered 12/23, matching this claim's previously-recorded '12 top-level dirs unmentioned' headline (6 unmentioned anywhere: THD, copilot-control-tower, crm-automation-copilot, flow, prompt-copilot, sow-copilot; 6 named-but-uncovered: admin-server, docs, drip-copilot, everyone-needs-knowledge-management, knowledge-copilot, shared-docs). Status STAYS failing: the registry still omits copilot-control-tower and knowledge-copilot's own path, the substantive defect this claim is about; only the forward-check denominator's honesty changed, not the verdict."
-    last_checked: "2026-07-13"
+    evidence: "FIXED 2026-07-14: knowledge-copilot commit 5f729946 ('Fix ECOSYSTEM.md registry: add missing rows, fix hardcoded mount') added Local-path rows for copilot-control-tower and knowledge-copilot itself, and replaced the hardcoded /Volumes/Dev/Sites/COPILOT mount (verified NOT mounted on this machine -- test -d /Volumes/Dev fails) with the truthful /Users/pabs/Sites/COPILOT root throughout. RE-RUN 2026-07-14 (tools/cse-bench/output/knowledge_soul-latest.json, registry_integrity block, generated fresh this session): forward_check 13/19 resolving (up from 11/17 pre-fix; the 6 still-broken paths -- product-creation-copilot, n8n-copilot, the-collective, project-copilot, _archive/everyone-needs-knowledge-management, transformation -- were verified with `test -d` to be genuinely uncloned on THIS machine, a machine-inventory artifact, not a registry defect); reverse_check n_uncovered 10/23 (down from 12/23) -- copilot-control-tower and knowledge-copilot no longer appear in either uncovered list, confirming both named 2026-07-13 defects are closed. 10 top-level dirs remain genuinely uncovered: 5 unmentioned anywhere (THD, crm-automation-copilot, flow, prompt-copilot, sow-copilot) and 5 named-but-uncovered (admin-server, docs, drip-copilot, everyone-needs-knowledge-management, shared-docs). Status STAYS failing per the claim's own truth condition: 'the registry tracks the ecosystem' remains false while 10 of 23 top-level directories are still unmentioned or uncovered -- fixing the two specific defects this claim was CORRECTED to name on 2026-07-13 closes the substantive item this program was tracking, but does not make the broader statement true. This is a genuine partial fix, stated plainly as such, not silvered over."
+    last_checked: "2026-07-14"
 
   - id: cli-soul-conformance
     statement: "Every CLI service meets the SOUL §6 quality bar (health, test file, CopilotError, lazy import, config documented, docs entry). UPDATED 2026-07-13: 135/138 scorecard cases pass (was 125/138); 3 remaining named gaps tracked as strict-xfail, all scoped to fireflies/reddit (fireflies: FIREFLIES_API_KEY undocumented in .env.example + no docs/services entry; reddit: REDDIT_CLIENT_ID/SECRET/USER_AGENT undocumented). The bar is mechanically enforced as a test."

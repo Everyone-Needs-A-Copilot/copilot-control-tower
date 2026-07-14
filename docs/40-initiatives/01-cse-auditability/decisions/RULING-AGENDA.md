@@ -5,14 +5,18 @@
 > Every recommendation below is **advice, carried forward from its memo** — this document rules on nothing.
 > Every number is cited to the file it came from. Where a memo's recommendation conflicts with what the
 > claims graph implies, §5 and §6 say so plainly.
+>
+> **Updated 2026-07-14** — factual tallies in §1.2 and §5 refreshed after the serialized register pass
+> (t4's falsification, the cli-test-suite-verified flip, DEC-10's projection row); no analysis or
+> recommendation below was rewritten.
 
 ---
 
 ## 1. The state in five lines
 
 1. **The instrument is built; the ecosystem is not yet proven.** 42 claims registered, `check_claims.py` reports **0 violations** (verified this session); 12 collectors and 5 benches run clean ([`../phases/phase-4-handoff.md`](../phases/phase-4-handoff.md) §3).
-2. **The scorecard reads 13 passing / 15 failing / 10 unchecked / 4 gated** ([`../claims.yaml`](../claims.yaml), tallied directly). That is the honest shape of a program that finished building its measuring equipment and has not yet been allowed to measure.
-3. **The red is not breakage.** Six of the fifteen `failing` claims are *findings* — falsified figures the program went and disproved on purpose (`framework-externalization-94pct`, `cli-mcp-net-token-advantage`, `turn-definition-incompatible-with-april`). A clean scorecard produced by the party being scored would be evidence of a bad auditor, not a good ecosystem.
+2. **The scorecard reads 13 passing / 17 failing / 8 unchecked / 4 gated** ([`../claims.yaml`](../claims.yaml), tallied directly, 2026-07-14). That is the honest shape of a program that finished building its measuring equipment and has not yet been allowed to measure.
+3. **The red is not breakage.** Six of the seventeen `failing` claims are *findings* — falsified figures the program went and disproved on purpose (`framework-externalization-94pct`, `cli-mcp-net-token-advantage`, `turn-definition-incompatible-with-april`). A clean scorecard produced by the party being scored would be evidence of a bad auditor, not a good ecosystem.
 4. **The program has run out of work it can do without you.** Of 23 tasks in the store, 10 are `completed`, 3 are `cancelled`, and **all 10 that remain open are `blocked` — every one of them on you** (`tc task list`: TASK-100, 103, 112, 113, 114, 118, 122, 125, 126, 127). Zero are blocked on engineering.
 5. **One ruling is mechanically enforced.** `benches/ladder/run.py`'s `check_signoff()` physically refuses a scored run until [`DEC-6`](DEC-6-mlp-rubric-signoff.md)'s header reads `Status: **ratified**` ([`../claims.yaml`](../claims.yaml), `ladder_mlp_rubric.note`). The gate is code, not etiquette.
 
@@ -277,38 +281,41 @@ The kit is complete and the recruit slot is empty ([`../phases/phase-4-w4-extern
 
 ## 5. Projected register after a full ruling session
 
-**Assumptions, stated so you can discount them:** you rule all nine per the memos' recommendations; the follow-on execution lands (the cuts, the SOUL edit, the C-3 rollout, one ladder run); and **neither Act A nor Act B has happened yet**. Ruling-only effects are separated from execution-dependent ones.
+**Assumptions, stated so you can discount them:** you rule all ten per the memos' recommendations; the follow-on execution lands (the cuts, the SOUL edit, the C-3 rollout, one ladder run); and **neither Act A nor Act B has happened yet**. Ruling-only effects are separated from execution-dependent ones.
 
 | # | Claim | Now | After the recommended ruling | Flip type |
 |---|---|---|---|---|
 | 1 | `cli-soul-conformance` | failing | **passing** | ✅ genuine green (DEC-5, once executed) |
 | 2 | `framework-externalization-94pct` | failing | **retired** | ♻️ retired-by-ratification (DEC-3) |
-| 3 | `protocol-declaration-rate-baseline` | **passing** | **retired** | ♻️ retired-by-deletion (DEC-2 Option C) — *tally loses a green* |
+| 3 | `protocol-declaration-rate-baseline` | **failing** (2026-07-14: the register's own V-2 correction, independent of DEC-2 — see `../claims.yaml`) | **retired** | ♻️ retired-by-deletion (DEC-2 Option C) — *already failing outside this ruling; retiring it removes a red, not a green* |
 | 4 | `enforcement-hook-wiring-ratio` | **passing** | **failing** (desired direction) | ⚠️ *tally loses a green; ecosystem improves* (DEC-7) |
 | 5 | `framework-agent-frugality` | failing | **retired**, replaced by a **new failing** claim | ⚠️ red-by-restatement, not green (DEC-1 Option B as staged) |
 | 6 | `outcome-counterfactual-delta` | unchecked | **passing or failing** — first O-6 number | 🎲 unknown until it runs (DEC-6) |
 | 7 | `outcome-token-efficiency` | unchecked | **passing or failing** — first O-4 number | 🎲 unknown until it runs (DEC-6) |
 | 8 | `agent-eval-coverage` | failing | **failing** (6/16 → 6/13) | ⛔ ruling un-gates only; flips after the C-5 wave evals the 7 survivors |
-| 9 | `knowledge-registry-completeness` | failing | **failing** | ⛔ moves on an `ECOSYSTEM.md` edit, not on any ruling |
+| 9 | `knowledge-registry-completeness` | failing | **failing** | ⛔ the two 2026-07-13-named defects are already fixed (2026-07-14, `../claims.yaml`); 10 top-level dirs remain uncovered — not on any ruling |
 | 10 | `framework-qa-gate-adherence` | failing | **failing** | ⛔ hook is *installed, unfired*; needs real sessions + re-measure |
 | 11 | `t1-ecosystem-sees-itself` | failing | **failing** | ⛔ DEC-7 closes one of three clauses |
 | 12 | `t3-instruction-layer-changes-behavior` | failing | **failing** | ⛔ needs DEC-2 + DEC-7 + DEC-8 + the C-5 wave, all four |
 | 13 | `t5-integration-layer-pays-its-way` | failing | **failing** | ⛔ DEC-5 prunes dead surface; the usage clause stays open |
 | 14 | `removal-review-first-pass` | passing | passing | — (any DEC-8/9 ruling satisfies W-6's acceptance) |
-| — | the other 28 claims | — | **unchanged by any ruling** | — |
+| 15 | `t4-knowledge-layer-changes-output` | **failing** (2026-07-14, checked directly this session — clause B, voice conformance, falsified) | failing | 🔴 genuine falsification, register-hygiene not ruling-dependent — no ruling in this document touches it |
+| 16 | `cli-copilot-test-suite-verified` | **passing** (2026-07-14: cli-copilot commit `be895d6` fixed the Ruff-format break; live CI run `29333615840` green on both matrix jobs) | passing | ✅ genuine green, register-hygiene not ruling-dependent — no ruling in this document touches it |
+| 17 | `turn-definition-incompatible-with-april` | failing | **retired** | ♻️ retired-by-unverifiability (DEC-10 Option A) — the cheapest ruling on the page; no task gates it |
+| — | the other 25 claims | — | **unchanged by any ruling** | — |
 
 ### Projected tally
 
-**Now:** 13 passing / 15 failing / 10 unchecked / 4 gated — **42 claims**.
+**Now (2026-07-14):** 13 passing / 17 failing / 8 unchecked / 4 gated — **42 claims**.
 
-**After a full ruling session + execution:** **12–14 passing / 14–16 failing / 8 unchecked / 4 gated** — **40 live claims** (3 retired, 1 newly registered). The range depends entirely on which way the first ladder run lands.
+**After a full ruling session + execution:** **13–15 passing / 14–16 failing / 6 unchecked / 4 gated** — **39 live claims** (4 retired: DEC-3, DEC-2 Option C, DEC-1 Option B, DEC-10; 1 newly registered). The range depends entirely on which way the first ladder run lands.
 
 **Read that number honestly: the scorecard barely moves, and it may move down.** That is not a failure of the queue — it is what the queue actually is. What a full ruling session buys is:
 
 - **10 blocked tasks → live**, with zero remaining owner-blocked work in the store
 - **the ladder open** (the single gate on all four staged W-5 patches, and on two of the nine outcome bars)
 - **the agent roster final** (which is what lets the eval wave start at all)
-- **three dead claims retired** — green-by-removal, exactly as the removal rule intends
+- **four dead claims retired** — green-by-removal, exactly as the removal rule intends
 - **two null measurement channels opened** (skills usage; the tool-event ledger)
 
 **Greenness comes from §4 and from the execution waves the rulings release — not from the rulings.** Anyone who promises you a greener scorecard from a decision-clearing session is selling you something.
