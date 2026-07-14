@@ -211,7 +211,14 @@ def _fresh_home(run_root: Path, config_name: str, rep: int, warnings: list) -> P
 
 
 def _copy_framework_files(
-    workdir: Path, job_id: str, warnings: list, include_claude_md: bool = True, include_agents: bool = True
+    workdir: Path,
+    job_id: str,
+    warnings: list,
+    include_claude_md: bool = True,
+    include_agents: bool = True,
+    include_commands: bool = True,
+    include_skills: bool = True,
+    include_mcp: bool = True,
 ) -> None:
     """Replicates the essential file-copy steps of claude-copilot's own
     `/setup-project` FULL-mode flow (.claude/commands/setup-project.md
@@ -234,7 +241,26 @@ def _copy_framework_files(
     commands) and explicitly required a same-model, same-real-task-type
     matched ablation before any O-4 number is published — these two configs
     are that ablation, run at THIS harness's real model (sonnet) against
-    THIS harness's real jobs, not a synthetic haiku probe."""
+    THIS harness's real jobs, not a synthetic haiku probe.
+
+    Residual-closing ablation (closing ladder-o4-scaffold-attribution-
+    wp79-closed's own named next step -- the 23.5% unattributed residual
+    left after CLAUDE.md/agents were isolated): `include_commands` /
+    `include_skills` / `include_mcp` extend the SAME one-component-at-a-
+    time isolation to the three remaining pieces this function places —
+    see materialize_framework_minus_commands/_skills/_mcp() below and
+    claims.yaml's `ladder_o4_residual_ablation` pre-registration. Re-reading
+    this function line by line (not assumed) confirms it places exactly
+    five things: .claude/agents/, .claude/commands/, .claude/skills/,
+    CLAUDE.md, and .mcp.json — no settings.json, no hooks output, no other
+    file is ever written here, so these three ablations plus the existing
+    two (agents, CLAUDE.md) are jointly exhaustive of everything
+    materialize_framework() places. When a component is omitted, its
+    directory/file is not created at all (not left present-but-empty) —
+    the same all-or-nothing rigor the existing CLAUDE.md/agents ablations
+    already use, so the model sees the identical absence a real
+    "framework was never installed with this piece" state would produce,
+    not a discoverable-but-empty artifact."""
     version_json = CLAUDE_COPILOT_ROOT / "VERSION.json"
     if not version_json.is_file():
         warnings.append(f"CLAUDE_COPILOT_ROOT/VERSION.json not found at {version_json}; +framework materialization skipped")
@@ -244,7 +270,6 @@ def _copy_framework_files(
     agents_dir = workdir / ".claude" / "agents"
     commands_dir = workdir / ".claude" / "commands"
     skills_dir = workdir / ".claude" / "skills"
-    commands_dir.mkdir(parents=True, exist_ok=True)
 
     if include_agents:
         agents_dir.mkdir(parents=True, exist_ok=True)
@@ -259,16 +284,23 @@ def _copy_framework_files(
     else:
         warnings.append("WP-79 ablation: .claude/agents/ deliberately OMITTED (materialize_framework_minus_agents)")
 
-    project_commands = version.get("components", {}).get("commands", {}).get("projectCommands", [])
-    src_commands = CLAUDE_COPILOT_ROOT / ".claude" / "commands"
-    for cmd in project_commands:
-        src = src_commands / cmd
-        if src.is_file():
-            shutil.copy2(src, commands_dir / cmd)
+    if include_commands:
+        commands_dir.mkdir(parents=True, exist_ok=True)
+        project_commands = version.get("components", {}).get("commands", {}).get("projectCommands", [])
+        src_commands = CLAUDE_COPILOT_ROOT / ".claude" / "commands"
+        for cmd in project_commands:
+            src = src_commands / cmd
+            if src.is_file():
+                shutil.copy2(src, commands_dir / cmd)
+    else:
+        warnings.append("residual ablation: .claude/commands/ deliberately OMITTED (materialize_framework_minus_commands)")
 
-    src_skills = CLAUDE_COPILOT_ROOT / "templates" / "skills"
-    if src_skills.is_dir():
-        shutil.copytree(src_skills, skills_dir, dirs_exist_ok=True)
+    if include_skills:
+        src_skills = CLAUDE_COPILOT_ROOT / "templates" / "skills"
+        if src_skills.is_dir():
+            shutil.copytree(src_skills, skills_dir, dirs_exist_ok=True)
+    else:
+        warnings.append("residual ablation: .claude/skills/ deliberately OMITTED (materialize_framework_minus_skills)")
 
     if include_claude_md:
         template = CLAUDE_COPILOT_ROOT / "templates" / "CLAUDE.template.md"
@@ -281,7 +313,15 @@ def _copy_framework_files(
     else:
         warnings.append("WP-79 ablation: CLAUDE.md deliberately OMITTED (materialize_framework_minus_claudemd)")
 
-    (workdir / ".mcp.json").write_text('{"mcpServers":{}}\n')
+    if include_mcp:
+        (workdir / ".mcp.json").write_text('{"mcpServers":{}}\n')
+    else:
+        warnings.append(
+            "residual ablation: .mcp.json deliberately OMITTED (materialize_framework_minus_mcp) -- "
+            'note the file this ablates is itself a no-op placeholder (\'{"mcpServers":{}}\'), so this '
+            "rung's own null hypothesis is that removing it costs ~0 tokens, not that it necessarily "
+            "contributes to the residual; that null result is itself informative, not a wasted rung"
+        )
 
 
 def _empty_knowledge_tree(run_root: Path) -> Path:
@@ -485,6 +525,108 @@ def materialize_framework_minus_agents(run_root: Path, job_id: str, rep: int = 1
     )
 
 
+def materialize_framework_minus_commands(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    """Residual ablation (closing ladder-o4-scaffold-attribution-wp79-
+    closed's own named next step): identical to +framework EXCEPT
+    .claude/commands/ (the 7 project slash commands claude-copilot's
+    VERSION.json lists under projectCommands) is absent — isolates
+    commands' own in-situ turn-1 cache_creation cost at the SAME model
+    (sonnet) and SAME job pack the CLAUDE.md/agents ablation already used,
+    per claims.yaml's `ladder_o4_residual_ablation` pre-registration — no
+    model or prompt-type switch (that confound already cost this program
+    once, see WP-79's own reconciliation)."""
+    workdir = _new_workdir(run_root, "framework_minus_commands", job_id, rep)
+    warnings: list = []
+    home = _fresh_home(run_root, "framework_minus_commands", rep, warnings)
+    _copy_framework_files(workdir, job_id, warnings, include_commands=False)
+    empty_knowledge = _empty_knowledge_tree(run_root)
+    env = _base_env(home, [str(LOCAL_BIN), _minimal_system_path()])
+    env["CC_KNOWLEDGE_REPO"] = str(empty_knowledge)
+    if not LOCAL_BIN.is_dir():
+        warnings.append(f"LOCAL_BIN {LOCAL_BIN} not found -- tc/cc will not actually be reachable even though PATH includes it")
+    return MaterializedConfig(
+        name="framework_minus_commands",
+        workdir=workdir,
+        home_dir=home,
+        env=env,
+        claude_flags=list(COMMON_CLAUDE_FLAGS),
+        notes=[
+            "residual ablation: same as +framework (CLAUDE.md + .claude/{agents,skills}/ + .mcp.json) but .claude/commands/ is deliberately ABSENT",
+            f"tc/cc on PATH via {LOCAL_BIN}",
+            f"CC_KNOWLEDGE_REPO points at an EMPTY tree ({empty_knowledge}), same as +framework",
+        ],
+        warnings=warnings,
+    )
+
+
+def materialize_framework_minus_skills(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    """Residual ablation (closing ladder-o4-scaffold-attribution-wp79-
+    closed's own named next step): identical to +framework EXCEPT
+    .claude/skills/ (the full templates/skills/ tree — 5 skills, ~25.6KB
+    of SKILL.md content) is absent — isolates skills' own in-situ turn-1
+    cache_creation cost at the SAME model (sonnet) and SAME job pack the
+    CLAUDE.md/agents ablation already used, per claims.yaml's
+    `ladder_o4_residual_ablation` pre-registration — no model or
+    prompt-type switch."""
+    workdir = _new_workdir(run_root, "framework_minus_skills", job_id, rep)
+    warnings: list = []
+    home = _fresh_home(run_root, "framework_minus_skills", rep, warnings)
+    _copy_framework_files(workdir, job_id, warnings, include_skills=False)
+    empty_knowledge = _empty_knowledge_tree(run_root)
+    env = _base_env(home, [str(LOCAL_BIN), _minimal_system_path()])
+    env["CC_KNOWLEDGE_REPO"] = str(empty_knowledge)
+    if not LOCAL_BIN.is_dir():
+        warnings.append(f"LOCAL_BIN {LOCAL_BIN} not found -- tc/cc will not actually be reachable even though PATH includes it")
+    return MaterializedConfig(
+        name="framework_minus_skills",
+        workdir=workdir,
+        home_dir=home,
+        env=env,
+        claude_flags=list(COMMON_CLAUDE_FLAGS),
+        notes=[
+            "residual ablation: same as +framework (CLAUDE.md + .claude/{agents,commands}/ + .mcp.json) but .claude/skills/ is deliberately ABSENT",
+            f"tc/cc on PATH via {LOCAL_BIN}",
+            f"CC_KNOWLEDGE_REPO points at an EMPTY tree ({empty_knowledge}), same as +framework",
+        ],
+        warnings=warnings,
+    )
+
+
+def materialize_framework_minus_mcp(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    """Residual ablation (closing ladder-o4-scaffold-attribution-wp79-
+    closed's own named next step): identical to +framework EXCEPT
+    .mcp.json is absent entirely (+framework's own .mcp.json is itself a
+    no-op placeholder, `{"mcpServers":{}}`, with zero servers configured —
+    this rung's pre-registered null hypothesis is that its own in-situ
+    cost is ~0 tokens; that is a real, informative result if confirmed,
+    not a wasted rung, since it rules .mcp.json OUT of the residual rather
+    than leaving it untested) — isolated at the SAME model (sonnet) and
+    SAME job pack the CLAUDE.md/agents ablation already used, per
+    claims.yaml's `ladder_o4_residual_ablation` pre-registration."""
+    workdir = _new_workdir(run_root, "framework_minus_mcp", job_id, rep)
+    warnings: list = []
+    home = _fresh_home(run_root, "framework_minus_mcp", rep, warnings)
+    _copy_framework_files(workdir, job_id, warnings, include_mcp=False)
+    empty_knowledge = _empty_knowledge_tree(run_root)
+    env = _base_env(home, [str(LOCAL_BIN), _minimal_system_path()])
+    env["CC_KNOWLEDGE_REPO"] = str(empty_knowledge)
+    if not LOCAL_BIN.is_dir():
+        warnings.append(f"LOCAL_BIN {LOCAL_BIN} not found -- tc/cc will not actually be reachable even though PATH includes it")
+    return MaterializedConfig(
+        name="framework_minus_mcp",
+        workdir=workdir,
+        home_dir=home,
+        env=env,
+        claude_flags=list(COMMON_CLAUDE_FLAGS),
+        notes=[
+            "residual ablation: same as +framework (CLAUDE.md + .claude/{agents,commands,skills}/) but .mcp.json is deliberately ABSENT",
+            f"tc/cc on PATH via {LOCAL_BIN}",
+            f"CC_KNOWLEDGE_REPO points at an EMPTY tree ({empty_knowledge}), same as +framework",
+        ],
+        warnings=warnings,
+    )
+
+
 def materialize_knowledge(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
     workdir = _new_workdir(run_root, "knowledge", job_id, rep)
     warnings: list = []
@@ -564,6 +706,15 @@ LADDER_CONFIGS = [
     # the original 4 unchanged, just with 2 more names now valid too.
     ("framework_minus_claudemd", materialize_framework_minus_claudemd),
     ("framework_minus_agents", materialize_framework_minus_agents),
+    # Residual-closing ablation rungs (the token-attribution residual left
+    # after WP-79's CLAUDE.md/agents pass, per claims.yaml's
+    # `ladder_o4_residual_ablation` pre-registration): same insertion-point
+    # convention as the two rungs above -- appended alongside them, still
+    # between framework and knowledge, so the original 4-rung subsequence
+    # stays intact for any code that assumed exactly 4 rungs.
+    ("framework_minus_commands", materialize_framework_minus_commands),
+    ("framework_minus_skills", materialize_framework_minus_skills),
+    ("framework_minus_mcp", materialize_framework_minus_mcp),
     ("knowledge", materialize_knowledge),
     ("integrations", materialize_integrations),
 ]
