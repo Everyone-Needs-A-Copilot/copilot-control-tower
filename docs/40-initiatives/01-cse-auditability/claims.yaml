@@ -348,6 +348,33 @@ definitions:
         the current content-check result.
     source: "codex-copilot/parity/claude-baseline.json (version_tuple); codex-copilot/parity/upstream-content-hashes.json (content_hash); codex-copilot scripts/check-upstream-parity.py (both levels)"
 
+  two_harness_behavior_equivalence:
+    description: >-
+      Whether Claude's and Codex's harnesses reach the SAME mechanical
+      PASS/FAIL outcome on the SAME job under the SAME unmodified
+      acceptance check, at the `+framework` ladder rung only. For a job `J`,
+      let `claude_result = t_working(claude_workdir_after_J)` and
+      `codex_result = t_working(codex_workdir_after_J)`, both booleans from
+      `J`'s own `acceptance_check` exit code (0 = pass) plus each harness's
+      `protected_files` check. `J` is BEHAVIOR-EQUIVALENT iff
+      `claude_result == codex_result` — agreement on FAILURE counts equally
+      as agreement on success; this is deliberately the narrowest
+      defensible reading of "same solution, different harness," not a
+      byte-identical or rubric-level (`t_loveable`) match. A pack is
+      behavior-equivalent iff all of its jobs are.
+      NAMED INSTRUMENT LIMITATION (do not read past it): neither harness's
+      headless mode (`claude -p` / `codex exec`) invokes
+      delegation/orchestration — 0 Task-tool calls across 72 ladder cells is
+      the separately-documented finding this inherits (see claim
+      `ladder-cannot-measure-framework-agent-layer`). This check therefore
+      tests whether a project-instructions file (`CLAUDE.md` vs `AGENTS.md`)
+      changes a single-shot, tools-enabled model's outcome — it does NOT
+      test, and must never be reported as testing, multi-agent
+      delegation/orchestration equivalence, `t_loveable`/MLP-rubric
+      equivalence, equivalence at any rung other than `+framework`, or
+      byte-level deliverable equivalence.
+    source: "docs/40-initiatives/01-cse-auditability/phases/phase-4-cross-harness-behavior.md Sec 2 (pre-registered, committed 36721e3, before any cell ran); tools/cse-bench/benches/ladder/cross_harness.py; codex_harness.py"
+
   live_integration:
     description: >-
       A service is counted as a live integration if `copilot health --json`
@@ -1905,9 +1932,9 @@ claims:
 
   - id: t6-two-harnesses-one-behavior
     statement: "Claude/Codex parity is checked at content and behavior level; drift is bounded and alarmed — 'same solution, different harness' is a tested property, not a slogan."
-    definition_refs: [parity]
-    check: "cd /Users/pabs/Sites/COPILOT/codex-copilot && python3 scripts/check-upstream-parity.py --content --json (both parity levels, C-4 now built); cross-checked via cd tools/cse-bench && python3 cse_bench.py collect --only parity"
-    status: failing
+    definition_refs: [parity, two_harness_behavior_equivalence]
+    check: "cd /Users/pabs/Sites/COPILOT/codex-copilot && python3 scripts/check-upstream-parity.py --content --json (content level); cd copilot-control-tower/tools/cse-bench/benches/ladder && python3 cross_harness.py (behavior level, +framework rung, 4-job pack — see phase-4-cross-harness-behavior.md for the pre-registered equivalence definition); CODEX_COPILOT_ROOT=<codex-copilot> bash codex-copilot/scripts/warn-parity-drift.sh (alarm, invoked as claude-copilot's pre-commit hook)"
+    status: passing
     evidence: >-
       Was failing under "content_hash level is C-4, not yet built"
       (phase-2-prd.md T6 row: "Parity check covers 3 version strings
@@ -1993,6 +2020,96 @@ claims:
       `--update-baseline` in codex-copilot, once no further claude-copilot
       agent-definition edits are in flight this session (a concurrent lane
       may still be editing `kc.md`), to catch the baseline up to 0c73f65.
+
+      FINAL RE-RUN 2026-07-14 (TASK-146, register-patch pass, independently
+      re-verified rather than transcribed from the task's own report):
+      STATUS -> PASSING. Content level: the 14-file drift above is closed
+      (codex-copilot commit ce087be1, DEC-1/DEC-2 port + re-baseline) and a
+      port guard now exists so `--update-baseline` cannot silently repeat
+      this (codex-copilot commit 7f7d6f6). Independently re-run here (not
+      just re-read from the task's report): `check-upstream-parity.py
+      --content --json` -> `status: pass`, 68 files, 0 drift,
+      `baseline_upstream_commit == current_upstream_commit ==
+      0c73f654327e...`. The `--update-baseline` port guard's regression
+      tests were independently re-run here too: `pytest tests/ -q` in
+      codex-copilot -> 38 passed, 2 subtests passed (includes
+      `test_update_baseline_port_guard_refuses_untouched_drift_and_
+      unblocks_on_real_port` and `test_update_baseline_port_guard_an_
+      unrelated_commit_does_not_unlock_it` — the rejected "HEAD moved"
+      signal is a standing regression test, not just a design note).
+      Alarm: `scripts/warn-parity-drift.sh` is installed into
+      claude-copilot's pre-commit hook (verified: `.git/hooks/pre-commit`
+      carries the managed `codex-parity-warn` block, chained after the
+      pre-existing claim-sweep block, neither clobbers the other) and was
+      independently PROVEN FIRING here, live, not just re-read: staged a
+      throwaway one-line edit to `.claude/agents/qa.md` in claude-copilot,
+      ran the installed hook script directly — it printed the full
+      "PARITY WARNING... status: drift" block naming the staged file and
+      exited 0 (warns, does not block) — then the edit was reverted
+      (`git reset` + `git checkout --`) and content parity re-confirmed
+      clean (`status: pass`, 68/68, 0 drift) with claude-copilot's
+      pre-existing unrelated working-tree state (`kc.md` /
+      `knowledge-copilot.md`, the standing DEC-8-pending edits) undisturbed
+      throughout.
+
+      Behavior level (the level this claim's statement has always
+      required and that never had a check before this task): NEW —
+      `tools/cse-bench/benches/ladder/cross_harness.py` +
+      `codex_harness.py`, comparator built specifically for this claim,
+      not adapted from an unrelated tool. Equivalence criterion
+      pre-registered in `phases/phase-4-cross-harness-behavior.md` and
+      committed (36721e3) BEFORE any cell ran (V-2 honored, independently
+      confirmed by `git log` on the file: `codex_harness.py`/
+      `cross_harness.py` do not exist until the later commit 4f67188).
+      Ran job_pack v2's 4 jobs through Claude's existing `+framework` rung
+      (reused verbatim) and a new Codex `+framework`-equivalent
+      (codex-copilot's own `AGENTS.md`, isolated via
+      `--ignore-user-config`/`--ephemeral`). Results, independently
+      re-read from the raw per-cell JSON envelopes in
+      `tools/cse-bench/output/cross_harness-runs/20260714T155309Z/` (not
+      taken on the task's word) and re-summed here: job-1-bugfix
+      True/True, job-2-house-voice False/False, job-3-integration-report
+      True/True, job-4-toolkit True/True — 4/4 jobs behavior-equivalent
+      (`claude_t_working == codex_t_working` per job, the pre-registered
+      criterion). Claude side cost, re-summed from the 4 raw envelopes'
+      own `total_cost_usd` fields: $0.7781 total (not the corrupted
+      `/bin/zsh.7781` figure an earlier work-product note briefly carried
+      and self-corrected). Codex side: 994,643 total tokens across 4
+      calls, no USD figure exists (ChatGPT-subscription auth, no metered
+      key, no `--max-budget-usd`-equivalent flag — verified via `codex
+      exec --help`, stated honestly rather than fabricated).
+
+      MANDATORY CAVEATS (kept explicit so this claim is never read as
+      covering more than it does):
+      (a) job-2's equivalence is agreement ON FAILURE, not on success —
+      both harnesses correctly fail it (`t_working: false` on both sides)
+      because neither materializes real knowledge content at the
+      `+framework` rung (`CC_KNOWLEDGE_REPO` points at an empty tree on
+      both sides). This is a weaker form of equivalence than agreeing on
+      success, and is reported as such rather than folded silently into
+      the "4/4 equivalent" headline.
+      (b) Delegation/orchestration equivalence is NOT tested. Neither
+      harness's headless mode (`claude -p` / `codex exec`) invokes the
+      Task tool or an equivalent — 0 delegations across the ladder's 72
+      cells (see claim `ladder-cannot-measure-framework-agent-layer`, and
+      the new `two_harness_behavior_equivalence` definition above). This
+      check tests project-instructions-file effect on single-shot
+      outcomes only, never multi-agent orchestration.
+      (c) Only the `+framework` rung was cross-tested. `bare`,
+      `+knowledge`, and `+integrations` are untested cross-harness; no
+      claim is made about them.
+      With those three caveats stated, not omitted, the truth condition
+      ("checked at content and behavior level; drift is bounded and
+      alarmed; 'same solution, different harness' is a tested property,
+      not a slogan") is now met: both levels are checked (not just
+      content), the alarm is proven firing (not just installed), the
+      port guard closes the specific silent-resolution failure mode that
+      caused this claim's own prior recurrence, and "same solution,
+      different harness" is a real, narrowly-defined, pre-registered,
+      independently-reproducible tested property — not a slogan, and not
+      overclaimed beyond what §2's definition and the three caveats above
+      permit.
+    source: "codex-copilot commit ce087be1 (content re-sync), 7f7d6f6 (port guard); tools/cse-bench/benches/ladder/cross_harness.py, codex_harness.py; docs/40-initiatives/01-cse-auditability/phases/phase-4-cross-harness-behavior.md; tools/cse-bench/output/cross_harness-runs/20260714T155309Z/*.json; codex-copilot scripts/warn-parity-drift.sh + install-parity-warn-hook.sh"
     last_checked: "2026-07-14"
 
   - id: t7-inheritance-ladder-in-practice
