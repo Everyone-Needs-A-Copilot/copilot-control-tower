@@ -919,6 +919,73 @@ definitions:
       post-hoc adjustment, not a pre-registration.
     source: "docs/40-initiatives/01-cse-auditability/phases/phase-4-w4-external-pilot-kit.md §2"
 
+  claim_sweep:
+    description: >-
+      TASK-137 (t2-no-claim-outlives-its-check): the CSE-wide claim sweep
+      the README's Phase-0 vision named and this register's own SCOPE NOTE
+      said was "not yet" built. Registered BEFORE the sweep was run for a
+      number (V-2) — this entry defines what the sweep counts, how it
+      decides BACKED vs UNBACKED, and states its precision honestly, so the
+      mechanism cannot be tuned after seeing the result.
+    verifiable_assertion: >-
+      A "verifiable assertion" is a quantified or mechanism-guarantee claim
+      matched by one of seven regex categories over a curated set of each
+      product's self-description docs (SCAN_TARGETS in claim_sweep.py —
+      README.md, SOUL.md, PURPOSE.md/ECOSYSTEM.md, and a small number of
+      F-18-cited architecture docs; NOT knowledge-copilot's ~900-file
+      content corpus, and NOT CLAUDE.md files — see caveat below):
+      PERCENT (`\d+%`), N_OF_M (`\d+ of \d+`), COUNT_UNIT (`\d+ agents/
+      services/files/...`), FRACTION (`\d+/\d+`), VERSION (`v?\d+\.\d+`,
+      excluding the SOUL.md template's own document-changelog lines —
+      "Revised to vX.Y", "STATUS: RATIFIED", the Changelog table — which
+      describe the DOCUMENT's version, not a product claim), RATIO_X
+      (`\d+x`), and MECHANISM_CLAIM (automatically/ensures/guarantees).
+      Text inside fenced code blocks and inline code spans is excluded
+      (overwhelmingly commands/paths, not prose).
+    backing_convention: >-
+      An assertion is BACKED if an `<!-- claim-check: <id> -->` HTML
+      comment appears on the same line, the line before, or the line
+      after, AND <id> resolves to a real entry under this file's `claims:`
+      list. An annotation whose id does NOT resolve is DANGLING (reported
+      separately, never silently treated as backed). Chosen over trying to
+      parse English more cleverly: the annotation makes backing explicit
+      and cheap for a doc author to add, and cheap for the sweep to check,
+      rather than the tool guessing which registered claim a sentence
+      means. This is the same shape as knowledge-copilot's
+      scripts/check-crosslinks.py baseline/regression convention, applied
+      to prose assertions instead of markdown links.
+    baseline: >-
+      tools/cse-bench/claim-sweep-baseline.json — a regression gate, not a
+      zero-unbacked gate (mirrors crosslinks-baseline.json exactly): every
+      UNBACKED/DANGLING assertion found at baseline-authoring time is
+      recorded (repo, file, category, matched text — a sha256 key, no line
+      number, so the baseline survives unrelated line-shift edits, same
+      tradeoff crosslinks-baseline.json makes). `claim_sweep.py --check`
+      fails ONLY on a NEW unbacked assertion not already in the baseline —
+      the ratchet only tightens. `--update-baseline` is the explicit,
+      reviewed "accept this backlog" action, never implicit.
+    precision_caveat: >-
+      Stated plainly, not buried: this is a regex/heuristic scanner over a
+      CURATED doc list, not a general claim-extraction engine. KNOWN FALSE
+      POSITIVES: a genuinely non-claim decimal or count noun in ordinary
+      prose (e.g. a Python version requirement, a section number) matches
+      a category and is reported UNBACKED even though it isn't really a
+      product claim needing a mechanism — these get baselined, not
+      specially suppressed, so the baseline is an honest (if slightly
+      noisy) upper bound. KNOWN FALSE NEGATIVES: any assertion outside
+      SCAN_TARGETS (the ~900 knowledge-copilot content files, CLAUDE.md
+      files, and every doc not explicitly listed) is invisible to this
+      tool; any assertion phrased without a matched pattern (e.g. spelled-
+      out numbers, comparative claims with no digit) is invisible; text
+      inside inline code spans is never scanned. First real run
+      (2026-07-14, see claim-sweep-first-run): 92 verifiable assertions
+      across 4 of 5 scanned repos (codex-copilot's curated docs had zero
+      after the changelog exclusion), 0 backed (the annotation convention
+      is new — nothing in any product doc used it before this task), 92
+      unbacked, 0 dangling. This is the honest starting backlog this
+      register's V-2 discipline requires being stated, not hidden.
+    source: "tools/cse-bench/claim_sweep.py"
+
 claims:
 
   - id: outcome-ttfls
@@ -1294,12 +1361,70 @@ claims:
     last_checked: "2026-07-13"
 
   - id: framework-agent-frugality
-    statement: "Agents return ~100 tokens to the main session (claude-copilot SOUL §6 non-negotiable). UPDATED 2026-07-13 (QA WP-28 refresh): median return 893 tokens (was 658 -- WORSE, further from the ~100-token bar), p90 3,474 (was 2,749); 95.97% of returns exceed 300 tokens (was 86.2%)."
+    statement: "Agents return ~100 tokens to the main session (claude-copilot SOUL §6 non-negotiable). UPDATED 2026-07-13 (QA WP-28 refresh): median return 893 tokens (was 658 -- WORSE, further from the ~100-token bar), p90 3,474 (was 2,749); 95.97% of returns exceed 300 tokens (was 86.2%). CORRECTION 2026-07-14: agent return-contracts tightened (see evidence) -- claim deliberately NOT flipped, still failing, until a post-change collect exists; see evidence for the pre-change baseline and why."
     definition_refs: []
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul"
     status: failing
-    evidence: "REFRESHED 2026-07-13 (QA WP-28): tools/cse-bench/output/framework_soul-latest.json, fresh collect this session -- agent_frugality block: n=124 subagent returns (merged transcript corpus, now visible in full after the collectors/paths.py root-resolution fix, TASK-128/719cb6e, previously silently blind to this machine's real tree), median 893.0, p90 3473.8, pct_over_threshold 95.97%. This is a genuine regression vs the 658-token/86.2% figure this claim previously quoted, not a methodology change -- quoted plainly, not softened. The claim was already failing and remains failing; the gap from the SOUL §6 bar widened."
-    last_checked: "2026-07-13"
+    evidence: >-
+      REFRESHED 2026-07-13 (QA WP-28): tools/cse-bench/output/framework_soul-latest.json,
+      fresh collect this session -- agent_frugality block: n=124 subagent returns
+      (merged transcript corpus, now visible in full after the collectors/paths.py
+      root-resolution fix, TASK-128/719cb6e, previously silently blind to this
+      machine's real tree), median 893.0, p90 3473.8, pct_over_threshold 95.97%.
+      This is a genuine regression vs the 658-token/86.2% figure this claim
+      previously quoted, not a methodology change -- quoted plainly, not
+      softened. The claim was already failing and remains failing; the gap
+      from the SOUL §6 bar widened.
+
+      CORRECTION 2026-07-14 (no owner ruling needed -- DEC-1's enforce-vs-amend
+      question and the staged w5 patches remain untouched and ladder-gated;
+      this is additive instruction work only). PRE-CHANGE BASELINE, from the
+      fresh tools/cse-bench/output/framework_soul-latest.json (generated_at
+      2026-07-14T13:14:54Z, NOT re-derived by this task) -- agent_frugality:
+      n=145 (of 147 subagent files, 2 with no final text), median 932.0, p90
+      3446.4, pct_over_threshold 96.55%; by_agent_type (roster that survives
+      the removal review, cpa/cs/kc excluded per the relevance rule): me n=51
+      median 853, ta n=13 median 1060, qa n=21 median 1132, doc n=12 median
+      456.5, sd n=5 median 3786, uxd n=3 median 5089, sec n=5 median 3556, do
+      n=14 median 603, cw n=2 median 1229.5, uid n=3 median 770, uids n=1
+      median 4118, cco n=13 median 1054, ind n=1 median 1938 -- the
+      "design-chain agents 3.5k-5k" pattern already on record is confirmed
+      (sd/uxd/sec/uids cluster 3.5k-5.1k median). DIAGNOSIS, from reading
+      real returns (subagents/agent-*.jsonl under ~/.claude/projects, the
+      corpus this collector consumes): all 13 surviving agents' definitions
+      (claude-copilot .claude/agents/*.md) already carried an explicit
+      "Return ONLY (~100 tokens)" structured template before this
+      correction -- the contract was not silently absent. The actual
+      mechanism, proven by sampling: only 35 of 153 sampled subagent
+      invocations (22.9%) even attempt `tc wp store`; a live sd sample
+      (5568 tokens, the largest sd return) opens with "No task ID was
+      provided and `tc` isn't on PATH, so I'll deliver the experience
+      design directly" -- i.e. when no work product gets stored, the
+      pre-existing contract had no fallback branch (its own template
+      assumes a WP already exists: "WP: WP-xxx"), so the agent free-styled
+      and inlined the full deliverable instead of the short summary. FIX
+      APPLIED 2026-07-14 (claude-copilot commit 65f9bf7, branch
+      docs/40-initiatives-migration, pushed): added the missing fallback
+      branch to all 13 agents' Output Format sections ("if `tc wp store`
+      fails, is unavailable, or no task ID exists: still return ONLY the
+      block above with `WP: none (<reason>)` -- never substitute the full
+      deliverable for it") plus a matching Core Behaviors "Never" bullet,
+      for me/ta/qa/doc/sd/uxd/sec/do/cw/uid/uids/cco/ind. Explicitly
+      excluded cpa/cs/kc (DEC-8 deletion nominees; a concurrent session was
+      observed deleting cpa.md/cs.md in this same working tree while this
+      correction was made). SOUL.md and .claude/hooks/ were NOT touched by
+      this correction (a concurrent, unrelated session was separately
+      amending SOUL.md to v1.1/v1.2 in the same working tree during this
+      task; verified via `git diff SOUL.md` that none of those lines are
+      this correction's). STATUS DELIBERATELY NOT FLIPPED: this is an
+      untested contract change, not a re-measurement -- the 932-token/
+      96.55% figures above are the PRE-change baseline, not a post-change
+      result, and per this register's own check (a `framework_soul`
+      collect) can only be verified by running new agent sessions under
+      the amended contracts and re-collecting. Marked failing, honestly,
+      until that re-run exists; a high pre-change baseline is the
+      finding, not a bug being hidden by this note.
+    last_checked: "2026-07-14"
 
   - id: framework-qa-gate-adherence
     statement: "No implementation ships without a qa pass carrying an ARTIFACT: marker (claude-copilot SOUL §6). UPDATED 2026-07-13 (QA WP-28 refresh): 66.67% of qa returns carry the marker (10/15, was 75.9%/41-of-54 -- WORSE), 3 sessions delegated to me with no qa activity at all (of 9 sessions with me-or-qa activity); the qa-gate hook state file now EXISTS at the primary path (claude-copilot/.claude/hooks/state/qa-gate.json) but is empty (`{}`, 0 sessions tracked, 0 history events) -- the hook has been installed but has not yet actually fired/gated anything on this machine, a materially different (and still concerning) state from 'has never existed.'"
