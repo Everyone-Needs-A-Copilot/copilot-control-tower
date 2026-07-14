@@ -986,6 +986,109 @@ definitions:
       register's V-2 discipline requires being stated, not hidden.
     source: "tools/cse-bench/claim_sweep.py"
 
+  upkeep_tax:
+    description: >-
+      O-9 (Upkeep Tax, outcome_bars): the share of ecosystem effort spent
+      MAINTAINING the CSE itself -- registry, links, freshness, parity
+      sweeps, claim upkeep, framework/knowledge/CLI hygiene -- rather
+      than producing solutions, netted against the value delivered.
+      "What counts as maintenance" is an editorial judgment call, made
+      explicitly per task or per PRD via `tc upkeep tag-task` / `tc
+      upkeep tag-prd` (claude-copilot tools/tc/, tc.services.upkeep) --
+      NEVER inferred automatically from task text, title keywords, or
+      any heuristic this register does not name. Registered BEFORE any
+      `tc upkeep tag-*` command had been run anywhere (V-2) -- this
+      methodology was written from the SHAPE of tc's existing task/PRD
+      schema and collectors/economy.py's existing token formulas, not
+      from looking at what any repo's number would be. Two independent
+      methods are registered, NEVER conflated into one number:
+    methods:
+      task_count_heuristic: >-
+        RETROSPECTIVE. upkeep_tasks / total_tasks in a repo's Task
+        Copilot store (`tasks` table), where upkeep_tasks is every task
+        with a row in the additive `upkeep_tags` table (claude-copilot
+        tools/tc/src/tc/db/schema.py UPKEEP_SCHEMA_SQL). Populated two
+        ways: `tc upkeep tag-task <id>` (one task, explicit,
+        method='explicit') or `tc upkeep tag-prd <id>` (bulk-tags EVERY
+        task already filed under that PRD in one call,
+        method='prd-heuristic', and never overwrites an explicit tag --
+        tc.services.upkeep.tag_prd). The PRD-level flag is what makes
+        this method retrospective: flagging a PRD today reclassifies
+        tasks that were created -- and completed -- before this feature
+        existed, so the tax is computable from task/PRD data that
+        ALREADY EXISTS, not only from sessions tagged from now on.
+        Honest limitation, stated plainly: this is a share of TASK
+        COUNT, not of time or tokens (the PRD's literal unit) -- a
+        proxy, not an exact accounting, because tasks predating this
+        feature carry no session-id or token linkage a collector could
+        reconstruct retroactively. Denominator is ALL tasks regardless
+        of status (pending/in_progress/completed/blocked/cancelled):
+        completed-only would undercount genuine upkeep effort spent on
+        work that was blocked, superseded, or abandoned -- still real
+        effort.
+      session_token_exact: >-
+        PROSPECTIVE (from the moment this feature exists onward) and
+        token-exact. `tc upkeep tag-task`, when run inside a live Claude
+        Code session (CLAUDE_CODE_SESSION_ID set), appends a row to the
+        additive `upkeep_sessions` table -- the same session-touch
+        mechanism solution_token_accounting's `ledger` method uses
+        (tc.services.solutions._record_session_touch), mirrored verbatim
+        for upkeep by tc.services.upkeep._record_upkeep_session_touch.
+        cse-bench's upkeep collector (tools/cse-bench/collectors/
+        upkeep.py) joins every DISTINCT tagged session_id to that
+        session's own transcript (main + subagent files) and sums
+        tokens using the EXACT SAME formulas solution_token_accounting
+        registers (methods.transcripts_marginal_spend /
+        .transcripts_billed_volume, reused directly from
+        collectors/economy.py's _billed_volume/_marginal_spend, not
+        re-implemented): marginal_spend (input + cache_creation +
+        output, cache_read EXCLUDED) is PRIMARY, billed_volume is
+        secondary/transparency-only -- the same F-8-class conflation
+        correction this register already applied to W-2 (cumulative-
+        summing cache_read misattributes a turn's full cache re-read as
+        new work). UNWINDOWED, unlike W-2's per-solution join: one `tc
+        upkeep tag-task` call is a single whole-session judgment ("this
+        session was upkeep"), not a shared/intermittent touch across
+        several ledger entries, so there is no shared-session ambiguity
+        to window away -- the collector sums each tagged session's FULL
+        transcript.
+    netting_rule: >-
+      task_count_heuristic nets against ALL tracked task effort in the
+      same store (upkeep_tasks / total_tasks) -- it does not reference
+      solutions at all, since most stores have none yet (see
+      solution_token_accounting; W-1 adoption is early). session_token_exact
+      nets against the Outcome Ledger directly: upkeep_tax_ratio_marginal_spend
+      = upkeep_tokens_marginal_spend / (upkeep_tokens_marginal_spend +
+      outcome_tokens_marginal_spend), where outcome_tokens_marginal_spend
+      is the SAME whole-session marginal-spend sum, computed identically,
+      over solution_sessions' own distinct session ids (the Outcome
+      Ledger's W-2 session touches) -- symmetric, apples-to-apples, never
+      comparing a windowed figure (W-2's economy collector) against an
+      unwindowed one (this collector) on the same side of a ratio. A
+      session_id present in BOTH upkeep_sessions and solution_sessions
+      (tagged upkeep AND touched a solution) is ambiguous and is
+      EXCLUDED from both sides, reported separately as
+      overlap_sessions_excluded -- never silently assigned to either.
+    threshold: >-
+      None registered. Unlike O-4 (Token Efficiency), which the PRD
+      gives an explicit 60/90% band, the PRD's O-9 text names no target
+      number -- O-9 is a measurement bar, not a pass/fail bound. A high
+      upkeep tax is a finding to act on (via the removal rule, W-6), not
+      a defined failure of this claim.
+    caveat: >-
+      Editorial judgment calls this register does NOT make on anyone's
+      behalf: which PRDs/tasks in any given repo count as "maintenance"
+      is left to whoever runs `tc upkeep tag-task` / `tag-prd` in that
+      repo, and is disclosed per-repo in metrics.per_repo[].by_kind /
+      .prds_flagged / .by_method, never hidden inside a single
+      ecosystem-wide number. A repo where `tc upkeep` has never run
+      reports task_count_share: null (upkeep_instrumentation_present:
+      false) -- the honest pre-adoption state, not a fabricated 0%.
+    source: >-
+      tools/cse-bench/collectors/upkeep.py; claude-copilot
+      tools/tc/src/tc/services/upkeep.py; claude-copilot
+      tools/tc/src/tc/db/schema.py (UPKEEP_SCHEMA_SQL)
+
 claims:
 
   - id: outcome-ttfls
@@ -1070,11 +1173,11 @@ claims:
 
   - id: outcome-upkeep-tax
     statement: "The time and tokens spent maintaining the CSE itself are measured and netted against outcome value in every value statement."
-    definition_refs: [outcome_bars]
-    check: "gated on W-1/W-2 instrumentation (maintenance-session tagging)"
-    status: gated
-    evidence: "phases/phase-4-outcome-program-prd.md par.2 (O-9)"
-    last_checked: "2026-07-13"
+    definition_refs: [outcome_bars, upkeep_tax]
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only upkeep && python3 -c \"import json; d=json.load(open('output/upkeep-latest.json'))['metrics']; print(d['totals'])\" -- passing iff at least one repo reports a non-null figure via a registered definitions.upkeep_tax method (task_count_heuristic or session_token_exact), errors: []."
+    status: unchecked
+    evidence: "definitions.upkeep_tax registered this session (methodology only, BEFORE any `tc upkeep tag-*` command had been run anywhere -- V-2). The maintenance-session tagging instrumentation itself (claude-copilot tools/tc/ `tc upkeep` verbs + tools/cse-bench/collectors/upkeep.py) is landing in the same session's next commit; this row will flip again, with a real quoted number, once it has actually run against real tagged data -- see phase-4-outcome-program-prd.md operating rule 2 ('done = claim flip, never when code merely exists')."
+    last_checked: "2026-07-14"
 
   # --- Program truth conditions (phase-2-prd.md §2, T1-T8) ---------------
 
