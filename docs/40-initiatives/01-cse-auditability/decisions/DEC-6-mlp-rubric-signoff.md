@@ -3,15 +3,16 @@
 > tc task: **TASK-125** (W-3, `phases/phase-4-outcome-program-prd.md`) ·
 > Claim: `outcome-counterfactual-delta`, `ladder_mlp_rubric` (`claims.yaml`) ·
 > Rubric: [`../../../../tools/cse-bench/benches/ladder/rubric.md`](../../../../tools/cse-bench/benches/ladder/rubric.md)
-> · Status: prepared, **not ratified** — owner signs off before first
-> scoring. **No `t_loveable` score has ever been computed against this
-> rubric.** `run.py`'s `check_signoff()` requires THIS header block to
+> · Status: **ratified** — Option A (ratify as drafted, §4), ruled by the
+> owner 2026-07-14, in-conversation, no edits to `rubric.md`. **Before this
+> ratification, no `t_loveable` score had ever been computed against this
+> rubric.** `run.py`'s `check_signoff()` required THIS header block to
 > contain EXACTLY ONE "Status" field whose value starts with "ratified" in
-> bold (see §6 for the exact text to swap in), fails CLOSED on zero or more
-> than one such field, and strips HTML comments before checking (QA WP-23
-> closed two bypasses here — see §3) — mechanically refusing a live ladder
-> run until this header genuinely reads ratified. See rubric.md §0 and
-> run.py's module docstring.
+> bold, failing CLOSED on zero or more than one such field, and stripping
+> HTML comments before checking (QA WP-23 closed two bypasses here — see
+> §3) — mechanically refusing a live ladder run until this header
+> genuinely read ratified, which it now does. See rubric.md §0 and run.py's
+> module docstring.
 
 ## 1. The decision, in one sentence
 
@@ -158,3 +159,22 @@ actually designed to catch that failure mode. This applies to
 once real numbers exist — see
 `tools/cse-bench/benches/ladder/README.md` "Quoting caveat" for the same
 statement kept alongside the harness itself.
+
+## 8. Ratification record (2026-07-14)
+
+**Ruled: Option A, ratify as drafted.** The owner ratified this memo
+in-conversation on 2026-07-14; no edits were made to `rubric.md` (the 4
+dimensions, the exemplar anchors, the ALL-4-≥2 `t_loveable` threshold, and
+the `--judge-mode human` default all ship exactly as drafted in §3–§5
+above). The header in §0 was updated to `Status: **ratified**` per §6's
+exact one-line action. Per §4's own stated consequence for Option A: if an
+anchor turns out to be miscalibrated once real deliverables are judged
+against it, the fix is a new, dated revision to `rubric.md`, never a silent
+edit — no such revision has been made as of this ratification.
+
+Immediately following this ratification, TASK-125's first live ladder run
+was executed (`python3 run.py --i-know-this-is-blocked-on-signoff
+--judge-mode human`) — see `tools/cse-bench/output/bench_ladder-runs/` for
+the audit trail and the task's work product for the resulting numbers
+(honest, whichever way they landed — see §7's quoting caveat, which
+applies in full to that run's results).

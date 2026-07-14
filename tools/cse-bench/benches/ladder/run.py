@@ -383,7 +383,18 @@ def run_claude_job(
 
 
 def extract_usage(envelope: Optional[dict]) -> dict:
-    """Same convention as ../resume_cost/run.py's extract_usage()."""
+    """Same convention as ../resume_cost/run.py's extract_usage().
+
+    QA fix (DEC-6 live-run pre-flight, 2026-07-14): README.md documented
+    `marginal_spend`/`billed_volume` as already fixed per QA WP-23 finding
+    1 ("extract_usage() now uses the EXACT SAME two formulas as
+    collectors/economy.py's _marginal_spend/_billed_volume"), but this
+    function never actually computed either field -- the documentation
+    outran the code. Added now, using economy.py's own formulas verbatim
+    (`_marginal_spend` = input + cache_creation + output, EXCLUDING
+    cache_read; `_billed_volume` = input + cache_creation + cache_read +
+    output) so a ladder number and a ledger number stay commensurable, not
+    just similarly named."""
     if not envelope:
         return {
             "input_tokens_new": None,
@@ -392,6 +403,8 @@ def extract_usage(envelope: Optional[dict]) -> dict:
             "input_tokens_total": None,
             "output_tokens": None,
             "total_tokens": None,
+            "marginal_spend": None,
+            "billed_volume": None,
             "total_cost_usd": None,
             "duration_ms": None,
             "num_turns": None,
@@ -409,6 +422,8 @@ def extract_usage(envelope: Optional[dict]) -> dict:
         "input_tokens_total": input_total,
         "output_tokens": output,
         "total_tokens": input_total + output,
+        "marginal_spend": input_new + cache_creation + output,  # PRIMARY O-4 figure -- excludes cache_read
+        "billed_volume": input_total + output,  # secondary, transparency-only -- includes cache_read
         "total_cost_usd": envelope.get("total_cost_usd"),
         "duration_ms": envelope.get("duration_ms"),
         "num_turns": envelope.get("num_turns"),
@@ -496,17 +511,40 @@ def validate_acceptance_check_wiring(job: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+# QA fix (DEC-6 live-run pre-flight, 2026-07-14): the EXACT set of paths
+# configs.py's `_copy_framework_files()` writes into a job's workdir BEFORE
+# the model ever runs, for the framework/knowledge/integrations rungs (see
+# configs.py) -- pre-existing scaffold, never the model's own deliverable.
+# Found live, not anticipated: a real run's first blind worksheet showed
+# `collect_deliverable_bundle()` filling its ENTIRE 20_000-byte cap with
+# `.claude/agents/*.md` files (sorted alphabetically before the job's own
+# `calc.py`/`report.md`/etc.), so the judge would never even SEE the
+# deliverable for any rung except `bare` -- `--dry-run` could never catch
+# this, since it only reports a worksheet CHAR COUNT, never the bundle's
+# actual content.
+FRAMEWORK_SCAFFOLD_PATHS = {Path(".claude"), Path("CLAUDE.md"), Path(".mcp.json")}
+
+
+def _is_framework_scaffold(rel: Path) -> bool:
+    return rel in FRAMEWORK_SCAFFOLD_PATHS or rel.parts[:1] == (".claude",)
+
+
 def collect_deliverable_bundle(workdir: Path, max_bytes: int = 20_000) -> str:
     """Concatenates every regular file under workdir (deterministic path
     order) into a single text bundle for the judge, truncated to
     max_bytes total so a runaway job can't blow out a judge prompt.
-    Binary/undecodable files are noted, not included verbatim."""
+    Binary/undecodable files are noted, not included verbatim. Excludes
+    the pre-installed framework scaffold (see FRAMEWORK_SCAFFOLD_PATHS)
+    so the bundle is the model's OWN deliverable on every rung, not
+    whatever the config materialized before the job even started."""
     parts: list[str] = []
     total = 0
     for path in sorted(workdir.rglob("*")):
         if not path.is_file():
             continue
         rel = path.relative_to(workdir)
+        if _is_framework_scaffold(rel):
+            continue
         try:
             content = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
@@ -652,20 +690,38 @@ def aggregate(records: list[dict]) -> dict:
                 "t_working_reached": rec.get("acceptance", {}).get("passed"),
                 "elapsed_seconds": rec.get("duration_seconds"),
                 "total_tokens": usage.get("total_tokens"),
+                "marginal_spend": usage.get("marginal_spend"),
+                "billed_volume": usage.get("billed_volume"),
             }
             if bare is not None and config_name != "bare":
                 bare_seconds = bare.get("duration_seconds")
-                bare_tokens = (bare.get("usage") or {}).get("total_tokens")
+                bare_usage = bare.get("usage") or {}
+                bare_marginal = bare_usage.get("marginal_spend")
+                bare_billed = bare_usage.get("billed_volume")
                 this_seconds = rec.get("duration_seconds")
-                this_tokens = usage.get("total_tokens")
+                this_marginal = usage.get("marginal_spend")
+                this_billed = usage.get("billed_volume")
                 by_config[config_name]["o3_speed_delta_seconds_vs_bare"] = (
                     round(bare_seconds - this_seconds, 2)
                     if bare_seconds is not None and this_seconds is not None
                     else None
                 )
+                # PRIMARY O-4 figure -- marginal_spend (excludes cache_read).
+                # QA fix (DEC-6 live-run pre-flight, 2026-07-14): this used
+                # to be computed from `total_tokens` (== billed_volume),
+                # exactly the F-8-class conflation collectors/economy.py
+                # already had to correct once (claims.yaml
+                # solution_token_accounting, commit 26a3dd7) -- see
+                # README.md "Measurement capture."
                 by_config[config_name]["o4_token_reduction_pct_vs_bare"] = (
-                    round((bare_tokens - this_tokens) / bare_tokens * 100, 2)
-                    if bare_tokens
+                    round((bare_marginal - this_marginal) / bare_marginal * 100, 2)
+                    if bare_marginal
+                    else None
+                )
+                # SECONDARY, transparency-only -- includes cache_read.
+                by_config[config_name]["o4_token_reduction_pct_vs_bare_billed_volume_secondary"] = (
+                    round((bare_billed - this_billed) / bare_billed * 100, 2)
+                    if bare_billed
                     else None
                 )
         by_job[job_id] = by_config
@@ -873,9 +929,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         "run_dir": str(run_dir),
         "definitions": {
             "t_working": "acceptance_check (job_pack.py) exits 0 in the job's materialized workdir; mechanical, no judge involved",
-            "t_loveable": "first (config, job, rep) whose rubric.md scoring reaches >=2 ('Adequate') on ALL 4 dimensions; null if none qualifies. NOT computed in any run before DEC-6 ratification (see signoff_gate above).",
+            "t_loveable": "first (config, job, rep) whose rubric.md scoring reaches >=2 ('Adequate') on ALL 4 dimensions; null if none qualifies. Requires DEC-6 ratification (see signoff_gate above); judge_mode=human writes a scoring worksheet per cell rather than a score (see t_loveable.status per record).",
             "o3_speed_delta_seconds_vs_bare": "bare.duration_seconds - this_config.duration_seconds for the same job; positive means this rung was faster than bare",
-            "o4_token_reduction_pct_vs_bare": "(bare.total_tokens - this_config.total_tokens) / bare.total_tokens * 100 for the same job; positive means this rung used fewer tokens than bare",
+            "o4_token_reduction_pct_vs_bare": "PRIMARY: (bare.marginal_spend - this_config.marginal_spend) / bare.marginal_spend * 100 for the same job (marginal_spend = input + cache_creation + output, EXCLUDING cache_read); positive means this rung spent fewer marginal tokens than bare.",
+            "o4_token_reduction_pct_vs_bare_billed_volume_secondary": "SECONDARY, transparency-only: same formula using billed_volume (marginal_spend + cache_read) instead -- never the primary O-4 comparison, see README.md 'Measurement capture'.",
         },
     }
 

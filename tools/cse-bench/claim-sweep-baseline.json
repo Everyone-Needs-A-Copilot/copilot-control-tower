@@ -56,14 +56,6 @@
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
-    "key": "4a844ddd2def38b0",
-    "repo": "claude-copilot",
-    "file": "SOUL.md",
-    "category": "MECHANISM_CLAIM",
-    "text": "guarantee",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
     "key": "64853c6abd771458",
     "repo": "claude-copilot",
     "file": "SOUL.md",
@@ -77,38 +69,6 @@
     "file": "SOUL.md",
     "category": "PERCENT",
     "text": "6%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "71d57aff6713badf",
-    "repo": "claude-copilot",
-    "file": "SOUL.md",
-    "category": "PERCENT",
-    "text": "94%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "71d57aff6713badf",
-    "repo": "claude-copilot",
-    "file": "SOUL.md",
-    "category": "PERCENT",
-    "text": "94%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "71d57aff6713badf",
-    "repo": "claude-copilot",
-    "file": "SOUL.md",
-    "category": "PERCENT",
-    "text": "94%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "71d57aff6713badf",
-    "repo": "claude-copilot",
-    "file": "SOUL.md",
-    "category": "PERCENT",
-    "text": "94%",
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
@@ -144,14 +104,6 @@
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
-    "key": "7aaa8bb0e2dce2e1",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "COUNT_UNIT",
-    "text": "15 sessions",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
     "key": "2e774da65df2ea56",
     "repo": "claude-copilot",
     "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
@@ -165,22 +117,6 @@
     "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
     "category": "COUNT_UNIT",
     "text": "500 turns",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "ec1a23056834a7a7",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "COUNT_UNIT",
-    "text": "500 turns",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "80f35a6db790ca93",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "COUNT_UNIT",
-    "text": "671 turns",
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
@@ -216,22 +152,6 @@
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
-    "key": "610ff1671d7bd3f2",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "MECHANISM_CLAIM",
-    "text": "Automatically",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "22bae0825abde346",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "PERCENT",
-    "text": "3.5%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
     "key": "22bae0825abde346",
     "repo": "claude-copilot",
     "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
@@ -245,54 +165,6 @@
     "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
     "category": "PERCENT",
     "text": "6%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "8ed3fdc512366f4f",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "PERCENT",
-    "text": "6%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "8ed3fdc512366f4f",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "PERCENT",
-    "text": "6%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "c6e510fc89932e2a",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "PERCENT",
-    "text": "94%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "c6e510fc89932e2a",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "PERCENT",
-    "text": "94%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "c6e510fc89932e2a",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "PERCENT",
-    "text": "94%",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "c6e510fc89932e2a",
-    "repo": "claude-copilot",
-    "file": "docs/10-architecture/04-framework-restructure-2026-04.md",
-    "category": "PERCENT",
-    "text": "94%",
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
@@ -344,11 +216,11 @@
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
-    "key": "031efca13fc6e714",
+    "key": "85868485bc198145",
     "repo": "cli-copilot",
     "file": "README.md",
     "category": "COUNT_UNIT",
-    "text": "22 services",
+    "text": "20 services",
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
@@ -360,19 +232,19 @@
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
-    "key": "d0240f7076842ff6",
+    "key": "6d74530a8c2a4986",
     "repo": "cli-copilot",
     "file": "docs/00-overview.md",
     "category": "COUNT_UNIT",
-    "text": "22 service",
+    "text": "20 service",
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
-    "key": "cc1bcc4e42472604",
+    "key": "c3db9f37b0c8ca26",
     "repo": "cli-copilot",
     "file": "docs/00-overview.md",
     "category": "N_OF_M",
-    "text": "21 of 22",
+    "text": "19 of 20",
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
@@ -424,38 +296,6 @@
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
-    "key": "7942e0e50fc87def",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "MECHANISM_CLAIM",
-    "text": "guarantee",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "7942e0e50fc87def",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "MECHANISM_CLAIM",
-    "text": "guarantee",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "7942e0e50fc87def",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "MECHANISM_CLAIM",
-    "text": "guarantee",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "1dfffedf14d9733b",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "1.6",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
     "key": "1dfffedf14d9733b",
     "repo": "copilot-control-tower",
     "file": "SOUL.md",
@@ -496,54 +336,6 @@
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {
-    "key": "4c403c4e8ddc11eb",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.1",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "4c403c4e8ddc11eb",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.1",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "4c403c4e8ddc11eb",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.1",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "4c403c4e8ddc11eb",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.1",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "f4f4ff23e571e5d0",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.2",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "f4f4ff23e571e5d0",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.2",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
     "key": "f4f4ff23e571e5d0",
     "repo": "copilot-control-tower",
     "file": "SOUL.md",
@@ -557,70 +349,6 @@
     "file": "SOUL.md",
     "category": "VERSION",
     "text": "v1.3",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "2ca614aceda28cd8",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.3",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "2ca614aceda28cd8",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.3",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "2ca614aceda28cd8",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.3",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "2ca614aceda28cd8",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.3",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "2ca614aceda28cd8",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.3",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "ac9cc811b5144e0f",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.4",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "ac9cc811b5144e0f",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.4",
-    "reason": "unreviewed \u2014 please annotate a reason"
-  },
-  {
-    "key": "ac9cc811b5144e0f",
-    "repo": "copilot-control-tower",
-    "file": "SOUL.md",
-    "category": "VERSION",
-    "text": "v1.4",
     "reason": "unreviewed \u2014 please annotate a reason"
   },
   {

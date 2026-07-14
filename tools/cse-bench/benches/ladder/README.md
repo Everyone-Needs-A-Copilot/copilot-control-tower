@@ -86,11 +86,39 @@ machine's REAL transcript corpus — several other `cse-bench` collectors
 treat that corpus as production data, and mixing synthetic ladder-bench
 sessions into it would silently contaminate those other claims.
 
-**Open risk before the first live run (stated, not solved here):** what
-this bench does **not** verify is whether an isolated `HOME` still
-resolves Anthropic auth (OAuth token / keychain) the same way the real
-`HOME` does. Untested — verify this on a throwaway single cell before
-trusting a full 12-cell live run.
+**Auth-under-isolation (closed, DEC-6 live-run pre-flight, 2026-07-14):**
+this was flagged above as untested; it was tested, found broken, and
+fixed before the first live run. A fresh isolated `HOME` reported
+`claude auth status` as `loggedIn: false` for two independent reasons,
+both verified live with `env -i`, not assumed: (1) `claude`'s keychain
+lookup resolves the OS keychain SEARCH LIST from files under
+`$HOME/Library/...`, so a brand-new `HOME` has no keychain to find, and
+(2) even with the keychain reachable, `claude` also needs `USER`/`LOGNAME`
+set (subprocess.run(env=...) REPLACES the whole environment, and the
+account-name match fails silently without them) plus the account/session
+state normally cached at `$HOME/.claude.json`. `configs.py`'s
+`_seed_home_for_auth()` now symlinks `<home>/Library/Keychains` to the
+REAL user's keychain (read-only reuse — no secret is copied into any file
+this bench writes) and copies (never symlinks, so writes stay isolated)
+the real `~/.claude.json` into the fresh home; `_base_env()` now passes
+`USER`/`LOGNAME`/`TMPDIR`/`SHELL` through from the real environment (none
+of these four are part of the ladder's deliberate isolation levers).
+Verified end-to-end against the REAL harness, not just a manual probe:
+`python3 run.py --i-know-this-is-blocked-on-signoff --judge-mode human
+--config bare --job job-1-bugfix` reached `status=ok t_working=True` with
+a real `total_cost_usd` in the audit record.
+
+**`bare`'s own PATH couldn't reach `claude` (closed, same pre-flight):** on
+this machine `claude` is co-located with `tc`/`cc` at `LOCAL_BIN`
+(`~/.local/bin`), so `bare`'s original isolation — exclude `LOCAL_BIN`
+entirely to hide `tc`/`cc` — also hid `claude` itself, and `bare` could not
+invoke the model at all. `--dry-run` could never catch this (it never
+calls `shutil.which`/`subprocess` for claude). Fixed by
+`_claude_only_bin_dir()`: a run-scoped directory containing ONLY a symlink
+named `claude` (resolved once, at import time, against the operator's own
+real PATH) goes on `bare`'s PATH instead of the whole `LOCAL_BIN`
+directory — `tc`/`cc`/`copilot` stay unreachable from `bare`, `claude`
+itself is reachable everywhere.
 
 **Rep independence (QA WP-23 finding 4, fixed):** every workdir and `HOME`
 is keyed on `(job_id, config_name, rep)` — `--reps > 1` used to silently
@@ -154,7 +182,13 @@ call here enables tools and can span many internal turns, so its
 figure that made economy.py's raw sum misleading. `extract_usage()` now
 uses the EXACT SAME two formulas as `collectors/economy.py`'s
 `_marginal_spend`/`_billed_volume`, so a ladder number and a ledger number
-are commensurable, not just similarly named — see `aggregate()`'s
+are commensurable, not just similarly named (this paragraph described the
+intended fix before the DEC-6 live-run pre-flight, 2026-07-14, discovered
+`extract_usage()`/`aggregate()` had never actually been updated to compute
+either field — the documentation had outrun the code; both are now
+genuinely wired, verified against a real `claude -p` job call's `usage`
+block, not just unit-checked against `economy.py`'s formulas in isolation)
+— see `aggregate()`'s
 `o4_token_reduction_pct_vs_bare` (primary, marginal_spend) vs
 `..._billed_volume_secondary` (secondary) fields.
 

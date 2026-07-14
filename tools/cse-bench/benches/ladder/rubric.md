@@ -1,14 +1,16 @@
 # The MLP Expectation Rubric — Ladder Bench (TASK-125 / W-3)
 
-> Status: **DRAFT — prepared, not ratified.** Per
+> Status: **RATIFIED** (Option A, as drafted — owner ruling, 2026-07-14,
+> in-conversation, no edits made). Per
 > `phases/phase-4-outcome-program-prd.md` par.3 W-3 and
 > `phases/phase-4-handoff.md` §6 row 6: *"the MLP expectation rubric needs
 > owner sign-off before first scoring — it operationalizes his bar."* See
 > `docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md`
-> for the decision memo this rubric is attached to. **No `t_loveable`
-> scoring may run against this rubric until DEC-6 says `Status:
-> **ratified**`** — `run.py` mechanically refuses a non-dry-run invocation
-> until then (see `run.py`'s `check_signoff()`).
+> for the decision memo (§8, "Ratification record") this rubric is attached
+> to. `run.py` mechanically refused every non-dry-run invocation until
+> DEC-6's own header read `Status: **ratified**` (see `run.py`'s
+> `check_signoff()`); it now does, and the first live scoring pass ran
+> immediately after.
 
 ## 0. What this rubric is for
 

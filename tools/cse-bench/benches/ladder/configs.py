@@ -87,7 +87,19 @@ CLAUDE_COPILOT_ROOT = Path(os.environ.get("CLAUDE_COPILOT_ROOT", str(COPILOT_ROO
 KNOWLEDGE_COPILOT_ROOT = Path(os.environ.get("CC_KNOWLEDGE_REPO_REAL", str(COPILOT_ROOT / "knowledge-copilot")))
 CLI_COPILOT_ROOT = Path(os.environ.get("CLI_COPILOT_ROOT", str(COPILOT_ROOT / "cli-copilot")))
 CLI_COPILOT_VENV_BIN = CLI_COPILOT_ROOT / ".venv313" / "bin"
-LOCAL_BIN = Path(os.environ.get("CC_TC_LOCAL_BIN", str(Path.home() / ".local" / "bin")))
+REAL_HOME = Path.home()
+LOCAL_BIN = Path(os.environ.get("CC_TC_LOCAL_BIN", str(REAL_HOME / ".local" / "bin")))
+
+# QA fix (DEC-6 live-run pre-flight, 2026-07-14): resolved ONCE, against the
+# operator's own real PATH at import time -- never against a per-config
+# isolated PATH -- so every rung (bare included) can still find the real
+# `claude` binary even after its own PATH is narrowed. See
+# _claude_only_bin_dir()'s docstring for why `bare` specifically needed this
+# (verified live: on this machine `claude` is co-located with tc/cc at
+# LOCAL_BIN, so excluding LOCAL_BIN to hide tc/cc from `bare` also hid
+# `claude` itself -- a real defect --dry-run could never catch, since it
+# never calls shutil.which/subprocess for claude).
+REAL_CLAUDE_BIN = shutil.which("claude")
 
 # The literal flag every config uses (see module docstring, lever 1).
 COMMON_CLAUDE_FLAGS = ["--setting-sources", "project"]
@@ -133,13 +145,68 @@ def _minimal_system_path() -> str:
     return ":".join(dict.fromkeys(extra + system_dirs))  # dedupe, preserve order
 
 
-def _fresh_home(run_root: Path, config_name: str, rep: int) -> Path:
+def _seed_home_for_auth(home: Path, warnings: list) -> None:
+    """QA fix (DEC-6 live-run pre-flight, 2026-07-14): a completely fresh
+    isolated HOME could materialize/dry-run fine but could NEVER actually
+    authenticate a live `claude -p` call -- verified live, not assumed:
+    `claude auth status` reported `loggedIn: false` under a bare fresh HOME
+    even with the real macOS login keychain unlocked, because (a) `claude`'s
+    keychain lookup resolves the OS keychain SEARCH LIST from files under
+    `$HOME/Library/...`, so a fresh HOME has no keychain to find at all, and
+    (b) even with the keychain reachable, `claude` also needs the account
+    state normally cached at `$HOME/.claude.json` (`oauthAccount`, `userID`)
+    to consider itself logged in -- a bare `HOME` override has neither.
+    README.md's "Open risk before the first live run" flagged this as
+    UNTESTED; this closes it, narrowly:
+      1. Symlink `<home>/Library/Keychains` -> the REAL user's
+         `~/Library/Keychains` (read-only reuse of the already-unlocked
+         login keychain for THIS OS user; no secret is copied into any
+         file this bench writes -- the keychain item itself never leaves
+         the OS keychain).
+      2. Copy (never symlink) the REAL `~/.claude.json` into
+         `<home>/.claude.json` so account/session state resolves too --
+         copied, not linked, so a live run's own writes to this file (e.g.
+         `numStartups`, `projects`) land in the isolated copy and never
+         mutate the operator's real file.
+    Neither step widens what this bench isolates: `.claude/{agents,
+    commands,skills}`, CLAUDE.md, and tc/cc/copilot on PATH -- the actual
+    ladder-rung levers -- are untouched by this, only account identity is
+    restored so the call can authenticate at all."""
+    fake_keychains = home / "Library" / "Keychains"
+    if not fake_keychains.exists():
+        real_keychains = REAL_HOME / "Library" / "Keychains"
+        fake_keychains.parent.mkdir(parents=True, exist_ok=True)
+        if real_keychains.is_dir():
+            try:
+                fake_keychains.symlink_to(real_keychains)
+            except FileExistsError:
+                pass
+            except OSError as exc:
+                warnings.append(f"could not symlink {real_keychains} into isolated HOME ({exc}) -- live auth will likely fail")
+        else:
+            warnings.append(f"real keychain dir {real_keychains} not found -- isolated HOME live auth will likely fail")
+
+    fake_claude_json = home / ".claude.json"
+    if not fake_claude_json.exists():
+        real_claude_json = REAL_HOME / ".claude.json"
+        if real_claude_json.is_file():
+            shutil.copy2(real_claude_json, fake_claude_json)
+        else:
+            warnings.append(f"real {real_claude_json} not found -- isolated HOME live auth will likely fail (no oauthAccount state to seed)")
+
+
+def _fresh_home(run_root: Path, config_name: str, rep: int, warnings: list) -> Path:
     """QA WP-23 finding 4 (fixed): keyed on rep too, not just config_name —
     a prior version reused the same home dir across every rep of a
     --reps > 1 run, silently carrying over whatever a previous rep's job
-    call (or a materialization side effect) had written there."""
+    call (or a materialization side effect) had written there.
+
+    QA fix (DEC-6 live-run pre-flight, 2026-07-14): now also seeds the
+    fresh home for auth (_seed_home_for_auth) -- see that function's
+    docstring."""
     home = run_root / "homes" / config_name / f"rep{rep}"
     home.mkdir(parents=True, exist_ok=True)
+    _seed_home_for_auth(home, warnings)
     return home
 
 
@@ -239,32 +306,78 @@ def _new_workdir(run_root: Path, config_name: str, job_id: str, rep: int) -> Pat
 
 
 def _base_env(home: Path, path_dirs: list) -> dict:
-    return {
+    env = {
         "HOME": str(home),
         "PATH": ":".join(dict.fromkeys(path_dirs)),
     }
+    # QA fix (DEC-6 live-run pre-flight, 2026-07-14): verified live that
+    # `env -i HOME=<real> ...` (no USER/LOGNAME) ALSO reports "Not logged
+    # in" -- `claude`'s keychain account lookup needs USER/LOGNAME, not
+    # just a resolvable HOME/keychain. TMPDIR/SHELL are passed through too
+    # (unrelated to auth, but real subprocess.run(env=...) REPLACES the
+    # entire environment, not just PATH/HOME, and a real coding job's Bash
+    # tool calls can depend on both being set). None of these four are part
+    # of the ladder's deliberate isolation levers (.claude/ discovery,
+    # tc/cc/copilot on PATH, CC_KNOWLEDGE_REPO) -- passing them through
+    # narrows nothing this bench is actually trying to ablate.
+    for key in ("USER", "LOGNAME", "TMPDIR", "SHELL"):
+        value = os.environ.get(key)
+        if value:
+            env[key] = value
+    return env
+
+
+def _claude_only_bin_dir(run_root: Path) -> Path:
+    """QA fix (DEC-6 live-run pre-flight, 2026-07-14): on this machine
+    `claude` itself is co-located with tc/cc at LOCAL_BIN (verified live:
+    `shutil.which('claude')` resolves under the same directory as
+    `shutil.which('tc')`), so `bare`'s original isolation -- exclude
+    LOCAL_BIN entirely to hide tc/cc -- ALSO hid `claude`, leaving `bare`
+    unable to invoke the model at all. `--dry-run` could never catch this
+    (it never calls shutil.which/subprocess for claude). Fix: materialize a
+    run-scoped directory containing ONLY a symlink named `claude` -> the
+    real claude binary (REAL_CLAUDE_BIN, resolved once at import time
+    against the operator's own real PATH), and put that narrow directory on
+    `bare`'s PATH instead of the whole LOCAL_BIN directory -- keeps "no
+    tc/cc/copilot reachable from bare" while making claude itself
+    reachable everywhere, including bare."""
+    bin_dir = run_root / "claude-only-bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    link = bin_dir / "claude"
+    if not link.exists() and REAL_CLAUDE_BIN is not None:
+        try:
+            link.symlink_to(REAL_CLAUDE_BIN)
+        except FileExistsError:
+            pass
+    return bin_dir
 
 
 def materialize_bare(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
     workdir = _new_workdir(run_root, "bare", job_id, rep)
-    home = _fresh_home(run_root, "bare", rep)
     warnings: list = []
-    env = _base_env(home, [_minimal_system_path()])
+    home = _fresh_home(run_root, "bare", rep, warnings)
+    claude_bin_dir = _claude_only_bin_dir(run_root)
+    env = _base_env(home, [str(claude_bin_dir), _minimal_system_path()])
+    if REAL_CLAUDE_BIN is None:
+        warnings.append("`claude` not found via shutil.which() on this machine -- bare rung cannot invoke the model at all")
     return MaterializedConfig(
         name="bare",
         workdir=workdir,
         home_dir=home,
         env=env,
         claude_flags=list(COMMON_CLAUDE_FLAGS),
-        notes=["fresh empty workdir, no .claude/, no CLAUDE.md, no tc/cc/copilot on PATH"],
+        notes=[
+            "fresh empty workdir, no .claude/, no CLAUDE.md, no tc/cc/copilot on PATH",
+            f"`claude` itself reachable via a narrow run-scoped symlink dir ({claude_bin_dir}) since it happens to co-reside with tc/cc at LOCAL_BIN on this machine (QA fix, 2026-07-14)",
+        ],
         warnings=warnings,
     )
 
 
 def materialize_framework(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
     workdir = _new_workdir(run_root, "framework", job_id, rep)
-    home = _fresh_home(run_root, "framework", rep)
     warnings: list = []
+    home = _fresh_home(run_root, "framework", rep, warnings)
     _copy_framework_files(workdir, job_id, warnings)
     empty_knowledge = _empty_knowledge_tree(run_root)
     env = _base_env(home, [str(LOCAL_BIN), _minimal_system_path()])
@@ -288,8 +401,8 @@ def materialize_framework(run_root: Path, job_id: str, rep: int = 1) -> Material
 
 def materialize_knowledge(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
     workdir = _new_workdir(run_root, "knowledge", job_id, rep)
-    home = _fresh_home(run_root, "knowledge", rep)
     warnings: list = []
+    home = _fresh_home(run_root, "knowledge", rep, warnings)
     _copy_framework_files(workdir, job_id, warnings)
     env = _base_env(home, [str(LOCAL_BIN), _minimal_system_path()])
     env["CC_KNOWLEDGE_REPO"] = str(KNOWLEDGE_COPILOT_ROOT)
@@ -313,8 +426,8 @@ def materialize_knowledge(run_root: Path, job_id: str, rep: int = 1) -> Material
 
 def materialize_integrations(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
     workdir = _new_workdir(run_root, "integrations", job_id, rep)
-    home = _fresh_home(run_root, "integrations", rep)
     warnings: list = []
+    home = _fresh_home(run_root, "integrations", rep, warnings)
     _copy_framework_files(workdir, job_id, warnings)
     env = _base_env(home, [str(CLI_COPILOT_VENV_BIN), str(LOCAL_BIN), _minimal_system_path()])
     env["CC_KNOWLEDGE_REPO"] = str(KNOWLEDGE_COPILOT_ROOT)
