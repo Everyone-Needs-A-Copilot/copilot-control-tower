@@ -1776,6 +1776,47 @@ claims:
       reproduces the direct script's real drift result. Status stays
       failing: 2 items awaiting DEC-8's ruling on `kc`, not a mechanical
       gap this task can close.
+
+      RE-RUN (later same day, 2026-07-14, serialized register-patch pass):
+      the kc/knowledge-copilot.md-specific drift reported above IS resolved
+      — neither file appears in a fresh `--content --json` run's `changed`
+      list (codex-copilot commit 98fe78d re-synced the baseline against
+      claude-copilot's cpa/cs cut, 70 -> 68 tracked files, agents version
+      5.6.0 -> 5.7.0). But content_check is NOT clean: `status: "drift"`,
+      14 files changed (`.claude/agents/{cco,cw,do,doc,ind,me,qa,sd,sec,ta,
+      uid,uids,uxd}.md` + `.claude/commands/protocol.md`), 0 added, 0
+      removed, `file_count` still 68, version_tuple still passes
+      (`mismatches: {}`). Cause: claude-copilot's tree has moved past
+      codex-copilot's baseline (`baseline_upstream_commit` 2752de15,
+      `current_upstream_commit` 0c73f65) since the DEC-1 correction landed
+      — the agent-return-contract fallback-branch fix (claude-copilot
+      65f9bf7, "Agent return contracts: close the no-WP-store fallback
+      gap") touched all 13 surviving agents' Output Format sections plus
+      `protocol.md`, and codex-copilot's parity baseline (last synced at
+      98fe78d specifically for the cpa/cs cut) was never re-run against it.
+      This is ordinary mechanical sync lag, NOT a DEC-8-style deliberate
+      withhold — none of the 14 files are kc-adjacent or awaiting an owner
+      ruling; `--update-baseline` would close it, but running that inside
+      codex-copilot was outside this task's scope and was not done here.
+      Measurement-provenance caveat, confirmed by direct inspection:
+      `check-upstream-parity.py --content` hashes the upstream repo's
+      WORKING-TREE files on disk, not `git show <commit>:<path>` blobs at
+      the commit it labels — claude-copilot's working tree currently
+      carries an uncommitted edit to `kc.md`/`knowledge-copilot.md`
+      (`last_updated`/`status` frontmatter) whose disk-file sha256 matches
+      the registered BASELINE hash exactly, while the DIFFERENT sha256 of
+      the same path at the committed HEAD blob does not — i.e. that
+      specific uncommitted edit was already present on disk when the
+      baseline itself was captured, which is why it does not show as new
+      drift here; this is a pre-existing tool-behavior wrinkle, not fixed
+      in this pass. STATUS STAYS FAILING: the truth condition ("drift is
+      bounded and alarmed... same solution, different harness is a tested
+      property") is not met at this instant — the alarm mechanism works
+      (14 files correctly flagged), but real, currently-unresolved content
+      drift exists, for a DIFFERENT reason than before. What remains: run
+      `--update-baseline` in codex-copilot, once no further claude-copilot
+      agent-definition edits are in flight this session (a concurrent lane
+      may still be editing `kc.md`), to catch the baseline up to 0c73f65.
     last_checked: "2026-07-14"
 
   - id: t7-inheritance-ladder-in-practice
@@ -1972,12 +2013,12 @@ claims:
     last_checked: "2026-07-12"
 
   - id: agent-eval-coverage
-    statement: "Every framework agent has a golden-set eval with a passing score. UPDATED 2026-07-13: 6 of 16 agents covered (qa, me, ta, doc, sd, uxd -- each 10/10 pass, deterministic LocalPythonRunner, threshold 0.8); coverage_ratio 37.5% (was 1 of 16, 6.25%)."
+    statement: "Every framework agent has a golden-set eval with a passing score. UPDATED 2026-07-13: 6 of 16 agents covered (qa, me, ta, doc, sd, uxd -- each 10/10 pass, deterministic LocalPythonRunner, threshold 0.8); coverage_ratio 37.5% (was 1 of 16, 6.25%). UPDATED 2026-07-14 (post DEC-8 execution, TASK-100/6be4fb3: cpa/cs removed from claude-copilot's .claude/agents/): 6 of 14 agents covered (same six -- qa, me, ta, doc, sd, uxd -- unchanged, only the denominator shrank); coverage_ratio 42.86% (was 37.5%)."
     definition_refs: []
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only evals (runs cc eval --agent <agent> --json in claude-copilot for EVERY agent under <claude-copilot>/.claude/evals/ with a golden set -- the collector already discovers this list dynamically from the evals directory, not hardcoded to qa; this check-field description previously undersold that as qa-only and is corrected here to match the collector's actual behavior, collectors/evals.py)"
     status: failing
-    evidence: "tools/cse-bench/output/evals-latest.json (re-run 2026-07-13: agents_with_evals [doc, me, qa, sd, ta, uxd], agents_total 16, coverage_ratio 0.375; all six 10/10 pass, overall_pass true) -- all six covered suites pass; the CLAIM still fails on coverage (10 of 16 agents remain unmeasured: the claim's own statement requires EVERY framework agent, not a majority). Expansion tracked as C-5 (TASK-105). Evidence note: narrowing this claim's statement (e.g. to 'every agent WITH a golden set passes it') is an owner option, not applied unilaterally here -- the statement as pre-registered says 'every framework agent,' and this program does not silently narrow a claim to match a partial result (V-2)."
-    last_checked: "2026-07-13"
+    evidence: "tools/cse-bench/output/evals-latest.json (re-run 2026-07-13: agents_with_evals [doc, me, qa, sd, ta, uxd], agents_total 16, coverage_ratio 0.375; all six 10/10 pass, overall_pass true) -- all six covered suites pass; the CLAIM still fails on coverage (10 of 16 agents remain unmeasured: the claim's own statement requires EVERY framework agent, not a majority). Expansion tracked as C-5 (TASK-105). Evidence note: narrowing this claim's statement (e.g. to 'every agent WITH a golden set passes it') is an owner option, not applied unilaterally here -- the statement as pre-registered says 'every framework agent,' and this program does not silently narrow a claim to match a partial result (V-2). REFRESHED 2026-07-14: tools/cse-bench/output/evals-latest.json re-collected this session -- agents_total 14 (was 16; cpa/cs removed from claude-copilot per DEC-8, TASK-100, commit 6be4fb3), agents_with_evals unchanged [doc, me, qa, sd, ta, uxd], coverage_ratio 0.42857142857142855 (42.86%); all six covered suites still 10/10, overall_pass true. STATUS PER TRUTH CONDITION: stays failing. The statement requires EVERY framework agent to carry a passing golden-set eval; 8 of 14 remain unmeasured -- a narrower denominator is not the same as full coverage, and this program does not silently narrow the claim's own statement to match the improved ratio (V-2). Narrowing the statement (e.g. to 'every agent WITH a golden set passes it') remains an owner option, not applied here."
+    last_checked: "2026-07-14"
 
   # --- S-series: SOUL-aligned claims (2026-07-12 revision; phase-2-prd.md §2.5) ---
 
@@ -1998,9 +2039,9 @@ claims:
     last_checked: "2026-07-14"
 
   - id: framework-agent-frugality
-    statement: "Agents return ~100 tokens to the main session (claude-copilot SOUL §6 non-negotiable). UPDATED 2026-07-13 (QA WP-28 refresh): median return 893 tokens (was 658 -- WORSE, further from the ~100-token bar), p90 3,474 (was 2,749); 95.97% of returns exceed 300 tokens (was 86.2%). CORRECTION 2026-07-14: agent return-contracts tightened (see evidence) -- claim deliberately NOT flipped, still failing, until a post-change collect exists; see evidence for the pre-change baseline and why."
+    statement: "No agent class's median return exceeds its registered ceiling (SOUL §6, DEC-1 RULED 2026-07-14, claude-copilot@b50f66a): me 854, doc 490, sd 3,786, uxd 5,089, uids 4,118, sec 3,556, all other classes 893 -- a 2026-07-13 baseline that descends only, per the pre-registered ratchet (next step: a quarter reduction per class once the return-contract fix is re-measured; ceiling never rises to absorb a regression). SUPERSEDES the prior flat '~100 tokens' bar: that number now lives in the separate, honestly-failing framework-agent-return-aspiration claim -- collapsing the two together is exactly how the prior single bar became unfalsifiable (DEC-1 §7, 'the pass-by-construction trap')."
     definition_refs: []
-    check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul"
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul && python3 -c \"import json; d=json.load(open('output/framework_soul-latest.json')); print(d['metrics']['agent_frugality']['ceiling_check']['verdict'])\"  # 'no_breach' -> passing, 'breach' -> failing"
     status: failing
     evidence: >-
       REFRESHED 2026-07-13 (QA WP-28): tools/cse-bench/output/framework_soul-latest.json,
@@ -2061,6 +2102,100 @@ claims:
       the amended contracts and re-collecting. Marked failing, honestly,
       until that re-run exists; a high pre-change baseline is the
       finding, not a bug being hidden by this note.
+
+      RATCHET RESTATEMENT (DEC-1, RULED 2026-07-14, applied here as the
+      register patch DEC-1 §7 itself proposed): `statement` and `check`
+      above replace the prior flat "~100 token" bar with the falsifiable
+      per-class ceiling (SOUL §6, claude-copilot@b50f66a) --
+      collectors/framework_soul.py's `agent_frugality.ceiling_check`
+      (copilot-control-tower@34e746c) is the live mechanism, checked
+      against frozen 2026-07-13 baseline constants (not a live recompute,
+      or the ceiling could never fail). Re-run 2026-07-14T15:03:19Z (this
+      pass, n=162 scored returns, corpus grown since DEC-1's own n=145
+      snapshot): `verdict = "breach"` for 5 of 13 tracked classes -- cco
+      (median 1054.0 vs ceiling 893), cw (1229.5 vs 893), ind (1938.0 vs
+      893), qa (1077.0 vs 893), ta (1060.0 vs 893) -- all 5 fall back to
+      the shared default ceiling (893) rather than a class-specific one;
+      the 6 classes with their OWN ceiling currently pass (me 853.0<=854,
+      doc 490.0<=490, sd 3786.0<=3786, sec 3556.0<=3556, uids 4118.0<=4118,
+      uxd 5089.0<=5089 -- each set at its own 2026-07-13 baseline median,
+      per the ratchet's own design, expected to tighten at the next
+      quarter-reduction step). PER THE CLAIM'S OWN TRUTH CONDITION ("no
+      agent class's median return may exceed its registered ceiling"), a
+      breach means the claim FAILS -- not softened, not averaged away: 5
+      of 13 classes are in active breach right now, so status stays
+      failing.
+
+      MECHANISM EVIDENCE (claude-copilot TASK-141, WP-45/WP-46, commit
+      01763a8 -- why returns run large, empirically measured, not guessed):
+      a full merged-corpus bucket analysis of 149 subagent invocations with
+      a usable final return (304 distinct .jsonl files scanned, 155
+      subagent files, 149 usable) found three buckets by what the
+      transcript actually shows for `tc wp store`: (a) SUCCEEDED -- a
+      `tc wp store` call with a non-error result: n=34 (22.8%), median
+      return 648 tokens, mean 868; (b) ATTEMPTED AND FAILED or explicitly
+      claimed inability: n=3 (2.0%), median 1,003; (c) NEVER MENTIONED
+      externalization at all: n=112 (75.2%), median return 1,082, mean
+      1,613. The DOMINANT failure mode is bucket (c), SILENT NON-ATTEMPT
+      (75.2% of returns) -- not a broken mechanism; bucket (b), the
+      hypothesis this claim's prior CORRECTION paragraph proposed, is real
+      but tiny (2.0%). Three in four subagent invocations simply never try
+      to externalize, with no stated reason, and their returns run larger
+      than the successful bucket's median.
+
+      FALSE-NEGATIVE CORRECTION (same investigation): the "tc isn't on
+      PATH" anecdote quoted in this claim's own CORRECTION paragraph above
+      (the 5,568-token sd sample) was a FALSE NEGATIVE, not a real PATH
+      failure. Root cause, empirically reproduced: this machine's shell
+      config aliases `which='type -all'`; zsh parses the combined flag
+      `-all` as `-a -l -l`, and `-l` is an invalid option for the builtin
+      `type`, so `which <anything>` -- including things that ARE on PATH,
+      e.g. `which ls` -- always errors, regardless of the target's real
+      availability. `tc` was in fact reliably available to subagent Bash
+      calls: 34 of 35 attempted `tc wp store` invocations in the sampled
+      corpus succeeded, across 6+ repos and many sessions, using a bare
+      `tc` in command position. This matters because it prevents a future
+      reader re-deriving a false "tc's PATH is broken for subagents"
+      narrative from the single anecdote -- the real, disclosed defect was
+      the missing standalone-WP fallback (below), not PATH.
+
+      TASK-ID GAP, FIXED: `tc wp store --task` was a required option even
+      though `work_products.task_id` was already schema-nullable, so a
+      subagent invoked with no task ID had no CLI path to store anything,
+      independent of PATH. Fixed in claude-copilot@01763a8 (TASK-141):
+      `--task` is now optional, standalone (task-less) work products store
+      correctly, and all 13 surviving agents' Output Format/Never sections
+      were rewritten so "no task ID" is no longer framed as a valid reason
+      to skip storage. This closes the MECHANISM gap; it does not by
+      itself close the ceiling breach above, since bucket (c)'s 75.2%
+      silent-non-attempt rate was never actually blocked by the task-ID
+      requirement (most of bucket (c) never called `tc wp store` at all,
+      successfully or not) -- whether this fix moves the needle is a
+      question for the next re-measurement, not this evidence.
+    last_checked: "2026-07-14"
+
+  - id: framework-agent-return-aspiration
+    statement: "Agent returns approach SOUL's original design intent: ~100 tokens per return, flat across all classes, reflecting a summary + pointer rather than full reasoning. Carried forward as a separate, honestly-failing claim (DEC-1, RULED 2026-07-14) rather than folded into the registered ceiling (framework-agent-frugality) -- collapsing the two together is exactly how the prior single bar became unfalsifiable (DEC-1 §7)."
+    definition_refs: []
+    check: "cd tools/cse-bench && python3 cse_bench.py collect --only framework_soul && python3 -c \"import json; d=json.load(open('output/framework_soul-latest.json')); print(d['metrics']['agent_frugality']['ceiling_check']['aspiration']['gap_by_class'])\"  # every class's gap must be <=0 to pass; any positive gap fails"
+    status: failing
+    evidence: "DEC-1 (RULED 2026-07-14, claude-copilot@b50f66a / copilot-control-tower@34e746c): registered as the separate, honestly-failing counterpart to the restated framework-agent-frugality ceiling -- collectors/framework_soul.py emits `agent_frugality.ceiling_check.aspiration.gap_by_class` (target_tokens=100, gap = median - 100). At DEC-1's own original same-day measurement (2026-07-14, n=145) the smallest gap was doc (median 456.5, gap ~356) and the largest was uxd (median 5,089, gap ~4,989). RE-RUN 2026-07-14T15:03:19Z (this pass, n=162, corpus grown since DEC-1's snapshot): every tracked class's gap to the 100-token target is still strictly positive -- doc smallest at +390.0 (median 490), then do +485.0, uid +670.0, me +753.0, ta +960.0, cco +954.0, qa +977.0, cw +1129.5, ind +1838.0, sec +3456.0, sd +3686.0, uids +4018.0, uxd largest at +4989.0 (also `Explore`, a non-framework Claude Code built-in subagent type present in the same corpus, +649.0 -- not one of the 13 tracked framework agents, reported here only because the collector surfaces it, not scored against this claim). The shape (doc smallest, uxd largest) reproduces exactly across both snapshots; the exact numbers drift slightly (doc ~356 -> ~390) as the corpus has grown (n=145 -> 162). No class clears the 100-token target. This is the honest red the ceiling claim no longer has to carry."
+    last_checked: "2026-07-14"
+
+  - id: framework-scaffold-eager-load-mechanism
+    statement: "claude-copilot's agent definitions (.claude/agents/*.md) are NOT eagerly loaded into the main session's context -- Claude Code's Task tool surfaces only each subagent's YAML frontmatter (name + one-line description, ~53 tokens/agent) for delegation routing; the full agent body is read only inside that subagent's own, separate context when it is actually spawned. Commands and skills behave the same way (name-only / on-demand); CLAUDE.md is the sole exception, loaded into the main session in full, every session, unconditionally."
+    definition_refs: []
+    check: "manual, real-API ablation -- see evidence for the exact method; not yet a repeatable script in this repo (claude -p, isolated fresh HOME, --model haiku, --setting-sources project, --dangerously-skip-permissions, trivial no-tool prompt, per-cell usage.cache_creation_input_tokens as the metric, one cell per scaffold component)"
+    status: passing
+    evidence: "claude-copilot TASK-127/W-5, commit 0c73f65; WP-77 (tc wp get 77) full investigation. Real-API ablation, control=7,188 cache_creation tokens (empty scaffold): 13 agents only (.claude/agents/*.md, 29,141 raw bytes on disk) contribute +690 tokens to the session, 2.4% of raw content; 7 commands +64 tokens (0.5% of 11,776 raw bytes); 6 skills +219 tokens (3.0% of 7,357 raw bytes); CLAUDE.md +1,081 tokens against 819 raw-byte-equivalent (~132%, full content plus tokenizer/markup overhead) -- the sole component loaded in full. This directly refutes a prior '14 agents fully loaded' hypothesis and is why the fix (framework-claude-md-payload-trim) targeted CLAUDE.md only, leaving agent/command/skill bodies untouched. CAVEAT, per WP-79's independent adversarial reconciliation (tc wp get 79, this same pass's cross-check): this ablation used --model haiku and a trivial no-tool 'reply OK' prompt, NOT the same model/task-type as the ladder's real sonnet coding jobs -- WP-79 found the ladder's own turn-1-only framework-vs-bare premium (~3,442 tokens/cell average, job-1/2/3) is only ~62% explained by this ablation's 2,124-token full-scaffold measurement; ~36-38% (~1,300 tokens) is an unattributed residual, confirmed concentrated 100% in turn 1 (before any tool result -- ruling out 'more turns of extra work' as WP-77's own text had guessed). This claim covers ONLY the mechanism finding above (agent/command/skill bodies are not eagerly loaded, proportionally near-zero) -- it does NOT claim to explain 100% of the ladder's real premium; see framework-claude-md-payload-trim and WP-79 for the honest residual."
+    last_checked: "2026-07-14"
+
+  - id: framework-claude-md-payload-trim
+    statement: "claude-copilot's templates/CLAUDE.template.md was trimmed to reduce its always-on session-start token payload, without touching agent/command/skill files (per framework-scaffold-eager-load-mechanism's finding that those already cost near-zero). Measured, same-method, real-API before/after: CLAUDE.md's own session contribution fell 1,081 -> 680 tokens (-37.1%)."
+    definition_refs: []
+    check: "manual, same real-API ablation method as framework-scaffold-eager-load-mechanism, re-run before/after the trim commit (claude-copilot 0c73f65); golden-set evals + tc pytest suite + integration-test.sh + fitness-check.sh as the capability-intact regression gate"
+    status: passing
+    evidence: "claude-copilot commit 0c73f65 (TASK-127/W-5), CHANGELOG.md + templates/CLAUDE.template.md diff (the 14-row Agents domain table removed, the 5-row knowledge domain-path table compressed to a pointer; net 29 lines removed, 6 added). Measured, same method before/after: CLAUDE.md raw bytes 3,275 -> 2,347 (-28.3%); CLAUDE.md real-API session contribution 1,081 -> 680 tokens (-37.1%); full-scaffold real-API session contribution 2,124 -> 1,846 tokens (-13.1%, n=1, some cache-boundary noise expected run to run). Capability intact: 6 golden-set agent evals (me/ta/qa/doc/sd/uxd) still 10/10 (agent files untouched, expected); tools/tc pytest suite 498/498; scripts/integration-test.sh 25/25 (incl. IT-08 'Templates Match Framework Structure'); .claude/fitness-check.sh 95/97 (the 2 failures are the pre-existing, unrelated cpa/cs-cut gap, not a regression from this change). CRITICAL, NOT AN O-4 WIN -- per WP-79's adversarial reconciliation (tc wp get 79): the ladder's own real, matched-corpus turn-1-only framework-vs-bare premium averages ~3,442 tokens/cell (job-1/2/3); this trim's measured saving is against the ABLATION's own 2,124-token baseline (a genuine win there: -13.1% full-scaffold / -37.1% CLAUDE.md-only), but against the LADDER's actual per-cell premium this recovers only ~(1,081-680)/3,442 ~= 11.6% (or ~7.8% using the full-scaffold delta, 278/3,581) -- far short of 'fixing' O-4, and it structurally cannot touch the ~36-38% (~1,300-token) unattributed residual WP-79 found, since that residual is not shown to originate in CLAUDE.md/agent content at all. WP-79's core finding, recorded honestly: 100% of the turn-1-vs-turn2-4 premium is incurred in turn 1, before any tool result exists -- a fixed entry fee paid once at session start, not a per-work tax that accumulates with more tool calls (this rules out WP-77's own hand-waved explanation for the ladder/ablation gap, 'more context-growing work over multiple turns', which WP-79 shows is empirically false). The in-situ matched-model ablation (framework_minus_claudemd / framework_minus_agents rungs, benches/ladder/, owned by a concurrent lane, NOT this claim) is what will settle the residual and is running now -- this claim's status is not contingent on that result and should not be re-read as an O-4 claim until it lands."
     last_checked: "2026-07-14"
 
   - id: framework-qa-gate-adherence
@@ -2104,20 +2239,20 @@ claims:
     last_checked: "2026-07-14"
 
   - id: cli-soul-conformance
-    statement: "Every CLI service meets the SOUL §6 quality bar (health, test file, CopilotError, lazy import, config documented, docs entry). UPDATED 2026-07-13: 135/138 scorecard cases pass (was 125/138); 3 remaining named gaps tracked as strict-xfail, all scoped to fireflies/reddit (fireflies: FIREFLIES_API_KEY undocumented in .env.example + no docs/services entry; reddit: REDDIT_CLIENT_ID/SECRET/USER_AGENT undocumented). The bar is mechanically enforced as a test."
+    statement: "Every CLI service meets the SOUL §6 quality bar (health, test file, CopilotError, lazy import, config documented, docs entry). UPDATED 2026-07-13: 135/138 scorecard cases pass (was 125/138); 3 remaining named gaps tracked as strict-xfail, all scoped to fireflies/reddit (fireflies: FIREFLIES_API_KEY undocumented in .env.example + no docs/services entry; reddit: REDDIT_CLIENT_ID/SECRET/USER_AGENT undocumented). UPDATED 2026-07-14 (DEC-5/R-13, TASK-122, cli-copilot ba99edb): fireflies and reddit removed outright (owner-ruled -- zero credentials configured for either, zero usage signal in the opt-in ledger) rather than configured -- the conformance suite is now 126/126 passing, 0 xfailed, against a reduced 20-service roster (was 22). The bar is mechanically enforced as a test."
     definition_refs: []
     check: "cd cli-copilot && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/test_soul_conformance.py -q --tb=no -rxX; or: python3 cse_bench.py collect --only cli_soul (repo root resolved via collectors/paths.py resolve_copilot_root() -- /Volumes/Dev/Sites/COPILOT/cli-copilot on the owner's primary machine, /Users/pabs/Sites/COPILOT/cli-copilot on a secondary machine where /Volumes/Dev is unmounted)"
-    status: failing
-    evidence: "cli-copilot commits 21e7c61 (R-11, close kept-service conformance gaps) + 4f90d7b (R-12, fix residual service-count untruths in CLAUDE.md/overview docs), merged to cli-copilot main 2026-07-13; re-run post-merge on main: `pytest tests/test_soul_conformance.py` -> 135 passed, 3 xfailed; full suite `pytest -q` -> 1808 passed, 16 skipped, 3 xfailed, ruff clean. Status STAYS failing: the claim's own truth condition is EVERY CLI service meeting the bar, and 3 named cases still genuinely fail (xfail is a tracked, expected failure, not a pass) -- fireflies and reddit are both structurally-dead, credential-less services already flagged as removal candidates by DEC-5 (TASK-122, R-13); the gaps close either by configuring them for real or by the owner's R-13 cut ruling, whichever comes first. Quoting xfail as passing would misrepresent a tracked violation as resolved."
-    last_checked: "2026-07-13"
+    status: passing
+    evidence: "cli-copilot commits 21e7c61 (R-11) + 4f90d7b (R-12), merged 2026-07-13, PRIOR evidence (135 passed/3 xfailed, superseded below, kept for the record). UPDATED 2026-07-14: cli-copilot commit ba99edb (R-13/DEC-5, TASK-122 -- cut fireflies/reddit, finished the metabase cut, dropped orphan creds), merged to main. Re-run post-merge on main, 2026-07-14: `pytest tests/test_soul_conformance.py -q --tb=no -rxX` -> 126 passed, 0 xfailed (was 135 passed/3 xfailed); full suite `pytest -q` -> 1745 passed, 16 skipped, 0 failed; `ruff check .` clean. CI green: run 29339409881 (both lint-and-test 3.11/3.12 jobs pass). Service roster: 20 directories under cli-copilot/copilot_cli/services/ (was 22 before DEC-5), verified by direct directory count. STATUS FLIPS failing -> passing. Stated explicitly: this is GREEN-BY-DELETION, not every service being brought up to the bar -- the 2 services that were failing it (fireflies, reddit) were removed from the roster entirely per the owner's R-13 ruling (structurally-dead, credential-less services, already DEC-5 removal candidates), not fixed in place. The claim's own truth condition ('every CLI service meets the bar') is now literally true of the CURRENT, smaller roster -- exactly as the removal rule intends: the gap closed by deleting the failing surface, not by configuring it. The reduced denominator is the mechanism, not a hidden detail."
+    last_checked: "2026-07-14"
 
   - id: removal-review-first-pass
-    statement: "The first mechanical removal review (W-6) traces every claude-copilot agent, CLI Copilot service group, knowledge-copilot top-level area, and .claude/skills leaf skill to usage evidence + outcome-bar trace per the registered value_density definition, and produces a mechanical nomination list (surface + evidence) to the owner's delete-or-defend queue -- nominations only, no deletions, per the removal rule (phase-4-outcome-program-prd.md §0.5). First run: 4 nominations of 75 surfaces traced (16 agents, 22 CLI service groups, 10 knowledge areas, 37 skills) -- agents cpa/cs/kc (0 subagent invocations, no golden-set eval) and knowledge area 04-shared-systems (68.8% of its 16 files orphaned). 0 CLI-service and 0 skill nominations this review -- both surfaces' usage_evidence is null ecosystem-wide (no event ledger), and the nomination_rule never nominates on a null signal alone."
+    statement: "The first mechanical removal review (W-6) traces every claude-copilot agent, CLI Copilot service group, knowledge-copilot top-level area, and .claude/skills leaf skill to usage evidence + outcome-bar trace per the registered value_density definition, and produces a mechanical nomination list (surface + evidence) to the owner's delete-or-defend queue -- nominations only, no deletions, per the removal rule (phase-4-outcome-program-prd.md §0.5). First run: 4 nominations of 75 surfaces traced (16 agents, 22 CLI service groups, 10 knowledge areas, 37 skills) -- agents cpa/cs/kc (0 subagent invocations, no golden-set eval) and knowledge area 04-shared-systems (68.8% of its 16 files orphaned). 0 CLI-service and 0 skill nominations this review -- both surfaces' usage_evidence is null ecosystem-wide (no event ledger), and the nomination_rule never nominates on a null signal alone. UPDATED 2026-07-14 (post DEC-8 execution of the cpa/cs cut, TASK-100/6be4fb3, and DEC-5 execution of the fireflies/reddit cut, TASK-122/ba99edb): re-run nominations = 2 of 81 surfaces traced (14 agents, 20 CLI service groups, 10 knowledge areas, 37 skills) -- kc (0 subagent invocations, no golden-set eval) and knowledge area 04-shared-systems (61.5% of its now-13 files orphaned, was 68.8%/16 files). cpa and cs no longer appear as nominations because DEC-8 already executed their removal -- they no longer exist as surfaces TO nominate -- not because their usage evidence changed."
     definition_refs: [value_density]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only value_density && python3 -c \"import json; d=json.load(open('output/value_density-latest.json')); print(d['metrics']['nominations'])\""
     status: passing
-    evidence: "tools/cse-bench/output/value_density-latest.json (nominations block); docs/40-initiatives/01-cse-auditability/decisions/DEC-8-first-removal-review.md (the owner-facing memo)"
-    last_checked: "2026-07-13"
+    evidence: "tools/cse-bench/output/value_density-latest.json (nominations block); docs/40-initiatives/01-cse-auditability/decisions/DEC-8-first-removal-review.md (the owner-facing memo, still describes the FIRST run's 4-nomination result; not re-issued by this refresh). RE-RUN 2026-07-14T15:06:12Z: n_nominated 1/14 agents (kc), 0/20 cli_service_group, 1/10 knowledge_area (04-shared-systems, orphan_rate 61.5%, 13 files), 0/37 skill -- total 2 of 81 surfaces. Status stays passing per the claim's own truth condition, which is about the MECHANISM running and producing a nomination list, not about any particular nomination count. Note: the cli_service_group block's own `note` text in the collector output still reads '...null (unmeasured) for all 22...' though `n_services_total` now correctly reads 20 -- a pre-existing stale string in collectors/value_density.py's own note field, not fixed here (out of scope for this pass), flagged for whoever next touches that collector."
+    last_checked: "2026-07-14"
 
   - id: hook-deadlock-fix-verified
     statement: "claude-copilot's PreToolUse force-delegate/QA-gate hooks fire correctly on Read/Edit/Agent post-fix (TASK-106/C-6): the widened matcher (Bash|Read|Edit|Agent) is live, the shared-session_id subagent-exemption fix is in place, and the hook's own replay test suite passes (48 of 49 assertions; the sole failure is a pre-existing, unrelated <50ms timing flake, not a regression from this fix)."
@@ -2208,15 +2343,15 @@ claims:
     definition_refs: []
     check: "cd claude-copilot && python3 -c \"import sys, glob; sys.path.insert(0, '../copilot-control-tower/tools/cse-bench'); import check_claims; files = sorted(glob.glob('.claude/skills/**/SKILL.md', recursive=True)); bad = [f for f in files if len((check_claims.load_yaml(open(f).read().split('---', 2)[1]) or {}).get('description', '') or '') < 20]; print(len(files), 'skills,', len(bad), 'with a missing/short description'); assert not bad\""
     status: passing
-    evidence: "Verified 2026-07-14: all 37 SKILL.md files under claude-copilot/.claude/skills/ parse (via check_claims.py's own YAML loader, reused rather than a second parser) to a `description` field of at least 20 characters -- 0 missing, 0 short. (An earlier hand-rolled single-line regex check falsely flagged 28/37 as 'short' because it matched YAML's `description: >-` block-scalar marker itself, not the folded text on the following lines -- corrected by reusing check_claims.load_yaml instead of re-deriving a second, worse parser; reported here per this task's own instruction to report scanner/check false positives.)"
+    evidence: "Verified 2026-07-14: all 37 SKILL.md files under claude-copilot/.claude/skills/ parse (via check_claims.py's own YAML loader, reused rather than a second parser) to a `description` field of at least 20 characters -- 0 missing, 0 short. (An earlier hand-rolled single-line regex check falsely flagged 28/37 as 'short' because it matched YAML's `description: >-` block-scalar marker itself, not the folded text on the following lines -- corrected by reusing check_claims.load_yaml instead of re-deriving a second, worse parser; reported here per this task's own instruction to report scanner/check false positives.) PROCEDURAL NOTE (QA WP-80, 2026-07-14, disclosed not hidden): this claim is V-2-adjacent, not clean pre-registration -- (i) the check itself was iterated post-hoc (the regex-vs-load_yaml rewrite above happened AFTER an unfavorable first result, not before it); (ii) the 20-character 'non-trivial' threshold is a definitional choice made AFTER seeing the data, not registered in advance of any measurement; (iii) QA independently re-verified the actual headroom: the real minimum description length across all 37 files is 211 characters, ~10.5x the 20-char bar -- nowhere near reverse-engineered to the edge, so the result stands. Recorded per QA's remedy: disclosure is the fix here, not deletion or a rewritten history."
     last_checked: "2026-07-14"
 
   - id: framework-session-cap-thresholds
     statement: "claude-copilot's session-length advisory hook fires a soft warning at 500 turns and a stronger warning at 750 turns; the force-delegate hook denies after 5 consecutive same-tool calls."
     definition_refs: []
-    check: "cd claude-copilot && grep -n 'THRESHOLD_SOFT=\\|THRESHOLD_STRONG=' .claude/hooks/user-prompt-submit.sh && grep -n '5 consecutive' .claude/hooks/pretool-check.sh"
+    check: "cd claude-copilot && grep -qE '^THRESHOLD_SOFT=500$' .claude/hooks/user-prompt-submit.sh && grep -qE '^THRESHOLD_STRONG=750$' .claude/hooks/user-prompt-submit.sh && grep -n '5 consecutive' .claude/hooks/pretool-check.sh"
     status: passing
-    evidence: "Verified 2026-07-14: .claude/hooks/user-prompt-submit.sh sets THRESHOLD_SOFT=500 and THRESHOLD_STRONG=750 (live config, not doc-only); .claude/hooks/pretool-check.sh's rule_force_delegate denies at 5+ consecutive same-tool calls (line 371's deny message: 'Main session has issued 5+ consecutive ... calls'). Matches docs/10-architecture/04-framework-restructure-2026-04.md's 'Advisory at 500 and 750 turns' / 'Hook blocks after 5 consecutive same-tool calls' cells exactly -- these are CURRENT config values (the hook fix, TASK-106/C-6, landed 2026-07-12; see hook-deadlock-fix-verified), not historical April-diagnostic figures."
+    evidence: "Verified 2026-07-14: .claude/hooks/user-prompt-submit.sh sets THRESHOLD_SOFT=500 and THRESHOLD_STRONG=750 (live config, not doc-only); .claude/hooks/pretool-check.sh's rule_force_delegate denies at 5+ consecutive same-tool calls (line 371's deny message: 'Main session has issued 5+ consecutive ... calls'). Matches docs/10-architecture/04-framework-restructure-2026-04.md's 'Advisory at 500 and 750 turns' / 'Hook blocks after 5 consecutive same-tool calls' cells exactly -- these are CURRENT config values (the hook fix, TASK-106/C-6, landed 2026-07-12; see hook-deadlock-fix-verified), not historical April-diagnostic figures. STRENGTHENED 2026-07-14 (QA WP-80, the 6th check-weaker-than-statement gap found this session): the prior check only grepped for the variable NAMES (THRESHOLD_SOFT=, THRESHOLD_STRONG=), which would have passed even if the assigned values did not match the claimed 500/750 -- it tested presence, not the statement's actual numbers. Strengthened to assert the literal values via anchored grep (^THRESHOLD_SOFT=500$ / ^THRESHOLD_STRONG=750$). Re-run 2026-07-14 under the strengthened check: PASSES -- the real values genuinely are 500/750, not merely present under some other value. Status set honestly per the truth condition: because the real values match the claimed ones, the claim stays passing -- this correction only makes the check as strong as the statement it backs; it does not itself change the verdict."
     last_checked: "2026-07-14"
 
   - id: framework-april-2026-diagnostic-unrecoverable
