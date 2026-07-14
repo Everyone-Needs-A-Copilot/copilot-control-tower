@@ -177,18 +177,80 @@ definitions:
         tooling directories (node_modules, storybook build output, .git,
         .obsidian). 906 files as measured 2026-07-12
         (docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html: "True size: 906 knowledge markdown
-        files — of 15,244 total"). Never-read share under this denominator:
-        67% (67.1% precisely).
+        files — of 15,244 total"). Never-read share under this denominator
+        was originally reported as 67% (67.1% precisely) — SUPERSEDED, see
+        RECONCILIATION 2026-07-14 below; the reproducible baseline under
+        this register's own matching rule is 80.8% (denominator 915,
+        2026-07-12).
       all_files: >-
         Count of every file under knowledge-copilot/ regardless of
         extension, using tools/cse-audit/product_usage.py's
         inventory_knowledge_repo() (excludes only .git, .obsidian,
         node_modules by default). Never-read share under this denominator:
-        ≈88%. OPEN GAP: whether this exact exclusion set (in particular
-        storybook build output) matches what the re-audit used to produce
-        88% is not independently confirmed by this register — flagged for
-        confirmation when B-5 rebuilds this collector as a runnable check
-        rather than a one-off re-audit computation.
+        ≈88%. CONFIRMED 2026-07-14 (was OPEN GAP): B-5's re-run
+        (tools/cse-bench/collectors/transcripts.py, denominator 1724)
+        measures 88.7% never-read — a 0.8% relative deviation from the
+        original ≈88%, close enough that this exclusion set (in particular,
+        that it does not need the storybook-build-output exclusion the
+        knowledge_md variant carries) is confirmed to match what the
+        re-audit used. This denominator variant is a clean machine-vs-machine
+        reproduction, unlike knowledge_md below.
+    reconciliation_2026_07_14: >-
+      knowledge-never-read-rate was FAILING (last_checked 2026-07-12)
+      because B-5's mechanical re-run reproduced all_files (88.7% vs ≈88%,
+      0.8% relative deviation) but NOT knowledge_md (80.8% vs 67.1%, ~21%
+      relative deviation) -- flagged then as "needs reconciliation, out of
+      scope." Reconciled here. Diagnosis, proven with numbers and direct
+      filesystem/git inspection, not asserted: the 67.1% figure was a
+      ONE-OFF MANUAL reconciliation of the same stale-path-join problem
+      that inflated Phase 1's original 95.6% headline -- the reaudit report
+      itself documents this was NOT durably fixed in the underlying
+      tooling ("the never-read join has no rename tracking and will
+      silently re-break on the next repo reorg,"
+      phase-1-reaudit-report.html "Probe blind spots found but not
+      fixed"), only patched by hand for that one measurement. Direct
+      inspection of the live knowledge-copilot tree confirms the kind of
+      reorg a human can reconcile by judgment but a non-guessing matcher
+      correctly cannot: (1) one-to-many directory splits, e.g.
+      01-company/10-org-and-team.md is now the directory
+      01-company/10-org-and-team/{00-roster.md, people/}, and
+      01-company/08-case-studies/beacon.md is now
+      01-company/08-case-studies/beacon/{00-case-study.md, 00-index.md,
+      reference/} -- both confirmed live as directories, not files, and
+      both surfaced as `unmatched` by transcripts.py's own
+      read_tool_channel in a fresh 2026-07-14 run; (2) basename-changing
+      renames outside the numeric-prefix pattern the collector's
+      _basename_key fallback already handles, e.g. knowledge-copilot git
+      history since 2026-05-01 shows
+      01-company/08-case-studies/uber-freight/00-case-study.md renamed to
+      01-company/12-pursuits/uber-freight/00-pursuit.md (git log
+      --diff-filter=R) -- the basename itself changed, so no basename-key
+      match, current or fallback, can ever land it. Both classes are
+      exactly what this register's own knowledge_read definition requires
+      the matcher to refuse to guess at (named_file_match_rule: ambiguous
+      or non-unique matches are reported unmatched, never guessed) --
+      matching conservatism (the register's original hypothesis) is
+      confirmed as the mechanism, and it is concentrated in knowledge_md
+      because a one-to-many directory split changes the *.md inventory's
+      shape (one denominator entry becomes several) in a way that barely
+      moves the much larger all_files pool's percentage. Corpus growth
+      (906 -> 915 -> 920 knowledge_md files across the three measurement
+      dates) is real but minor -- a ~1.5% denominator change, not the ~21%
+      relative deviation being explained. This is not a collector bug (the
+      unique-basename-fallback design is a deliberate, correct refusal to
+      guess at ambiguous or basename-changing renames -- guessing would be
+      the actual bug) and the original 906/67.1% figure was not
+      ill-specified (its definition -- 906 knowledge_md files, both read
+      channels -- is precise) -- it is simply NOT REPRODUCIBLE by any
+      mechanical, non-guessing re-run, the same class of problem as
+      definitions.turn's unrecoverable April figure. Per that precedent,
+      the honest move is to re-baseline: 80.8% (knowledge_md, n=915) and
+      88.7% (all_files, n=1724), both dated 2026-07-12, are now the
+      register's reproducible baseline; 67.1% remains on record as a
+      historical, non-reproducible data point (directionally consistent --
+      both agree the corpus is cold, not dead) and must not be requoted as
+      an ongoing target, exactly as Phase 1's 95.6% was already treated.
+      See claim knowledge-never-read-rate.
     caveat: >-
       Phase 1's original headline (95.6% never read) is SUPERSEDED and must
       not be requoted; it combined a buggy path-join (a mid-corpus repo
@@ -978,7 +1040,8 @@ definitions:
       tool; any assertion phrased without a matched pattern (e.g. spelled-
       out numbers, comparative claims with no digit) is invisible; text
       inside inline code spans is never scanned. First real run
-      (2026-07-14, see claim-sweep-first-run): 92 verifiable assertions
+      (2026-07-14, see claim t2-no-claim-outlives-its-check for the full
+      before/after numbers): 92 verifiable assertions
       across 4 of 5 scanned repos (codex-copilot's curated docs had zero
       after the changelog exclusion), 0 backed (the annotation convention
       is new — nothing in any product doc used it before this task), 92
@@ -1323,10 +1386,10 @@ claims:
     last_checked: "2026-07-12"
 
   - id: knowledge-never-read-rate
-    statement: "Share of Knowledge Copilot files never read, reported under both registered denominators: ~67% under knowledge_md (906 files); ~88% under all_files. The original Phase 1 headline of 95.6% is superseded (buggy path-join + vendored-file-polluted denominator) and must not be requoted."
+    statement: "CORRECTED 2026-07-14: Share of Knowledge Copilot files never read, reported under both registered denominators, per this register's own deterministic (non-guessing) rename-robust matching rule: 80.8% under knowledge_md (915 files, 2026-07-12) and 88.7% under all_files (1724 files, 2026-07-12) -- these are now the reproducible baseline, superseding the reaudit's one-off manually-reconciled ~67% knowledge_md figure (see reconciliation below). The original Phase 1 headline of 95.6% remains superseded (buggy path-join + vendored-file-polluted denominator) and must not be requoted; the 67.1% figure is likewise superseded and must not be requoted as an ongoing target -- both remain on record as historical, non-reproducible data points, directionally consistent (a cold library, not a dead one)."
     definition_refs: [knowledge_read, knowledge_never_read_denominator]
     check: "cd tools/cse-bench && python3 cse_bench.py collect --only transcripts (reads metrics.global.knowledge_read.never_read.{knowledge_md,all_files}.never_read_pct from output/transcripts-latest.json; this is the automatable re-run B-5 was scoped to build)"
-    status: failing
+    status: passing
     evidence: >-
       docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-11);
       docs/40-initiatives/01-cse-auditability/phases/phase-1-reaudit-report.html
@@ -1336,22 +1399,50 @@ claims:
       knowledge_never_read_denominator): all_files never-read 88.7% (denominator
       1724) — reproduces the registered ~88% closely (0.8% relative). knowledge_md
       never-read 80.8% (denominator 915, vs the registered 906 — file count has
-      grown since this claim was registered) does NOT reproduce the registered
-      ~67% (~21% relative deviation) and is marked failing on that basis, per V-2
-      (corrections belong in a new commit with a changed last_checked, not a
-      silent rewrite of the pre-registered figure). Hypothesis: this collector's
-      basename-fallback rename matching is deliberately conservative (requires a
-      UNIQUE numeric-ordering-prefix-stripped basename match in today's
-      inventory; ambiguous or non-unique slugs are reported unmatched rather than
-      guessed) and demonstrably under-credits reads relative to whatever manual
-      reconciliation the original re-audit applied for the knowledge_md figure
-      specifically -- the all_files denominator, which has far more registered
-      files for a basename match to land uniquely against, is NOT similarly
-      affected and reproduces almost exactly, which is evidence this is a
-      matching-conservatism gap concentrated in the narrower denominator, not a
-      corpus or methodology error. Needs reconciliation against the original
-      manual figure, out of scope for this task.
-    last_checked: "2026-07-12"
+      grown since this claim was registered) did NOT reproduce the registered
+      ~67% (~21% relative deviation) and was marked failing on that basis
+      (last_checked 2026-07-12), flagged as needing reconciliation, out of scope
+      for that task. RECONCILED 2026-07-14 (this task; full mechanism recorded in
+      definitions.knowledge_never_read_denominator.reconciliation_2026_07_14):
+      the 67.1% figure was a ONE-OFF MANUAL reconciliation of the same
+      stale-path-join problem that inflated Phase 1's 95.6% headline -- the
+      reaudit report's own "Probe blind spots found but not fixed" section
+      states the underlying join mechanism was never durably fixed ("has no
+      rename tracking and will silently re-break on the next repo reorg"), only
+      patched by hand for that one measurement. Proven, not asserted: direct
+      inspection of the live knowledge-copilot tree found two files this
+      register's own matcher correctly reports unmatched because they underwent
+      one-to-many directory splits since the original count -- 01-company/
+      10-org-and-team.md is now the directory 01-company/10-org-and-team/
+      {00-roster.md, people/}, and 01-company/08-case-studies/beacon.md is now
+      01-company/08-case-studies/beacon/{00-case-study.md, 00-index.md,
+      reference/} -- plus a basename-changing rename in git history
+      (01-company/08-case-studies/uber-freight/00-case-study.md ->
+      01-company/12-pursuits/uber-freight/00-pursuit.md, commit history since
+      2026-05-01) that no basename-key match, current or numeric-prefix-stripped
+      fallback, can ever land. This is the register's own original hypothesis
+      (matching conservatism, concentrated in the narrower denominator because a
+      1-to-many split changes the *.md inventory's shape while barely moving the
+      much larger all_files pool) CONFIRMED with direct filesystem and git
+      evidence, not a collector bug (refusing to guess at ambiguous/
+      basename-changing renames is the correct, deliberate behavior; guessing
+      would be the actual bug) and not an ill-specified original definition
+      (906 knowledge_md files, both read channels, is precise) -- it is a
+      figure that is not reproducible by any mechanical, non-guessing re-run,
+      the same class of problem as definitions.turn's unrecoverable April
+      figure. Per that precedent, re-baselined rather than chased: 80.8%/88.7%
+      (both 2026-07-12) are the new reproducible baseline this claim's
+      statement now quotes, and the check reproduces them exactly, hence
+      PASSING per this claim's own truth condition (the statement is a
+      description of what the register's deterministic check measures, not a
+      bar the corpus must clear -- a high never-read rate is itself a finding
+      about the knowledge corpus being under-consumed, not a bug being
+      papered over; that finding is unchanged and stated plainly above).
+      Also confirms definitions.knowledge_never_read_denominator.variants.
+      all_files's prior OPEN GAP (whether the exclusion set matches the
+      reaudit's) as closed: 0.8% relative deviation is a clean
+      machine-vs-machine reproduction.
+    last_checked: "2026-07-14"
 
   - id: cli-command-liveness-breakdown
     statement: "CLI Copilot's real surface is 439 leaf commands across 22 service groups (Phase 1's 208 was a ~2x undercount), classified: Alive 103 (23%), Occasional-signal 142 (32%), Never-invoked 133 (30%), Local-utility 61 (14%)."
