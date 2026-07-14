@@ -1325,6 +1325,106 @@ claims:
     evidence: "TASK-125 (W-3): the ladder harness is built (tools/cse-bench/benches/ladder/{run.py,configs.py,job_pack.py,rubric.md}) and fully dry-run validated -- 4 configs x 3 jobs = 12 cells materialize cleanly (0 wiring problems, 0 claude invocations, nothing written to output/, per the command above). Flipped gated->unchecked because the check command is now real (the dry-run), not because the full statement has been evaluated: NO live scored ladder run has executed. This is deliberate, not an oversight -- the PRD's own MLP rubric requires owner sign-off BEFORE first scoring (phase-4-handoff.md §6 row 6), and run.py's check_signoff() mechanically refuses any non-dry-run invocation until docs/40-initiatives/01-cse-auditability/decisions/DEC-6-mlp-rubric-signoff.md's header reads 'Status: **ratified**' (AS OF 2026-07-13, the date this evidence was written: not yet ratified, verified by the dry-run's own printed gate line). CORRECTED 2026-07-14 (QA WP-47): DEC-6 was ratified by the owner 2026-07-14 (in-conversation, Option A, no edits to rubric.md) -- the sign-off gate this paragraph describes as blocking is therefore now open. This claim's own `status` is left exactly as this task found it (`unchecked`) and NOT flipped here: whether a live scored ladder run has since happened, and what it found, is the ladder lane's own result to report, not restated or guessed at by this correction. See ladder-harness-dry-run-validated for the mechanism-level check, and DEC-6 for the ratification record. No O-1..O-4 numbers exist for any config or job as of THIS evidence's own last_checked date. CORRECTED same-day per QA WP-23 (see ladder_config_materialization.corrections and ladder-harness-dry-run-validated's own evidence for the four capture-method fixes: O-4 now primarily marginal_spend not billed_volume alone, an F-8-class conflation fix; the sign-off gate closes two false-positive bypasses; per-call cost ceilings default to real values instead of None/unbounded; per-rep workdir/HOME isolation replaces prior config-only keying). Nothing about the ladder's counterfactual delta or token-efficiency percentages is known yet -- these are capture-method corrections to instrumentation that still has zero real data, not new findings."
     last_checked: "2026-07-13"
 
+  - id: ladder-v2-o6-discriminating-verdict
+    statement: "The job-pack-v2 discriminating ladder run (TASK-142) shows whether ANY rung beats bare on a job whose correct answer is genuinely unreachable from a lower rung -- the first honest test of this, since v1 could not discriminate (see ladder-job-pack-v1-could-not-discriminate)."
+    definition_refs: [outcome_bars, ladder_config_materialization, ladder_job_pack_v2, ladder_mlp_rubric]
+    check: "cat tools/cse-bench/output/bench_ladder-runs/20260714T144205Z/job-2-house-voice__*__rep1.json | python3 -c \"import json,sys; [print(json.loads(l)['config'], json.loads(l)['acceptance']['passed']) for l in sys.stdin]\" 2>/dev/null; ls tools/cse-bench/output/bench_ladder-runs/20260714T144205Z/"
+    status: passing
+    evidence: >-
+      TASK-142, 2026-07-14, real scored run (4 configs x 4 jobs x 3 reps =
+      48 cells, model=sonnet, --max-budget-usd 4.0, total cost $8.70 for
+      this batch): YES, a rung beats bare on a discriminating job, twice,
+      mechanically verified, not judged. job-2-house-voice (KNOWLEDGE):
+      bare 0/3, framework 0/3, knowledge 3/3, integrations 3/3 -- a clean,
+      complete separation; bare/framework cells honestly report no house
+      guidance found (0 fabricated attempts across all 6), knowledge/
+      integrations cells use the real knowledge-copilot glossary's private
+      terms (tension/co-creation/struggling moment/copilot) while avoiding
+      every Anti-Glossary term, mechanically verified by check.py, not
+      merely judged. job-3-integration-report (INTEGRATIONS): all 4 rungs
+      pass t_working (12/12, by design -- an honest-fallback job), but
+      check.py now independently re-fetches live ground truth and verifies
+      per-service correctness (closing QA WP-76's exact gap): ONLY
+      +integrations (3/3 reps) ever produced real, exactly-matching
+      service data (20/20 services correct, live-verified against a fresh
+      `copilot --json health` call at check time); bare/framework/
+      knowledge (9/9 cells) all used the honest "integrations unavailable"
+      fallback -- zero fabrication attempts anywhere in 12 cells.
+      job-4-toolkit (FRAMEWORK/decomposition): a genuine, robust null --
+      all 4 rungs pass 17/17 assertions on all 3 reps (12/12); Sonnet
+      solves this 6-part completeness bar reliably even bare, so this job
+      shows no decomposition advantage in this run (see
+      ladder-o4-scaffold-attribution-wp79-closed for the same null
+      extended to the 2 new ablation rungs). job-1-bugfix (CONTROL): 12/12
+      as expected. t_loveable (blind-scored, same disclosed
+      not-independent-judge limitation as the first run --
+      see t_loveable_blind_scoring/README.md): job-2 is a uniform null
+      (0/12) on t_loveable specifically -- NOT because no rung did better,
+      but because rubric.md's dimensions 1.1/1.3 were written for
+      software-artifact deliverables and structurally cannot score a
+      prose-only about.md; job-4 is also a uniform t_loveable null (0/12,
+      no docstrings/error-handling on any rung); job-3 shows a
+      counter-intuitive split -- the 9 honest-fallback cells all reach
+      t_loveable=true (their prose explanation satisfies all 4 dimensions)
+      while the 3 real-data +integrations cells do NOT (a correct flat
+      data dump with no remediation guidance for the 4 unhealthy services
+      it correctly found) -- the rubric rewards explanatory prose over
+      verified-correct data on this job, a rubric-fit finding recorded in
+      t_loveable_blind_scoring/README.md, not smoothed over.
+    last_checked: "2026-07-14"
+
+  - id: ladder-o4-scaffold-attribution-wp79-closed
+    statement: "QA WP-79's gate (no O-4 number may be published until a same-model, same-task-type matched ablation closes CLAUDE.md/agent-frontmatter's residual attribution) is closed: turn-1 cache_creation is isolated per rung, in situ, at the ladder's own real model (sonnet) and real jobs, not a synthetic haiku/no-tool probe."
+    definition_refs: [ladder_config_materialization, ladder_job_pack_v2]
+    check: "cd tools/cse-bench/benches/ladder && python3 -c \"import configs; assert 'framework_minus_claudemd' in configs.CONFIG_NAMES and 'framework_minus_agents' in configs.CONFIG_NAMES; print('OK', configs.CONFIG_NAMES)\""
+    status: passing
+    evidence: >-
+      TASK-142, 2026-07-14: two new ablation rungs (framework_minus_claudemd,
+      framework_minus_agents -- configs.py) ran at the SAME model (sonnet,
+      now recorded per-cell via `record["model"]`, not only in the
+      top-level aggregate, per WP-79's own "this confound can never recur
+      silently" requirement) against all 4 job-pack-v2 jobs x 3 reps (24
+      cells, $1.78 + $1.90 = $3.68); turn-1 cache_creation isolated from
+      later turns for every cell in the run (48 original + 24 ablation =
+      72 cells total) via run.py's new extract_turn_breakdown(), reading
+      the real Claude Code session transcript (message.id-deduped), not
+      reconstructed after the fact. Result, averaged across the 4 jobs:
+      mean turn-1 premium (+framework vs bare) = 3003 tokens; CLAUDE.md's
+      OWN in-situ contribution (+framework vs framework_minus_claudemd) =
+      1228 tokens (40.9%); the agent roster's OWN in-situ contribution
+      (+framework vs framework_minus_agents) = 1071 tokens (35.7%);
+      COMBINED ATTRIBUTED = 2298 tokens (76.5% of the premium) -- UP from
+      WP-79's own ~62% cross-model estimate, confirming same-model/
+      same-task-type measurement closes much of the gap, but a REAL
+      RESIDUAL SURVIVES: 704 tokens (23.5%) per job on average (range
+      14.5%-29.9% across the 4 jobs), not attributed to either named
+      component. NOT rounded away: closing it fully would need the same
+      ablation extended to the remaining untested scaffold pieces
+      (.claude/commands/, templates/skills/, .mcp.json) as their own
+      isolated rungs -- not done here (named as the explicit next step,
+      not silently assumed negligible). Separately, verified directly
+      (file diff against the live template, not inferred from commit
+      timestamps): every cell in this entire run materialized
+      claude-copilot's POST-trim CLAUDE.template.md (commit 0c73f65,
+      TASK-127/W-5, landed before this run) -- the trim's effect is
+      already baked into the "1228 token" CLAUDE.md figure above, not a
+      separate before/after delta (no reliable pre-trim same-model
+      baseline exists: the one pre-trim live run, TASK-125's first run,
+      never captured turn-level data and its ephemeral run_root cannot be
+      unambiguously re-identified among several later runs' leftover temp
+      directories on this machine -- marked, not guessed, same as the
+      contaminated-artifact finding above). A capability-control result,
+      found while building this ablation, not asked for but too material
+      to omit: on ALL 3 discriminating jobs, t_working was IDENTICAL with
+      CLAUDE.md removed and IDENTICAL with the entire 13-agent roster
+      removed (job-2 0/3=0/3=0/3=0/3, job-3 3/3 all four, job-4 3/3 all
+      four) -- neither ablation caused a single regression on this job
+      pack, at this task difficulty, with Sonnet, while both cost real,
+      measured average tokens (1228 and 1071 respectively). Scoped
+      finding, not a general claim that these components are worthless --
+      stated plainly per this program's own honesty convention.
+    last_checked: "2026-07-14"
+
   - id: ladder-harness-dry-run-validated
     statement: "The W-3 ladder harness's full pipeline (config materialization x job-pack wiring x acceptance-check wiring x rubric structural consistency x the DEC-6 sign-off gate) runs end-to-end without error in --dry-run mode, with zero live model calls."
     definition_refs: [ladder_config_materialization, ladder_job_pack_v1, ladder_mlp_rubric]
