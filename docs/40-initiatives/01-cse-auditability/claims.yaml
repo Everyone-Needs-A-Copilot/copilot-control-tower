@@ -745,6 +745,121 @@ definitions:
       file-format promise.
     source: "tools/cse-bench/benches/ladder/job_pack.py"
 
+  ladder_job_pack_v2:
+    description: >-
+      TASK-142 (W-3b), superseding ladder_job_pack_v1: QA WP-76
+      (adversarial verification of the first live ladder run,
+      20260714T135253Z) proved v1 was an instrument that could not detect
+      a framework advantage even if one existed — job-3's own check.py
+      docstring admitted it "never asks did it reach real service data,"
+      and job-1/job-2 required zero org knowledge or live integration
+      data to solve correctly from ANY rung. v1's 12/12 t_working tie
+      across all rungs was therefore not evidence of "no advantage"; it
+      was evidence of an instrument with no discriminating power on that
+      axis, by construction — see ladder-job-pack-v1-could-not-discriminate
+      below. Registered BEFORE the v2 scored run's aggregate numbers were
+      examined (V-2) — 6 throwaway pipeline-verification cells (job-2 x
+      {bare, knowledge}, job-3 x {bare, integrations}, job-4 x {bare,
+      framework}), written to a scratch out-dir never under output/, were
+      run first to confirm the mechanism itself works, matching this
+      bench's own established precedent (ladder_config_materialization's
+      "verify on one throwaway cell before a full live run" caveat) — not
+      a violation of pre-registration, since only the DESIGN is being
+      registered here, and the scored 4x4x3 matrix's own aggregate had not
+      been looked at when this text was written.
+
+      Four jobs, one CONTROL + three DISCRIMINATING (a discriminating
+      job's correct answer must be UNREACHABLE from a lower rung):
+
+      - job-1-bugfix (CONTROL, unchanged from v1, small): any rung can
+        solve it — a rung's failure to beat bare here is itself a
+        meaningful null result, not noise, since it needs no knowledge/
+        integration/decomposition advantage.
+      - job-2-house-voice (KNOWLEDGE-discriminating, NEW, medium):
+        correct output requires knowledge-copilot's real
+        01-company/02-voice/06-glossary.md (Anti-Glossary: consultant/
+        advisor/vendor/stakeholder/leverage/synergy/"best practice"/
+        "touch base"/"circle back"/"deep dive" banned; Core Terms:
+        "Copilot"/tension/breakthrough/co-creation/"struggling moment" as
+        private substitutes) — verified present in the real repo and
+        verified NOT inferable: this project's own CLAUDE.md (materialized
+        for +framework too, with an EMPTY knowledge tree) only POINTS at
+        01-company/02-voice/, it never states the banned/required terms
+        itself, so +framework cannot pass by reading CLAUDE.md alone.
+        fixtures/job-2-house-voice/check.py mechanically requires BOTH
+        zero hits on the banned-term denylist AND >=1 hit on the private
+        substitute-term set — avoiding jargon alone (satisfiable by luck)
+        is not sufficient; positive evidence of the private vocabulary is
+        required, closing the fabrication gap the same way (b) below
+        does. Live-verified during pipeline smoke-testing: bare produced
+        an honest "no house guidance found, using my own judgment"
+        paragraph (t_working=False, zero private terms, as expected);
+        knowledge produced a paragraph using the real glossary's terms
+        (t_working=True).
+      - job-3-integration-report (INTEGRATION-discriminating, brief
+        mostly unchanged from v1, check.py REWRITTEN): now independently
+        re-fetches real service health via `copilot --json health` by
+        ABSOLUTE path + cli-copilot's own .env, NEVER through the
+        config-under-test's PATH, and mechanically asserts the
+        deliverable's per-service claims match ground truth exactly
+        (name-by-name, status-by-status), not merely that a
+        well-formed-looking line exists (v1's exact gap). A rung whose own
+        env lacks `copilot` on PATH (bare/framework/knowledge) must use
+        the honest "integrations unavailable" fallback — a populated
+        "Services: N healthy" claim from such a rung now FAILS as
+        fabrication by construction, regardless of whether N happens to
+        match. A rung with `copilot` reachable (+integrations) must
+        report real, exactly-matching data — falling back to "unavailable"
+        despite having the capability now also FAILS. Live-verified
+        during smoke-testing against this machine's real, currently-live
+        `copilot --json health` (fireflies/reddit/metabase already cut
+        per DEC-5/TASK-122; 20 services registered, 15 healthy / 4
+        unhealthy (n8n, brevo, uspto, infisical -- auth/config gaps) / 1
+        skipped (discord) at smoke-test time): +integrations produced a
+        report whose 15-healthy claim and full 20-service breakdown
+        matched live ground truth exactly (PASS); bare produced the
+        honest unavailable fallback (PASS); a synthetic fabricated
+        "Services: 99 healthy" and a synthetic single-wrong-status report
+        were both mechanically caught (FAIL) in dry unit testing of
+        check.py itself before any model call.
+      - job-4-toolkit (FRAMEWORK-discriminating, NEW, large): toolkit.py
+        must implement 6 independent, equally-weighted pure functions
+        (is_prime, reverse_words, flatten, run_length_encode,
+        most_common_word, caesar_cipher); fixtures/job-4-toolkit/
+        test_toolkit.py (protected, 17 assertions across the 6) requires
+        ALL 6 to pass at once — a completeness-across-parts bar sized so
+        decomposition/systematic checklisting should matter, not a task a
+        single free-write reliably nails end to end. t_working is
+        strictly all-or-nothing (unittest's own exit code); per-function
+        pass/fail is visible in the audit trail's acceptance stdout for
+        richer post-hoc completeness analysis even when t_working is
+        False.
+
+      Fabrication resistance, closing the exact gap QA WP-76 named as the
+      only prior guard (the rubric's error_help floor, human-judged only):
+      every non-control job's check.py now MECHANICALLY verifies its
+      discriminating property (job-2: banned/required term sets; job-3:
+      service-by-service ground-truth match; job-4: full 17-assertion
+      pass), not merely a well-formed shape.
+    source: "tools/cse-bench/benches/ladder/job_pack.py"
+
+  ladder-job-pack-v1-could-not-discriminate:
+    description: >-
+      Finding, not a defect fix: v1's null t_working result (12/12 tie
+      across all 4 rungs, first live run 20260714T135253Z) cannot be read
+      as "no framework advantage exists" because the instrument had no
+      power to detect one on that axis — job-1/job-2 required zero org
+      knowledge or live integration data to solve from ANY rung, and
+      job-3's own check.py docstring stated outright it "never asks did
+      it reach real service data." A null result from an instrument that
+      cannot detect a positive is not evidence of absence. Recorded here,
+      per this program's own "null and negative results are findings"
+      convention (phase-4-outcome-program-prd.md par.5.4), as a finding
+      about the FIRST INSTRUMENT, separate from ladder_job_pack_v2 (the
+      fix) and from whatever v2's own scored run finds (a separate,
+      later fact).
+    source: "QA WP-76 (tc wp get 76), .copilot/wp/76.md Q4"
+
   ladder_mlp_rubric:
     description: >-
       TASK-125 (W-3): the written MLP expectation rubric that scores
