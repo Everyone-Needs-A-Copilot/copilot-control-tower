@@ -210,7 +210,9 @@ def _fresh_home(run_root: Path, config_name: str, rep: int, warnings: list) -> P
     return home
 
 
-def _copy_framework_files(workdir: Path, job_id: str, warnings: list) -> None:
+def _copy_framework_files(
+    workdir: Path, job_id: str, warnings: list, include_claude_md: bool = True, include_agents: bool = True
+) -> None:
     """Replicates the essential file-copy steps of claude-copilot's own
     `/setup-project` FULL-mode flow (.claude/commands/setup-project.md
     Steps 4-7), directly in Python rather than by running that slash
@@ -219,7 +221,20 @@ def _copy_framework_files(workdir: Path, job_id: str, warnings: list) -> None:
     job on top of, not the one-time per-project setup cost (see module
     docstring's O-1 framing: the ladder isolates the job's own cost, with
     the framework already installed, same as a real project's second and
-    subsequent solutions)."""
+    subsequent solutions).
+
+    QA WP-79 fix (TASK-142, in-situ scaffold-cost ablation): `include_claude_md`
+    / `include_agents` let a caller omit just ONE scaffold component while
+    keeping everything else (commands, skills, .mcp.json) identical to
+    +framework — see materialize_framework_minus_claudemd() and
+    materialize_framework_minus_agents() below. WP-79's own ablation
+    (claude -p, isolated HOME, --model haiku, a TRIVIAL no-tool prompt)
+    attributed only ~62% of the ladder's measured turn-1 cache_creation
+    premium to named scaffold (CLAUDE.md + agent frontmatter + skills +
+    commands) and explicitly required a same-model, same-real-task-type
+    matched ablation before any O-4 number is published — these two configs
+    are that ablation, run at THIS harness's real model (sonnet) against
+    THIS harness's real jobs, not a synthetic haiku probe."""
     version_json = CLAUDE_COPILOT_ROOT / "VERSION.json"
     if not version_json.is_file():
         warnings.append(f"CLAUDE_COPILOT_ROOT/VERSION.json not found at {version_json}; +framework materialization skipped")
@@ -229,17 +244,20 @@ def _copy_framework_files(workdir: Path, job_id: str, warnings: list) -> None:
     agents_dir = workdir / ".claude" / "agents"
     commands_dir = workdir / ".claude" / "commands"
     skills_dir = workdir / ".claude" / "skills"
-    agents_dir.mkdir(parents=True, exist_ok=True)
     commands_dir.mkdir(parents=True, exist_ok=True)
 
-    roster = version.get("components", {}).get("agents", {}).get("frameworkAgents", [])
-    src_agents = CLAUDE_COPILOT_ROOT / ".claude" / "agents"
-    for agent in roster:
-        src = src_agents / f"{agent}.md"
-        if src.is_file():
-            shutil.copy2(src, agents_dir / f"{agent}.md")
-        else:
-            warnings.append(f"framework agent {agent!r} listed in VERSION.json but {src} not found")
+    if include_agents:
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        roster = version.get("components", {}).get("agents", {}).get("frameworkAgents", [])
+        src_agents = CLAUDE_COPILOT_ROOT / ".claude" / "agents"
+        for agent in roster:
+            src = src_agents / f"{agent}.md"
+            if src.is_file():
+                shutil.copy2(src, agents_dir / f"{agent}.md")
+            else:
+                warnings.append(f"framework agent {agent!r} listed in VERSION.json but {src} not found")
+    else:
+        warnings.append("WP-79 ablation: .claude/agents/ deliberately OMITTED (materialize_framework_minus_agents)")
 
     project_commands = version.get("components", {}).get("commands", {}).get("projectCommands", [])
     src_commands = CLAUDE_COPILOT_ROOT / ".claude" / "commands"
@@ -252,13 +270,16 @@ def _copy_framework_files(workdir: Path, job_id: str, warnings: list) -> None:
     if src_skills.is_dir():
         shutil.copytree(src_skills, skills_dir, dirs_exist_ok=True)
 
-    template = CLAUDE_COPILOT_ROOT / "templates" / "CLAUDE.template.md"
-    if template.is_file():
-        text = template.read_text()
-        text = text.replace("{{PROJECT_NAME}}", f"cse-bench-ladder-{job_id}")
-        text = text.replace("{{PROJECT_DESCRIPTION}}", "cse-bench ladder harness job (TASK-125 / W-3) -- synthetic, not a real project")
-        text = text.replace("{{TECH_STACK}}", "Python (stdlib)")
-        (workdir / "CLAUDE.md").write_text(text)
+    if include_claude_md:
+        template = CLAUDE_COPILOT_ROOT / "templates" / "CLAUDE.template.md"
+        if template.is_file():
+            text = template.read_text()
+            text = text.replace("{{PROJECT_NAME}}", f"cse-bench-ladder-{job_id}")
+            text = text.replace("{{PROJECT_DESCRIPTION}}", "cse-bench ladder harness job (TASK-125 / W-3) -- synthetic, not a real project")
+            text = text.replace("{{TECH_STACK}}", "Python (stdlib)")
+            (workdir / "CLAUDE.md").write_text(text)
+    else:
+        warnings.append("WP-79 ablation: CLAUDE.md deliberately OMITTED (materialize_framework_minus_claudemd)")
 
     (workdir / ".mcp.json").write_text('{"mcpServers":{}}\n')
 
@@ -399,6 +420,71 @@ def materialize_framework(run_root: Path, job_id: str, rep: int = 1) -> Material
     )
 
 
+def materialize_framework_minus_claudemd(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    """QA WP-79 ablation rung (TASK-142): identical to +framework EXCEPT
+    CLAUDE.md is absent -- isolates CLAUDE.md's true in-situ turn-1
+    cache_creation cost at the real model (sonnet) and real job/task type,
+    closing WP-79's "same-model, same-task-type matched ablation" gate
+    before any O-4 number citing CLAUDE.md's share may be published (its
+    prior attribution came from a synthetic haiku, no-tool, trivial-prompt
+    probe, not this harness)."""
+    workdir = _new_workdir(run_root, "framework_minus_claudemd", job_id, rep)
+    warnings: list = []
+    home = _fresh_home(run_root, "framework_minus_claudemd", rep, warnings)
+    _copy_framework_files(workdir, job_id, warnings, include_claude_md=False, include_agents=True)
+    empty_knowledge = _empty_knowledge_tree(run_root)
+    env = _base_env(home, [str(LOCAL_BIN), _minimal_system_path()])
+    env["CC_KNOWLEDGE_REPO"] = str(empty_knowledge)
+    if not LOCAL_BIN.is_dir():
+        warnings.append(f"LOCAL_BIN {LOCAL_BIN} not found -- tc/cc will not actually be reachable even though PATH includes it")
+    return MaterializedConfig(
+        name="framework_minus_claudemd",
+        workdir=workdir,
+        home_dir=home,
+        env=env,
+        claude_flags=list(COMMON_CLAUDE_FLAGS),
+        notes=[
+            "WP-79 ablation: same as +framework (.claude/{agents,commands,skills}/) but CLAUDE.md is deliberately ABSENT",
+            f"tc/cc on PATH via {LOCAL_BIN}",
+            f"CC_KNOWLEDGE_REPO points at an EMPTY tree ({empty_knowledge}), same as +framework",
+        ],
+        warnings=warnings,
+    )
+
+
+def materialize_framework_minus_agents(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
+    """QA WP-79 ablation rung (TASK-142): identical to +framework EXCEPT
+    .claude/agents/ is absent -- isolates the agent-frontmatter cost in
+    situ at the real model/task, AND doubles as a capability control: if
+    removing every subagent definition does not hurt this pack's
+    discriminating jobs' O-1/O-6 outcomes, that is itself a finding about
+    the agent layer's marginal value on THESE jobs, not just a token-cost
+    ablation (see this bench's README.md 'Job pack v2' section for how
+    that result is read)."""
+    workdir = _new_workdir(run_root, "framework_minus_agents", job_id, rep)
+    warnings: list = []
+    home = _fresh_home(run_root, "framework_minus_agents", rep, warnings)
+    _copy_framework_files(workdir, job_id, warnings, include_claude_md=True, include_agents=False)
+    empty_knowledge = _empty_knowledge_tree(run_root)
+    env = _base_env(home, [str(LOCAL_BIN), _minimal_system_path()])
+    env["CC_KNOWLEDGE_REPO"] = str(empty_knowledge)
+    if not LOCAL_BIN.is_dir():
+        warnings.append(f"LOCAL_BIN {LOCAL_BIN} not found -- tc/cc will not actually be reachable even though PATH includes it")
+    return MaterializedConfig(
+        name="framework_minus_agents",
+        workdir=workdir,
+        home_dir=home,
+        env=env,
+        claude_flags=list(COMMON_CLAUDE_FLAGS),
+        notes=[
+            "WP-79 ablation: same as +framework (CLAUDE.md/{commands,skills}/) but .claude/agents/ is deliberately ABSENT",
+            f"tc/cc on PATH via {LOCAL_BIN}",
+            f"CC_KNOWLEDGE_REPO points at an EMPTY tree ({empty_knowledge}), same as +framework",
+        ],
+        warnings=warnings,
+    )
+
+
 def materialize_knowledge(run_root: Path, job_id: str, rep: int = 1) -> MaterializedConfig:
     workdir = _new_workdir(run_root, "knowledge", job_id, rep)
     warnings: list = []
@@ -471,6 +557,13 @@ def materialize_integrations(run_root: Path, job_id: str, rep: int = 1) -> Mater
 LADDER_CONFIGS = [
     ("bare", materialize_bare),
     ("framework", materialize_framework),
+    # QA WP-79 ablation rungs (TASK-142): inserted between framework and
+    # knowledge so the ladder's ORIGINAL 4-rung ordering (bare, framework,
+    # knowledge, integrations) is still a contiguous subsequence -- a
+    # --config filter or any code that assumed exactly 4 rungs still finds
+    # the original 4 unchanged, just with 2 more names now valid too.
+    ("framework_minus_claudemd", materialize_framework_minus_claudemd),
+    ("framework_minus_agents", materialize_framework_minus_agents),
     ("knowledge", materialize_knowledge),
     ("integrations", materialize_integrations),
 ]

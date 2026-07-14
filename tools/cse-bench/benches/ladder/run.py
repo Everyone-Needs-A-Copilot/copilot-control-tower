@@ -430,6 +430,74 @@ def extract_usage(envelope: Optional[dict]) -> dict:
     }
 
 
+def extract_turn_breakdown(home_dir: Path) -> dict:
+    """QA WP-79 fix (TASK-142): isolates turn-1 cache_creation from every
+    later turn's, as a FIRST-CLASS per-cell metric rather than something a
+    future auditor has to reconstruct by hand from raw session JSONL (which
+    is exactly what WP-79 itself had to do to find that the ladder's O-4
+    premium is "100% incurred in turn 1" for its probe case). `extract_usage()`
+    above only sees `envelope.usage`, the CUMULATIVE total across every turn
+    of one `claude -p` call — this function reads the real session
+    transcript Claude Code itself writes under `<home>/.claude/projects/**/
+    *.jsonl` (see README.md 'A welcome side effect of the same HOME override')
+    and decomposes that same total turn by turn.
+
+    Each transcript line with type == "assistant" carries a `message.usage`
+    block; Claude Code writes the SAME message multiple times as tool calls
+    stream in (verified live: identical `message.id` repeats 2-3x per real
+    turn), so entries are deduped by `message.id`, keeping first-seen order
+    — the dedup order IS turn order (verified: cache_read_input_tokens is
+    monotonically non-decreasing across deduped entries, consistent with a
+    growing session cache; cache_creation_input_tokens is NOT cumulative,
+    it is the NEW tokens cached at that specific turn).
+
+    Returns {"ok": True, "turn1_cache_creation": int, "turns_2plus_cache_creation":
+    int, "num_transcript_turns": int, "per_turn_cache_creation": [int, ...]}
+    or {"ok": False, "error": "..."} if no transcript is found (e.g. the
+    job call itself failed before any turn completed) — never raises."""
+    projects_dir = home_dir / ".claude" / "projects"
+    if not projects_dir.is_dir():
+        return {"ok": False, "error": f"{projects_dir} does not exist"}
+    jsonl_files = sorted(projects_dir.glob("*/*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not jsonl_files:
+        return {"ok": False, "error": f"no .jsonl transcript found under {projects_dir}"}
+    transcript_path = jsonl_files[0]  # each home_dir is single-use (one job call) -- the newest is the only real one
+
+    seen_ids: set = set()
+    per_turn_cache_creation: list = []
+    try:
+        for line in transcript_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec.get("type") != "assistant":
+                continue
+            message = rec.get("message") or {}
+            usage = message.get("usage")
+            msg_id = message.get("id")
+            if not usage or not msg_id or msg_id in seen_ids:
+                continue
+            seen_ids.add(msg_id)
+            per_turn_cache_creation.append(usage.get("cache_creation_input_tokens") or 0)
+    except OSError as exc:
+        return {"ok": False, "error": f"could not read {transcript_path}: {exc}"}
+
+    if not per_turn_cache_creation:
+        return {"ok": False, "error": f"{transcript_path} had no assistant usage entries"}
+
+    return {
+        "ok": True,
+        "transcript_path": str(transcript_path),
+        "num_transcript_turns": len(per_turn_cache_creation),
+        "turn1_cache_creation": per_turn_cache_creation[0],
+        "turns_2plus_cache_creation": sum(per_turn_cache_creation[1:]),
+        "per_turn_cache_creation": per_turn_cache_creation,
+    }
+
+
 # ---------------------------------------------------------------------------
 # O-1 t_working — mechanical acceptance check
 # ---------------------------------------------------------------------------
@@ -846,6 +914,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         raw = run_claude_job(job["brief"], args.model, cfg.workdir, cfg.env, cfg.claude_flags, args.timeout, args.max_budget_usd)
         usage = extract_usage(raw["envelope"])
         acceptance = run_acceptance_check(job, cfg.workdir, cfg.env)
+        # QA WP-79 fix: turn-1 vs turns-2+ cache_creation, read from the
+        # real session transcript (see extract_turn_breakdown()'s docstring)
+        # — a first-class per-cell metric, not something reconstructed later
+        # from raw JSONL by a future auditor.
+        turn_breakdown = extract_turn_breakdown(cfg.home_dir)
 
         protected_files_check = check_protected_files(job, cfg.workdir, protected_pre_hashes)
         if not protected_files_check["clean"]:
@@ -865,8 +938,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         record.update(
             {
                 "status": raw["status"],
+                "model": args.model,  # QA WP-79 fix: recorded per-cell, not only in the top-level aggregate metrics, so this confound (sonnet vs haiku across different passes) can never recur silently
                 "duration_seconds": raw["duration_seconds"],
                 "usage": usage,
+                "turn_breakdown": turn_breakdown,
                 "acceptance": acceptance,
                 "protected_files_check": protected_files_check,
                 "t_loveable": t_loveable_record,
