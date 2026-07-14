@@ -66,6 +66,83 @@ Slack/Discord hand-holding. Every time the author *does* have to step in,
 it's logged per §3 as an assist — and an assist is a finding about the
 product, not a note about the pilot.
 
+## 1a. Verified 2026-07-14 — stranger dry-run findings
+
+A literal walk of §1's six steps was run on a **secondary machine** (the one
+this session's `/Volumes/Dev` correction was made from — see
+`phase-4-handoff.md` §2), as close to "clone from GitHub and follow only the
+shipped docs" as one person auditing their own project can get: a fresh
+`git clone` of `claude-copilot` (`main`, the default branch a real stranger
+lands on) into a scratch directory, then the documented commands run
+literally, not paraphrased. Findings, most-to-least material:
+
+1. **`cc config init --project` requires the project directory to already be
+   a git repository, and nothing before it says so.** Neither `SETUP.md`'s
+   "Manual Setup" section nor `.claude/commands/setup-project.md` calls
+   `git init` or checks `git rev-parse` before Step 7B; a pilot bringing a
+   genuinely new idea into a brand-new, not-yet-`git init`'d folder (exactly
+   the kind of "real problem" §4's recruit criteria asks for) hits `Error:
+   Not inside a git repository.` (`tools/cc/src/cc/commands/config.py:340`)
+   with no prior warning and no recovery step documented at that point.
+   **Action for facilitators:** tell every pilot to `git init` their project
+   directory first if it isn't one already, before running `/setup-project`.
+   This is a real product gap (logged for the owner, not fixed in this
+   session — it lives in `claude-copilot`'s `setup-project.md`/`SETUP.md`,
+   not in this kit).
+2. **`/opt/homebrew/bin/copilot` does not exist by default** (confirmed
+   absent on this machine, matching `phase-4-handoff.md` §2's note) and
+   `SETUP.md`'s "External Dependencies" section verify step (`copilot
+   version`) will just report "command not found" for most pilots — which is
+   honest and **does not block** the kit's own steps 1–5 (that binary is
+   marked "Optional for: All other framework features" in `SETUP.md`, and
+   nothing in this kit's install path invokes it). Not a fix needed; flagged
+   so a facilitator doesn't chase a red herring if a pilot mentions it.
+3. **A bare `copilot` shell alias, if a pilot happens to have one, would
+   silently misbehave rather than error** — on this machine specifically it
+   is aliased to `cd ~/Sites/COPILOT` (the owner's personal `.zshrc`, **not**
+   shipped by the framework — confirmed not present anywhere in the cloned
+   repo). No action: this is a pre-existing personal-shell-config risk any
+   verify-by-running-a-bare-command step carries, not something the kit or
+   `SETUP.md` introduced. Documented here only because the parent handoff
+   flags it as a machine trap and this dry run is where it was
+   re-confirmed.
+4. **`alias which='type -all'`** (also this machine's personal `.zshrc`, not
+   shipped) reproducibly breaks bare `which` (`bad option: -l` under zsh).
+   Checked whether this can bite a pilot's *automated* setup: it cannot —
+   `setup.md` and `setup-project.md` both already resolve `cc`/`tc` via
+   `command -v` (never bare `which`), so no shipped script trips this. It
+   remains a trap only for a human (or an agent) manually typing `which`
+   at an interactive prompt to debug something, exactly as the parent
+   handoff already frames it — not a pilot-blocking defect, downgraded from
+   "landmine to fix" to "confirmed inert for the documented flow."
+5. **`/Volumes/Dev/Sites/COPILOT/knowledge-copilot` is still hardcoded** in
+   `claude-copilot`'s `.claude/agents/kc.md` and
+   `.claude/commands/knowledge-copilot.md` (confirmed on `main`, the branch a
+   stranger clones) — `mkdir`/`git clone` against that path fails with
+   `Permission denied` on any machine where `/Volumes/Dev` isn't mounted,
+   same class of bug the `tools/cse-bench/collectors/paths.py` fix already
+   closed for the benchmark harness, **not yet ported to the product's own
+   `/knowledge-copilot` command.** This does **not** block this kit's
+   required steps — `/knowledge-copilot` is `SETUP.md` Step 6, explicitly
+   optional, and never invoked by this kit's steps 1–5 — so it does not gate
+   a pilot's O-1–O-5 data. Reported to the owner as a live defect in
+   `claude-copilot` proper (his call whether/when to fix; not touched this
+   session — a different lane already has both files open with an
+   in-flight, unrelated edit).
+6. **Two slightly different "run machine setup" instructions exist** for the
+   same step: this kit's §1 step 2 ("say: `Read @SETUP.md and set up Claude
+   Copilot on this machine`", matching `claude-copilot/README.md`'s own
+   Quick Start) versus `SETUP.md`'s *own* "Quick Start" section, which
+   recommends the `/setup` slash command directly. Both were run and both
+   land in the same place — no fix needed, just noted as a minor
+   documentation redundancy for whoever next does a docs pass.
+
+None of the above required changing this kit's install-as-a-stranger
+procedure (§1) or its pre-registered O-8 tolerance (§2, untouched) — they are
+gaps in the underlying `claude-copilot` product docs/scripts that a
+facilitator running this kit should know about going in, not a wrong step in
+this file.
+
 ## 2. O-7 / O-8 collection instruments
 
 **O-7 — Voluntary Return Rate.** Definition (§2, PRD): "After a first
