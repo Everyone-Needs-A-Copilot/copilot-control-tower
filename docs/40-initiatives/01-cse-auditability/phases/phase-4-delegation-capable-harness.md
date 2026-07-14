@@ -227,3 +227,108 @@ pre-registration) — but the comparison itself, and the register's own
 
 ## 4. Results (appended after the definition above was committed)
 
+Committed §0–§3 above at commit `0667205` (pushed before any cell in this
+section ran). The live 8-cell run (`python3 delegation_harness.py --timeout
+600`) then ran, writing every cell's full audit JSON to
+`tools/cse-bench/output/delegation_harness-runs/20260714T191515Z/`.
+
+**Delegation genuinely fired — structurally verified, not grepped.** The
+tool is named `"Agent"` in this machine's installed Claude Code CLI (never
+literally `"Task"` — re-confirmed by parsing `message.content[].tool_use.name`
+directly from the raw `.jsonl` transcript, not by text search) in **2 of 4**
+`framework`-rung cells (job-3-integration-report, job-4-toolkit — both
+delegated to `subagent_type: "me"`), and in **1 of 4**
+`framework_minus_agents`-rung cells (job-4-toolkit, but to
+`subagent_type: "claude"` — see the anomaly note below). `framework`-rung
+delegation rate on this 4-job pack: **50% of cells** (vs. 0/72 in the
+original v2 ladder corpus).
+
+| job | discriminates | framework t_working | framework n_deleg (agents) | framework_minus_agents t_working | fwma n_deleg (agents) | agent_layer_effect | fw total cost | fwma total cost |
+|---|---|---|---|---|---|---|---|---|
+| job-1-bugfix | control | **True** | 0 () | **True** | 0 () | no_effect | $0.2919 | $0.2764 |
+| job-2-house-voice | knowledge | **False** | 0 () | **False** | 0 () | no_effect (expected — knowledge-gated, see §2.5) | $0.2927 | $0.2672 |
+| job-3-integration-report | integrations | **True** | 1 (me) | **True** | 0 () | no_effect | $0.4472 | $0.2693 |
+| job-4-toolkit | framework | **True** | 1 (me) | **True** | 1 (claude) | no_effect | $0.3618 | $0.4572 |
+
+**Pack-level result: 4/4 jobs `no_effect` on mechanical `t_working` — 0
+`helps`, 0 `hurts`, 0 discordant pairs.** This holds even on the 2 jobs
+where `framework` genuinely delegated: delegating vs. not delegating (job-3)
+and delegating-to-a-named-specialist vs. delegating-to-a-generic-fallback
+(job-4) produced the identical mechanical pass/fail outcome in both cases.
+
+**Named anomaly, not swept under the rug (§2.3 said this would be flagged
+if seen):** `framework_minus_agents` on job-4-toolkit DID delegate once,
+despite `.claude/agents/` being deliberately absent at that rung. Structural
+inspection of `tool_input.subagent_type` shows why: the model invoked the
+same `Agent` tool but with `subagent_type: "claude"` — a generic/built-in
+fallback identity, not a named custom framework agent (contrast
+`framework`'s `subagent_type: "me"`, a real `.claude/agents/me.md`). **The
+delegation MECHANISM is not gated by whether custom agent definitions
+exist** — only which subagent identity is available to route to. This
+means "agents present vs. absent" is not perfectly identical to "delegation
+possible vs. impossible"; every cell's own `delegated_agent_types` must be
+read, not just `n_agent_delegations > 0`, exactly as §2.3 anticipated.
+
+**A real, quantified token/cost premium for delegation — on the one clean
+(delegated vs. not, same outcome) comparison available.** job-3 is the only
+job where one rung delegated and the other did not: `framework` (delegated
+to `me`) cost **$0.4472** total (main + subagent); `framework_minus_agents`
+(did not delegate) cost **$0.2693** — a **+66% cost premium for an
+IDENTICAL mechanical outcome**. Token breakdown: `framework`'s subagent
+turn alone spent 14,364 cache-creation + 48,141 cache-read + 937 output
+tokens on top of its (smaller) main-session spend, because a subagent opens
+a **fresh** context that cannot reuse the main session's already-warmed
+prompt cache — the same total amount of "real work" costs more when
+delegated than when done directly, at least at this job size. job-4 is
+**not** a clean delegation-vs-not comparison (both rungs delegated, to
+different subagent identities) and is reported separately, not averaged
+into this figure: there, `framework` ($0.3618) was actually *cheaper* than
+`framework_minus_agents` ($0.4572), the opposite direction, driven by
+`framework_minus_agents` needing more main-session turns (2 vs. 1) and a
+larger subagent cache-creation build (23,536 vs. 8,526 tokens) to reach the
+same generic-fallback identity's answer. **Net reading: delegation is not
+free, and this run cannot show it buying anything back in mechanical
+pass/fail on these 4 jobs.**
+
+**n and statistical power — stated honestly, not overstated.** This is
+**n=4 paired job-cells, 0 discordant pairs** (McNemar's b=c=0). A result
+with zero discordant pairs at n=4 cannot distinguish "the agent layer
+truly has no effect on mechanical acceptance for jobs like these" from "the
+agent layer has a real but small/rare effect that 4 paired trials simply
+were not enough to catch" — both are equally consistent with this data.
+Per standard paired-proportion (McNemar) sample-size guidance, detecting
+even a moderate discordance rate with conventional (80%) power typically
+requires several dozen discordant pairs, which — given a real discordance
+rate is unknown and could easily be well under 50% of jobs — could mean an
+**estimated n in the range of several dozen to 100+ paired job-cells**
+(more reps per job, and/or a larger/more varied job pack) before "agents
+help/hurt/do nothing" can be asserted with any confidence. **This run
+reports a suggestive null on THIS 4-job pack, not an established one.** It
+is, however, the FIRST real, mechanically-verified data point this program
+has ever had on the question (vs. zero data points before it), and the
+delegation-capable mode itself (§2) is now available to scale up cheaply —
+each cell costs $0.27–$0.45 real, list-price-equivalent, well inside a
+subscription budget.
+
+**Cost, real, not projected — subscription usage, list-price-equivalent
+only, per the standing convention `phase-4-cross-harness-behavior.md` §6
+already established (never separately billed):** the 8-cell comparison
+totaled **$2.664** (sum of the table above); the 3 feasibility probes in
+§1 totaled **$1.617** ($0.178 + $0.369 + $1.070). **Grand total this
+investigation: $4.28**, against a pre-registered worst case of $33 (§2.6) —
+real spend was roughly 13% of the stated ceiling.
+
+**What this proves, precisely, and no more:** (1) `claude -p` headless mode
+genuinely exposes and can fire real subagent delegation — this is now
+mechanically demonstrated, not inferred; (2) the ladder's ORIGINAL v2
+harness mode (raw job brief, no `/protocol` prefix) suppresses delegation
+specifically because it bypasses the framework's own routing entry point —
+not because `-p` mode lacks the tool, and not merely because jobs are
+"too small" (a 12-turn 3-domain brief still didn't delegate without the
+prefix); (3) on this specific 4-job pack, under this delegation-capable
+mode, the agent layer shows **no measurable difference in mechanical
+pass/fail outcome** whether or not it fires, at real, non-trivial
+additional token cost on at least one job — but (4) **n=4 is not enough to
+call this settled** — it is a first, honest, suggestive data point, not a
+verdict, and this memo does not claim more than that.
+
