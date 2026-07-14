@@ -119,6 +119,72 @@ owner's numbers. Requires ≥2 external users."
   every pilot's ledger plus the author's comparable solution(s) and emits
   the ratio — not a manual spreadsheet, so it's rerunnable per V-2/V-5.
 
+### O-8 tolerance — PROPOSED, owner ratification pending
+
+**This is a proposal, not a ruling.** Drafted 2026-07-14, before any pilot
+has been recruited and before any pilot data exists — which is precisely
+what makes picking a number defensible right now (V-2): nobody has seen a
+result this number could be bent toward. Delivered as a
+`claims.yaml` register-patch proposal (see
+`docs/40-initiatives/01-cse-auditability/decisions/RULING-AGENDA.md`'s
+current session notes / the PROPOSED REGISTER PATCH the owner is holding)
+rather than applied directly to the register, because another workstream
+holds `claims.yaml` write access as of this drafting. The owner may accept
+it as-is, edit it, or replace it outright — but *some* number should be
+committed before pilot data is looked at, per this section's own rule two
+paragraphs up.
+
+**Per-bar tolerance, ratio-based (O-1, O-3, O-4):**
+
+| Bar | Metric compared | Tolerance | Direction |
+|---|---|---|---|
+| O-1 (TTFLS) | elapsed wall-clock, first step → `t_loveable` | pilot ≤ **2.0×** author's comparable solution | lower (faster) always clears |
+| O-3 (Speed) | elapsed wall-clock, first step → finished | pilot ≤ **2.0×** author's comparable solution | lower (faster) always clears |
+| O-4 (Token efficiency) | `tokens_total`, first step → finished | pilot ≤ **2.0×** author's comparable solution | lower (fewer tokens) always clears |
+
+**Rationale for 2.0×:** a first-time, unassisted user reasonably takes
+longer and spends more tokens through unfamiliarity with the tool alone,
+independent of the tool's own quality — a 1.0× (exact-match) bar would
+fail transfer trivially and tell us nothing. 2.0× is the loosest
+widely-defensible "same order of magnitude" bound: tight enough that a
+pilot who is visibly struggling (3×+) still fails, loose enough that
+ordinary ramp-up variance doesn't. It is a single, consistent ratio across
+all three time/token bars rather than three separately-tuned numbers,
+deliberately — picking different multipliers per bar with no data to
+justify the differences would itself be an unprincipled, undisclosed
+design choice.
+
+**O-2 (Completeness) — two-part, mixed tolerance:**
+- Sessions-to-done: pilot ≤ **2.0×** author's comparable solution (same
+  convention as above, for consistency).
+- Post-ship fix-vs-feature ratio: pilot's fix-fraction must not exceed the
+  author's fix-fraction by more than **20 percentage points** (absolute,
+  not a ratio — a multiplicative bound is degenerate near a fix-fraction
+  close to zero, e.g. an author fix-fraction of 0.05 would force a pilot
+  ceiling of 0.10 under a 2.0× rule, which is far tighter than intended;
+  a flat 20pp band avoids that distortion).
+
+**O-5 (Survival) — binary, not ratio:** small-N pilot data (2–3 people)
+makes a percentage meaningless. O-5 clears for a pilot if their solution
+both shipped AND was confirmed still in active use at the **same N-weeks
+checkpoint** used for the author's own O-5 measurement. No partial credit.
+
+**Matching rule ("author's own most comparable solution"):** match by
+`tokens_total` order of magnitude (same decade band, e.g. both in the
+10k–100k token range) — the one sizing dimension every `tc solution`
+record is guaranteed to carry via the ledger. If no author solution in a
+comparable size band exists yet when a pilot's data is ready to score,
+that bar is `not-yet-measurable` for that pilot (mirroring O-7's own
+`not-yet-measured` convention above) — never a fabricated ratio against a
+mismatched solution.
+
+**Aggregate verdict:** O-8 requires ALL FIVE of O-1..O-5 to clear their
+own tolerance, for **at least 2 of the ≥2 required pilots** (per the
+kit's own N≥2 floor). Per-pilot, per-bar pass/fail is reported in full in
+each pilot's own report (§3) regardless of the aggregate outcome — a
+pilot clearing 4 of 5 bars is a real, informative partial result, not
+noise to discard.
+
 ## 3. Session-logging expectations
 
 Every pilot session is logged the same way the author's own sessions

@@ -1,7 +1,7 @@
 # Ruling Agenda — clearing the CSE decision queue
 
 > Initiative: `01-cse-auditability` · Repo: `copilot-control-tower` (`main`) · Prepared 2026-07-13
-> **For the owner.** Nine prepared memos (`DEC-1`..`DEC-9`) plus two acts no ruling can substitute for.
+> **For the owner.** Ten prepared memos (`DEC-1`..`DEC-10`) plus two acts no ruling can substitute for.
 > Every recommendation below is **advice, carried forward from its memo** — this document rules on nothing.
 > Every number is cited to the file it came from. Where a memo's recommendation conflicts with what the
 > claims graph implies, §5 and §6 say so plainly.
@@ -223,6 +223,20 @@ gh repo archive Everyone-Needs-A-Copilot/workflow-copilot && gh repo archive Eve
 ```
 
 **DEC-9's single largest finding, and it is not a deletion.** **13 of the ecosystem's registered products have zero usage/outcome instrumentation of any kind** (convoco, insights-copilot, method-copilot, codex-copilot, pipeline-copilot, and nine others). They all **defend by default** — because the removal rule nominates only on a *measured* zero, never on a missing measurement. That is an honest statement about the state of W-1/W-2/W-4, **not** a statement about whether anyone uses these products. Nothing you rule changes it. Only §4 does.
+
+---
+
+### DEC-10 — Retire the unverifiable April turn-comparison claim
+
+**The cheapest ruling on the page.** No `tc task` gates it — it surfaced as a register-hygiene finding, not a workstream deliverable.
+
+**The decision.** `turn-definition-incompatible-with-april` (`failing`) can never pass: its own `check` field reads *"April's original counting script does not exist; nothing to re-run"* ([`../claims.yaml`](../claims.yaml)). Retire it per `t2`'s own rule (*"unverifiable claims are deleted"*, `t2-no-claim-outlives-its-check`), or keep it as a claim that is permanently red by construction?
+
+**The recommendation (advice, from [`DEC-10`](DEC-10-retire-unverifiable-turn-claim.md) §5).** **Retire**, as `retired-by-unverifiability`. The underlying finding (April's number doesn't reproduce under today's `turn` definition — a ~90–112x gap the re-audit already corroborated as definitional, not behavioral, F-6) stays fully on record in `phase-1-findings.md`/`phase-1-reaudit-report.html` and in `definitions.turn`'s own caveat; only the claim row's bookkeeping status changes. This is the narrowest of the three retirement reasons already in use in this register (unlike DEC-3's retired-by-ratification or DEC-2's retired-by-deletion, nothing here is a corrected fact or a removed obligation — the measurement itself is simply impossible).
+
+**The action.** Held for the serialized register-patch pass (this session may not edit `claims.yaml`); once applied: `status: failing` → `status: retired-by-unverifiability` on `turn-definition-incompatible-with-april`.
+
+**What it unblocks.** No task, no other claim — this is pure register hygiene. It does not touch `t2` itself, which stays open on its own separate, much larger CSE-wide sweep.
 
 ---
 

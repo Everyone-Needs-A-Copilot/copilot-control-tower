@@ -28,6 +28,7 @@ the agent that owns the target repo) — nothing here executes automatically.
 | DEC-7 | [`DEC-7-c3-hook-rollout-gate.md`](DEC-7-c3-hook-rollout-gate.md) | TASK-103 (C-3) | The `claude-copilot` hook-path defect is fixed and scripted-reverified — does that satisfy Rollout Readiness condition 1, or does the owner still need to run one real session before C-3 widens to consumer repos? |
 | DEC-8 | [`DEC-8-first-removal-review.md`](DEC-8-first-removal-review.md) | TASK-100 (B-17), fed by TASK-128 (W-6) | The first mechanical removal review nominates agents `cpa`/`cs`/`kc` and knowledge area `04-shared-systems` — keep, cut, or (for `kc`) investigate a measurement caveat first? |
 | DEC-9 | [`DEC-9-delete-or-defend-list.md`](DEC-9-delete-or-defend-list.md) | TASK-100 (B-17) | The consolidated **per-product** delete-or-defend list (all 17 `ECOSYSTEM.md` products + shared systems + dormant repos + the 22 CLI service groups) — cites DEC-4/DEC-5/DEC-8 rather than duplicating them, and adds one new orphan-credential finding (`notion`, same shape as DEC-5's `metabase`/`method`). |
+| DEC-10 | [`DEC-10-retire-unverifiable-turn-claim.md`](DEC-10-retire-unverifiable-turn-claim.md) | none (register-hygiene finding) | `turn-definition-incompatible-with-april`'s own `check` field says April's counting script no longer exists and nothing can be re-run against it — retire the claim per `t2`'s own "unverifiable claims are deleted" rule, or keep it as a permanent red? |
 
 ## Status
 
@@ -42,6 +43,10 @@ until DEC-6's header literally reads `Status: **ratified**` (see
 will move to `completed` (or whatever the owner's chosen option's own
 follow-up task is) once the owner picks and someone executes the
 corresponding one-line command.
+DEC-10 has no `tc task` of its own — it is a register-hygiene finding, not
+a workstream deliverable — so its "ruled" signal is the `claims.yaml`
+status edit itself (`failing` → `retired-by-unverifiability`), applied in
+the next serialized register-patch pass once the owner picks an option.
 
 ## Related, not yet decided
 
