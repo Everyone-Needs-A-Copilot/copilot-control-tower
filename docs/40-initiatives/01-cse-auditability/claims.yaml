@@ -1525,6 +1525,82 @@ claims:
       triage in one pass, under time pressure, is exactly the "produced by
       choosing operational definitions after seeing the data" failure mode
       V-2 exists to prevent. Not forcing a pass.
+
+
+      UPDATED 2026-07-14 (t2 triage pass, same day, following QA WP-47's
+      audit of the sweep mechanism itself): TWO layers of work landed.
+      (1) THE GATE WAS LEAKY -- QA found and this task closed 3 real
+      bypasses in claim_sweep.py: a TOCTOU gap (--check scanned the working
+      tree, not the git index, so a staged-then-reverted-in-place bad
+      assertion could land in a commit while the hook reported clean --
+      proven both ways via an isolated scratch-repo reproduction, now fixed
+      by scanning `git show :<path>` / `git ls-files`); a coverage gap
+      (SCAN_TARGETS was 19 hand-picked files, silently excluding every
+      CLAUDE.md -- control-tower's own CLAUDE.md had a live unbacked
+      "automatically"/"guarantee" pair as a result; scope is now a
+      documented formula -- root self-description files + docs/ depth-1 --
+      not an implicit allowlist); an over-backing gap (the old +/-1
+      either-direction annotation rule let one annotation nominally back an
+      unrelated adjacent line by proximity alone -- found live in
+      claude-copilot's restructure doc; binding tightened to same-line or a
+      standalone-preceding line only; all 12 previously-backed assertions
+      re-audited, 2 nominal ones correctly demoted and re-fixed). A gate
+      that can be walked around is decoration, not a rule -- these are
+      fixed, not just documented, and re-verified via `--check` on staged
+      content in every touched repo before each commit.
+
+
+      (2) THE BACKLOG TRIAGE, scoped by the now-WIDER sweep: after the
+      coverage fix, the sweep finds 133 verifiable assertions across 39
+      files in 4 repos (codex-copilot: still 0, its curated docs make no
+      quantified claims) -- 51 BACKED (10 pre-existing + 41 from this
+      pass's annotations/reused-claim-backing/corrections), 82 UNBACKED, 0
+      DANGLING. The 82 remaining are NOT a random remainder -- every one
+      falls into one of three named, disclosed categories: (a) SOUL.md
+      files (42 of 82) -- explicitly out of scope per this task's own
+      guardrail, another lane owns them; (b) CLAUDE.md governance/
+      instruction files (15 of 82, across all 4 repos) -- deliberately
+      deferred rather than rushed, since these are high-blast-radius
+      operating-instruction docs (one is this very session's own CLAUDE.md)
+      that deserve a dedicated review, not a same-session grep-and-edit
+      (one exception WAS fixed directly: control-tower-agent-count, a
+      clean, low-risk, mechanically-verified count); (c) newly-in-scope
+      docs the coverage fix surfaced for the first time and this session's
+      time budget did not reach (25 of 82: session HANDOFF/AUDIT/RESUME
+      logs, docs/README.md index files, cli-copilot's docs/01-setup.md,
+      claude-copilot's docs/00-overview.md and docs/README.md, knowledge-
+      copilot's docs/knowledge-copilot-integration-plan.md). All 82 are
+      baselined (claim-sweep-baseline.json, regenerated this session) and
+      the pre-commit hook (verified live and re-proven this session: a
+      real test commit with a fresh unbacked assertion was blocked, exit 1,
+      then reverted) still blocks any NEW unbacked assertion.
+
+
+      STATUS STAYS FAILING. Per the statement's own three clauses: clause 1
+      ("every public CSE claim maps to a pre-registered, runnable check")
+      is false while 82 assertions sit unbacked, even though the true
+      denominator grew (94->133) because the gate itself got harder to
+      satisfy, not easier -- that is the intended direction of a ratchet,
+      not evidence of regression. Clause 2 ("unverifiable claims are
+      deleted") saw real, if modest, exercise this session: no CSE-doc
+      prose was deleted as unverifiable-in-principle, but three ALREADY-
+      RULED register claims that were unverifiable/superseded/deleted-
+      obligation were retired (turn-definition-incompatible-with-april ->
+      retired-by-unverifiability per DEC-10; framework-externalization-
+      94pct -> retired-by-ratification per DEC-3, EXECUTED in claude-
+      copilot@e1e1501; protocol-declaration-rate-baseline -> retired-by-
+      deletion per DEC-2, EXECUTED in claude-copilot@1b67851) -- these were
+      blocked on check_claims.py's closed 4-value status enum, extended
+      this session to unblock all three. Clause 3 (F-18 zero, enforced on
+      commit) remains true and independently re-verified: 0 of 7 named
+      instances regressed, and the hook enforcement is now demonstrably
+      harder to bypass than when F-18 was first closed. What remains, exact
+      and unchanged in kind from the prior update: someone triages the
+      (now-recategorized) 82 baselined assertions -- the SOUL.md/CLAUDE.md
+      categories need their owning lanes' sign-off before this task's kind
+      of session should touch them at all, and the 25 newly-surfaced items
+      need the same annotate-or-correct-or-delete pass this session gave
+      the other 51. Not forcing a pass.
     last_checked: "2026-07-14"
 
   - id: t3-instruction-layer-changes-behavior
