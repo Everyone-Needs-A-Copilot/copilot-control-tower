@@ -660,6 +660,20 @@ def _aggregate_scope(session_ids: list[str], base_metrics: dict, extras: dict[st
                 if sm.protocol_declaration_rate_first_of_turn is not None
             ]
         ),
+        "protocol_declaration_rate_status": {
+            "vestigial": True,
+            "retired": "2026-07-14 (DEC-2)",
+            "note": (
+                "The `[PROTOCOL: ...]` declaration-prefix obligation these two metrics measured is "
+                "retired (claude-copilot commit 1b67851) -- adoption was 0.0% and nothing in the hook "
+                "pipeline ever enforced it. Left computing (not deleted) because the distribution "
+                "remains an informative historical adoption-decay signal, but it is no longer attached "
+                "to any live obligation and is not this collector's regression-tested surface going "
+                "forward. Scheduled for removal from this collector in a future maintenance pass -- see "
+                "PROPOSED REGISTER PATCH for protocol-declaration-rate-baseline "
+                "(status: failing -> retired-by-deletion)."
+            ),
+        },
         "model_mix": {
             "main_session_only": {"counts": dict(model_main), "share": _share(model_main)},
             "combined": {"counts": dict(model_combined), "share": _share(model_combined)},
@@ -773,7 +787,11 @@ def collect(
                     "as registered in docs/40-initiatives/01-cse-auditability/claims.yaml `definitions:`; "
                     "reused unmodified from tools/cse-audit/session_metrics.py. "
                     "protocol_declaration_rate_loose == that register entry's `_all` denominator; "
-                    "protocol_declaration_rate_strict == its `_first_of_turn` denominator."
+                    "protocol_declaration_rate_strict == its `_first_of_turn` denominator. VESTIGIAL as "
+                    "of 2026-07-14 (DEC-2): see global.protocol_declaration_rate_status -- the "
+                    "obligation this pair measured is retired; delegation_rate_tool_share / "
+                    "delegation_rate_event_share are the live, still-enforced-and-passing signal for "
+                    "routing discipline."
                 ),
                 "model_mix": (
                     "family share of assistant messages (main-session-only and main+subagent combined). "

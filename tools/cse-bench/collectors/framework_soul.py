@@ -29,11 +29,16 @@ METRICS
    per-work-product before/after — no transcript record links a specific
    agent return to the specific work product it was (or wasn't) stored
    as, so the two distributions are compared as populations, not paired).
-2. ``agent_frugality`` — SOUL Quality Bar: "Agents return ~100 tokens to
-   the main session; details go to work products." Token-estimate
-   distribution (median/mean/p90/% over 300) of every subagent's own
-   FINAL assistant message across the merged transcript corpus, plus a
-   per-agent-type breakdown.
+2. ``agent_frugality`` — SOUL Quality Bar (Section 6, restructured
+   2026-07-14 per DEC-1's correction). Token-estimate distribution
+   (median/mean/p90/% over 300) of every subagent's own FINAL assistant
+   message across the merged transcript corpus, plus a per-agent-type
+   breakdown, plus ``ceiling_check``: a falsifiable regression guard
+   (no class's median may exceed its registered, descend-only ceiling)
+   and the gap to the separately tracked ``framework-agent-return-
+   aspiration`` claim (SOUL's original ~100-token design intent, kept
+   honestly failing rather than folded into the ceiling -- see
+   ``_build_agent_return_ceiling_check``).
 3. ``main_session_token_trend`` — SOUL drift signal "The Context
    Glutton": "Main-session token use rises release over release."
    Per-ISO-week main-session input+output token totals and per-session
@@ -180,7 +185,96 @@ ARTIFACT_MARKER_RE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-FRUGALITY_THRESHOLD_TOKENS = 300  # SOUL quality bar quotes "~100 tokens"; 300 = 3x that.
+FRUGALITY_THRESHOLD_TOKENS = 300  # legacy proxy, 3x the ~100-token ASPIRATION target -- see AGENT_RETURN_ASPIRATION_TOKENS below.
+
+# --- Agent-return CEILING (SOUL Section 6, registered 2026-07-13 baseline) ---
+# DEC-1 correction (2026-07-14): the per-class bar SOUL originally described as
+# "today's reality" was unfalsifiable -- a claim that is true by its own
+# definition can never fail, which is exactly what t2 ("no claim outlives its
+# check") exists to catch. It is now a CEILING with a stated truth condition:
+# no agent class's median return may exceed its ceiling. The ceiling only ever
+# moves DOWN, and only mechanically (SOUL.md Section 6; claims.yaml,
+# framework-agent-frugality). These are the 2026-07-13 baseline, frozen here
+# deliberately -- do NOT replace with a live recompute of "the current
+# median," or the ceiling stops being able to fail.
+AGENT_RETURN_CEILING_TOKENS: dict[str, int] = {
+    "me": 854,
+    "doc": 490,
+    "sd": 3786,
+    "uxd": 5089,
+    "uids": 4118,
+    "sec": 3556,
+}
+# Overall median at registration; used for any class without its own ceiling yet.
+AGENT_RETURN_CEILING_DEFAULT_TOKENS = 893
+# Pre-registered (V-2) next ratchet step: a 25% reduction per class, once the
+# separately-owned return-contract work (agent instruction + return-format
+# tightening) lands and a post-change corpus is re-measured. 25% is larger
+# than half of every measured class's IQR (framework_soul-latest.json,
+# 2026-07-13) -- big enough to be signal, not sampling noise -- while still a
+# plausible single-iteration compression rather than a jump straight to the
+# aspiration below.
+AGENT_RETURN_CEILING_RATCHET_STEP_PCT = 0.25
+# SOUL's original, still-unmet design intent -- tracked as a SEPARATE, honestly
+# failing claim (framework-agent-return-aspiration), never folded into the
+# ceiling above. Collapsing the two is exactly how the prior bar became
+# unfalsifiable.
+AGENT_RETURN_ASPIRATION_TOKENS = 100
+
+
+def _build_agent_return_ceiling_check(by_agent_type: dict) -> dict:
+    """The falsifiable regression guard behind the restructured
+    `framework-agent-frugality`: no agent class's CURRENT median may exceed
+    its registered ceiling. Breaching this is a genuine regression -- the
+    ceiling never rises to absorb it, it only ever ratchets down (see the
+    module-level constants above). Also reports the pre-registered next
+    ratchet step and the gap to the separately tracked aspiration
+    (`framework-agent-return-aspiration`), so both claims this collector
+    feeds can be read off one place.
+    """
+    by_class: dict[str, dict] = {}
+    breaches: list[dict] = []
+    aspiration_gap: dict[str, float] = {}
+
+    for agent, stats in sorted(by_agent_type.items()):
+        median = stats.get("median")
+        if median is None:
+            continue
+        ceiling = AGENT_RETURN_CEILING_TOKENS.get(agent, AGENT_RETURN_CEILING_DEFAULT_TOKENS)
+        breached = median > ceiling
+        by_class[agent] = {
+            "ceiling_tokens": ceiling,
+            "ceiling_is_class_specific": agent in AGENT_RETURN_CEILING_TOKENS,
+            "current_median": median,
+            "breached": breached,
+            "next_ratchet_step_tokens": round(ceiling * (1 - AGENT_RETURN_CEILING_RATCHET_STEP_PCT)),
+        }
+        if breached:
+            breaches.append({"agent": agent, "median": median, "ceiling": ceiling})
+        aspiration_gap[agent] = round(median - AGENT_RETURN_ASPIRATION_TOKENS, 1)
+
+    return {
+        "ceiling_source": (
+            "SOUL.md Section 6, registered 2026-07-13 baseline -- descend-only ratchet "
+            "(claims.yaml: framework-agent-frugality). Frozen constants in this collector, "
+            "not a live recompute of the current run's medians."
+        ),
+        "truth_condition": "no agent class's current median return exceeds its registered ceiling",
+        "verdict": "breach" if breaches else "no_breach",
+        "breaches": breaches,
+        "by_agent_type": by_class,
+        "ratchet_step_pct": AGENT_RETURN_CEILING_RATCHET_STEP_PCT,
+        "aspiration": {
+            "target_tokens": AGENT_RETURN_ASPIRATION_TOKENS,
+            "claim": "framework-agent-return-aspiration",
+            "gap_by_class": aspiration_gap,
+            "note": (
+                "SOUL's original ~100-token design intent, kept as a separate, honestly-failing "
+                "claim rather than folded into the ceiling above -- collapsing the two is exactly "
+                "how the prior bar became unfalsifiable (DEC-1 correction, 2026-07-14)."
+            ),
+        },
+    }
 
 
 def _token_estimate(text: Optional[str]) -> int:
@@ -747,15 +841,21 @@ def collect(
         agent_frugality["n_subagent_files"] = sub_scan["n_subagent_files"]
         agent_frugality["n_no_final_text"] = sub_scan["n_no_final_text"]
         agent_frugality["by_agent_type"] = sub_scan["by_agent_type"]
+        agent_frugality["ceiling_check"] = _build_agent_return_ceiling_check(sub_scan["by_agent_type"])
         agent_frugality["definitions"] = {
             "agent_frugality": (
                 "token-estimate (chars/4) of every subagent's own FINAL type=='assistant' record "
                 "(all its text-type content blocks joined) across the merged transcript corpus -- one "
                 "value per subagent invocation (per subagents/agent-*.jsonl file), regardless of "
-                "agent type. threshold_tokens=300 is 3x the SOUL quality bar's stated '~100 tokens'; "
-                "pct_over_threshold is the share of returns exceeding it. n_no_final_text counts "
-                "subagent files with zero assistant records or an empty final text (excluded from the "
-                "distribution, not counted as zero)."
+                "agent type. threshold_tokens=300 (3x the ~100-token ASPIRATION target -- see "
+                "ceiling_check.aspiration) is a legacy proxy retained for continuity; it is no longer "
+                "the check behind framework-agent-frugality (DEC-1 correction, 2026-07-14: a bar equal "
+                "to its own measurement can never fail, which is unfalsifiable by construction). "
+                "framework-agent-frugality's live check is now ceiling_check.verdict, a per-class "
+                "regression guard against a registered, descend-only ceiling; pct_over_threshold "
+                "instead evidences the separately tracked framework-agent-return-aspiration claim. "
+                "n_no_final_text counts subagent files with zero assistant records or an empty final "
+                "text (excluded from the distribution, not counted as zero)."
             ),
         }
 
