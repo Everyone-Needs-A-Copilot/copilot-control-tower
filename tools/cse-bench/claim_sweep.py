@@ -4,7 +4,7 @@
 WHY: docs/40-initiatives/01-cse-auditability/README.md's Phase-0 vision was
 "one machine-readable table of every claim across all four products"; the
 SCOPE NOTE at the top of claims.yaml says that full sweep "is still open
-work." decisions/RULING-AGENDA.md §6 names the exact gap: t2 "needs the full
+work." decisions/ruling-agenda.md §6 names the exact gap: t2 "needs the full
 CSE-wide ~40-claim sweep the register's own SCOPE NOTE says it is *not yet*,
 plus F-18's 7 artifact-without-mechanism instances driven to zero, enforced
 on commit." This script is that mechanism.
@@ -81,13 +81,13 @@ number moved" inside a dated phase doc as a violation.
 But not every doc under docs/40-initiatives/ is historical. Some — right
 now, two — are STANDING claims about the present, written to be quoted by
 a reader who is not tracking this initiative's internal history:
-`docs/40-initiatives/01-cse-auditability/retrospectives/VALUE.md` is named,
+`docs/40-initiatives/01-cse-auditability/retrospectives/value.md` is named,
 in its own initiative's README, as *the* document its owner uses to
 describe the CSE to a client, a partner, or another organization. A stale
 number in that document is not a historical artifact; it is a live,
 externally-quotable false statement. That is the exact gap this scan
 previously could not see (docs/40-initiatives/ was wholly excluded, so
-VALUE.md's `<!-- claim-check: ... -->` annotations were decorative — never
+value.md's `<!-- claim-check: ... -->` annotations were decorative — never
 mechanically checked). `docs/40-initiatives/01-cse-auditability/
 retrospectives/review.md` (added 2026-07-14, the review dossier) carries
 the same property for a different reason: it is the document a reviewer
@@ -141,7 +141,7 @@ pass/fail decision about a commit.
 
 CLAIM HEALTH (added 2026-07-14, the claim-sweep ratchet gap — see LIVE vs.
 HISTORICAL above): backing (an annotation resolves to a real claims.yaml
-id) is necessary but not sufficient for a document like VALUE.md, whose
+id) is necessary but not sufficient for a document like value.md, whose
 whole premise is that its numbers are CURRENTLY true, not merely once
 registered. A claim can resolve and still make its surrounding sentence
 false: the register moved the claim to `failing` after the doc's prose was
@@ -270,7 +270,7 @@ _EXTRA_TARGETS: dict[str, list[str]] = {
 # every other scan target is not.
 _LIVE_DOCS_IN_EXCLUDED_TREES: dict[str, list[str]] = {
     "copilot-control-tower": [
-        "docs/40-initiatives/01-cse-auditability/retrospectives/VALUE.md",
+        "docs/40-initiatives/01-cse-auditability/retrospectives/value.md",
         "docs/40-initiatives/01-cse-auditability/retrospectives/review.md",
     ],
 }
@@ -496,7 +496,7 @@ def _paragraph_text(all_lines: list[str], line_no: int) -> str:
     isolation.
 
     Refinement for a citation ON a markdown heading line: this document's
-    own convention (see VALUE.md §3) is to quote a forbidden claim verbatim
+    own convention (see value.md §3) is to quote a forbidden claim verbatim
     AS its heading (e.g. `### 3.1 "~94% less context" ...`), with the
     acknowledgment ("**FALSE, and inverted.**") in the paragraph
     immediately below -- headings are blank-line-isolated from their own

@@ -12,7 +12,7 @@
 
 > tc task: **none** (this claim is not gated behind a workstream deliverable
 > in the `tc` store — it is a register-hygiene finding surfaced while
-> preparing `docs/40-initiatives/01-cse-auditability/decisions/RULING-AGENDA.md`
+> preparing `docs/40-initiatives/01-cse-auditability/decisions/ruling-agenda.md`
 > §6). Claim: `turn-definition-incompatible-with-april` (`claims.yaml`) ·
 > Status: prepared, **not ruled**. **Nothing has been retired.** This memo
 > only documents why the claim can never pass and asks the owner to rule on

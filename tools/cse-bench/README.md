@@ -346,7 +346,7 @@ But not every doc inside that tree is historical. A doc can be a
 **standing claim about the present** — written to be quoted, as-is, by a
 reader who is not tracking the initiative's internal history — even
 though it happens to live inside an otherwise-archival directory.
-`docs/40-initiatives/01-cse-auditability/retrospectives/VALUE.md` is
+`docs/40-initiatives/01-cse-auditability/retrospectives/value.md` is
 exactly this: its own initiative README names it as *the* document its
 owner uses to describe the CSE to a client, a partner, or another
 organization. A stale number in that document is not a historical
@@ -369,7 +369,7 @@ never a doc-only edit inside a tree the sweep otherwise doesn't look at.
 ### CLAIM HEALTH: a stronger guarantee for live docs specifically
 
 Backing (an annotation resolves to a real id) is necessary but not
-sufficient for a doc like VALUE.md, whose whole premise is that its
+sufficient for a doc like value.md, whose whole premise is that its
 numbers are true **now**, not merely once registered. A claim can resolve
 and still make its sentence false: the register moved the claim to
 `failing` after the prose was written, or the claim was

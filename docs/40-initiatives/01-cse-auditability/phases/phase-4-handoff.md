@@ -111,7 +111,7 @@ tc progress                                       # 33 completed / 4 blocked / 3
     reading is "we could not construct a job on which the agent layer was
     even invoked" — never "agents add nothing." Do not let anyone round this
     down to a disproof.
-- **[`retrospectives/VALUE.md`](../retrospectives/VALUE.md)** is the
+- **[`retrospectives/value.md`](../retrospectives/value.md)** is the
   **"what can I honestly say"
   document** — the load-bearing artifact for anyone about to quote this
   program externally. Read it before you cite a single number outside this
@@ -279,10 +279,10 @@ tc solution log-usage <id> --kind usage|fix|feature --tokens N --sessions N
 CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/test_soul_conformance.py -v --tb=no -rxX
 ```
 
-Key documents (this directory unless noted): [`retrospectives/VALUE.md`](../retrospectives/VALUE.md) (what
+Key documents (this directory unless noted): [`retrospectives/value.md`](../retrospectives/value.md) (what
 can honestly be said, externally) · `phase-4-outcome-program-prd.md` (the
 program) · `phase-4-w4-external-pilot-kit.md` (Act B, with 2026-07-14's
 stranger-dry-run findings) · `../claims.yaml` (the law) ·
-`decisions/RULING-AGENDA.md` (the ten memos, ruled) · `phase-3-soul-
+`decisions/ruling-agenda.md` (the ten memos, ruled) · `phase-3-soul-
 remediation.md` (hygiene, complete) · the three SOUL files (each
 component's promise).

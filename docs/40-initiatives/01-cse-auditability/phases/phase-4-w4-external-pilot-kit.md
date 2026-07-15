@@ -203,7 +203,7 @@ has been recruited and before any pilot data exists — which is precisely
 what makes picking a number defensible right now (V-2): nobody has seen a
 result this number could be bent toward. Delivered as a
 `claims.yaml` register-patch proposal (see
-`docs/40-initiatives/01-cse-auditability/decisions/RULING-AGENDA.md`'s
+`docs/40-initiatives/01-cse-auditability/decisions/ruling-agenda.md`'s
 current session notes / the PROPOSED REGISTER PATCH the owner is holding)
 rather than applied directly to the register, because another workstream
 holds `claims.yaml` write access as of this drafting. The owner may accept

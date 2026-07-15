@@ -19,7 +19,7 @@ superseded_by: null
 > **Taking this over? Start at [`phases/phase-4-handoff.md`](phases/phase-4-handoff.md)** — the
 > single entry point: setup, full work inventory, operating rules, decision queue.
 > **Need to describe this ecosystem's value to someone outside it? Start at
-> [`retrospectives/VALUE.md`](retrospectives/VALUE.md)** — the owner's honest value
+> [`retrospectives/value.md`](retrospectives/value.md)** — the owner's honest value
 > articulation: what is proven, what is false and forbidden to claim, what it costs, what
 > remains unknown, and the single-author caveat that qualifies all of it. Every quantified
 > sentence in it traces to a claim id below.
