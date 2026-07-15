@@ -79,8 +79,8 @@ would falsify history, not preserve it. The sweep must not treat "this
 number moved" inside a dated phase doc as a violation.
 
 But not every doc under docs/40-initiatives/ is historical. Some — right
-now, exactly one — are STANDING claims about the present, written to be
-quoted by a reader who is not tracking this initiative's internal history:
+now, two — are STANDING claims about the present, written to be quoted by
+a reader who is not tracking this initiative's internal history:
 `docs/40-initiatives/01-cse-auditability/retrospectives/VALUE.md` is named,
 in its own initiative's README, as *the* document its owner uses to
 describe the CSE to a client, a partner, or another organization. A stale
@@ -88,7 +88,11 @@ number in that document is not a historical artifact; it is a live,
 externally-quotable false statement. That is the exact gap this scan
 previously could not see (docs/40-initiatives/ was wholly excluded, so
 VALUE.md's `<!-- claim-check: ... -->` annotations were decorative — never
-mechanically checked).
+mechanically checked). `docs/40-initiatives/01-cse-auditability/
+retrospectives/review.md` (added 2026-07-14, the review dossier) carries
+the same property for a different reason: it is the document a reviewer
+opens to re-verify this engagement end to end, and a stale or falsified
+number in it would defeat its entire purpose.
 
 The distinction is NOT "which subdirectory" (retrospectives/ as a whole is
 not live — most retrospectives are exactly as historical as a phase doc;
@@ -267,6 +271,7 @@ _EXTRA_TARGETS: dict[str, list[str]] = {
 _LIVE_DOCS_IN_EXCLUDED_TREES: dict[str, list[str]] = {
     "copilot-control-tower": [
         "docs/40-initiatives/01-cse-auditability/retrospectives/VALUE.md",
+        "docs/40-initiatives/01-cse-auditability/retrospectives/review.md",
     ],
 }
 

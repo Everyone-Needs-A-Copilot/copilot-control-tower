@@ -23,6 +23,14 @@ superseded_by: null
 > articulation: what is proven, what is false and forbidden to claim, what it costs, what
 > remains unknown, and the single-author caveat that qualifies all of it. Every quantified
 > sentence in it traces to a claim id below.
+> **Reviewing or auditing this engagement? Start at
+> [`retrospectives/review.md`](retrospectives/review.md)** — the review dossier: how to
+> re-verify every claim in under five commands, what was done in execution order (tasks, work
+> products, commits), the findings that matter (positive and negative, equal weight), the
+> corrections and process failures this program caught in itself, the current state of
+> [`claims.yaml`](claims.yaml) and the [`decisions/`](decisions/) queue, what remains, and a
+> full claim-to-evidence-to-re-run-command provenance map. Cross-references
+> [`phases/phase-4-outcome-program-prd.md`](phases/phase-4-outcome-program-prd.md) throughout.
 
 ## Goal
 
