@@ -7,3 +7,4 @@
 | Folder | Title | Status | Owner | Note |
 | --- | --- | --- | --- | --- |
 | `01-cse-auditability/` | CSE Auditability — Make Every Claim Falsifiable | active | Pablo Alejo | Phase 1 + adversarial re-audit done (13/18 upheld, F-12 overturned). Register live (claims.yaml, 38 claims, pre-commit enforced); retention live; cse-bench harness + benches + dashboard shipped; capabilities built (usage ledger, extension loader, deadlock-free enforcement, content parity, conformance suite). Outcome bars O-1..O-9 ratified 2026-07-13. Next: Outcome Program (phases/phase-4-handoff.md). |
+| `02-enac-self-onboarding/` | ENAC Self-Onboarding — Dogfood the Ecosystem on Everyone Needs A Copilot | active | Pablo Alejo | Naming convention ratified and shipped (org layer = <C>-copilot-internal, engine + tests green, 142/142). Docs written. Not yet executed against GitHub — owner runs it with a developer next. Phase 1 (public-base extraction) is the first real work. |

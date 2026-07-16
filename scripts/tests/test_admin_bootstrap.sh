@@ -228,7 +228,7 @@ test_fresh_standup_full_matrix() {
   assert_eq "test1: writes ecosystem.yml exactly once" "1" "$eco_count"
 
   local expected_repos=(
-    "acme-co/codex-copilot" "acme-co/knowledge-copilot" "acme-co/cli-copilot"
+    "acme-co/codex-copilot-internal" "acme-co/knowledge-copilot-internal" "acme-co/cli-copilot-internal"
     "acme-co/codex-copilot-accounting" "acme-co/knowledge-copilot-accounting" "acme-co/cli-copilot-accounting"
     "acme-co/codex-copilot-sales" "acme-co/knowledge-copilot-sales" "acme-co/cli-copilot-sales"
   )
@@ -250,7 +250,7 @@ test_fresh_standup_full_matrix() {
   second_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -2 | head -1 | jq -r .step)"
   assert_eq "test1: first NDJSON step is readiness" "readiness" "$first_step"
   assert_eq "test1: ecosystem-yml step precedes the harness repo's branch protection" "ecosystem-yml" "$second_last_step"
-  assert_eq "test1: last NDJSON step protects the harness repo" "branch-protection:codex-copilot" "$last_step"
+  assert_eq "test1: last NDJSON step protects the harness repo" "branch-protection:codex-copilot-internal" "$last_step"
 }
 
 # ---------------------------------------------------------------------------
@@ -585,7 +585,7 @@ test_injected_read_failure_surfaces_honestly() {
 test_content_bearing_repo_opens_pr() {
   local st brief log
   st="$(new_org_state content-fresh)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-content-fresh.md"
   write_brief "$brief" "$STORE_DEFERRED"
   log="$WORKDIR/content-fresh.log"
@@ -600,10 +600,10 @@ test_content_bearing_repo_opens_pr() {
   assert_contains "test10: detail names the opened pull request" "$eco_step_detail" "Opened pull request #1"
 
   local branch_create_count pr_create_count branch_push_count direct_push_count
-  branch_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot/git/refs$')"
-  pr_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot/pulls$')"
-  branch_push_count="$(count_calls_with_field "$log" '^PUT$' '^repos/acme-co/codex-copilot/contents/ecosystem\.yml$' 'branch=copilot-standup')"
-  direct_push_count="$(count_calls_with_field "$log" '^PUT$' '^repos/acme-co/codex-copilot/contents/ecosystem\.yml$' 'message=Initial ecosystem.yml')"
+  branch_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot-internal/git/refs$')"
+  pr_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot-internal/pulls$')"
+  branch_push_count="$(count_calls_with_field "$log" '^PUT$' '^repos/acme-co/codex-copilot-internal/contents/ecosystem\.yml$' 'branch=copilot-standup')"
+  direct_push_count="$(count_calls_with_field "$log" '^PUT$' '^repos/acme-co/codex-copilot-internal/contents/ecosystem\.yml$' 'message=Initial ecosystem.yml')"
 
   assert_eq "test10: creates the copilot-standup branch exactly once" "1" "$branch_create_count"
   assert_eq "test10: pushes ecosystem.yml to the branch exactly once" "1" "$branch_push_count"
@@ -619,7 +619,7 @@ test_content_bearing_repo_opens_pr() {
 test_content_bearing_rerun_is_noop() {
   local st brief log1 log2
   st="$(new_org_state content-rerun)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-content-rerun.md"
   write_brief "$brief" "$STORE_DEFERRED"
   log1="$WORKDIR/content-rerun1.log"
@@ -638,9 +638,9 @@ test_content_bearing_rerun_is_noop() {
   assert_contains "test11: re-run's detail still names pull request #1" "$eco_step_detail" "#1"
 
   local branch_create_count pr_create_count branch_push_count
-  branch_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot/git/refs$')"
-  pr_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot/pulls$')"
-  branch_push_count="$(count_calls_with_field "$log2" '^PUT$' '^repos/acme-co/codex-copilot/contents/ecosystem\.yml$' 'branch=copilot-standup')"
+  branch_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot-internal/git/refs$')"
+  pr_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot-internal/pulls$')"
+  branch_push_count="$(count_calls_with_field "$log2" '^PUT$' '^repos/acme-co/codex-copilot-internal/contents/ecosystem\.yml$' 'branch=copilot-standup')"
 
   assert_eq "test11: re-run creates no duplicate branch" "0" "$branch_create_count"
   assert_eq "test11: re-run pushes no duplicate commit" "0" "$branch_push_count"
@@ -655,7 +655,7 @@ test_content_bearing_rerun_is_noop() {
 test_leak_scan_blocks_branch_push() {
   local st brief log
   st="$(new_org_state content-leak)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-content-leak.md"
   cat > "$brief" <<'EOF'
 ---
@@ -683,8 +683,8 @@ EOF
   assert_contains "test12: stdout carries a refused leak-scan step" "$RUN_STDOUT" '"step":"leak-scan","result":"refused"'
 
   local branch_create_count pr_create_count branch_push_count
-  branch_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot/git/refs$')"
-  pr_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot/pulls$')"
+  branch_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot-internal/git/refs$')"
+  pr_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot-internal/pulls$')"
   branch_push_count="$(count_calls "$log" '^PUT$' 'contents/ecosystem\.yml$')"
 
   assert_eq "test12: no branch was created" "0" "$branch_create_count"
@@ -700,7 +700,7 @@ EOF
 test_verify_renders_pending_pr() {
   local st brief log
   st="$(new_org_state content-verify-pending)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-content-verify-pending.md"
   write_brief "$brief" "$STORE_DEFERRED"
   log="$WORKDIR/content-verify-pending-setup.log"
@@ -860,7 +860,7 @@ test_foundation_pin_injected_error_unknown() {
 test_stale_branch_content_gets_updated_not_already_present() {
   local st brief1 brief2 log1 log2
   st="$(new_org_state content-stale-update)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
 
   brief1="$WORKDIR/brief-stale-update-1.md"
   cat > "$brief1" <<'EOF'
@@ -919,9 +919,9 @@ EOF
   assert_contains "test17: updated detail names the existing pull request" "$eco_step_detail" "#1"
 
   local branch_push_count branch_create_count pr_create_count
-  branch_push_count="$(count_calls_with_field "$log2" '^PUT$' '^repos/acme-co/codex-copilot/contents/ecosystem\.yml$' 'branch=copilot-standup')"
-  branch_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot/git/refs$')"
-  pr_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot/pulls$')"
+  branch_push_count="$(count_calls_with_field "$log2" '^PUT$' '^repos/acme-co/codex-copilot-internal/contents/ecosystem\.yml$' 'branch=copilot-standup')"
+  branch_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot-internal/git/refs$')"
+  pr_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot-internal/pulls$')"
 
   assert_eq "test17: exactly one new commit is pushed to the existing branch" "1" "$branch_push_count"
   assert_eq "test17: no new branch is created (it already exists)" "0" "$branch_create_count"
@@ -937,7 +937,7 @@ EOF
 test_no_em_dash_in_emitted_output() {
   local st brief log
   st="$(new_org_state no-em-dash)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-no-em-dash.md"
   write_brief "$brief" "$STORE_CONNECTED"
   log="$WORKDIR/no-em-dash-run.log"
@@ -971,15 +971,15 @@ test_free_plan_branch_protection_403_skips_gracefully() {
   log="$WORKDIR/free-plan-403.log"
 
   mkdir -p "$st/inject-error"
-  printf '403' > "$st/inject-error/PUT__repos__acme-co__codex-copilot__branches__main__protection"
+  printf '403' > "$st/inject-error/PUT__repos__acme-co__codex-copilot-internal__branches__main__protection"
 
   run_engine "$st" "$log" --brief "$brief"
 
   assert_eq "test19: a free-plan 403 on branch protection still completes the run" "0" "$RUN_EXIT" "$RUN_STDERR"
 
   local step_result step_detail
-  step_result="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot") | .result')"
-  step_detail="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot") | .detail')"
+  step_result="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot-internal") | .result')"
+  step_detail="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot-internal") | .detail')"
 
   assert_eq "test19: the protection step renders skipped, not failed" "skipped" "$step_result"
   assert_eq "test19: the skipped detail is the canonical free-plan message, verbatim" \
@@ -1000,12 +1000,12 @@ test_non_403_branch_protection_error_still_fails() {
   log="$WORKDIR/free-plan-500.log"
 
   mkdir -p "$st/inject-error"
-  touch "$st/inject-error/PUT__repos__acme-co__codex-copilot__branches__main__protection"
+  touch "$st/inject-error/PUT__repos__acme-co__codex-copilot-internal__branches__main__protection"
 
   run_engine "$st" "$log" --brief "$brief"
 
   assert_eq "test20: a non-403 branch-protection error still halts the run" "1" "$RUN_EXIT"
-  assert_contains "test20: stdout carries a failed branch-protection step" "$RUN_STDOUT" '"step":"branch-protection:codex-copilot","result":"failed"'
+  assert_contains "test20: stdout carries a failed branch-protection step" "$RUN_STDOUT" '"step":"branch-protection:codex-copilot-internal","result":"failed"'
 }
 
 # ---------------------------------------------------------------------------
@@ -1126,7 +1126,7 @@ EOF
   assert_eq "test22: no repo is ever created under a lowercased org path" "0" "$repo_count_lowercased"
   assert_true "test22: the department team is created under the verbatim org path" \
     "$([[ "$team_count_verbatim" -gt 0 ]]; echo $?)" "count=$team_count_verbatim"
-  assert_contains "test22: the created harness repo is reported under the verbatim path" "$RUN_STDOUT" "Created Acme-Copilot/codex-copilot, private."
+  assert_contains "test22: the created harness repo is reported under the verbatim path" "$RUN_STDOUT" "Created Acme-Copilot/codex-copilot-internal, private."
   assert_contains "test22: the created department repo is reported under the verbatim path" "$RUN_STDOUT" "Created Acme-Copilot/codex-copilot-accounting, private."
 }
 
@@ -1211,6 +1211,47 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# Test 25: "internal" is reserved for the org layer, so a department literally
+# named "internal" refuses (it would collide with the org-layer repo names,
+# e.g. knowledge-copilot-internal), zero mutating calls.
+# ---------------------------------------------------------------------------
+
+test_department_named_internal_refuses() {
+  local st brief log
+  st="$(new_org_state dept-named-internal)"
+  brief="$WORKDIR/brief-dept-named-internal.md"
+  cat > "$brief" <<'EOF'
+---
+schema_version: "1.0"
+org: acme-co
+harness:
+  - codex
+departments:
+  - accounting
+  - internal
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+
+# Standup brief for acme-co (department named "internal" fixture)
+EOF
+  log="$WORKDIR/dept-named-internal.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test25: a department named \"internal\" refuses (exit 2)" "2" "$RUN_EXIT"
+  assert_contains "test25: stdout carries a refused validate-slug step" "$RUN_STDOUT" '"step":"validate-slug","result":"refused"'
+  assert_contains "test25: stderr explains the org-layer reservation" "$RUN_STDERR" "\"internal\" is reserved for the org layer"
+  assert_contains "test25: stderr tells the operator to rename the department" "$RUN_STDERR" "update the brief"
+
+  local mutating
+  mutating="$(count_mutating_calls "$log")"
+  assert_eq "test25: zero mutating calls before the refusal" "0" "$mutating"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1238,6 +1279,7 @@ test_engine_runs_cwd_independent_from_outside_repo
 test_org_verbatim_mixed_case_accepted
 test_invalid_org_values_refuse_at_preflight
 test_department_case_only_still_refuses
+test_department_named_internal_refuses
 
 echo
 echo "-----------------------------------------"

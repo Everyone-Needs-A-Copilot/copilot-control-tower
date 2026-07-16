@@ -364,6 +364,9 @@ _load_brief() {
     if ! _valid_slug "$dept"; then
       refuse "validate-slug" "Department name \"$dept\" can't be used on GitHub. Use letters, numbers, and dashes, like $(_suggest_slug "$dept" "department"), and update the brief."
     fi
+    if [[ "$dept" == "internal" ]]; then
+      refuse "validate-slug" "\"internal\" is reserved for the org layer and can't be a department name. Rename that department and update the brief."
+    fi
   done
 
   STORE_STATUS="$(echo "$json" | jq -r '.store.status // "deferred"')"
@@ -382,9 +385,9 @@ _load_brief() {
 _org_triplet_repos() {
   local h repos=()
   for h in "${HARNESS_LIST[@]}"; do
-    repos+=("${h}-copilot")
+    repos+=("${h}-copilot-internal")
   done
-  repos+=("knowledge-copilot" "cli-copilot")
+  repos+=("knowledge-copilot-internal" "cli-copilot-internal")
   printf '%s\n' "${repos[@]}"
 }
 
@@ -986,7 +989,7 @@ _ensure_ecosystem_pr() {
 
 _write_ecosystem_yml() {
   local org="$1"
-  local target_repo="${HARNESS_LIST[0]}-copilot"
+  local target_repo="${HARNESS_LIST[0]}-copilot-internal"
   local step="ecosystem-yml"
   local sha="" existing_content=""
 
@@ -1087,7 +1090,7 @@ _write_ecosystem_yml() {
 # ---------------------------------------------------------------------------
 
 run_standup() {
-  local org="$1" repo unit harness_repo="${HARNESS_LIST[0]}-copilot"
+  local org="$1" repo unit harness_repo="${HARNESS_LIST[0]}-copilot-internal"
 
   _preflight "$org"
   _ensure_org_base_permission "$org"
@@ -1102,7 +1105,7 @@ run_standup() {
   # ecosystem.yml (a repo with no commits has no branch to protect yet; see
   # admin-agentic-setup.md §5 open decision 4, "initial commit on the empty
   # repo, enable protection after").
-  for repo in "knowledge-copilot" "cli-copilot"; do
+  for repo in "knowledge-copilot-internal" "cli-copilot-internal"; do
     _ensure_branch_protection "$org" "$repo" "branch-protection:$repo"
   done
 
@@ -1179,12 +1182,12 @@ _tally() {
 _check_org_triplet() {
   local org="$1" missing=() unreadable=() h reponame
   for h in "${HARNESS_LIST[@]}"; do
-    reponame="${h}-copilot"
+    reponame="${h}-copilot-internal"
     if ! _repo_exists_private "$org" "$reponame"; then
       if [[ "$_REPO_CHECK_STATUS" == "error" ]]; then unreadable+=("$org/$reponame"); else missing+=("$org/$reponame"); fi
     fi
   done
-  for reponame in "knowledge-copilot" "cli-copilot"; do
+  for reponame in "knowledge-copilot-internal" "cli-copilot-internal"; do
     if ! _repo_exists_private "$org" "$reponame"; then
       if [[ "$_REPO_CHECK_STATUS" == "error" ]]; then unreadable+=("$org/$reponame"); else missing+=("$org/$reponame"); fi
     fi
@@ -1284,6 +1287,9 @@ _check_undeclared_departments() {
     case "$name" in
       knowledge-copilot-*)
         unit="${name#knowledge-copilot-}"
+        if [[ "$unit" == "internal" ]]; then
+          continue
+        fi
         if ! _array_contains "$unit" "${DEPARTMENTS[@]+"${DEPARTMENTS[@]}"}"; then
           _check_row "dept-triplet" "present-undeclared" "$org has a $unit department that isn't in your plan. Setup added it, and that's fine." "" "none"
         fi
@@ -1323,7 +1329,7 @@ _check_ecosystem_drift_row() {
 }
 
 _check_ecosystem_file() {
-  local org="$1" target_repo="${HARNESS_LIST[0]}-copilot" info b64 content err_file default_branch
+  local org="$1" target_repo="${HARNESS_LIST[0]}-copilot-internal" info b64 content err_file default_branch
 
   if _gh_read "repos/$org/$target_repo" '.default_branch // empty'; then
     default_branch="$_GH_READ_VALUE"

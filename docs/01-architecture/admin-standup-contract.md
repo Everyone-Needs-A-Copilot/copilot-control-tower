@@ -122,7 +122,7 @@ The **deferred** store renders as `store: { status: deferred }` in front-matter 
 | `schema_version` | string `MAJOR.MINOR[.PATCH]` | `"1.0"`. Range-gated; a brief outside the app's floor/ceiling is refused, not guessed. |
 | `org` | string (GitHub organization login, verbatim) | The **existing** GitHub org's real login, case-preserving: GitHub's own org/username rule (ASCII letters of either case, digits, single hyphens, never leading/trailing/doubled, 1-39 chars) is validated at collection, but the value itself is never transformed (never lowercased, never slugified) — it names something that already exists on GitHub, unlike `departments` below. |
 | `harness` | list of `claude` \| `codex` | Org-wide harness choice(s). One entry at standup; the second-harness re-run appends the other. Drives every repo name. |
-| `departments` | list of slugs | The **full current** expected set (a re-run rewrites the whole list). Unlike `org`, these are slugs the engine itself **generates** repo names from, so they are forced lowercase (`_valid_slug`), distinct from `org`'s case-preserving `_valid_org` rule. |
+| `departments` | list of slugs | The **full current** expected set (a re-run rewrites the whole list). Unlike `org`, these are slugs the engine itself **generates** repo names from, so they are forced lowercase (`_valid_slug`), distinct from `org`'s case-preserving `_valid_org` rule. **`internal` is reserved** for the org layer (`<C>-copilot-internal`) and is refused as a department name. |
 | `store.status` | `connected` \| `deferred` | Deferred is a first-class, honest value, never an omission. |
 | `store.type` / `store.endpoint` | string / URL | Present only when connected. Endpoint is not a secret (access stays gated at the store by GitHub-team membership). |
 | `store.team_scopes[]` | `{team, scope}` | Non-secret mapping; present only when connected. |
@@ -272,7 +272,7 @@ emitting the **identical** JSON. The app **renders** these rows; it computes no 
     {
       "check": "org-triplet",
       "status": "pass",
-      "detail": "acme-co/codex-copilot, knowledge-copilot, cli-copilot exist, private.",
+      "detail": "acme-co/codex-copilot-internal, knowledge-copilot-internal, cli-copilot-internal exist, private.",
       "owner": "Admin",
       "fix_surface": "describe"
     }
@@ -318,11 +318,11 @@ For a brief with harness list `H` and departments `D`:
 
 | `check` id | Passes when | `owner` on fail/unknown | `fix_surface` |
 |---|---|---|---|
-| `org-triplet` | for each `h` in `H`, `<org>/<h>-copilot` exists; and `<org>/knowledge-copilot`, `<org>/cli-copilot` exist; all private. | Admin | describe |
+| `org-triplet` | for each `h` in `H`, `<org>/<h>-copilot-internal` exists; and `<org>/knowledge-copilot-internal`, `<org>/cli-copilot-internal` exist; all private. | Admin | describe |
 | `org-base-read` | org `default_repository_permission = read`. | GitHub org owner | external |
 | `dept-triplet` (one row per dept) | for dept `d`: for each `h` in `H`, `<h>-copilot-<d>` exists; and `knowledge-copilot-<d>`, `cli-copilot-<d>` exist. | Admin | describe |
 | `dept-team-grant` (one row per dept) | team `<org>/<d>` exists **and** grants read/write on its whole triplet. | Admin | describe |
-| `ecosystem-file` | `ecosystem.yml` exists in `<org>/<harness>-copilot`, parses, and matches the brief (org, harness set, departments, store status). | Admin | describe |
+| `ecosystem-file` | `ecosystem.yml` exists in `<org>/<harness>-copilot-internal`, parses, and matches the brief (org, harness set, departments, store status). | Admin | describe |
 | `store` | connected -> the endpoint answers and team_scopes map; **deferred -> `deferred`** (neutral). | IT infra (connected) / Admin (deferred) | connect-store |
 | `foundation-pin` | the version-pinned anon-HTTPS foundation reference resolves. | ENAC/external | external |
 
@@ -345,7 +345,7 @@ The org's config-of-record, written once and living forever, that every user's c
 resolver reads.
 
 **Home.** **DECISION (owner-ratified, sd §7.1):** the **org-level harness component repo**
-(`<org>/<harness>-copilot`) — the instruction layer every user inherits. For a two-harness org the
+(`<org>/<harness>-copilot-internal`) — the instruction layer every user inherits. For a two-harness org the
 canonical copy lives in the first-declared harness repo; the second-harness re-run keeps it there
 (it is not duplicated per component).
 
@@ -406,7 +406,7 @@ The distributed home of "which integrations exist," gated by entitlement. Author
 engineers in Journey B; the admin app renders it read-only.
 
 **Location.** **DECISION:** one registry per layer, living **only in that layer's `cli-copilot`
-component repo** (org: `<org>/cli-copilot`; dept: `<org>/cli-copilot-<unit>`), **not** per
+component repo** (org: `<org>/cli-copilot-internal`; dept: `<org>/cli-copilot-<unit>`), **not** per
 component. Rationale: an integration is, by the CSE model, a **CLI Copilot / integration-layer**
 artifact (a small CLI tool that reaches an outside system); a registry per component would scatter
 one concept across three repos for no gain, and the approved design's own mock places it at
@@ -466,10 +466,10 @@ POST/PATCH/PUT). The script, not the model, makes every decision.
 |---|---|---|---|
 | 0 | **Preflight auth + scope** | `gh auth status`; actor is an **owner** of `<org>`; scopes `repo` + `admin:org`. | **Refuses** (exit 2, plain instruction, teaches `gh auth refresh -s admin:org -s repo`) if any fail. No mutation before this passes. |
 | 1 | **Org base permission = read** | `PATCH /orgs/{org} -f default_repository_permission=read`. | Set-to-value no-op if already `read`. |
-| 2 | **Create the org triplet** | for each `h` in harness: GET-then-POST `<org>/<h>-copilot`; plus `<org>/knowledge-copilot`, `<org>/cli-copilot` (all **private**). | Existing repo with content -> `already-present`, never clobbered. |
+| 2 | **Create the org triplet** | for each `h` in harness: GET-then-POST `<org>/<h>-copilot-internal`; plus `<org>/knowledge-copilot-internal`, `<org>/cli-copilot-internal` (all **private**). | Existing repo with content -> `already-present`, never clobbered. |
 | 3 | **Branch protection on org repos** (in lieu of signing) | GET-then-PUT protection (require PR review; private) on each org repo. | PUT of the same ruleset is idempotent. |
 | 4 | **Per department (loop)** | 4a create triplet `<h>-copilot-<unit>` (each `h`), `knowledge-copilot-<unit>`, `cli-copilot-<unit>` (private); 4b create team `<org>/<unit>` (**not** nested under an org-parent team, four-tier §6.3); 4c grant the team read/write on its **whole triplet** (`PUT .../teams/{unit}/repos/...`); 4d branch protection on each dept repo. | Existing repo/team -> `already-present`; grant PUT and protection PUT are natively idempotent. |
-| 5 | **Write/update `ecosystem.yml`** | Additive merge (§4) into `<org>/<harness>-copilot`: components, departments (`topology: separate` default), harness list, store pointer, **the company GitHub app's public `client_id`** (§1.6), foundation pin. Initial commit on an empty repo; PR once the repo carries content. | Re-run **adds** a new dept/harness/store entry or a first-time `github_app.client_id`; **never rewrites** an existing one. |
+| 5 | **Write/update `ecosystem.yml`** | Additive merge (§4) into `<org>/<harness>-copilot-internal`: components, departments (`topology: separate` default), harness list, store pointer, **the company GitHub app's public `client_id`** (§1.6), foundation pin. Initial commit on an empty repo; PR once the repo carries content. | Re-run **adds** a new dept/harness/store entry or a first-time `github_app.client_id`; **never rewrites** an existing one. |
 | 6 | **Fail-closed leak-scan** | Run the leak-scan over `ecosystem.yml` **before any push** (deny-list: key prefixes, `BEGIN PRIVATE KEY`, `.env` shapes, high entropy). | A secret-shaped value -> **refuse to push** (invariant #6). The file carries only the non-secret endpoint + `requires_secret`-free content. |
 
 **Explicitly NOT steps (killed):**
@@ -484,7 +484,7 @@ POST/PATCH/PUT). The script, not the model, makes every decision.
 **Re-run shapes.**
 - **Add a department:** runs steps 4-6 for the one unit + the base steps as no-ops; existing units
   are a full no-op.
-- **Add the second harness:** steps 2/3 create the new `<h>-copilot*` repos additively, step 4a
+- **Add the second harness:** steps 2/3 create the new `<h>-copilot-internal` repos additively, step 4a
   adds each department's second-harness repo, step 5 appends `harness`/`components`; everything
   else `already-present`.
 - **Connect the store later:** step 5 flips `store.status` and adds the pointer; step 6 re-scans.
@@ -518,7 +518,7 @@ So a developer never builds from a stale paragraph. Status: **current** / **supe
 | §0 Vocabulary (component/layer/tier/entitlement) | **Current.** |
 | §1.1 Skill(face)+CLI(engine) split; three-faces-one-engine | **Current.** |
 | §1.2 Interim `gh` script -> `copilot admin bootstrap` at freeze | **Current** (see §6/§8 here). |
-| §1.3 GitHub sequence — **naming** (`copilot-org`, `copilot-dept-<unit>`) | **Superseded by** §6 here: component-first naming (`<org>/<harness>-copilot`, `knowledge-copilot`, `cli-copilot`, each `-<unit>` per dept). |
+| §1.3 GitHub sequence — **naming** (`copilot-org`, `copilot-dept-<unit>`) | **Superseded by** §6 here: component-first naming — org layer `<org>/<C>-copilot-internal`, department `<org>/<C>-copilot-<unit>`, foundation (public, read-only) `Everyone-Needs-A-Copilot/<C>-copilot`. |
 | §1.3 step 3c **team-member provisioning** | **Superseded by** §6 (killed — GitHub is the user-management surface). |
 | §1.3 step 4 seed carries `policy_signers` + per-layer `integrations` | **Superseded by** §4 (`ecosystem.yml` v2 drops both) + §5 (registries) + §6 step 3/4d (branch protection). |
 | §1.3 single-repo-per-tier model | **Superseded by** §4/§6: a **triplet** (3 components) per layer. |
@@ -550,6 +550,20 @@ So a developer never builds from a stale paragraph. Status: **current** / **supe
 authoritative for resolver/teams/auth **mechanics**, but its illustrative repo names
 (`copilot-org`, `copilot-dept-<unit>`, single repo per tier) are superseded by the owner-ratified
 **component-first** naming and the **triplet-per-layer** matrix used throughout this contract.
+
+**Component-first naming convention (owner-ratified 2026-07-16 — universal, load-bearing).**
+For `<C>` ∈ {`<harness>`, `knowledge`, `cli`}:
+
+| Layer | Repo | Visibility | Read as |
+|---|---|---|---|
+| Foundation | `Everyone-Needs-A-Copilot/<C>-copilot` | public | anon HTTPS (bare name, never suffixed) |
+| Org | `<org>/<C>-copilot-internal` | private | the org's own layer |
+| Department | `<org>/<C>-copilot-<unit>` | private | one triplet per department |
+
+`internal` is a **fixed literal**, not the org name, so the org layer never collides with the
+foundation and both can live in one org (the ENAC/publisher case). It is therefore a **reserved
+department slug**: the engine refuses a department named `internal`, and the undeclared-department
+scanner skips `<C>-copilot-internal` (it is the org layer, not a department).
 
 ---
 
