@@ -78,6 +78,8 @@ store:                             # connected -> pointer; deferred -> explicit 
   team_scopes:                     # which team maps to which store scope
     - { team: accounting, scope: dept/accounting }
     - { team: sales,      scope: dept/sales }
+github_app:                        # the company's OWN GitHub OAuth App (device-flow sign-in)
+  client_id: Iv1.a1b2c3d4e5f6a7b8  # PUBLIC identifier, NOT a secret; the client secret is never used
 contacts:                          # metadata for the handoff header + verify owners; not user mgmt
   publisher: "Dana R."
   admin: "Earl P."
@@ -97,6 +99,12 @@ store is connected. This file carries no secrets and no integrations.
 ## Shared secret store
 Connected: Infisical at https://vault.acme-co.com. Accounting -> dept/accounting,
 Sales -> dept/sales.
+
+## Company GitHub app
+acme-co created its own GitHub OAuth App, "Copilot Control Tower", with device flow
+enabled. Its Client ID is public config that travels in the org setup file, so every
+person's "Connect GitHub" sign-in runs through acme-co's own app. The app's client
+secret is never collected and never used.
 
 ## What this file is
 A plain description Claude Code reads as a starting point. It confirms it with you,
@@ -118,6 +126,7 @@ The **deferred** store renders as `store: { status: deferred }` in front-matter 
 | `store.status` | `connected` \| `deferred` | Deferred is a first-class, honest value, never an omission. |
 | `store.type` / `store.endpoint` | string / URL | Present only when connected. Endpoint is not a secret (access stays gated at the store by GitHub-team membership). |
 | `store.team_scopes[]` | `{team, scope}` | Non-secret mapping; present only when connected. |
+| `github_app.client_id` | string (GitHub OAuth App client id) | The company's **own** OAuth App identifier, created during standup (§1.6). **Public, not a secret** (it rides in every device-flow request); the client secret is never collected or used. Written into `ecosystem.yml` (§4) so user installs read it for the "Connect GitHub" device flow. Shape hint at collection: `Iv1.` + 16 hex, or a 20-char hex. |
 | `contacts.{publisher,admin,point_of_contact}` | string | Labels for the handoff header and verify-verb owner names. Never grant or change access. |
 
 No `integrations` block (the admin declares none; existence lives in per-repo registries, §5).
@@ -150,6 +159,39 @@ refusal fires **at collection** (the app rejects a secret-shaped value inline an
 on the two surfaces that still collect a store endpoint), so the brief is secret-free by
 construction. The engine's fail-closed leak-scan (§6 step 6) is the defense-in-depth backstop over
 `ecosystem.yml` before any push, not the primary guarantee.
+
+### 1.6 The company's GitHub OAuth App (device-flow sign-in)
+
+**DECISION (owner-ratified, 2026-07-16):** every company creates **its own** GitHub OAuth
+App during standup. The foundation never provides one, and no company uses another company's
+client id. The app's **Client ID is public** (it appears in every device-flow request), so it
+travels in the org's inherited `ecosystem.yml` (§4) and each person's "Connect GitHub"
+device-flow sign-in runs through the company's own app. Rationale: GitHub's device flow is the
+only secret-free native path (integration-auth-research §3.1), and org OAuth-app access
+restrictions are on by default for new orgs, so a per-company app is the honest, self-contained
+shape. A client id is not a secret and may travel in inheritance; the client secret never is and
+never travels (invariant #6).
+
+**The admin step (a documented standup surface, near Connect GitHub).** Plain instructions the
+app teaches; the admin does the GitHub-web action, the app collects the result:
+
+1. Go to github.com, open the company org, then **Settings -> Developer settings -> OAuth Apps
+   -> New OAuth App**.
+2. Name it clearly, for example **Copilot Control Tower**. The homepage and callback URLs can be
+   the company's own site; device flow does not use the callback.
+3. **Enable Device Flow** on the app.
+4. **Leave the client secret unused.** The product never needs it and never asks for it.
+5. Copy the app's **Client ID** and paste it into the standup field. The app validates the shape
+   (`Iv1.` + 16 hex, or a 20-char hex) and records it in the brief as `github_app.client_id`.
+
+**Where it goes.** The brief carries `github_app.client_id` (§1.3); the engine writes it into the
+org's `ecosystem.yml` (§4). No secret is collected at any point: the collection field takes only
+the public client id, and the secret-shape refusal (§1.5) still guards it.
+
+**Verify seam (not built in v1).** The verify verb (§3) should eventually assert that
+`ecosystem.yml` carries a present, well-formed `github_app.client_id`, so a missing company app
+surfaces as a fixable row rather than a silent failure at every user's first sign-in. Marked here
+as a **contract seam**, not implemented in v1 (see §3.3 and §6 step 5).
 
 ---
 
@@ -289,6 +331,12 @@ GitHub but absent from the brief emits a `present-undeclared` `dept-triplet`/`or
 app renders it calm. The `store` row is the only one that can carry `deferred`. A re-run against an
 already-standing org reads as a column of `pass` with `must_fix: 0`.
 
+**Contract seam (not built in v1): a `github-app` check.** The verify inventory should eventually
+gain a `github-app` row that passes when `ecosystem.yml` carries a present, well-formed
+`github_app.client_id` (§1.6), owner **Admin**, `fix_surface: describe`. Absent it, a company that
+skipped the OAuth-app step fails silently only later, at every user's first "Connect GitHub". It is
+recorded here as a seam, not implemented in v1.
+
 ---
 
 ## 4. `ecosystem.yml` v-next
@@ -325,11 +373,18 @@ store:
   team_scopes:
     - { team: accounting, scope: dept/accounting }
     - { team: sales,      scope: dept/sales }
+github_app:                 # the company's OWN GitHub OAuth App (§1.6)
+  client_id: Iv1.a1b2c3d4e5f6a7b8   # PUBLIC; users' device-flow sign-in reads it, secret unused
 foundation:
   ref: "^5.x"               # the pin the SCRIPT applies; Earl chooses no version in v1
 ```
 
 Deferred store: `store: { status: deferred }` (no endpoint, no team_scopes).
+
+**`github_app.client_id`** is the company's own OAuth App identifier (§1.6). It is **public config,
+not a secret**: it is the one field here that every user install reads, so their "Connect GitHub"
+device flow runs through the company's own app. The engine writes it verbatim from the brief; the
+client secret never enters the brief, this file, or any repo (invariant #6).
 
 **Additive-merge on re-run.** The script re-authors `ecosystem.yml` by **adding** entries and
 **never rewriting** existing ones: a new department appends to `departments`; the second harness
@@ -414,7 +469,7 @@ POST/PATCH/PUT). The script, not the model, makes every decision.
 | 2 | **Create the org triplet** | for each `h` in harness: GET-then-POST `<org>/<h>-copilot`; plus `<org>/knowledge-copilot`, `<org>/cli-copilot` (all **private**). | Existing repo with content -> `already-present`, never clobbered. |
 | 3 | **Branch protection on org repos** (in lieu of signing) | GET-then-PUT protection (require PR review; private) on each org repo. | PUT of the same ruleset is idempotent. |
 | 4 | **Per department (loop)** | 4a create triplet `<h>-copilot-<unit>` (each `h`), `knowledge-copilot-<unit>`, `cli-copilot-<unit>` (private); 4b create team `<org>/<unit>` (**not** nested under an org-parent team, four-tier §6.3); 4c grant the team read/write on its **whole triplet** (`PUT .../teams/{unit}/repos/...`); 4d branch protection on each dept repo. | Existing repo/team -> `already-present`; grant PUT and protection PUT are natively idempotent. |
-| 5 | **Write/update `ecosystem.yml`** | Additive merge (§4) into `<org>/<harness>-copilot`: components, departments (`topology: separate` default), harness list, store pointer, foundation pin. Initial commit on an empty repo; PR once the repo carries content. | Re-run **adds** a new dept/harness/store entry; **never rewrites** an existing one. |
+| 5 | **Write/update `ecosystem.yml`** | Additive merge (§4) into `<org>/<harness>-copilot`: components, departments (`topology: separate` default), harness list, store pointer, **the company GitHub app's public `client_id`** (§1.6), foundation pin. Initial commit on an empty repo; PR once the repo carries content. | Re-run **adds** a new dept/harness/store entry or a first-time `github_app.client_id`; **never rewrites** an existing one. |
 | 6 | **Fail-closed leak-scan** | Run the leak-scan over `ecosystem.yml` **before any push** (deny-list: key prefixes, `BEGIN PRIVATE KEY`, `.env` shapes, high entropy). | A secret-shaped value -> **refuse to push** (invariant #6). The file carries only the non-secret endpoint + `requires_secret`-free content. |
 
 **Explicitly NOT steps (killed):**

@@ -811,7 +811,7 @@
 
     <div class="annot-grid">
       <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>This is the one real task Bob does during setup. He reads that GitHub comes first, sees a short code with a copy button, presses Open GitHub, approves in his browser, and returns to one calm line: "Signed in as bob-acme." Continue lights up. If he doesn't have a GitHub account yet, the screen tells him plainly to go make one first and come back; it just waits.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>GitHub device flow via the <code>cc auth</code> seam; the token lands in the keychain via the CLI. Team entitlements, department discovery, and the personal space all key off this sign-in. Grounded in <code>docs/03-design/integration-auth-research.md</code>.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>GitHub device flow via the <code>cc auth</code> seam; the token lands in the keychain via the CLI. The sign-in runs through the company's own GitHub app connection, set up by their admin during standup (its public client id travels in the org's inherited config), so a person always signs in to their own company's app. Team entitlements, department discovery, and the personal space all key off this sign-in. Grounded in <code>docs/03-design/integration-auth-research.md</code>.</p></div>
     </div>
   </section>
 

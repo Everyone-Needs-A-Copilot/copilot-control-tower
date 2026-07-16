@@ -675,6 +675,33 @@
       <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl sees a short list of plain readiness rows. Green ones reassure; a not-ready row tells him exactly one thing to do (a copy-paste command, or "ask an owner") and offers Check again. Nothing here blocks him; the copy says Claude Code will re-check and help anyway. A missing scope reads as copy-paste-and-continue, not a dead end.</p></div>
       <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app runs local, read-only detection only (<code>gh auth status</code>, version probes for gh and Claude Code, an owner-and-scope check) and renders the rows. It computes no authoritative verdict and mutates nothing; the script re-checks everything in the terminal and is the real gate. The copyable commands are clipboard text the app hands over, not commands it executes.</p></div>
     </div>
+
+    <div class="inset-row">
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Extension: create your company's GitHub app</p>
+        <div class="inset-win">
+          <p style="margin:0 0 12px;font-size:12.6px;font-weight:650;color:var(--qi-ink);">One more thing your company sets up once</p>
+          <p style="margin:0 0 14px;font-size:12.3px;color:var(--qi-ink-soft);line-height:1.5;">Make a small GitHub app for your company so your people can sign in to Control Tower. You do this once, on GitHub's own site. It takes a minute, and it belongs to your company alone.</p>
+          <ol class="qi-steps" style="margin-bottom:14px;">
+            <li><span class="num">1</span><span class="txt"><b>Open your org's developer settings on GitHub.</b><span>github.com, your organization, Settings, then Developer settings, OAuth Apps, New OAuth App.</span></span></li>
+            <li><span class="num">2</span><span class="txt"><b>Name it so people recognize it.</b><span>Something like "Copilot Control Tower" works well.</span></span></li>
+            <li><span class="num">3</span><span class="txt"><b>Turn on Device Flow.</b><span>This is what lets your people sign in with a short code in their browser.</span></span></li>
+            <li><span class="num">4</span><span class="txt"><b>Leave the client secret alone.</b><span>Control Tower never needs it and never asks for it. You can ignore it.</span></span></li>
+            <li><span class="num">5</span><span class="txt"><b>Copy the Client ID and paste it below.</b><span>The Client ID is public, so it's safe to share and to save in your setup.</span></span></li>
+          </ol>
+          <p style="margin:0 0 12px;"><span class="btn text small">Open GitHub developer settings &rsaquo;</span></p>
+          <div class="qi-block">
+            <div class="qi-field-row"><label>Client ID</label><span class="qi-input">Iv1.a1b2c3d4e5f6a7b8</span></div>
+            <span class="qi-help">This looks like <span class="qi-mono">Iv1.</span> followed by letters and numbers, or a 20-character code. Not sure? It's on the app's page on GitHub.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Earl does and sees</p><p>Earl makes a small GitHub app for acme-co, once, following five plain steps: open the org's developer settings, name it "Copilot Control Tower", turn on Device Flow, and leave the client secret alone. He copies the Client ID and pastes it in. He's told the Client ID is public and safe to save, and that the secret is never needed, so nothing feels risky. Now every person at acme-co who signs in to Control Tower does so through acme-co's own app.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app collects only the app's <b>public</b> Client ID into the brief as <code>github_app.client_id</code>, validates the shape (<code>Iv1.</code> plus hex, or a 20-character hex), and the secret-shape refusal still guards the field. The <b>client secret is never collected and never used</b>. At setup the engine writes the Client ID into the org's <code>ecosystem.yml</code>, which every user install reads, so each person's own "Connect GitHub" device-flow sign-in runs through <b>the company's own app</b>, not a shared or foundation one. Grounded in <code>docs/03-design/integration-auth-research.md</code> and the admin standup contract §1.6.</p></div>
+    </div>
   </section>
 
   <!-- ---------------- A5 Describe your organization ---------------- -->
