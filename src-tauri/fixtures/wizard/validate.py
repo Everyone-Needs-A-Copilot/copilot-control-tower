@@ -28,7 +28,19 @@ CORPUS_DIR = FIXTURES_DIR / "corpus"
 SETTINGS_DIR = FIXTURES_DIR / "settings"
 
 CEREMONY_REQUIRED_KEYS = {"user_code", "verification_uri", "expires_in", "interval"}
+# WS-A Stream-Z (integration pass): the mock-cc ceremony/poll bodies now
+# ADDITIVELY carry the real `auth.schema.json` envelope fields alongside the
+# original wizard-frozen ones (`schema_version`/`kind` on both; `device_code`
+# on the ceremony, required by auth.schema.json's `deviceCode` shape) -- the
+# Rust seam drops unknown fields, so this is a safe, backward-compatible
+# widening. The checks below assert the ORIGINAL frozen fields are still
+# present (byte-shape regression guard for the wizard's own parse path) and
+# that ONLY the documented additive keys are ever added on top -- an
+# unexpected extra key (other than the one adversarial exception) still
+# fails closed.
+CEREMONY_ADDITIVE_KEYS = {"schema_version", "kind", "device_code"}
 POLL_ALLOWED_STATUSES = {"authorized", "denied", "expired", "timeout", "pending"}
+POLL_ADDITIVE_KEYS = {"schema_version", "kind"}
 # Field-name substrings that would indicate a secret/token crossed the seam. Checked
 # against every key in every emitted JSON body (ceremony + poll), and against every
 # scenario manifest's own JSON, EXCEPT the one documented adversarial fixture, which is
@@ -92,15 +104,24 @@ def check_ceremony_shape() -> list[str]:
     except json.JSONDecodeError as e:
         failures.append(f"auth initiate: stdout did not parse as JSON: {e}")
         return failures
-    if set(body.keys()) != CEREMONY_REQUIRED_KEYS:
+    missing = CEREMONY_REQUIRED_KEYS - body.keys()
+    unexpected = body.keys() - CEREMONY_REQUIRED_KEYS - CEREMONY_ADDITIVE_KEYS
+    if missing:
+        failures.append(f"auth initiate: missing required key(s) {sorted(missing)}")
+    if unexpected:
         failures.append(
-            f"auth initiate: expected EXACTLY {sorted(CEREMONY_REQUIRED_KEYS)}, got {sorted(body.keys())}"
+            f"auth initiate: unexpected key(s) {sorted(unexpected)} -- only the frozen wizard keys "
+            f"{sorted(CEREMONY_REQUIRED_KEYS)} plus the documented additive WS-A keys "
+            f"{sorted(CEREMONY_ADDITIVE_KEYS)} are allowed"
         )
+    if body.get("kind") not in (None, "device-code"):
+        failures.append(f"auth initiate: kind must be 'device-code' when present, got {body.get('kind')!r}")
     for key in body:
         if any(s in key.lower() for s in SECRET_SHAPED_SUBSTRINGS):
             failures.append(f"auth initiate: ceremony field '{key}' looks secret-shaped -- must never appear")
     if not failures:
-        print("  OK   auth initiate ceremony shape (user_code, verification_uri, expires_in, interval; no secret field)")
+        print("  OK   auth initiate ceremony shape (user_code, verification_uri, expires_in, interval "
+              "+ additive schema_version/kind/device_code; no secret field)")
     # `auth login --json` must be an identical alias (D-3-M3 recommendation #2).
     login_result = run_mock_cc(["auth", "login", "--json"], {})
     if login_result.returncode != 0 or login_result.stdout != result.stdout:
@@ -124,13 +145,19 @@ def check_poll_scenarios() -> list[str]:
             continue
         if body.get("status") != scenario:
             failures.append(f"auth poll scenario={scenario}: expected status='{scenario}', got {body.get('status')!r}")
-        if set(body.keys()) != {"status"}:
-            failures.append(f"auth poll scenario={scenario}: expected ONLY a 'status' key, got {sorted(body.keys())}")
+        unexpected = body.keys() - {"status"} - POLL_ADDITIVE_KEYS
+        if unexpected:
+            failures.append(
+                f"auth poll scenario={scenario}: unexpected key(s) {sorted(unexpected)} -- only 'status' plus "
+                f"the documented additive WS-A keys {sorted(POLL_ADDITIVE_KEYS)} are allowed"
+            )
+        if body.get("kind") not in (None, "poll"):
+            failures.append(f"auth poll scenario={scenario}: kind must be 'poll' when present, got {body.get('kind')!r}")
         for key in body:
             if any(s in key.lower() for s in SECRET_SHAPED_SUBSTRINGS):
                 failures.append(f"auth poll scenario={scenario}: field '{key}' looks secret-shaped -- must never appear")
         if not any(f.startswith(f"auth poll scenario={scenario}") for f in failures):
-            print(f"  OK   auth poll scenario={scenario} (status-only body, no secret field)")
+            print(f"  OK   auth poll scenario={scenario} (status body + additive schema_version/kind, no secret field)")
 
     # exit-2 env-error path
     result = run_mock_cc(["auth", "--json", "--poll"], {"CT_AUTH_SCENARIO": "exit-2"})

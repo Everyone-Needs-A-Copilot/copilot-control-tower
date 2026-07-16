@@ -12,6 +12,8 @@
   "managed_profile_fixture": null,
   "wizard_auth_scenario": "authorized-leaked-field-adversarial",
   "raw_poll_body_emitted": {
+    "schema_version": "1.0",
+    "kind": "poll",
     "status": "authorized",
     "access_token": "FAKE-SYNTHETIC-NOT-A-REAL-TOKEN-0000000000"
   },

@@ -14,12 +14,15 @@ it implements no resolution/merge/sign/wipe logic of its own.
 | Schema | Verb | Notes |
 |---|---|---|
 | `_envelope.schema.json` | — | Shared `$defs` (`schema_version`, `git_sha`, `timestamp`, `severity`) `$ref`'d by every verb. There is **no** uniform status/error wrapper in the contract; the only universal field is `schema_version`. |
+| `auth.schema.json` | `copilot auth [login\|status] --json` | GitHub device-flow sign-in (WS-A Stream-A). Three `kind`-discriminated payloads (`device-code`/`poll`/`status`) plus the shared error envelope; NO-SECRET fitness `allOf` recursively forbids any `access_token`/`token`/`refresh_token`/`secret` key at any depth — the OAuth token lives only in the OS keychain, never in this contract. |
 | `doctor.schema.json` | `copilot doctor --json` | Health verdict. Encodes the "a false Healthy is impossible" invariant (healthy ⇒ not offline, no `fail` checker). |
-| `update.schema.json` | `copilot update --json` | Reconciling sync; `pruned` op + `severity_trailer`/`shadowed_by` banner drivers. |
+| `update.schema.json` | `copilot update --json` | Reconciling sync; `pruned` op + `severity_trailer`/`shadowed_by` banner drivers. Additive `path` property (Component Sync Stream-E) carries this same shape for a single project's `copilot materialize --project <path> --json` result. |
 | `resolve.schema.json` | `copilot resolve --explain --json` | Per-item layered resolution; `live_hash_matches:false` ⇒ MODIFIED. |
 | `deprovision.schema.json` | `copilot deprovision <org> --json` | `secrets_touched` pinned to `const: 0`; dirty trees retained. |
-| `freshness.schema.json` | `copilot freshness --json` | Cheap single-SHA poll target. |
+| `freshness.schema.json` | `copilot freshness --json` | Cheap single-SHA poll target; optional additive `layers[]` breakdown (opt-in `--per-layer`). |
 | `publish.schema.json` | `copilot publish --json` | Author-side push; `auto-merged` / `needs-choice` / `parked-escalated` conflict states; fail-closed `tier` + `leak_scan`. |
+| `layers.schema.json` | `copilot layers [join] --json` **(proposed, D7.1)** | Entitlement discovery (`list_report`) + join action (`join_result`), discriminated structurally (`layers[]` vs. `result`). `entitled: null` fails closed (never treated as `true`). |
+| `projects.schema.json` | `copilot projects freshness --all --json` / `copilot materialize --fanout --json` | Component Sync (`docs/80-initiatives/02-component-sync/`) machine-wide fan-out: all-projects freshness sweep + fan-out roll-up. A single project's own `copilot materialize --project <path> --json` result reuses `update.schema.json`'s shape (see its additive `path` property) rather than a third shape. |
 
 ## Versioning
 

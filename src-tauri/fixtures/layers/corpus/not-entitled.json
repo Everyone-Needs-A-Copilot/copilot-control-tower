@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "host": "acme-imac.local",
+  "layers": [
+    {
+      "tier": "department",
+      "id": "legal",
+      "name": "Legal",
+      "repo": "acme/dept-legal-copilot",
+      "entitled": false,
+      "joined": false
+    }
+  ]
+}

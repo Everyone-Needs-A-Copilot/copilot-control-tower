@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-07-16T14:05:00Z",
+  "triggered_by": "manual",
+  "summary": {
+    "updated": 0,
+    "held": 5,
+    "up_to_date": 0,
+    "failed": 0,
+    "total": 5
+  },
+  "results": [
+    {
+      "path": "/Users/dev/projects/dirty-proj-01",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/dirty-proj-01",
+        "result": "held",
+        "lock_before": "0001389",
+        "lock_after": "0001389",
+        "changed": [],
+        "held_for_approval": [
+          {
+            "dimension": "claude",
+            "from": "5.8.1",
+            "to": "5.9.0",
+            "reason": "dirty-working-tree"
+          }
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/dirty-proj-02",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/dirty-proj-02",
+        "result": "held",
+        "lock_before": "000138a",
+        "lock_after": "000138a",
+        "changed": [],
+        "held_for_approval": [
+          {
+            "dimension": "claude",
+            "from": "5.8.1",
+            "to": "5.9.0",
+            "reason": "dirty-working-tree"
+          }
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/dirty-proj-03",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/dirty-proj-03",
+        "result": "held",
+        "lock_before": "000138b",
+        "lock_after": "000138b",
+        "changed": [],
+        "held_for_approval": [
+          {
+            "dimension": "claude",
+            "from": "5.8.1",
+            "to": "5.9.0",
+            "reason": "dirty-working-tree"
+          }
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/dirty-proj-04",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/dirty-proj-04",
+        "result": "held",
+        "lock_before": "000138c",
+        "lock_after": "000138c",
+        "changed": [],
+        "held_for_approval": [
+          {
+            "dimension": "claude",
+            "from": "5.8.1",
+            "to": "5.9.0",
+            "reason": "dirty-working-tree"
+          }
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/dirty-proj-05",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/dirty-proj-05",
+        "result": "held",
+        "lock_before": "000138d",
+        "lock_after": "000138d",
+        "changed": [],
+        "held_for_approval": [
+          {
+            "dimension": "claude",
+            "from": "5.8.1",
+            "to": "5.9.0",
+            "reason": "dirty-working-tree"
+          }
+        ],
+        "blocked": []
+      }
+    }
+  ]
+}
