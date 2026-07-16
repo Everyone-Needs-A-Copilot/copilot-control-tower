@@ -7,54 +7,57 @@
 // `native/control-tower-tray.swift`'s `StatusBarController.openWizard()`.
 // Reuses `scripts/publisher_setup.swift`'s roadmap-sidebar / StepShell grammar
 // verbatim (same anatomy: eyebrow, title, intro, content region, footer with
-// leading Back, trailing primary) so the two apps read as one family, per
-//   - docs/03-design/control-tower-interaction-spec.md §3 (the corrected
-//     single self-install path: no managed-silent lane, D4; Departments (S11)
-//     and the split Integrations register (S12 shared + S5 personal) are
-//     first-class steps; the device-flow sheet's "no countdown, no token"
-//     rule; named-phase materialize with no ETA; holding as first-class,
-//     never a dead end).
-//   - docs/03-design/control-tower-visual-system.md §6.3 (the wizard shell in
-//     the Publisher-Setup roadmap grammar, corrected to this build's step set).
-//   - src/types.ts (WizardState/WizardPhaseTag/WizardStepKind/
-//     WizardProductOption/WizardLayerSlot/SigninState — mirrored below,
-//     `product -> component` renamed per D2).
+// leading Back, trailing primary) so the two apps read as one family. Also
+// reused, unmodified, by `native/admin.swift`/`native/admin-support.swift`
+// (both are heavy `StepShell` consumers) — do not change `StepShell`'s public
+// shape here without checking those files first.
 //
-// MOCK-BACKED, same as the tray: `copilot layers --json` / the real
-// `wizard_*` IPC commands are not shelled out to (those verbs are not yet
-// frozen — native-experience-architecture.md §6 open decisions 3/4/7). Every
-// transition in `WizardModel` below is a scripted, timed mock so the flow can
-// be judged end to end; each mock seam is commented with the real verb it
-// will bind to once WS-A lands.
+// THE SPEC (verbatim copy source): `docs/09-prototypes/user-experience-walkthrough.html`,
+// Arc 2 (screens 6-15, anchors #w1-#w10). Every title/intro/button/state
+// string below is lifted from that file's Arc-2 sections; see each view's own
+// comment for which `#wN` anchor it renders. No em-dashes anywhere, per the
+// spec's own house style.
+//
+// REAL CLI SEAM (no longer mock-backed): every network-shaped step drives
+// `CliClient` (`native/cli-client.swift`) directly —
+//   - Connect GitHub (step 2): `authLoginInitiate()` / `authLoginPoll(deviceCode:)`
+//   - Detect (step 3): `authStatus()` + `doctor()`
+//   - Departments (step 5): `layers()` / `layersJoin(id:)`
+//   - Set up (step 7): `update()` (+ `updateFanout()` when a department was
+//     joined)
+//   - Verify (step 8): `doctor()`
+// Integrations (step 6) stays render-only: the per-provider personal-sign-in
+// verb is not yet frozen (see `cli-contract.md`), so its provider cards are
+// honest static state, GitHub excepted (it reuses step 2's own real result).
+// `WizardModel` never spawns `Process` itself — it only calls `CliClient`,
+// which owns that seam alone (invariant #1, "Parse, never compute").
 //
 // CRITICAL SwiftUI/AppKit ordering constraint (see `.claude/memory` and this
 // same discipline in `control-tower-tray.swift` / `publisher_setup.swift`): no
-// blocking `Process`/file I/O may run during a SwiftUI `@State`/`@StateObject`
-// `init()`. `WizardModel.init()` (the default memberwise init via property
-// defaults — there is no explicit `init()` body) is pure: every mock "async"
-// transition below is scheduled from a user action or a view `.onAppear`,
-// never from a property initializer, and uses `DispatchQueue.main.asyncAfter`
-// (never a blocking `Process.waitUntilExit()`).
+// blocking `Process`/file I/O, and no `CliClient` call, may run during a
+// SwiftUI `@State`/`@StateObject` `init()`. `WizardModel.init()` (the implicit
+// memberwise default — there is no explicit `init()` body) is pure; every
+// `CliClient` call below is scheduled from a user action or a view's
+// `.task`/`.onAppear`, always via an unstructured `Task { await ... }`, never
+// from a property initializer.
 
 import AppKit
 import SwiftUI
 
-// MARK: - Wizard roadmap (10 design-spec rows collapsed to this build's 8; see
-// WizardPhase.integrations's own doc for the one deliberate step-combination).
+// MARK: - Wizard roadmap (9 rows, verbatim sidebar labels from #w1's
+// `.sb-list`: Welcome / Connect GitHub / Detect / What you're getting /
+// Departments / Integrations / Set up / Verify / Done)
 
-/// The sidebar roadmap stages (`WizardPhaseTag` with the `question` phase
-/// expanded into its sub-stages, per interaction-spec §3.4). Holding never
-/// adds its own row — it renders inline over whichever stage raised it
-/// (`WizardModel.currentStage` maps a `.holding` phase back to its origin).
 enum WizardStage: Int, CaseIterable, Identifiable {
-    case welcome, detect, chooseComponents, departments, integrations, materialize, verify, done
+    case welcome, connectGitHub, detect, whatYoureGetting, departments, integrations, materialize, verify, done
     var id: Int { rawValue }
 
     var title: String {
         switch self {
         case .welcome: return "Welcome"
+        case .connectGitHub: return "Connect GitHub"
         case .detect: return "Detect"
-        case .chooseComponents: return "Choose components"
+        case .whatYoureGetting: return "What you're getting"
         case .departments: return "Departments"
         case .integrations: return "Integrations"
         case .materialize: return "Set up"
@@ -64,125 +67,100 @@ enum WizardStage: Int, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Step data (mirrors src/types.ts, product -> component per D2)
+// MARK: - Step 2, Connect GitHub: device-flow state
 
-/// One checkbox row on the Choose-components step. Mirrors `src/types.ts`
-/// `WizardProductOption` (`{id, label, pre_checked}`), renamed field-for-field
-/// per D2. `granted == false` renders visible but permanently disabled — the
-/// "honest slot, never hidden" rule (interaction-spec §3.5 step 3): a user may
-/// uncheck a granted option but can never check an ungranted one.
-struct ComponentOption: Identifiable {
-    let id: String
-    let label: String
-    let granted: Bool
-    var checked: Bool
-
-    static let mockCatalog: [ComponentOption] = [
-        ComponentOption(id: "claude", label: "Claude Copilot", granted: true, checked: true),
-        ComponentOption(id: "cli", label: "CLI Copilot", granted: true, checked: true),
-        ComponentOption(id: "knowledge", label: "Knowledge Copilot", granted: true, checked: true),
-        ComponentOption(id: "codex", label: "Codex Copilot", granted: false, checked: false),
-    ]
+enum DeviceFlowStatus: Equatable {
+    case idle, pending, authorized, expired, denied
 }
 
-/// A department's join state (S11). Mirrors the `copilot layers --json` shape
-/// interaction-spec §4.5 sketches (`entitled` x `joined` x an optional
-/// `reason`), collapsed to one enum for this mock. `.joining` is this app's
-/// own transient render state while `layers join <id>` is in flight.
+/// RENDER data only (invariant #6) — there is no field here a real
+/// token/credential could ever occupy. `deviceCode` is itself not a secret
+/// (it is the poll handle `AuthDeviceCode.deviceCode` names), never a token.
+struct DeviceFlowState {
+    var status: DeviceFlowStatus = .idle
+    var userCode: String?
+    var verificationUri: String?
+    var deviceCode: String?
+    var interval: Int = 5
+}
+
+// MARK: - Step 5, Departments: per-row join state
+
 enum DepartmentJoinState: Equatable {
     case joined
     case availableToJoin
     case joining
-    case notEntitled(reason: String)
+    case waitingForNetwork
+    /// Covers both "not entitled" (the walkthrough's IT row) and the quiet
+    /// revoked-race outcome ("isn't available to you anymore") — both are
+    /// the same honest, non-error "not available to you" family, just with
+    /// different copy for the caption.
+    case notAvailable(caption: String)
 }
 
-struct DepartmentRow: Identifiable {
+struct DepartmentRow: Identifiable, Equatable {
     let id: String
     let name: String
     var state: DepartmentJoinState
+}
 
-    /// Mirrors interaction-spec §4.5's own worked example verbatim (Sales /
-    /// Engineering / Marketing) so this mock reads as the real thing.
-    static let mockCatalog: [DepartmentRow] = [
-        DepartmentRow(id: "sales", name: "Sales", state: .availableToJoin),
-        DepartmentRow(id: "engineering", name: "Engineering", state: .joined),
-        DepartmentRow(id: "marketing", name: "Marketing", state: .notEntitled(reason: "Not available to you")),
+// MARK: - Step 6, Integrations: static provider cards
+
+/// One "Your accounts" card (#w6's `.provider-cards`). The per-provider
+/// personal-sign-in verb is not yet frozen (`cli-contract.md`), so every
+/// card besides GitHub is honest-but-inert: real copy, a real card, a
+/// "Connect" affordance that does not (yet) drive a CLI call.
+struct ProviderCard: Identifiable {
+    let id: String
+    let name: String
+
+    static let personalAccounts: [ProviderCard] = [
+        ProviderCard(id: "google", name: "Google"),
+        ProviderCard(id: "microsoft365", name: "Microsoft 365"),
+        ProviderCard(id: "slack", name: "Slack"),
+        ProviderCard(id: "salesforce", name: "Salesforce"),
     ]
 }
 
-/// One read-only row in the Shared integrations register (S12). Mirrors the
-/// `copilot integrations --json` shape the design doc names (not yet a frozen
-/// verb — native-experience-architecture.md §6 open decision 4).
+/// The "Shared with your team" register (#w6's first `.qi-block`) — read-only,
+/// entitlement-provisioned rows with nothing to sign into. `copilot
+/// integrations --json` is not a frozen verb (same open decision as the
+/// provider cards above), so this stays honest static content, verbatim from
+/// the spec, rather than a fabricated live read.
 struct SharedIntegrationRow: Identifiable {
     let id: String
     let name: String
-    let available: Bool
+    let statusCaption: String
 }
 
-/// The department -> shared-integration mock mapping this build uses to
-/// demonstrate D6 ("shared integrations simply appear connected because the
-/// joined department provisioned them") without a real integrations read.
-private let mockSharedIntegrationsByDepartment: [String: [String]] = [
-    "engineering": ["Workday"],
-    "sales": ["Salesforce"],
-]
+// MARK: - Step 7, Set up: named-phase materialize progress
 
-/// Mirrors `src/types.ts` `SigninStatus` exactly.
-enum SigninStatus: String {
-    case idle, pending, authorized, denied, expired, timeout
-}
-
-/// Mirrors `src/types.ts` `SigninState` field-for-field — RENDER data only
-/// (invariant #6). There is no field here a real token/credential could ever
-/// occupy; a real device-flow seam (S3, `cc auth <integration> --json`) would
-/// only ever populate `userCode`/`verificationURI`, never a secret.
-struct SigninState {
-    var status: SigninStatus = .idle
-    var userCode: String?
-    var verificationURI: String?
-}
-
-/// Named-phase materialize progress (`WizardState.phase_label` + a discrete
-/// phase count, never an ETA — interaction-spec §3.5 step 7).
+/// Named-phase progress (`"Part N of M"` only, never an ETA or a percent —
+/// #w7's own frozen rule, matching the SOUL hard rule cited in that
+/// section's annotation).
 struct MaterializePhaseState {
     var label: String = ""
     var index: Int = 0
     var total: Int = 0
 }
 
-/// The honest holding terminal (`WizardPhaseTag = "holding"`, §3.6) —
-/// first-class, never a fake error screen. `reason` is always plain language,
-/// with the owner named where knowable (IT / network / entitlement), the same
-/// discipline `WizardState.error` holds in the real contract.
+// MARK: - Holding (#w10) — first-class, never a dead end, never adds its own
+// sidebar row (`origin` is the stage it renders inline over).
+
 struct HoldingInfo {
-    let title: String
     let reason: String
     let origin: WizardStage
 }
 
-/// The wizard's own phase state machine — NOT a 1:1 mirror of `WizardPhaseTag`
-/// (that tag is coarser; this expands `question` into this build's concrete
-/// sub-steps, matching how the roadmap sidebar itself is specified in
-/// interaction-spec §3.4).
+// MARK: - The wizard's own phase state machine
+
 enum WizardPhase {
     case welcome
+    case connectGitHub
     case detecting
     case detected
-    case chooseComponents
+    case whatYoureGetting
     case departments
-    /// Combines S12 (Shared, read-only, entitlement-provisioned, no sign-in —
-    /// interaction-spec §2.6/§4.4) and S5 (Personal, device-flow sign-in —
-    /// §3.5.1) into ONE wizard step, per this build's explicit task scope.
-    /// **Deviation flagged:** interaction-spec §3.5 step 6 frames "Sign in" as
-    /// personal-only and states shared integrations are "never a wizard step"
-    /// on their own — they simply appear connected once a department is
-    /// joined (D6). This mock renders both registers on one screen so a user
-    /// sees, side by side, what's already there because he's entitled
-    /// (Shared) versus what he still has to do himself (Personal sign-in).
-    /// The two registers stay visually and structurally separate within the
-    /// step (D7.2's mandatory split is never violated) — they are only
-    /// co-located, not merged into one list. Flagged for design/TA to
-    /// reconcile against the strict spec reading in a later pass.
     case integrations
     case materializing
     case verifying
@@ -193,31 +171,40 @@ enum WizardPhase {
 
 // MARK: - Wizard model
 
-/// Pure state + mock transitions. `init()` is the implicit memberwise default
-/// (every `@Published` property below has a literal default) — nothing here
-/// runs I/O or a subprocess at initialization time, so it is safe to
+/// Pure state + real `CliClient` transitions. `init()` is the implicit
+/// memberwise default (every `@Published` property below has a literal
+/// default) — nothing here runs I/O at initialization time, so it is safe to
 /// instantiate from `WizardWindowController`'s own `init` (itself invoked
 /// lazily, off the SwiftUI attribute graph, from an AppKit action — see that
 /// class below).
 @MainActor
 final class WizardModel: ObservableObject {
     @Published var phase: WizardPhase = .welcome
-    @Published var detected: [String] = []
-    @Published var componentOptions: [ComponentOption] = ComponentOption.mockCatalog
-    @Published var departments: [DepartmentRow] = DepartmentRow.mockCatalog
-    @Published var signin = SigninState()
-    @Published var showSigninSheet = false
+    @Published var deviceFlow = DeviceFlowState()
+    @Published var authorizedLogin: String?
+    @Published var detectLines: [String] = []
+    @Published var includeCodex = false
+    @Published var departments: [DepartmentRow] = []
     @Published var materialize = MaterializePhaseState()
 
+    private var pollTask: Task<Void, Never>?
     private var materializeInFlight = false
+
+    /// The "Shared with your team" register (#w6) is static, verbatim,
+    /// honest placeholder content — see `SharedIntegrationRow`'s own doc.
+    let sharedIntegrations: [SharedIntegrationRow] = [
+        SharedIntegrationRow(id: "salesforce-lookup", name: "Salesforce lookup", statusCaption: "Ready"),
+        SharedIntegrationRow(id: "calendar-read", name: "Calendar read", statusCaption: "Not available right now"),
+    ]
 
     // MARK: Derived
 
     var currentStage: WizardStage {
         switch phase {
         case .welcome: return .welcome
+        case .connectGitHub: return .connectGitHub
         case .detecting, .detected: return .detect
-        case .chooseComponents: return .chooseComponents
+        case .whatYoureGetting: return .whatYoureGetting
         case .departments: return .departments
         case .integrations: return .integrations
         case .materializing: return .materialize
@@ -227,77 +214,253 @@ final class WizardModel: ObservableObject {
         }
     }
 
-    var checkedGrantedComponents: [ComponentOption] {
-        componentOptions.filter { $0.granted && $0.checked }
-    }
-
     var joinedDepartments: [DepartmentRow] {
         departments.filter { $0.state == .joined }
     }
 
-    var sharedIntegrations: [SharedIntegrationRow] {
-        joinedDepartments.flatMap { department -> [SharedIntegrationRow] in
-            (mockSharedIntegrationsByDepartment[department.id] ?? []).map { name in
-                SharedIntegrationRow(id: "\(department.id)-\(name)", name: name, available: true)
+    // MARK: Welcome -> Connect GitHub
+
+    func start() {}
+
+    func getStarted() {
+        phase = .connectGitHub
+        beginDeviceFlow()
+    }
+
+    // MARK: Connect GitHub (#w2) — device flow
+
+    /// `initiate -> render userCode + Open GitHub -> poll every interval
+    /// seconds via a cancellable Task -> authorized: stop, fetch
+    /// authStatus(), enable Continue`, per the task contract. No countdown is
+    /// ever rendered from this state (`DeviceFlowState` carries no visible
+    /// timer), even though `startPolling` below tracks `expiresIn`
+    /// internally to hard-stop the loop.
+    func beginDeviceFlow() {
+        pollTask?.cancel()
+        deviceFlow = DeviceFlowState(status: .pending)
+        Task {
+            switch await CliClient.shared.authLoginInitiate() {
+            case .success(let code):
+                self.deviceFlow.userCode = code.userCode
+                self.deviceFlow.verificationUri = code.verificationUri
+                self.deviceFlow.deviceCode = code.deviceCode
+                self.deviceFlow.interval = code.interval
+                self.startPolling(deviceCode: code.deviceCode, interval: code.interval, expiresIn: code.expiresIn)
+            case .failure(let error):
+                self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .connectGitHub)
             }
         }
     }
 
-    // MARK: Welcome -> Detect
-
-    /// Called once from `WizardRootView`'s `.task`, never from `init()` (the
-    /// AttributeGraph constraint this file's header documents). A no-op today
-    /// (Welcome has nothing to pre-fetch) — kept as the one seam every other
-    /// native file in this app uses for "first render, not init" work, so a
-    /// future real `get_wizard_state()` priming call has an obvious home.
-    func start() {}
-
-    func getStarted() {
-        beginDetect()
+    /// Hard stop at `expiresIn`, never a visible countdown. `pending` polls
+    /// silently repeat; `authorized`/`expired`/`denied` are terminal.
+    private func startPolling(deviceCode: String, interval: Int, expiresIn: Int) {
+        let deadline = Date().addingTimeInterval(TimeInterval(expiresIn))
+        let waitSeconds = UInt64(max(interval, 1))
+        pollTask = Task { [weak self] in
+            while true {
+                if Task.isCancelled { return }
+                guard let self else { return }
+                if Date() >= deadline {
+                    self.handleDeviceFlowExpired()
+                    return
+                }
+                try? await Task.sleep(nanoseconds: waitSeconds * 1_000_000_000)
+                if Task.isCancelled { return }
+                switch await CliClient.shared.authLoginPoll(deviceCode: deviceCode) {
+                case .success(let poll):
+                    switch poll.status {
+                    case .authorized:
+                        self.handleDeviceFlowAuthorized()
+                        return
+                    case .expired:
+                        self.handleDeviceFlowExpired()
+                        return
+                    case .denied:
+                        self.handleDeviceFlowDenied()
+                        return
+                    case .pending:
+                        continue
+                    }
+                case .failure(let error):
+                    self.handleDeviceFlowError(error)
+                    return
+                }
+            }
+        }
     }
 
-    /// Mock for `get_wizard_state()` after `wizard_advance` (detect phase).
-    func beginDetect() {
+    private func handleDeviceFlowAuthorized() {
+        deviceFlow.status = .authorized
+        Task {
+            if case .success(let status) = await CliClient.shared.authStatus() {
+                self.authorizedLogin = status.identity?.login
+            }
+        }
+    }
+
+    /// Terminal, non-error outcomes — routed to Holding with "Try again"
+    /// (restarts `beginDeviceFlow()`), per the task contract. These are not
+    /// one of the walkthrough's four named Holding reasons (network/org-IT/
+    /// entitlement/unreadable — those are #w3/#w8's cases); the walkthrough
+    /// does not give verbatim copy for a device-flow expiry/denial, so this
+    /// is honest, in-voice copy for a case the spec names behaviorally but
+    /// not verbatim.
+    private func handleDeviceFlowExpired() {
+        deviceFlow.status = .expired
+        enterHolding(reason: "That code expired before you finished. You can try again whenever you're ready.", origin: .connectGitHub)
+    }
+
+    private func handleDeviceFlowDenied() {
+        deviceFlow.status = .denied
+        enterHolding(reason: "That sign-in was declined. You can try again whenever you're ready.", origin: .connectGitHub)
+    }
+
+    private func handleDeviceFlowError(_ error: CliError) {
+        enterHolding(reason: genericHoldingReason(for: error), origin: .connectGitHub)
+    }
+
+    func openGitHubSignIn() {
+        guard let raw = deviceFlow.verificationUri, let url = URL(string: raw) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func copyDeviceCode() {
+        guard let code = deviceFlow.userCode else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(code, forType: .string)
+    }
+
+    func continueFromConnectGitHub() {
+        guard deviceFlow.status == .authorized else { return }
+        runDetect()
+    }
+
+    func backToWelcome() {
+        pollTask?.cancel()
+        phase = .welcome
+    }
+
+    // MARK: Detect (#w3) — verify-and-provision gate
+
+    /// `authStatus() + doctor()`; unreadable -> Holding with the verbatim
+    /// "I can't read what's already on this Mac right now, so I won't
+    /// guess." line, per the task contract.
+    func runDetect() {
         phase = .detecting
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-            guard let self, case .detecting = self.phase else { return }
-            self.detected = [
-                "Claude Copilot — foundation and org layers already current",
-                "CLI Copilot — foundation layer already current",
-                "No personal layer found yet on this Mac",
-            ]
+        Task {
+            async let authAsync = CliClient.shared.authStatus()
+            async let doctorAsync = CliClient.shared.doctor()
+            let authResult = await authAsync
+            let doctorResult = await doctorAsync
+
+            guard case .success(let status) = authResult else {
+                if case .failure(let error) = authResult {
+                    self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .detect)
+                }
+                return
+            }
+            guard case .success(let doctor) = doctorResult else {
+                if case .failure(let error) = doctorResult {
+                    self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .detect)
+                }
+                return
+            }
+
+            var lines: [String] = []
+            if let login = status.identity?.login {
+                self.authorizedLogin = login
+                lines.append("GitHub: signed in as \(login).")
+            } else {
+                lines.append("GitHub: signed in.")
+            }
+            // The gh install/approve mechanics are not built yet (the spec's
+            // own NB-13) — this line is honest static state, not a live
+            // detection, until that verb exists.
+            lines.append("GitHub command line: already here and current.")
+            // Reuse the SAME per-status sentence the tray/popover already
+            // computes (`RenderState.from`) rather than re-deriving currency
+            // wording here — one honest, already-CLI-derived verdict, never
+            // a second opinion.
+            lines.append(RenderState.from(doctor, joinable: nil).header.sentence)
+            if !doctor.checkers.contains(where: { $0.layer == Layer.personal.rawValue }) {
+                lines.append("No personal setup on this Mac yet. Control Tower will create your personal space on GitHub in a later step.")
+            }
+            self.detectLines = lines
             self.phase = .detected
         }
     }
 
     func continueFromDetect() {
-        phase = .chooseComponents
+        guard case .detected = phase else { return }
+        phase = .whatYoureGetting
     }
 
-    // MARK: Choose components
+    // MARK: What you're getting (#w4)
 
-    /// Mock for `wizard_choose_products` (never re-enables an ungranted id).
-    func toggleComponent(_ id: String) {
-        guard let index = componentOptions.firstIndex(where: { $0.id == id }) else { return }
-        guard componentOptions[index].granted else { return }
-        componentOptions[index].checked.toggle()
+    func toggleIncludeCodex() {
+        includeCodex.toggle()
     }
 
-    func continueFromChooseComponents() {
-        guard !checkedGrantedComponents.isEmpty else { return }
+    func continueFromWhatYoureGetting() {
         phase = .departments
+        loadDepartments()
     }
 
-    // MARK: Departments (S11)
+    // MARK: Departments (#w5)
 
-    /// Mock for `copilot layers join <id>`.
+    /// `layers() -> rows per entry`. A `layers()` call that itself fails is
+    /// folded into the same empty-list copy as a genuinely empty
+    /// entitlement list (never a Holding interruption or a raw error) —
+    /// Departments' own footer already offers "Skip for now", and joining
+    /// something you can see essentially always works per the spec; a
+    /// transient read failure here is not treated as gravely as Detect's or
+    /// Verify's CliErrors.
+    private func loadDepartments() {
+        Task {
+            switch await CliClient.shared.layers() {
+            case .success(let report):
+                self.departments = report.layers.map { entry in
+                    DepartmentRow(id: entry.id, name: entry.name, state: self.joinState(for: entry))
+                }
+            case .failure:
+                self.departments = []
+            }
+        }
+    }
+
+    private func joinState(for entry: LayerEntry) -> DepartmentJoinState {
+        if entry.joined { return .joined }
+        if entry.entitled == true { return .availableToJoin }
+        if entry.reason == .offline { return .waitingForNetwork }
+        return .notAvailable(caption: "Not available to you")
+    }
+
     func joinDepartment(_ id: String) {
         guard let index = departments.firstIndex(where: { $0.id == id }) else { return }
         guard departments[index].state == .availableToJoin else { return }
         departments[index].state = .joining
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
-            guard let self, let i = self.departments.firstIndex(where: { $0.id == id }) else { return }
-            self.departments[i].state = .joined
+        Task {
+            let result = await CliClient.shared.layersJoin(id: id)
+            guard let idx = self.departments.firstIndex(where: { $0.id == id }) else { return }
+            switch result {
+            case .success(let join):
+                switch join.result {
+                case .joined, .alreadyJoined:
+                    self.departments[idx].state = .joined
+                case .notEntitled:
+                    // The quiet revoked-race outcome, per the spec: "isn't
+                    // available to you anymore", never rendered as an error.
+                    self.departments[idx].state = .notAvailable(caption: "Isn't available to you anymore.")
+                case .offline:
+                    self.departments[idx].state = .waitingForNetwork
+                case .error:
+                    self.departments[idx].state = .notAvailable(caption: "Not available to you")
+                }
+            case .failure:
+                self.departments[idx].state = .notAvailable(caption: "Not available to you")
+            }
         }
     }
 
@@ -305,125 +468,122 @@ final class WizardModel: ObservableObject {
         phase = .integrations
     }
 
-    // MARK: Integrations (S12 shared + S5 personal device-flow)
-
-    /// Mock for `wizard_begin_signin`, then the `wizard_poll_signin` cadence
-    /// (`WizardState.signin_interval_secs`) — collapsed here to one scheduled
-    /// mock transition to `.authorized` since there is no real backend to
-    /// poll. No countdown/timer is ever rendered from this (§3.5.1).
-    func beginSignIn() {
-        signin = SigninState(status: .pending, userCode: "WKQX-7F2P", verificationURI: "https://example.com/device")
-        showSigninSheet = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            guard let self, self.signin.status == .pending else { return }
-            self.signin.status = .authorized
-        }
-    }
-
-    func openSigninPage() {
-        guard let raw = signin.verificationURI, let url = URL(string: raw) else { return }
-        NSWorkspace.shared.open(url)
-    }
-
-    /// DEV-ONLY simulation of the three non-happy-path terminal states a real
-    /// device-flow backend would otherwise produce (`SigninStatus`: denied /
-    /// expired / timeout). There is no real seam to trigger these from in this
-    /// mock build. Flagged for removal once S3's real `cc auth --json` seam
-    /// lands — same "dev-only, flagged" convention as the tray's own
-    /// "Preview state (dev only)" menu (`control-tower-tray.swift`).
-    func devSetSigninStatus(_ status: SigninStatus) {
-        signin.status = status
-    }
-
-    func retrySignIn() {
-        beginSignIn()
-    }
-
-    func dismissSigninSheet() {
-        showSigninSheet = false
-    }
+    // MARK: Integrations (#w6)
 
     func skipIntegrations() {
         beginMaterialize()
     }
 
     func continueFromIntegrations() {
-        guard signin.status == .authorized else { return }
         beginMaterialize()
     }
 
-    // MARK: Materialize (named phase, no ETA)
+    // MARK: Set up (#w7) — named-phase materialize, no ETA
 
-    /// Mock for the `materialize` phase: cycles `WizardState.phase_label`
-    /// through one named phase per chosen component plus one per joined
-    /// department, then a closing phase — an indeterminate `ProgressView`
-    /// throughout, a discrete "phase N of M" count only, never a time.
+    /// Calls `update()` for real; also calls `updateFanout()` (fire-and-
+    /// forget, non-gating) when at least one department was joined this
+    /// session, since a fan-out sweep is only warranted once there is more
+    /// than the default org layer to reconcile across. The rotating phase
+    /// labels below are the best available progress proxy: a single
+    /// `update()` call reports no finer-grained progress than "still
+    /// running", so pacing through the discrete named phases is "tied to
+    /// actual call progress" in the only sense a one-shot call allows —
+    /// phase advancement waits for the real call to finish, never fakes
+    /// completion ahead of it.
     func beginMaterialize() {
         guard !materializeInFlight else { return }
         materializeInFlight = true
         phase = .materializing
-        var labels = checkedGrantedComponents.map { "Setting up \($0.label)..." }
-        labels += joinedDepartments.map { "Bringing in your \($0.name) department..." }
-        labels.append("Finishing up...")
-        runMaterializePhases(labels, index: 0)
+
+        var labels = ["Setting up Claude Copilot…", "Creating your personal space on GitHub…"]
+        labels += joinedDepartments.map { "Bringing in your \($0.name) department…" }
+        labels.append("Finishing up…")
+        materialize = MaterializePhaseState(label: labels[0], index: 1, total: labels.count)
+
+        let shouldFanOut = !joinedDepartments.isEmpty
+
+        Task {
+            if shouldFanOut {
+                Task { _ = await CliClient.shared.updateFanout() }
+            }
+            async let updateResult = CliClient.shared.update()
+            await self.cyclePhases(labels)
+            let result = await updateResult
+            self.materializeInFlight = false
+            switch result {
+            case .success:
+                self.beginVerify()
+            case .failure(let error):
+                self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .materialize)
+            }
+        }
     }
 
-    private func runMaterializePhases(_ labels: [String], index: Int) {
-        guard index < labels.count else {
-            materializeInFlight = false
-            beginVerify()
-            return
-        }
-        materialize = MaterializePhaseState(label: labels[index], index: index + 1, total: labels.count)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            self?.runMaterializePhases(labels, index: index + 1)
+    private func cyclePhases(_ labels: [String]) async {
+        for (index, label) in labels.enumerated() {
+            self.materialize = MaterializePhaseState(label: label, index: index + 1, total: labels.count)
+            try? await Task.sleep(nanoseconds: 500_000_000)
         }
     }
 
-    // MARK: Verify
+    // MARK: Verify (#w8)
 
-    /// `done` is reachable only via this parsed-Healthy path (types.ts
-    /// discipline) — there is no code path in this model that sets
-    /// `phase = .done` from anywhere except `continueFromVerify()` below,
-    /// itself only reachable once `.verified` renders.
+    /// `doctor() -> healthy: "Everything checks out." + Continue; anything
+    /// non-confirmable -> Holding` — never fakes a pass, per the task
+    /// contract.
     func beginVerify() {
         phase = .verifying
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            guard let self, case .verifying = self.phase else { return }
-            self.phase = .verified
+        Task {
+            switch await CliClient.shared.doctor() {
+            case .success(let doctor):
+                if doctor.status == .healthy {
+                    self.phase = .verified
+                } else {
+                    self.enterHolding(reason: self.holdingReason(forNonHealthy: doctor), origin: .verify)
+                }
+            case .failure(let error):
+                self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .verify)
+            }
         }
+    }
+
+    private func holdingReason(forNonHealthy doctor: DoctorReport) -> String {
+        if doctor.offline {
+            return "I can't reach the network right now, so I've paused. I'll pick this back up as soon as you're online."
+        }
+        // Same reasoning as Detect's currency line above: reuse the
+        // already-computed, per-status sentence rather than a second
+        // derivation.
+        return RenderState.from(doctor, joinable: nil).header.sentence
     }
 
     func continueFromVerify() {
+        guard case .verified = phase else { return }
         phase = .done
     }
 
-    // MARK: Holding (§3.6)
+    // MARK: Done (#w9)
 
-    /// DEV-ONLY trigger. A real holding is always CLI-driven (a genuine
-    /// unreadable/network/entitlement condition), never something a user
-    /// presses — this exists only so the honest-terminal render can be judged
-    /// without a real failing backend. Same dev-only convention as
-    /// `devSetSigninStatus` above.
-    func simulateHolding(from stage: WizardStage) {
-        let reason: String
-        switch stage {
-        case .detect:
-            reason = "I can't read what's already set up on this Mac right now, so I won't guess. Waiting for network."
-        case .materialize:
-            reason = "Waiting on setup from your organization before this can finish."
-        case .verify:
-            reason = "This department is no longer available to you, so setup can't reach Healthy yet."
-        default:
-            reason = "Something is holding this step back."
-        }
-        phase = .holding(HoldingInfo(title: "Setup is holding.", reason: reason, origin: stage))
+    /// "Let's go" — sets the completed-first-run flag and closes the window
+    /// (the actual `window?.close()` is `onClose()`, owned by
+    /// `WizardWindowController`).
+    func finish(onClose: () -> Void) {
+        // See `LocalDefaults`'s own doc comment (`native/models.swift`) on
+        // why this isn't `UserDefaults.standard`.
+        LocalDefaults.set(true, forKey: "ct.hasCompletedFirstRun")
+        onClose()
     }
+
+    // MARK: Holding (#w10)
 
     func tryAgainAfterHolding() {
         guard case .holding(let info) = phase else { return }
         switch info.origin {
-        case .detect: beginDetect()
+        case .connectGitHub: beginDeviceFlow()
+        case .detect: runDetect()
+        case .departments:
+            phase = .departments
+            loadDepartments()
         case .materialize:
             materializeInFlight = false
             beginMaterialize()
@@ -432,13 +592,35 @@ final class WizardModel: ObservableObject {
         }
     }
 
+    private func enterHolding(reason: String, origin: WizardStage) {
+        pollTask?.cancel()
+        phase = .holding(HoldingInfo(reason: reason, origin: origin))
+    }
+
+    /// The shared CliError -> Holding-reason mapping used by every step:
+    /// most decode/launch failures ("I can't read...") are genuinely the
+    /// spec's verbatim "unreadable" reason (#w3/#w10's own line); `exit2`
+    /// (the CLI's own "no trustworthy body" env/credential signal) reads
+    /// closer to the spec's "org/IT" reason, since that failure mode is
+    /// typically something the person's organization needs to fix, not the
+    /// person themselves.
+    private func genericHoldingReason(for error: CliError) -> String {
+        switch error {
+        case .notFound, .launchFailed, .parse, .schemaOutOfRange, .missingSecurityField:
+            return "I can't read what's already on this Mac right now, so I won't guess."
+        case .exit2:
+            return "Your organization still has a bit of setup to finish before this can complete. Nothing you need to do."
+        }
+    }
+
     // MARK: Roadmap review (completed rows are tappable, read-only)
 
     func reviewStage(_ stage: WizardStage) {
         switch stage {
         case .welcome: phase = .welcome
+        case .connectGitHub: phase = .connectGitHub
         case .detect: phase = .detected
-        case .chooseComponents: phase = .chooseComponents
+        case .whatYoureGetting: phase = .whatYoureGetting
         case .departments: phase = .departments
         case .integrations: phase = .integrations
         case .materialize: phase = .materializing
@@ -446,23 +628,15 @@ final class WizardModel: ObservableObject {
         case .done: phase = .done
         }
     }
-
-    // MARK: Dev-only restart (re-run the flow without relaunching the app)
-
-    func restart() {
-        phase = .welcome
-        detected = []
-        componentOptions = ComponentOption.mockCatalog
-        departments = DepartmentRow.mockCatalog
-        signin = SigninState()
-        showSigninSheet = false
-        materialize = MaterializePhaseState()
-        materializeInFlight = false
-    }
 }
 
 // MARK: - Shared step shell (reused grammar from scripts/publisher_setup.swift's
 // StepShell: eyebrow -> title -> intro -> content -> pinned footer action bar)
+//
+// UNCHANGED PUBLIC SHAPE: `native/admin.swift`/`native/admin-support.swift`
+// are heavy consumers of this exact `StepShell(eyebrow:title:intro:content:
+// leadingActions:primaryAction:)` init and `.headerTint(_:)` — do not alter
+// its signature.
 
 struct StepShell<Content: View, Leading: View, Trailing: View>: View {
     let eyebrow: String
@@ -543,10 +717,10 @@ struct StepShell<Content: View, Leading: View, Trailing: View>: View {
     }
 }
 
-/// The persistent roadmap sidebar — always shows all 8 stages with done /
-/// current / upcoming state, same grammar as Publisher Setup's
-/// `RoadmapSidebar` (`.sidebar` list style picks up the system sidebar
-/// material/vibrancy automatically).
+/// The persistent roadmap sidebar — always shows all 9 stages with done /
+/// current / upcoming state (#w1-#w9's `.sb-list`). Nothing downstream is
+/// ever locked from proceeding via the footer's own Continue/Skip; only the
+/// sidebar's own tap-to-review affordance is restricted to completed rows.
 struct WizardRoadmapSidebar: View {
     @ObservedObject var model: WizardModel
 
@@ -651,17 +825,15 @@ struct WizardRootView: View {
         .frame(minWidth: 820, idealWidth: 960, minHeight: 620, idealHeight: 720)
         .background(Color(nsColor: .windowBackgroundColor))
         .task { model.start() }
-        .sheet(isPresented: $model.showSigninSheet) {
-            SigninSheetView(model: model)
-        }
     }
 
     @ViewBuilder
     private var content: some View {
         switch model.phase {
         case .welcome: welcomeView
+        case .connectGitHub: connectGitHubView
         case .detecting, .detected: detectView
-        case .chooseComponents: chooseComponentsView
+        case .whatYoureGetting: whatYoureGettingView
         case .departments: departmentsView
         case .integrations: integrationsView
         case .materializing: materializeView
@@ -674,9 +846,10 @@ struct WizardRootView: View {
     private var phaseIdentity: String {
         switch model.phase {
         case .welcome: return "welcome"
+        case .connectGitHub: return "connectGitHub-\(model.deviceFlow.status)"
         case .detecting: return "detecting"
         case .detected: return "detected"
-        case .chooseComponents: return "chooseComponents"
+        case .whatYoureGetting: return "whatYoureGetting"
         case .departments: return "departments"
         case .integrations: return "integrations"
         case .materializing: return "materializing-\(model.materialize.index)"
@@ -687,95 +860,156 @@ struct WizardRootView: View {
         }
     }
 
-    // MARK: Welcome
+    // MARK: 1. Welcome (#w1)
 
     // Owner directive: the aviators glyph is menu-bar-tray-ONLY (see
     // `AviatorGlyph`'s doc comment in `native/models.swift`) — this welcome
     // hero must render the full-color Control Tower illustration instead
-    // (`ControlTowerGlyph`, `docs/10-reference/control-tower.svg`), never tinted,
-    // at a size where its detail actually reads (76pt — the illustration is
-    // square, unlike the wide aviators glyph it replaces here).
+    // (`ControlTowerGlyph`, `docs/10-reference/control-tower.svg`), never tinted.
     private var welcomeHeroImage: some View {
-        Image(nsImage: ControlTowerGlyph.load(targetHeight: 76))
+        Image(nsImage: ControlTowerGlyph.load(targetHeight: 40))
             .resizable()
             .interpolation(.high)
             .aspectRatio(contentMode: .fit)
-            .frame(width: 76, height: 76)
+            .frame(width: 40, height: 40)
             .accessibilityLabel("Copilot Control Tower")
     }
 
     private var welcomeView: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 28) {
-                    welcomeHeroImage
+        stepShell(
+            eyebrow: "Step 1 of 9",
+            title: "Welcome to your copilots.",
+            intro: "Your company just gave you a set of AI copilots to help with your everyday work. This app, Copilot Control Tower, is how they land on your Mac and how they stay current."
+        ) {
+            VStack(alignment: .leading, spacing: 20) {
+                welcomeHeroImage
 
-                    VStack(spacing: 12) {
-                        Text("Welcome to Copilot Control Tower.")
-                            .font(.largeTitle.weight(.semibold))
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(Color(nsColor: .labelColor))
-                            .fixedSize(horizontal: false, vertical: true)
+                Text("You don't need to be technical for any of this. Control Tower sets everything up for you, then keeps it up to date quietly in the background. It lives as a small icon in your menu bar. When the icon is quiet, everything's ready.")
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Control Tower keeps your Claude, CLI, Codex, and Knowledge Copilots current, quietly, in the background. This takes a minute, and you won't need a terminal.")
-                            .font(.body)
-                            .lineSpacing(2)
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            .fixedSize(horizontal: false, vertical: true)
+                sectionCard("Here's what you're getting:") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        confirmRow(name: "Knowledge Copilot", desc: "Your company's knowledge, ready to ask. Get a straight answer without hunting through documents.")
+                        Divider()
+                        confirmRow(name: "CLI Copilot", desc: "The quiet engine that keeps your copilots running behind the scenes.")
+                        Divider()
+                        confirmRow(name: "Claude Copilot", desc: "Your AI copilot for everyday work, from writing and checking numbers to building things.")
                     }
                 }
-                .frame(maxWidth: 560)
-                .padding(.horizontal, 32)
-                .padding(.top, 56)
-                .padding(.bottom, 24)
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
 
-            Divider()
-
-            HStack(spacing: 12) {
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    Text("Quit")
+                sectionCard("Before you start") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        bulletRow("A GitHub account. It's how your company shares your copilots with you, and where your own space lives. Don't have one yet? Create one first, it's free.")
+                        bulletRow("The GitHub command line. A small tool Control Tower uses to bring in what your team shares. If it's not on this Mac, Control Tower sets it up. You'll approve it once, in your browser.")
+                        Text("That's it. Have your GitHub sign-in handy and everything else is handled for you.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                    }
                 }
-                .buttonStyle(.bordered)
 
-                Spacer()
-
-                Button {
-                    model.getStarted()
-                } label: {
-                    Text("Get Started")
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+                videoLinkRow("Watch a short welcome video")
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 16)
+        } leadingActions: {
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Text("Quit")
+            }
+            .buttonStyle(.bordered)
+        } primaryAction: {
+            Button {
+                model.getStarted()
+            } label: {
+                Text("Get Started")
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    // MARK: Detect
+    // MARK: 2. Connect GitHub (#w2)
+
+    private var connectGitHubView: some View {
+        stepShell(
+            eyebrow: "Step 2 of 9",
+            title: "Connect GitHub",
+            intro: "GitHub comes first. It's how Control Tower knows what your team shares with you, and where your own space lives. Signing in happens in your browser, on GitHub's own page. Control Tower never asks for your password."
+        ) {
+            switch model.deviceFlow.status {
+            case .idle, .pending:
+                sectionCard("Your code") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text(model.deviceFlow.userCode ?? "")
+                                .font(.title3.monospaced())
+                                .textSelection(.enabled)
+                                .foregroundColor(Color(nsColor: .labelColor))
+                            Spacer()
+                            Button {
+                                model.copyDeviceCode()
+                            } label: {
+                                Text("Copy code")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(model.deviceFlow.userCode == nil)
+                        }
+                        Button {
+                            model.openGitHubSignIn()
+                        } label: {
+                            Text("Open GitHub")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.deviceFlow.verificationUri == nil)
+
+                        Text("Waiting for you to finish in your browser…")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                    }
+                }
+            case .authorized:
+                sectionCard("") {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(Color(nsColor: .systemGreen))
+                        Text("Signed in as \(model.authorizedLogin ?? "you").")
+                            .font(.body)
+                            .foregroundColor(Color(nsColor: .labelColor))
+                    }
+                }
+            case .expired, .denied:
+                EmptyView()
+            }
+        } leadingActions: {
+            Button { model.backToWelcome() } label: { Text("Back") }
+                .buttonStyle(.bordered)
+        } primaryAction: {
+            Button { model.continueFromConnectGitHub() } label: { Text("Continue") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(model.deviceFlow.status != .authorized)
+        }
+    }
+
+    // MARK: 3. Detect (#w3)
 
     private var detectView: some View {
         stepShell(
-            eyebrow: "Step 2 of 8",
+            eyebrow: "Step 3 of 9",
             title: "Checking what's already here",
-            intro: "Control Tower looks at what's already set up on this Mac before asking you anything."
+            intro: "Control Tower looks at what's already on this Mac before it asks you anything, and puts the basics in place."
         ) {
             if case .detecting = model.phase {
-                verifyingCard("Checking what's already here...")
+                verifyingCard("Checking what's already here…")
             } else {
-                sectionCard("What was found") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(model.detected, id: \.self) { line in
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: "checkmark.circle")
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                sectionCard("What's already here") {
+                    VStack(alignment: .leading, spacing: 11) {
+                        ForEach(model.detectLines, id: \.self) { line in
+                            HStack(alignment: .top, spacing: 9) {
+                                Text("•")
+                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
                                 Text(line)
                                     .font(.callout)
                                     .foregroundColor(Color(nsColor: .labelColor))
@@ -786,9 +1020,8 @@ struct WizardRootView: View {
                 }
             }
         } leadingActions: {
-            Button { model.phase = .welcome } label: { Text("Back") }
+            Button { model.phase = .connectGitHub } label: { Text("Back") }
                 .buttonStyle(.bordered)
-            devButton("Simulate holding (dev)") { model.simulateHolding(from: .detect) }
         } primaryAction: {
             Button { model.continueFromDetect() } label: { Text("Continue") }
                 .buttonStyle(.borderedProminent)
@@ -802,73 +1035,77 @@ struct WizardRootView: View {
         return false
     }
 
-    // MARK: Choose components
+    // MARK: 4. What you're getting (#w4)
 
-    private var chooseComponentsView: some View {
+    private var whatYoureGettingView: some View {
         stepShell(
-            eyebrow: "Step 3 of 8",
-            title: "Which copilots do you want set up?",
-            intro: "These are your CSE components, not products. Something you're not entitled to shows disabled, never hidden."
+            eyebrow: "Step 4 of 9",
+            title: "Here's what you're getting",
+            intro: "Everyone on your team gets all of this. There's nothing to pick. Control Tower sets it up and keeps it current for you."
         ) {
-            sectionCard("Components") {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(model.componentOptions) { option in
-                        Toggle(isOn: Binding(
-                            get: { option.checked },
-                            set: { _ in model.toggleComponent(option.id) }
-                        )) {
-                            Text(option.label)
-                                .font(.body)
-                                .foregroundColor(Color(nsColor: option.granted ? .labelColor : .tertiaryLabelColor))
-                        }
-                        .toggleStyle(.checkbox)
-                        .disabled(!option.granted)
-                        .help(option.granted ? "" : "Your ecosystem doesn't grant this component.")
-                        .padding(.vertical, 4)
-                        .accessibilityLabel("\(option.label), \(componentAccessibilityWord(option))")
+            VStack(alignment: .leading, spacing: 20) {
+                sectionCard("Your copilots") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        confirmRow(name: "Knowledge Copilot", desc: "Your company's knowledge, ready to ask.")
+                        Divider()
+                        confirmRow(name: "CLI Copilot", desc: "The quiet engine that keeps everything running.")
+                        Divider()
+                        confirmRow(name: "Claude Copilot, your company's pick", desc: "Your AI copilot for everyday work.")
                     }
                 }
-            }
 
-            if model.checkedGrantedComponents.isEmpty {
-                calloutBlock("Choose at least one component to continue.", symbol: "exclamationmark.circle")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Use the other one too?")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                    Toggle(isOn: Binding(
+                        get: { model.includeCodex },
+                        set: { _ in model.toggleIncludeCodex() }
+                    )) {
+                        Text("I also use Codex. Include Codex Copilot too.")
+                            .font(.body)
+                            .foregroundColor(Color(nsColor: .labelColor))
+                    }
+                    .toggleStyle(.checkbox)
+                }
             }
         } leadingActions: {
             Button { model.phase = .detected } label: { Text("Back") }
                 .buttonStyle(.bordered)
         } primaryAction: {
-            Button { model.continueFromChooseComponents() } label: { Text("Continue") }
+            Button { model.continueFromWhatYoureGetting() } label: { Text("Continue") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(model.checkedGrantedComponents.isEmpty)
         }
     }
 
-    private func componentAccessibilityWord(_ option: ComponentOption) -> String {
-        guard option.granted else { return "not entitled" }
-        return option.checked ? "checked" : "unchecked"
-    }
-
-    // MARK: Departments (S11)
+    // MARK: 5. Departments (#w5)
 
     private var departmentsView: some View {
         stepShell(
-            eyebrow: "Step 4 of 8",
+            eyebrow: "Step 5 of 9",
             title: "Departments you can join",
-            intro: "Joining brings in a department's shared layer. This list stays available later in Settings and the menu-bar popover — you can always join more, or come back to this one."
+            intro: "Joining a department brings in everything your team shares there. You can join now, or come back to this later from Settings or the menu bar."
         ) {
-            sectionCard("Departments you can join") {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(model.departments.enumerated()), id: \.element.id) { index, department in
-                        departmentRow(department)
-                        if index < model.departments.count - 1 {
-                            Divider()
+            if model.departments.isEmpty {
+                Text("No departments are available to you yet. When someone adds you to one, it'll show up here.")
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                sectionCard("Departments you can join") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(model.departments.enumerated()), id: \.element.id) { index, department in
+                            departmentRow(department)
+                            if index < model.departments.count - 1 {
+                                Divider()
+                            }
                         }
                     }
                 }
             }
         } leadingActions: {
-            Button { model.phase = .chooseComponents } label: { Text("Back") }
+            Button { model.phase = .whatYoureGetting } label: { Text("Back") }
                 .buttonStyle(.bordered)
             Button { model.continueFromDepartments() } label: { Text("Skip for now") }
                 .buttonStyle(.plain)
@@ -905,8 +1142,10 @@ struct WizardRootView: View {
             Text("Available to join").font(.caption).foregroundColor(Color(nsColor: .secondaryLabelColor))
         case .joining:
             Text("Joining…").font(.caption).foregroundColor(Color(nsColor: .secondaryLabelColor))
-        case .notEntitled(let reason):
-            Text(reason).font(.caption).foregroundColor(Color(nsColor: .tertiaryLabelColor))
+        case .waitingForNetwork:
+            Text("Waiting for the network.").font(.caption).foregroundColor(Color(nsColor: .tertiaryLabelColor))
+        case .notAvailable(let caption):
+            Text(caption).font(.caption).foregroundColor(Color(nsColor: .tertiaryLabelColor))
         }
     }
 
@@ -915,7 +1154,8 @@ struct WizardRootView: View {
         case .joined: return "joined"
         case .availableToJoin: return "available to join"
         case .joining: return "joining"
-        case .notEntitled: return "not available to you"
+        case .waitingForNetwork: return "waiting for the network"
+        case .notAvailable(let caption): return caption
         }
     }
 
@@ -927,43 +1167,69 @@ struct WizardRootView: View {
                 .buttonStyle(.bordered)
         case .joining:
             ProgressView().controlSize(.small)
-        case .joined, .notEntitled:
+        case .joined, .waitingForNetwork, .notAvailable:
             EmptyView()
         }
     }
 
-    // MARK: Integrations (S12 shared + S5 personal)
+    // MARK: 6. Integrations (#w6)
 
     private var integrationsView: some View {
         stepShell(
-            eyebrow: "Step 5 of 8",
+            eyebrow: "Step 6 of 9",
             title: "Integrations",
-            intro: "Shared integrations are already there because you're entitled — nothing to sign into. Your own accounts need your own sign-in."
+            intro: "Some integrations are already set up for you because you're on the team. Others use your own accounts. Signing in always happens in your browser, on the provider's own page. Control Tower never asks for a password."
         ) {
-            if !model.sharedIntegrations.isEmpty {
-                sectionCard("Shared — available because you're entitled") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(model.sharedIntegrations) { row in
+            VStack(alignment: .leading, spacing: 20) {
+                sectionCard("Shared with your team · ready for you. Nothing to sign into.") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(model.sharedIntegrations.enumerated()), id: \.element.id) { index, row in
                             HStack {
-                                Image(systemName: "building.2")
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
                                 Text(row.name)
-                                    .font(.body)
+                                    .font(.callout)
                                     .foregroundColor(Color(nsColor: .labelColor))
                                 Spacer()
-                                Text(row.available ? "Available" : "Not available right now")
+                                Text(row.statusCaption)
                                     .font(.caption)
-                                    .foregroundColor(Color(nsColor: row.available ? .secondaryLabelColor : .tertiaryLabelColor))
+                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
                             }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("\(row.name), \(row.available ? "available" : "not available right now")")
+                            .padding(.vertical, 8)
+                            if index < model.sharedIntegrations.count - 1 {
+                                Divider()
+                            }
                         }
                     }
                 }
-            }
 
-            sectionCard("Your accounts") {
-                personalSigninRow
+                sectionCard("Your accounts") {
+                    VStack(alignment: .leading, spacing: 9) {
+                        providerCardRow(name: "GitHub") {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("Signed in as \(model.authorizedLogin ?? "you").")
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                            }
+                        } note: {
+                            Text("Connected at the start.")
+                        }
+                        ForEach(ProviderCard.personalAccounts) { provider in
+                            providerCardRow(name: provider.name) {
+                                Button {
+                                    // Inert by decision: the personal-sign-in
+                                    // verb per provider is not yet frozen
+                                    // (cli-contract.md), so this card is
+                                    // honest state, not a working action.
+                                } label: {
+                                    Text("Connect")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .disabled(true)
+                                .help("Not available yet.")
+                            } note: { EmptyView() }
+                        }
+                    }
+                }
             }
         } leadingActions: {
             Button { model.phase = .departments } label: { Text("Back") }
@@ -975,118 +1241,82 @@ struct WizardRootView: View {
             Button { model.continueFromIntegrations() } label: { Text("Continue") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(model.signin.status != .authorized)
         }
     }
 
     @ViewBuilder
-    private var personalSigninRow: some View {
-        switch model.signin.status {
-        case .idle:
+    private func providerCardRow<Trailing: View, Note: View>(
+        name: String,
+        @ViewBuilder trailing: () -> Trailing,
+        @ViewBuilder note: () -> Note
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Image(systemName: "person.crop.circle")
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Text("Sign in to keep your personal layer in sync.")
-                    .font(.body)
+                Text(name)
+                    .font(.callout.weight(.semibold))
                     .foregroundColor(Color(nsColor: .labelColor))
                 Spacer()
-                Button { model.beginSignIn() } label: { Text("Sign in") }
-                    .buttonStyle(.borderedProminent)
+                trailing()
             }
-        case .pending:
-            HStack {
-                ProgressView().controlSize(.small)
-                Text("Waiting for you to finish in your browser…")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Spacer()
-                Button { model.showSigninSheet = true } label: { Text("Show code") }
-                    .buttonStyle(.bordered)
-            }
-        case .authorized:
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(Color(nsColor: .systemGreen))
-                Text("Signed in.")
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Spacer()
-            }
-        case .denied, .expired, .timeout:
-            HStack {
-                Image(systemName: "exclamationmark.circle")
-                    .foregroundColor(Color(nsColor: .systemOrange))
-                Text(signinFailureCaption)
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Spacer()
-                Button { model.retrySignIn() } label: { Text("Try again") }
-                    .buttonStyle(.bordered)
-            }
+            note()
+                .font(.caption2)
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
         }
+        .padding(10)
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    private var signinFailureCaption: String {
-        switch model.signin.status {
-        case .denied: return "That sign-in was declined."
-        case .expired: return "That code expired."
-        case .timeout: return "That took too long."
-        default: return ""
-        }
-    }
-
-    // MARK: Materialize (named phase, no ETA)
+    // MARK: 7. Set up (#w7) — named phase, no ETA
 
     private var materializeView: some View {
         stepShell(
-            eyebrow: "Step 6 of 8",
+            eyebrow: "Step 7 of 9",
             title: model.materialize.label.isEmpty ? "Setting up" : model.materialize.label,
-            intro: "This may take a few minutes. Keep this window open, or continue in the menu bar and check back."
+            intro: "This part runs on its own. Keep this window open, or close it and let Control Tower finish in the menu bar."
         ) {
-            HStack(spacing: 12) {
+            VStack(spacing: 12) {
                 ProgressView()
                 if model.materialize.total > 0 {
-                    Text("Phase \(model.materialize.index) of \(model.materialize.total) named phases")
+                    Text("Part \(model.materialize.index) of \(model.materialize.total)")
                         .font(.callout)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
             }
+            .frame(maxWidth: .infinity)
+            .padding(24)
         } leadingActions: {
-            devButton("Simulate holding (dev)") { model.simulateHolding(from: .materialize) }
+            EmptyView()
         } primaryAction: {
             Button {} label: {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Setting up…")
-                }
+                Text("Setting up…")
             }
             .buttonStyle(.borderedProminent)
             .disabled(true)
         }
     }
 
-    // MARK: Verify
+    // MARK: 8. Verify (#w8)
 
     private var verifyView: some View {
         stepShell(
-            eyebrow: "Step 7 of 8",
-            title: "Verify",
-            intro: "The only success here is everything actually being current."
+            eyebrow: "Step 8 of 9",
+            title: "Making sure everything's current",
+            intro: "The only success here is everything actually being up to date."
         ) {
             if case .verifying = model.phase {
                 verifyingCard("Checking your setup…")
             } else {
-                verifyResultCard(
-                    symbol: "checkmark.seal.fill",
-                    tint: Color(nsColor: .systemGreen),
-                    title: "Everything checks out.",
-                    accessibilityLabel: "Verified: everything checks out"
-                ) {
-                    EmptyView()
+                VStack {
+                    Text("Everything checks out.")
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .labelColor))
                 }
+                .frame(maxWidth: .infinity)
+                .padding(22)
             }
         } leadingActions: {
-            devButton("Simulate holding (dev)") { model.simulateHolding(from: .verify) }
+            EmptyView()
         } primaryAction: {
             Button { model.continueFromVerify() } label: { Text("Continue") }
                 .buttonStyle(.borderedProminent)
@@ -1100,39 +1330,43 @@ struct WizardRootView: View {
         return false
     }
 
-    // MARK: Done
+    // MARK: 9. Done (#w9)
 
     private var doneView: some View {
         stepShell(
-            eyebrow: "Step 8 of 8",
-            title: "You're set up.",
-            intro: "Control Tower now lives quietly in your menu bar. When it has nothing to say, it says nothing — that quiet glyph is you, being current."
+            eyebrow: "Step 9 of 9",
+            title: "That's it. You're ready.",
+            intro: "Control Tower now lives quietly in your menu bar. When the icon is quiet, everything's current. And when you're added to a new department later, it'll show up there, ready when you are."
         ) {
-            calloutBlock(
-                "New departments you become entitled to later will quietly appear as \"Join available\" in the menu bar, whenever you're ready for them.",
-                symbol: "building.2"
-            )
+            VStack(alignment: .leading, spacing: 14) {
+                Text("You have the tools. Now go change the world!")
+                    .font(.title3.weight(.bold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                videoLinkRow("See what you can build with this")
+            }
         } leadingActions: {
-            devButton("Restart (dev)") { model.restart() }
+            EmptyView()
         } primaryAction: {
-            Button { onClose() } label: { Text("Done") }
+            Button { model.finish(onClose: onClose) } label: { Text("Let's go") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
         }
     }
 
-    // MARK: Holding (§3.6, first-class, never a dead end)
+    // MARK: Holding (#w10, first-class, never a dead end)
 
     private func holdingView(_ info: HoldingInfo) -> some View {
         stepShell(
-            eyebrow: "Setup is holding",
-            title: info.title,
+            eyebrow: "SETUP IS HOLDING",
+            title: "I've paused setup for now.",
             intro: info.reason
         ) {
             EmptyView()
         } leadingActions: {
             Button { onClose() } label: { Text("Continue in the menu bar") }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
         } primaryAction: {
             Button { model.tryAgainAfterHolding() } label: { Text("Try again") }
                 .buttonStyle(.borderedProminent)
@@ -1158,8 +1392,9 @@ struct WizardRootView: View {
         VStack(alignment: .leading, spacing: 12) {
             if !title.isEmpty {
                 Text(title)
-                    .font(.title3.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .labelColor))
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .textCase(.uppercase)
             }
             content()
         }
@@ -1169,21 +1404,30 @@ struct WizardRootView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func calloutBlock(_ text: String, symbol: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: symbol)
-                .symbolRenderingMode(.hierarchical)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .accessibilityHidden(true)
-            Text(text)
-                .font(.callout)
+    /// The Welcome/What-you're-getting read-only rows (`.confirm-row`).
+    private func confirmRow(name: String, desc: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(name)
+                .font(.callout.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+            Text(desc)
+                .font(.caption)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(12)
+        .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func bulletRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            Text(text)
+                .font(.callout)
+                .foregroundColor(Color(nsColor: .labelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func verifyingCard(_ status: String) -> some View {
@@ -1199,212 +1443,28 @@ struct WizardRootView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func verifyResultCard<Content: View>(
-        symbol: String,
-        tint: Color,
-        title: String,
-        accessibilityLabel: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, tint)
-                    .font(.system(size: 22))
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(Color(nsColor: .labelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            content()
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    /// A small, visually subdued text button for the dev-only affordances
-    /// scattered through this file (`simulateHolding`, `restart`) — same
-    /// "flagged for removal, not shipped chrome" convention the tray's own
-    /// "Preview state (dev only)" menu documents.
-    private func devButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-        }
-        .buttonStyle(.plain)
-        .font(.caption)
-        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-    }
-}
-
-// MARK: - Personal sign-in device-flow sheet (S5, §3.5.1)
-
-struct SigninSheetView: View {
-    @ObservedObject var model: WizardModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Sign in to keep everything in sync.")
-                .font(.title2.weight(.semibold))
-                .foregroundColor(Color(nsColor: .labelColor))
-
-            switch model.signin.status {
-            case .idle:
-                ProgressView()
-            case .pending:
-                pendingContent
-            case .authorized:
-                authorizedContent
-            case .denied, .expired, .timeout:
-                failedContent
-            }
-
-            Divider()
-
-            // DEV-ONLY: simulates the three terminal states a real device-flow
-            // backend would otherwise produce — see
-            // `WizardModel.devSetSigninStatus`'s own doc.
-            HStack(spacing: 8) {
-                Text("Dev preview:")
-                    .font(.caption2)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                devTextButton("Denied") { model.devSetSigninStatus(.denied) }
-                devTextButton("Expired") { model.devSetSigninStatus(.expired) }
-                devTextButton("Timeout") { model.devSetSigninStatus(.timeout) }
-                devTextButton("Authorized") { model.devSetSigninStatus(.authorized) }
-            }
-
-            HStack {
-                Spacer()
-                dismissButton
-            }
-        }
-        .padding(24)
-        .frame(width: 420)
-        .onChange(of: model.signin.status) {
-            if model.signin.status == .authorized {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    if model.signin.status == .authorized {
-                        model.dismissSigninSheet()
-                    }
-                }
-            }
-        }
-    }
-
-    /// Two distinct `ButtonStyle` conformances (`.borderedProminent` vs
-    /// `.bordered`) can't be chosen between with a ternary on one `Button` (the
-    /// modifier is generic over a single concrete style) — an `if`/`else`
-    /// branch, each with its own style, is the correct fix.
-    @ViewBuilder
-    private var dismissButton: some View {
-        if model.signin.status == .authorized {
-            Button {
-                model.dismissSigninSheet()
-            } label: {
-                Text("Done")
-            }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.defaultAction)
-        } else {
-            Button {
-                model.dismissSigninSheet()
-            } label: {
-                Text("Cancel")
-            }
-            .buttonStyle(.bordered)
-            .keyboardShortcut(.cancelAction)
-        }
-    }
-
-    private var pendingContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Your code")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                HStack {
-                    Text(model.signin.userCode ?? "")
-                        .font(.title2.monospaced())
-                        .textSelection(.enabled)
-                        .foregroundColor(Color(nsColor: .labelColor))
-                    Spacer()
-                    Button {
-                        let board = NSPasteboard.general
-                        board.clearContents()
-                        board.setString(model.signin.userCode ?? "", forType: .string)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Copy code")
-                }
-                .padding(12)
-                .background(Color(nsColor: .textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-
-            Button {
-                model.openSigninPage()
-            } label: {
-                Label("Open Sign-in Page", systemImage: "arrow.up.forward.app")
-            }
-            .buttonStyle(.borderedProminent)
-
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Waiting for you to finish in your browser…")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            }
-        }
-    }
-
-    private var authorizedContent: some View {
+    /// Every video affordance in this file is an inert link-out placeholder
+    /// (no real URL exists yet, per the task contract) — a small "YouTube"
+    /// hint chip, never an embedded player.
+    private func videoLinkRow(_ caption: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(Color(nsColor: .systemGreen))
-            Text("Signed in.")
-                .font(.body)
-                .foregroundColor(Color(nsColor: .labelColor))
+            Image(systemName: "play.circle")
+                .foregroundColor(Color(nsColor: .controlAccentColor))
+            Text(caption)
+                .font(.callout.weight(.semibold))
+                .foregroundColor(Color(nsColor: .controlAccentColor))
+            Text("YouTube")
+                .font(.caption2.monospaced())
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 999, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                )
         }
-    }
-
-    private var failedContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(failureMessage)
-                .font(.body)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            Button {
-                model.retrySignIn()
-            } label: {
-                Text(model.signin.status == .expired ? "Get a new code" : "Try again")
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
-
-    private var failureMessage: String {
-        switch model.signin.status {
-        case .denied: return "That sign-in was declined."
-        case .expired: return "That code expired."
-        case .timeout: return "That took too long."
-        default: return ""
-        }
-    }
-
-    private func devTextButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-        }
-        .buttonStyle(.plain)
-        .font(.caption2)
-        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(caption), placeholder link, opens YouTube")
     }
 }
 
@@ -1414,12 +1474,9 @@ struct SigninSheetView: View {
 /// the app. A singleton (`shared`) so both entry points — the popover's
 /// "Set up" action and the tray's dev-only "Open Wizard (dev)" menu item
 /// (`control-tower-tray.swift`) — reuse the SAME window/model instead of
-/// spawning a second wizard (interaction-spec §1: "at most one instance" of
-/// the wizard container). `isReleasedWhenClosed = false` so closing the
+/// spawning a second wizard. `isReleasedWhenClosed = false` so closing the
 /// window (Done / the titlebar close button) never deallocates it — the next
-/// `show()` reopens the same window with whatever state it was last in
-/// (matching "completed rows are tappable to review earlier answers" being
-/// meaningful even after a close/reopen).
+/// `show()` reopens the same window with whatever state it was last in.
 final class WizardWindowController: NSWindowController {
     static let shared = WizardWindowController()
 
@@ -1444,5 +1501,99 @@ final class WizardWindowController: NSWindowController {
     func show() {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+
+        // SELFTEST HOOK (harness contract) — see `WizardSelftest`'s own doc.
+        // `AppDelegate.applicationDidFinishLaunching` (`control-tower-tray.swift`)
+        // already calls `show()` when `CT_OPEN_WIZARD=1`; this only ever adds
+        // work when `CT_SELFTEST=1` is ALSO set, so a normal launch (or a
+        // dev "Open Wizard" click) is unaffected.
+        WizardSelftest.runIfRequested()
+    }
+}
+
+// MARK: - Selftest hook (harness contract)
+
+/// Drives the step-2 device flow (and, when `CT_SELFTEST_STEP=departments`,
+/// the Departments read) directly through `CliClient`, independent of
+/// `WizardModel`'s own UI-facing device-flow polling (`WizardModel.
+/// beginDeviceFlow`/`startPolling`, which has no fixed poll cap and is paced
+/// for a person watching the window, not a test harness). This exists purely
+/// so a headless run can prove the auth/departments CLI seam works end to end
+/// without clicking through the wizard UI. Terminates the process itself
+/// (`exit(0)`/`exit(1)`) per the harness contract — never returns control to
+/// the running app.
+enum WizardSelftest {
+    private static var hasRun = false
+
+    static func runIfRequested() {
+        let env = ProcessInfo.processInfo.environment
+        guard env["CT_SELFTEST"] == "1", env["CT_OPEN_WIZARD"] == "1" else { return }
+        guard !hasRun else { return }
+        hasRun = true
+        Task { await run() }
+    }
+
+    private static func run() async {
+        guard case .success(let code) = await CliClient.shared.authLoginInitiate() else {
+            print("SELFTEST auth=error")
+            exit(1)
+        }
+
+        var authState = "pending"
+        var login = "none"
+        let waitSeconds = UInt64(max(code.interval, 1))
+
+        pollLoop: for attempt in 1...6 {
+            switch await CliClient.shared.authLoginPoll(deviceCode: code.deviceCode) {
+            case .success(let poll):
+                switch poll.status {
+                case .authorized:
+                    authState = "authorized"
+                    if case .success(let status) = await CliClient.shared.authStatus(), let identityLogin = status.identity?.login {
+                        login = identityLogin
+                    }
+                    break pollLoop
+                case .denied:
+                    authState = "denied"
+                    break pollLoop
+                case .expired:
+                    authState = "expired"
+                    break pollLoop
+                case .pending:
+                    authState = "pending"
+                    if attempt < 6 {
+                        try? await Task.sleep(nanoseconds: waitSeconds * 1_000_000_000)
+                    }
+                }
+            case .failure:
+                print("SELFTEST auth=error")
+                exit(1)
+            }
+        }
+
+        print("SELFTEST auth=\(authState) signedInAs=\(login)")
+
+        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "departments" {
+            switch await CliClient.shared.layers() {
+            case .success(let report):
+                let parts = report.layers.map { entry -> String in
+                    let availability: String
+                    if entry.joined {
+                        availability = "joined"
+                    } else if entry.entitled == true {
+                        availability = "available"
+                    } else {
+                        availability = "not-available"
+                    }
+                    return "\(entry.id):\(availability)"
+                }
+                print("SELFTEST departments=\(parts.joined(separator: ","))")
+            case .failure:
+                print("SELFTEST auth=error")
+                exit(1)
+            }
+        }
+
+        exit(0)
     }
 }

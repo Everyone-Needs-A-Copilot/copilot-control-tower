@@ -189,110 +189,66 @@ struct RenderState {
     let components: [ComponentView]
 }
 
-/// Mock-only placeholder. `copilot layers --json` (the real source for
-/// Region 3's "Join available" row and the wizard's Departments step) is not
-/// yet a frozen contract verb (native-experience-architecture.md §6, open
-/// decision 3) — `src/types.ts` has no DTO for it today, so this struct is
-/// this prototype's own stand-in shape, not a mirror of a real contract type.
-struct JoinableDepartment: Identifiable {
-    let id = UUID()
-    let name: String
-}
+// MARK: - Local app persistence (first-run flag)
 
-// MARK: - Mock fixtures (the three states the owner judges)
+/// A tiny explicit-`$HOME`-aware persistence helper for this app's own local
+/// flags (currently just `ct.hasCompletedFirstRun`, read by
+/// `control-tower-tray.swift`'s `AppDelegate` and written by
+/// `wizard.swift`'s `WizardModel.finish()`). Deliberately NOT
+/// `UserDefaults`/cfprefsd: this binary ships today as a bare,
+/// non-`.app`-bundled `swiftc` executable with no `CFBundleIdentifier`, and
+/// on this OS cfprefsd resolves EVERY preferences domain (whether reached via
+/// `UserDefaults.standard`, an explicit `UserDefaults(suiteName:)`, or the
+/// `defaults(1)` CLI) against the real logged-in account's home directory via
+/// `getpwuid` — it ignores a process's `$HOME` environment override
+/// entirely, and `NSHomeDirectory()` does too. That makes cfprefsd-backed
+/// storage fundamentally incompatible with `scripts/tests/smoke-scenarios.sh`'s
+/// per-scenario scratch-`HOME` isolation (S1: a truly fresh, empty state;
+/// S2: a pre-seeded `ct.hasCompletedFirstRun=true` state) — two different
+/// scenarios would otherwise silently collide on the ONE real, persistent,
+/// cross-run domain on the machine running the tests.
+///
+/// `LocalDefaults` instead reads its effective home directory from the raw
+/// `HOME` environment variable (which DOES reflect a test harness's scratch
+/// override, unlike `NSHomeDirectory()`) and reads/writes a plain property
+/// list file directly, bypassing cfprefsd altogether. The file path
+/// (`~/Library/Preferences/com.everyoneneedsacopilot.controltower.plist`) is
+/// deliberately the SAME path cfprefsd itself would use for that bundle
+/// identifier — so once this app ships as a real signed `.app` with that
+/// `CFBundleIdentifier` (`src-tauri/tauri.conf.json`'s existing
+/// `identifier`), a normal `UserDefaults.standard` read picks up this exact
+/// file with no migration needed.
+enum LocalDefaults {
+    private static let domain = "com.everyoneneedsacopilot.controltower"
 
-extension RenderState {
-    private static var allPassLayers: [LayerView] {
-        Layer.allCases.map { LayerView(layer: $0, severity: .pass, badgeState: .pass, detail: nil) }
+    private static var fileURL: URL {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        return URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent("Library/Preferences", isDirectory: true)
+            .appendingPathComponent("\(domain).plist")
     }
 
-    private static func component(_ name: String, layers: [LayerView], worst: Severity = .pass) -> ComponentView {
-        ComponentView(component: name, worstSeverity: worst, layers: layers)
+    private static func readPlist() -> [String: Any] {
+        guard let data = try? Data(contentsOf: fileURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return [:] }
+        return plist
     }
 
-    /// (a) Current / healthy: every component, every entitled layer at
-    /// `pass`. Tray glyph bare, popover shows Regions 1-2 only (§7.1).
-    static let healthy = RenderState(
-        clientState: .ok,
-        cliUnreadableReason: nil,
-        host: "This Mac",
-        status: .healthy,
-        offline: false,
-        header: HeaderView(glyphState: .none, sentence: "Everything is set up."),
-        components: [
-            component("Claude Copilot", layers: allPassLayers),
-            component("CLI Copilot", layers: allPassLayers),
-            component("Codex Copilot", layers: allPassLayers),
-            component("Knowledge Copilot", layers: allPassLayers),
-        ]
-    )
-
-    /// (b) Join available: a department the user is entitled to but has not
-    /// joined. Per §2.4/§7.2 this does NOT badge the tray (glyph stays
-    /// `none`, bare) — it is a quiet Region 3 row only, never an alarm.
-    static let joinAvailable = RenderState(
-        clientState: .ok,
-        cliUnreadableReason: nil,
-        host: "This Mac",
-        status: .healthy,
-        offline: false,
-        header: HeaderView(glyphState: .none, sentence: "Everything on this Mac is set up."),
-        components: [
-            component("Claude Copilot", layers: allPassLayers),
-            component(
-                "CLI Copilot",
-                layers: [
-                    LayerView(layer: .foundation, severity: .pass, badgeState: .pass, detail: nil),
-                    LayerView(layer: .org, severity: .pass, badgeState: .pass, detail: nil),
-                    LayerView(layer: .dept, severity: .warn, badgeState: .hollow, detail: "Entitled, not yet joined"),
-                    LayerView(layer: .personal, severity: .pass, badgeState: .pass, detail: nil),
-                ],
-                worst: .warn
-            ),
-            component("Codex Copilot", layers: allPassLayers),
-            component("Knowledge Copilot", layers: allPassLayers),
-        ]
-    )
-
-    /// (c) CLI-unreadable / "bang": the honest "versions don't match, won't
-    /// guess" degrade. Per §2.4 the tree and Join row are both hidden; the
-    /// only red in the product.
-    static let cliUnreadable = RenderState(
-        clientState: .cliUnreadable,
-        cliUnreadableReason: .parseError,
-        host: nil,
-        status: nil,
-        offline: false,
-        header: HeaderView(
-            glyphState: .bang,
-            sentence: "I can't read the setup right now, so I won't guess."
-        ),
-        components: []
-    )
-}
-
-/// The three judgeable states, switched via the tray's right-click menu
-/// (dev-only — see `StatusBarController.buildMenu()`).
-enum DevScenario: String, CaseIterable, Identifiable {
-    case healthy = "Healthy"
-    case joinAvailable = "Join available"
-    case cliUnreadable = "CLI unreadable"
-    var id: String { rawValue }
-
-    var state: RenderState {
-        switch self {
-        case .healthy: return .healthy
-        case .joinAvailable: return .joinAvailable
-        case .cliUnreadable: return .cliUnreadable
-        }
+    static func bool(forKey key: String) -> Bool {
+        (readPlist()[key] as? Bool) ?? false
     }
 
-    /// Only the Join-available scenario has anything for Region 3 to show.
-    var joinableDepartments: [JoinableDepartment] {
-        switch self {
-        case .joinAvailable: return [JoinableDepartment(name: "Sales")]
-        default: return []
-        }
+    static func set(_ value: Bool, forKey key: String) {
+        let url = fileURL
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        var plist = readPlist()
+        plist[key] = value
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0) else { return }
+        try? data.write(to: url)
     }
 }
 
@@ -337,18 +293,28 @@ enum AviatorGlyph {
     }
 
     private static func loadFresh(targetHeight: CGFloat) -> NSImage {
-        let relativePath = "src-tauri/icons/aviators.svg"
+        // Phase F: canonical brand assets moved to assets/brand/ (a
+        // repo-root asset dir shared by every surface, rather than a
+        // src-tauri/-scoped icons dir left over from the Tauri app this
+        // native rebuild supersedes). The old src-tauri/icons/aviators.svg
+        // path is kept as a fallback ONLY so a checkout mid-migration (or a
+        // build invoked from an unexpected working directory where only the
+        // old asset happens to be resolvable) still renders something real
+        // instead of falling all the way to the SF Symbol last resort.
         let cwd = FileManager.default.currentDirectoryPath
-        let url = URL(fileURLWithPath: relativePath, relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        let primary = URL(fileURLWithPath: "assets/brand/aviator-glyph.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        let legacyFallback = URL(fileURLWithPath: "src-tauri/icons/aviators.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
 
-        if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
-            let aspect = svg.size.width / svg.size.height
-            svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
-            svg.isTemplate = true
-            return svg
+        for url in [primary, legacyFallback] {
+            if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
+                let aspect = svg.size.width / svg.size.height
+                svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
+                svg.isTemplate = true
+                return svg
+            }
         }
 
-        // Genuine last-resort fallback: the SVG could not be resolved at all.
+        // Genuine last-resort fallback: neither SVG could be resolved at all.
         let fallback = NSImage(
             systemSymbolName: "eyeglasses",
             accessibilityDescription: "Copilot Control Tower"
@@ -393,18 +359,24 @@ enum ControlTowerGlyph {
     }
 
     private static func loadFresh(targetHeight: CGFloat) -> NSImage {
-        let relativePath = "docs/10-reference/control-tower.svg"
+        // Phase F: canonical brand assets moved to assets/brand/ (see
+        // AviatorGlyph.loadFresh's matching comment above). The old
+        // docs/10-reference/control-tower.svg path is kept as a fallback for
+        // the same mid-migration/unexpected-cwd reason.
         let cwd = FileManager.default.currentDirectoryPath
-        let url = URL(fileURLWithPath: relativePath, relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        let primary = URL(fileURLWithPath: "assets/brand/control-tower-logo.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        let legacyFallback = URL(fileURLWithPath: "docs/10-reference/control-tower.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
 
-        if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
-            let aspect = svg.size.width / svg.size.height
-            svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
-            svg.isTemplate = false
-            return svg
+        for url in [primary, legacyFallback] {
+            if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
+                let aspect = svg.size.width / svg.size.height
+                svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
+                svg.isTemplate = false
+                return svg
+            }
         }
 
-        // Genuine last-resort fallback: the SVG could not be resolved at all.
+        // Genuine last-resort fallback: neither SVG could be resolved at all.
         let fallback = NSImage(
             systemSymbolName: "building.2",
             accessibilityDescription: "Copilot Control Tower"
