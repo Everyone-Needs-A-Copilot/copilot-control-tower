@@ -380,7 +380,7 @@
 <main class="page">
 
   <header>
-    <p class="eyebrow"><span class="dot"></span> Copilot Control Tower &middot; End-user experience &middot; 2026-07-16 &middot; rev 2</p>
+    <p class="eyebrow"><span class="dot"></span> Copilot Control Tower &middot; End-user experience &middot; 2026-07-16 &middot; rev 3</p>
     <h1>Bob's whole journey, screen by <em>screen</em></h1>
     <p class="thesis">
       Every surface Bob sees, from the invitation email in his inbox to the moment an update goes wrong and quietly
@@ -402,35 +402,36 @@
       <p class="group-label">Arc 2 &middot; Setting up</p>
       <div class="toc-row">
         <a href="#w1"><b>6</b>Welcome</a>
-        <a href="#w2"><b>7</b>Detect</a>
-        <a href="#w3"><b>8</b>What you're getting</a>
-        <a href="#w4"><b>9</b>Departments</a>
-        <a href="#w5"><b>10</b>Integrations &amp; sign-in</a>
-        <a href="#w6"><b>11</b>Set up</a>
-        <a href="#w7"><b>12</b>Verify</a>
-        <a href="#w8"><b>13</b>Done</a>
-        <a href="#w9"><b>14</b>Holding</a>
+        <a href="#w2"><b>7</b>Connect GitHub</a>
+        <a href="#w3"><b>8</b>Detect</a>
+        <a href="#w4"><b>9</b>What you're getting</a>
+        <a href="#w5"><b>10</b>Departments</a>
+        <a href="#w6"><b>11</b>Integrations &amp; sign-in</a>
+        <a href="#w7"><b>12</b>Set up</a>
+        <a href="#w8"><b>13</b>Verify</a>
+        <a href="#w9"><b>14</b>Done</a>
+        <a href="#w10"><b>15</b>Holding</a>
       </div>
       <p class="group-label">Arc 3 &middot; Living with it</p>
       <div class="toc-row">
-        <a href="#d1"><b>15</b>The quiet tray</a>
-        <a href="#d2"><b>16</b>Opening the popover</a>
-        <a href="#d3"><b>17</b>Sync now</a>
-        <a href="#d4"><b>18</b>A department appears</a>
-        <a href="#d5"><b>19</b>What Bob never has to do</a>
+        <a href="#d1"><b>16</b>The quiet tray</a>
+        <a href="#d2"><b>17</b>Opening the popover</a>
+        <a href="#d3"><b>18</b>Sync now</a>
+        <a href="#d4"><b>19</b>A department appears</a>
+        <a href="#d5"><b>20</b>What Bob never has to do</a>
       </div>
       <p class="group-label">Arc 4 &middot; Updates</p>
       <div class="toc-row">
-        <a href="#u1"><b>20</b>An update lands</a>
-        <a href="#u2"><b>21</b>The honest summary</a>
-        <a href="#u3"><b>22</b>Silent self-update</a>
-        <a href="#u4"><b>23</b>Kept your working version</a>
+        <a href="#u1"><b>21</b>An update lands</a>
+        <a href="#u2"><b>22</b>The honest summary</a>
+        <a href="#u3"><b>23</b>Silent self-update</a>
+        <a href="#u4"><b>24</b>Kept your working version</a>
       </div>
       <p class="group-label">Arc 5 &middot; When something goes wrong</p>
       <div class="toc-row">
-        <a href="#p1"><b>24</b>Auto-fixed and reported</a>
-        <a href="#p2"><b>25</b>Escalated to IT</a>
-        <a href="#p3"><b>26</b>Asked, on his own data</a>
+        <a href="#p1"><b>25</b>Auto-fixed and reported</a>
+        <a href="#p2"><b>26</b>Escalated to IT</a>
+        <a href="#p3"><b>27</b>Asked, on his own data</a>
       </div>
       <p class="group-label">Review</p>
       <div class="toc-row">
@@ -487,6 +488,8 @@
         <p>We've set up a shared set of copilots for the team: Claude Copilot, Codex Copilot, Knowledge Copilot, and CLI Copilot. Copilot Control Tower is a small app that installs them on your Mac and keeps them current for you. You won't need a terminal, and it won't ask you to set anything up by hand.</p>
         <p>Download it below, then follow the short setup. It takes a few steps. When it's done, it lives quietly in your menu bar.</p>
         <p>If anything looks off, reply to this email. That reaches me directly.</p>
+        <p style="margin:0 0 4px;">Curious what all this is? Learn more first:</p>
+        <p class="mail-fallback" style="margin:0 0 14px;">controltower.acme.com</p>
         <p class="mail-cta"><span class="btn primary">Download Control Tower</span></p>
         <p class="mail-fallback">Or copy this link: downloads.acme.com/control-tower</p>
         <p class="mail-sig">Earl Mota &middot; IT &middot; Acme</p>
@@ -505,8 +508,8 @@
     </div>
 
     <div class="annot-grid">
-      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob opens an email that looks like an ordinary internal note from Earl in IT, not a marketing blast. He reads a short, plain explanation of what's being set up and why (four named copilots, no terminal, nothing to configure by hand), sees one button, and a plain-text fallback link under it in case the button feels risky to click. A real name signs the bottom, so if something looks wrong he knows exactly who to reply to.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The product has no email-sending capability of its own. This mail is sent by the org's named <code>AdminContact</code>, hosted and dispatched entirely outside Control Tower, from an org-controlled mail system. Clicking the button or the fallback link both resolve to the same org-hosted download URL. Nothing here touches the app or GitHub; it is pure org action, upstream of anything Control Tower controls.</p></div>
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob opens an email that looks like an ordinary internal note from Earl in IT, not a marketing blast. He reads a short, plain explanation of what's being set up and why (four named copilots, no terminal, nothing to configure by hand), and a real name signs the bottom, so if something looks wrong he knows exactly who to reply to. If he's cautious, a quiet line offers him a place to learn more before he installs anything; if he's ready, one button and a plain-text fallback link sit right below it.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The product has no email-sending capability of its own. This mail is sent by the org's named <code>AdminContact</code>, hosted and dispatched entirely outside Control Tower, from an org-controlled mail system. Clicking the button or the fallback link both resolve to the same org-hosted download URL. The "learn more" link goes to the company's own Control Tower site, the same one that hosts the download, so a cautious reader can learn before installing. Nothing here touches the app or GitHub; it is pure org action, upstream of anything Control Tower controls.</p></div>
     </div>
   </section>
 
@@ -515,12 +518,15 @@
     <div class="sec-head">
       <span class="sec-num">2</span>
       <h2 id="h-e2">The download page</h2>
-      <p class="sec-sub">Bob wants to confirm this is legit and find the right button. A short preview of the whole shape (download, open, set up) so he sees the end before he commits.</p>
+      <p class="sec-sub">Bob wants to confirm this is legit and find the right button. It's really the org's Control Tower resource site, with the download as its primary action: a short preview of the whole shape (download, open, set up) so he sees the end before he commits.</p>
     </div>
 
     <div class="window-wrap"><div class="sys-window">
       <div class="sys-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Browser</span></div>
       <div class="browser-bar"><span class="browser-url">downloads.acme.com/control-tower</span></div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:20px;padding:9px 14px;border-bottom:1px solid var(--qi-sep);font-size:11px;color:var(--qi-ink-faint);">
+        <span>What you get</span><span>Watch how it works</span><span>For admins</span><span>Who to ask</span>
+      </div>
       <div class="browser-content">
         <div class="dl-glyph" aria-hidden="true"><svg class="brand-logo" width="40" height="40" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" style="margin:0 auto;" focusable="false"><g><g><polygon points="75.85 118.5 52.15 118.5 55 61.5 73 61.5 75.85 118.5" fill="#ededf9"/><path d="M52,54H76a0,0,0,0,1,0,0v7a3,3,0,0,1-3,3H55a3,3,0,0,1-3-3V54A0,0,0,0,1,52,54Z" fill="#537980"/><polygon points="78.5 58 49.5 58 44 28.167 84 28.167 78.5 58" fill="#fb9401"/><path d="M84,26.22H44l1.578-8.573a3,3,0,0,1,2.95-2.457H79.472a3,3,0,0,1,2.95,2.457Z" fill="#385b60"/><polygon points="69.619 58 58.381 58 56.25 28.167 71.75 28.167 69.619 58" fill="#f9d42f"/><rect x="41.373" y="24.192" width="45.253" height="6" fill="#537980"/><rect x="24.192" y="115.5" width="79.615" height="6" fill="#537980"/></g><g><path d="M53.935,82.864l.088,0A1.751,1.751,0,0,0,55.771,81.2l.167-3.357a1.75,1.75,0,0,0-3.5-.176l-.168,3.357A1.752,1.752,0,0,0,53.935,82.864Z" fill="#061720"/><path d="M69.135,106.118l.088,0a1.751,1.751,0,0,0,1.661-1.835l-.3-5.908a1.75,1.75,0,0,0-3.5.174l.3,5.908A1.75,1.75,0,0,0,69.135,106.118Z" fill="#061720"/><path d="M103.808,113.75H97.5a1.75,1.75,0,0,0,0,3.5h4.558v2.5H25.942v-2.5H88.125a1.75,1.75,0,0,0,0-3.5H77.365L74.939,65.325A4.719,4.719,0,0,0,77.75,61V59.75h.75a1.751,1.751,0,0,0,1.721-1.433l4.865-26.375h1.541a1.749,1.749,0,0,0,1.75-1.75v-6a1.75,1.75,0,0,0-1.75-1.75H85.086l-.944-5.1a4.745,4.745,0,0,0-4.672-3.9H65.75V6.5a1.75,1.75,0,0,0-3.5,0v6.94H59.625a1.75,1.75,0,1,0,0,3.5H79.47A1.247,1.247,0,0,1,80.7,17.969l.828,4.473H46.473l.829-4.479A1.246,1.246,0,0,1,48.53,16.94h2.72a1.75,1.75,0,0,0,0-3.5H48.53a4.744,4.744,0,0,0-4.671,3.892l-.945,5.11H41.373a1.75,1.75,0,0,0-1.75,1.75v6a1.749,1.749,0,0,0,1.75,1.75h1.541l4.865,26.375A1.751,1.751,0,0,0,49.5,59.75h.75V61a4.719,4.719,0,0,0,2.811,4.325L52.7,72.541a1.751,1.751,0,0,0,1.66,1.836l.089,0A1.75,1.75,0,0,0,56.2,72.717l.349-6.967H71.456l2.4,48H54.14l1.292-25.791a1.75,1.75,0,0,0-3.5-.176l-1.3,25.967H24.192a1.75,1.75,0,0,0-1.75,1.75v6a1.75,1.75,0,0,0,1.75,1.75h79.616a1.75,1.75,0,0,0,1.75-1.75v-6A1.75,1.75,0,0,0,103.808,113.75ZM77.043,56.25H71.5l1.74-24.308h8.288Zm-17.034,0-1.74-24.308H69.731L67.991,56.25ZM43.123,28.442v-2.5H84.877v2.5Zm3.35,3.5h8.288L56.5,56.25H50.957ZM74.25,59.75V61a1.238,1.238,0,0,1-1.2,1.241h-.03l-.088.007H55.064l-.088-.007h-.03A1.238,1.238,0,0,1,53.75,61V59.75Z" fill="#061720"/></g></g></svg></div>
         <p class="dl-title">Copilot Control Tower</p>
@@ -531,6 +537,20 @@
           <div class="dl-step"><span class="n">1</span>Download the app.</div>
           <div class="dl-step"><span class="n">2</span>Open it and drag it to your Applications.</div>
           <div class="dl-step"><span class="n">3</span>Open it once. It'll walk you through the rest.</div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-top:26px;">
+          <div>
+            <span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>Watch: a two minute tour<span class="yt-chip">&#8599; YouTube</span></span>
+            <p style="margin:4px 0 0;font-size:10.6px;color:var(--qi-ink-faint);">Video placeholder. Link coming.</p>
+          </div>
+          <div>
+            <span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>Watch: your copilots explained<span class="yt-chip">&#8599; YouTube</span></span>
+            <p style="margin:4px 0 0;font-size:10.6px;color:var(--qi-ink-faint);">Video placeholder. Link coming.</p>
+          </div>
+          <div>
+            <span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>Watch: what admins set up<span class="yt-chip">&#8599; YouTube</span></span>
+            <p style="margin:4px 0 0;font-size:10.6px;color:var(--qi-ink-faint);">Video placeholder. Link coming.</p>
+          </div>
         </div>
       </div>
       <div class="dl-footer">Set up by your IT team. Questions? Reply to the email that sent you here.</div>
@@ -548,8 +568,8 @@
     </div>
 
     <div class="annot-grid">
-      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob lands on a calm, centered page: the product name, a one-line description, one big button, and a quiet line about macOS and file size that tells him it's signed by his own company. The three-step preview (Download, Open, Set up) shows him the whole shape before he commits to anything, and the footer reminds him this is his IT team's doing, not a stranger's.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The page is hosted at an org-controlled URL serving the org's signed <code>.dmg</code> (ASSUMPTION AS-2), not an ENAC or Anthropic-hosted download, and not an App Store link. The control tower logo appears here, full color: the resolved brand rule is that the logo is the mark for the download page and every other marketing surface, and the aviator glyph is menu-bar only (AS-5, resolved). The download page itself is also a product artifact: the company deploys it on its own domain, so a company has everything it needs without depending on an outside host. No app code runs on this page; it is a static download surface the org owns.</p></div>
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob lands on a calm, centered page with a slim row of quiet links across the top: What you get, Watch how it works, For admins, Who to ask. Below that, the product name, a one-line description, one big button, and a quiet line about macOS and file size that tells him it's signed by his own company. The three-step preview (Download, Open, Set up) shows him the whole shape before he commits to anything, three short video links invite him to watch rather than read if he'd rather, and the footer reminds him this is his IT team's doing, not a stranger's.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The page is hosted at an org-controlled URL serving the org's signed <code>.dmg</code> (ASSUMPTION AS-2), not an ENAC or Anthropic-hosted download, and not an App Store link. The control tower logo appears here, full color: the resolved brand rule is that the logo is the mark for the download page and every other marketing surface, and the aviator glyph is menu-bar only (AS-5, resolved). This page ships with the product as a deployable artifact: a company hosts it internally, and can swap the videos, name, and contact for their own. It serves the curious employee arriving from the email, the user here for the download and how-to, and points admins and publishers to their own materials. No app code runs on this page; it is a static resource site the org owns. Full design: <code>docs/03-design/landing-site.md</code>.</p></div>
     </div>
 
     <div class="callout"><b>Two builds, one product.</b> What Bob downloads here is the user build. Admins get a separate admin build through a private channel from the publisher, never from this public page. The admin build carries the organization setup surfaces; the user build never shows them.</div>
@@ -664,10 +684,11 @@
   <!-- =================================================================== -->
   <div class="journey-head" id="arc-2">
     <h3 class="journey-title">Arc 2. First-run wizard</h3>
-    <p class="sec-sub">The built eight-step flow, consolidated rather than reinvented. What you're getting replaces the old
+    <p class="sec-sub">The built nine-step flow, consolidated rather than reinvented. GitHub comes first, by decision: it's
+      how Control Tower knows what the team shares and where Bob's own space lives. What you're getting replaces the old
       picker: everyone gets everything, so there's nothing to configure, only a light guided-education moment with a video
       placeholder that links out to YouTube, so Bob learns what each copilot is by watching, not by choosing. Every step: an
-      eyebrow reading Step N of 8, never a clock, a roadmap sidebar labeled SETUP whose marks never lock anything downstream,
+      eyebrow reading Step N of 9, never a clock, a roadmap sidebar labeled SETUP whose marks never lock anything downstream,
       and a pinned footer.</p>
   </div>
 
@@ -686,6 +707,7 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item current"><span class="mark">&#9673;</span>Welcome</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Connect GitHub</li>
             <li class="sb-item upcoming"><span class="mark">&#9675;</span>Detect</li>
             <li class="sb-item upcoming"><span class="mark">&#9675;</span>What you're getting</li>
             <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
@@ -696,7 +718,7 @@
           </ul>
         </div>
         <div class="win-detail">
-          <p class="win-eyebrow">Step 1 of 8</p>
+          <p class="win-eyebrow">Step 1 of 9</p>
           <svg class="brand-logo" width="40" height="40" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" style="margin:0 0 10px;" aria-hidden="true" focusable="false"><g><g><polygon points="75.85 118.5 52.15 118.5 55 61.5 73 61.5 75.85 118.5" fill="#ededf9"/><path d="M52,54H76a0,0,0,0,1,0,0v7a3,3,0,0,1-3,3H55a3,3,0,0,1-3-3V54A0,0,0,0,1,52,54Z" fill="#537980"/><polygon points="78.5 58 49.5 58 44 28.167 84 28.167 78.5 58" fill="#fb9401"/><path d="M84,26.22H44l1.578-8.573a3,3,0,0,1,2.95-2.457H79.472a3,3,0,0,1,2.95,2.457Z" fill="#385b60"/><polygon points="69.619 58 58.381 58 56.25 28.167 71.75 28.167 69.619 58" fill="#f9d42f"/><rect x="41.373" y="24.192" width="45.253" height="6" fill="#537980"/><rect x="24.192" y="115.5" width="79.615" height="6" fill="#537980"/></g><g><path d="M53.935,82.864l.088,0A1.751,1.751,0,0,0,55.771,81.2l.167-3.357a1.75,1.75,0,0,0-3.5-.176l-.168,3.357A1.752,1.752,0,0,0,53.935,82.864Z" fill="#061720"/><path d="M69.135,106.118l.088,0a1.751,1.751,0,0,0,1.661-1.835l-.3-5.908a1.75,1.75,0,0,0-3.5.174l.3,5.908A1.75,1.75,0,0,0,69.135,106.118Z" fill="#061720"/><path d="M103.808,113.75H97.5a1.75,1.75,0,0,0,0,3.5h4.558v2.5H25.942v-2.5H88.125a1.75,1.75,0,0,0,0-3.5H77.365L74.939,65.325A4.719,4.719,0,0,0,77.75,61V59.75h.75a1.751,1.751,0,0,0,1.721-1.433l4.865-26.375h1.541a1.749,1.749,0,0,0,1.75-1.75v-6a1.75,1.75,0,0,0-1.75-1.75H85.086l-.944-5.1a4.745,4.745,0,0,0-4.672-3.9H65.75V6.5a1.75,1.75,0,0,0-3.5,0v6.94H59.625a1.75,1.75,0,1,0,0,3.5H79.47A1.247,1.247,0,0,1,80.7,17.969l.828,4.473H46.473l.829-4.479A1.246,1.246,0,0,1,48.53,16.94h2.72a1.75,1.75,0,0,0,0-3.5H48.53a4.744,4.744,0,0,0-4.671,3.892l-.945,5.11H41.373a1.75,1.75,0,0,0-1.75,1.75v6a1.749,1.749,0,0,0,1.75,1.75h1.541l4.865,26.375A1.751,1.751,0,0,0,49.5,59.75h.75V61a4.719,4.719,0,0,0,2.811,4.325L52.7,72.541a1.751,1.751,0,0,0,1.66,1.836l.089,0A1.75,1.75,0,0,0,56.2,72.717l.349-6.967H71.456l2.4,48H54.14l1.292-25.791a1.75,1.75,0,0,0-3.5-.176l-1.3,25.967H24.192a1.75,1.75,0,0,0-1.75,1.75v6a1.75,1.75,0,0,0,1.75,1.75h79.616a1.75,1.75,0,0,0,1.75-1.75v-6A1.75,1.75,0,0,0,103.808,113.75ZM77.043,56.25H71.5l1.74-24.308h8.288Zm-17.034,0-1.74-24.308H69.731L67.991,56.25ZM43.123,28.442v-2.5H84.877v2.5Zm3.35,3.5h8.288L56.5,56.25H50.957ZM74.25,59.75V61a1.238,1.238,0,0,1-1.2,1.241h-.03l-.088.007H55.064l-.088-.007h-.03A1.238,1.238,0,0,1,53.75,61V59.75Z" fill="#061720"/></g></g></svg>
           <h3>Welcome to your copilots.</h3>
           <p class="win-intro">Your company just gave you a set of AI copilots to help with your everyday work. This app, Copilot Control Tower, is how they land on your Mac and how they stay current.</p>
@@ -710,6 +732,14 @@
                 <div class="confirm-row"><div><span class="name">Claude Copilot</span><span class="desc">Your AI copilot for everyday work, from writing and checking numbers to building things.</span></div></div>
               </div>
             </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Before you start</p>
+              <div class="qi-rows">
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">A GitHub account. It's how your company shares your copilots with you, and where your own space lives. Don't have one yet? Create one first, it's free.<span class="yt-chip">&#8599; github.com</span></span></div>
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">The GitHub command line. A small tool Control Tower uses to bring in what your team shares. If it's not on this Mac, Control Tower sets it up. You'll approve it once, in your browser.</span></div>
+              </div>
+              <p class="qi-note">That's it. Have your GitHub sign-in handy and everything else is handled for you.</p>
+            </div>
             <p class="welcome-video-line" style="margin:12px 0 0;"><span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>Watch a short welcome video<span class="yt-chip">&#8599; YouTube</span></span></p>
           </div>
           <div class="win-footer"><span></span><span class="status"></span><span class="grp"><span class="btn text">Quit</span><span class="btn primary">Get Started</span></span></div>
@@ -718,17 +748,17 @@
     </div></div>
 
     <div class="annot-grid">
-      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob reads a short, warm explanation of what just landed on his Mac and why: a set of AI copilots from his company, and this app as how they land and stay current. He doesn't need to be technical; Control Tower does the setup and stays quiet afterward. A calm list names the three copilots he's getting, in plain language, with no checkboxes to fuss over. A low-emphasis video link offers a minute-long tour if he wants one. He presses Get Started.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Pure render of the wizard's first step, matching the built <code>wizard.swift</code> structure. No time estimate anywhere; step position reads Step 1 of 8, never a clock. The hero shows the control tower logo, full color, never the aviator glyph (R1, resolved brand rule). The old admin opt-in checkbox is gone by decision (ratified 2026-07-16, NB-11): the admin path is a separate executable, distributed privately, never reachable from this screen. The video line is a YouTube link-out placeholder (R7); no player is embedded anywhere.</p></div>
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob reads a short, warm explanation of what just landed on his Mac and why: a set of AI copilots from his company, and this app as how they land and stay current. He doesn't need to be technical; Control Tower does the setup and stays quiet afterward. A calm list names the three copilots he's getting, in plain language, with no checkboxes to fuss over. A quiet "Before you start" block names the one thing he needs: a GitHub account, plus a small command-line tool Control Tower sets up for him if it's missing. A low-emphasis video link offers a minute-long tour if he wants one. He presses Get Started.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Pure render of the wizard's first step, matching the built <code>wizard.swift</code> structure. No time estimate anywhere; step position reads Step 1 of 9, never a clock. The hero shows the control tower logo, full color, never the aviator glyph (R1, resolved brand rule). The old admin opt-in checkbox is gone by decision (ratified 2026-07-16, NB-11): the admin path is a separate executable, distributed privately, never reachable from this screen. The video line is a YouTube link-out placeholder (R7); no player is embedded anywhere. The prerequisites are stated up front by decision: without GitHub the app cannot pull what the team shares or create the user's personal space, so it is step one, not an integration buried later.</p></div>
     </div>
   </section>
 
-  <!-- ---------------- 7. Detect ---------------- -->
-  <section id="w2" class="screen" aria-labelledby="h-w2">
+  <!-- ---------------- 7. Connect GitHub ---------------- -->
+  <section id="w2" class="screen" aria-labelledby="h-w2b">
     <div class="sec-head">
       <span class="sec-num">7</span>
-      <h2 id="h-w2">Detect</h2>
-      <p class="sec-sub">Bob watches the app look at his Mac. He does nothing. It reassures him the app is careful: it looks before it asks.</p>
+      <h2 id="h-w2b">Connect GitHub</h2>
+      <p class="sec-sub">GitHub comes first, by decision. One code, one browser approval, and Bob is done: it's the one real task he does during setup.</p>
     </div>
 
     <div class="window-wrap"><div class="window">
@@ -738,6 +768,69 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Connect GitHub</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Detect</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>What you're getting</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 2 of 9</p>
+          <h3>Connect GitHub</h3>
+          <p class="win-intro">GitHub comes first. It's how Control Tower knows what your team shares with you, and where your own space lives. Signing in happens in your browser, on GitHub's own page. Control Tower never asks for your password.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Your code</p>
+              <div class="qi-field-row"><label>Your code</label><span class="qi-input">WKQX-7F2P</span><span class="btn small">Copy code</span></div>
+              <p style="margin:10px 0;"><span class="btn primary small">Open GitHub</span></p>
+              <p style="margin:0;font-size:11.6px;color:var(--qi-ink-faint);">Waiting for you to finish in your browser&hellip;</p>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary disabled">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Signed in</p>
+        <div class="inset-win">
+          <div class="qi-row ok" style="border:none;padding:0;"><span class="g">&#10003;</span><span class="body2">Signed in as bob-acme.</span></div>
+          <p style="margin:10px 0 0;"><span class="btn primary small">Continue</span></p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Edge: no GitHub account yet</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Create your account at github.com first, then come back. This screen will wait.<span class="yt-chip">&#8599; github.com</span></p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>This is the one real task Bob does during setup. He reads that GitHub comes first, sees a short code with a copy button, presses Open GitHub, approves in his browser, and returns to one calm line: "Signed in as bob-acme." Continue lights up. If he doesn't have a GitHub account yet, the screen tells him plainly to go make one first and come back; it just waits.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>GitHub device flow via the <code>cc auth</code> seam; the token lands in the keychain via the CLI. Team entitlements, department discovery, and the personal space all key off this sign-in. Grounded in <code>docs/03-design/integration-auth-research.md</code>.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 8. Detect ---------------- -->
+  <section id="w3" class="screen" aria-labelledby="h-w3d">
+    <div class="sec-head">
+      <span class="sec-num">8</span>
+      <h2 id="h-w3d">Detect</h2>
+      <p class="sec-sub">Bob watches the app look at his Mac and put the basics in place. He does nothing. It reassures him the app is careful: it looks before it asks.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
             <li class="sb-item current"><span class="mark">&#9673;</span>Detect</li>
             <li class="sb-item upcoming"><span class="mark">&#9675;</span>What you're getting</li>
             <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
@@ -748,16 +841,17 @@
           </ul>
         </div>
         <div class="win-detail">
-          <p class="win-eyebrow">Step 2 of 8</p>
+          <p class="win-eyebrow">Step 3 of 9</p>
           <h3>Checking what's already here</h3>
-          <p class="win-intro">Control Tower looks at what's already on this Mac before it asks you anything.</p>
+          <p class="win-intro">Control Tower looks at what's already on this Mac before it asks you anything, and puts the basics in place.</p>
           <div class="win-content">
             <div class="qi-block">
               <p class="qi-block-label">What's already here</p>
               <ul class="qi-facts">
+                <li>GitHub: signed in as bob-acme.</li>
+                <li>GitHub command line: already here and current.</li>
                 <li>Claude Copilot is current for your organization and core setup.</li>
-                <li>CLI Copilot is current for your core setup.</li>
-                <li>No personal setup on this Mac yet.</li>
+                <li>No personal setup on this Mac yet. Control Tower will create your personal space on GitHub in a later step.</li>
               </ul>
             </div>
           </div>
@@ -772,22 +866,32 @@
         <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);">Checking what's already here&hellip;</p></div>
       </div>
       <div class="inset">
+        <p class="inset-caption">Alternate: the GitHub command line isn't here yet</p>
+        <div class="inset-win">
+          <ul class="qi-facts" style="margin:0;">
+            <li>GitHub: signed in as bob-acme.</li>
+            <li>GitHub command line: setting it up&hellip;</li>
+          </ul>
+          <p style="margin:10px 0 0;font-size:11.6px;color:var(--qi-ink-faint);">You'll approve it once, in your browser.<span class="btn text small" style="margin-left:8px;">Approve in browser</span></p>
+        </div>
+      </div>
+      <div class="inset">
         <p class="inset-caption">Alternate: unreadable degrade, routes to Holding</p>
-        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">"I can't read what's already on this Mac right now, so I won't guess." Continues into the Holding screen, <a href="#w9">screen 14</a>.</p></div>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">"I can't read what's already on this Mac right now, so I won't guess." Continues into the Holding screen, <a href="#w10">screen 15</a>.</p></div>
       </div>
     </div>
 
     <div class="annot-grid">
-      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob watches a brief holding line, then a short list of plain past-tense facts about what's already on his Mac. Nothing is asked of him; he reads that Claude Copilot and CLI Copilot are already current for his organization, and that he has no personal setup yet, then continues.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app runs local, read-only detection against what is already materialized on disk and renders plain facts from it. If detection can't read the disk state, it never guesses; it routes to the honest Holding screen instead of fabricating a result.</p></div>
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob watches a brief holding line, then a short list of plain past-tense facts about what's already on his Mac. Nothing is asked of him; he reads that he's signed into GitHub, that the GitHub command line is already here, that Claude Copilot is current for his organization, and that he has no personal setup yet, then continues.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Detect is the verify-and-provision gate: it confirms the GitHub sign-in, finds or installs the GitHub command line (one browser approval), and reads what is already materialized, so every later step can assume the ground is solid. If detection can't read the disk state, it never guesses; it routes to the honest Holding screen instead of fabricating a result. The gh install/approve mechanics are not built yet (NB-13).</p></div>
     </div>
   </section>
 
-  <!-- ---------------- 8. What you're getting ---------------- -->
-  <section id="w3" class="screen" aria-labelledby="h-w3">
+  <!-- ---------------- 9. What you're getting ---------------- -->
+  <section id="w4" class="screen" aria-labelledby="h-w4wg">
     <div class="sec-head">
-      <span class="sec-num">8</span>
-      <h2 id="h-w3">What you're getting</h2>
+      <span class="sec-num">9</span>
+      <h2 id="h-w4wg">What you're getting</h2>
       <p class="sec-sub">Bob confirms what he already has. Nothing to pick: the only optional add is whether he also uses the other AI coding tool. The natural honest place to teach what each one is stays here too, an inline "What's this?" panel with a video placeholder that links out to YouTube. Education never blocks Continue.</p>
     </div>
 
@@ -798,6 +902,7 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
             <li class="sb-item current"><span class="mark">&#9673;</span>What you're getting</li>
             <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
@@ -808,7 +913,7 @@
           </ul>
         </div>
         <div class="win-detail">
-          <p class="win-eyebrow">Step 3 of 8</p>
+          <p class="win-eyebrow">Step 4 of 9</p>
           <h3>Here's what you're getting</h3>
           <p class="win-intro">Everyone on your team gets all of this. There's nothing to pick. Control Tower sets it up and keeps it current for you.</p>
           <div class="win-content">
@@ -860,11 +965,11 @@
     </div>
   </section>
 
-  <!-- ---------------- 9. Departments ---------------- -->
-  <section id="w4" class="screen" aria-labelledby="h-w4">
+  <!-- ---------------- 10. Departments ---------------- -->
+  <section id="w5" class="screen" aria-labelledby="h-w5d">
     <div class="sec-head">
-      <span class="sec-num">9</span>
-      <h2 id="h-w4">Departments</h2>
+      <span class="sec-num">10</span>
+      <h2 id="h-w5d">Departments</h2>
       <p class="sec-sub">The "join my own team without asking anyone" moment. Bob should feel he's allowed, no permission-seeking.</p>
     </div>
 
@@ -875,6 +980,7 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
             <li class="sb-item current"><span class="mark">&#9673;</span>Departments</li>
@@ -885,7 +991,7 @@
           </ul>
         </div>
         <div class="win-detail">
-          <p class="win-eyebrow">Step 4 of 8</p>
+          <p class="win-eyebrow">Step 5 of 9</p>
           <h3>Departments you can join</h3>
           <p class="win-intro">Joining a department brings in everything your team shares there. You can join now, or come back to this later from Settings or the menu bar.</p>
           <div class="win-content">
@@ -931,12 +1037,12 @@
     </div>
   </section>
 
-  <!-- ---------------- 10. Integrations & sign-in (PEAK 1) ---------------- -->
-  <section id="w5" class="screen peak" aria-labelledby="h-w5">
+  <!-- ---------------- 11. Integrations & sign-in (PEAK 1) ---------------- -->
+  <section id="w6" class="screen peak" aria-labelledby="h-w6i">
     <div class="sec-head">
-      <span class="sec-num">10</span>
-      <h2 id="h-w5">Integrations, and the sign-in peak</h2>
-      <p class="sec-sub">Sanctioned peak #1. Bob sees what's already shared with the team, no action needed, and his own accounts as a stack of provider cards, GitHub first. He presses Connect, approves in his browser, and it's done. No password or API key is ever shown to him.</p>
+      <span class="sec-num">11</span>
+      <h2 id="h-w6i">Integrations, and the sign-in peak</h2>
+      <p class="sec-sub">Sanctioned peak #1. Bob sees what's already shared with the team, no action needed, and his own accounts as a stack of provider cards. GitHub is already connected, since he did that in step 2; he presses Connect on the rest, approves in his browser, and it's done. No password or API key is ever shown to him.</p>
     </div>
 
     <div class="window-wrap"><div class="window">
@@ -946,6 +1052,7 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Departments</li>
@@ -956,7 +1063,7 @@
           </ul>
         </div>
         <div class="win-detail">
-          <p class="win-eyebrow">Step 5 of 8</p>
+          <p class="win-eyebrow">Step 6 of 9</p>
           <h3>Integrations</h3>
           <p class="win-intro">Some integrations are already set up for you because you're on the team. Others use your own accounts. Signing in always happens in your browser, on the provider's own page. Control Tower never asks for a password.</p>
           <div class="win-content">
@@ -970,11 +1077,11 @@
             <div class="qi-block">
               <p class="qi-block-label">Your accounts</p>
               <div class="provider-cards">
-                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">GitHub</span><span class="btn primary small">Connect</span></div><p class="provider-note">GitHub comes first. It's how Control Tower knows what your team shares with you.</p></div>
-                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Google</span><span class="btn small disabled">Connect</span></div><p class="provider-note">Available once you're connected to GitHub.</p></div>
-                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Microsoft 365</span><span class="btn small disabled">Connect</span></div><p class="provider-note">Available once you're connected to GitHub.</p></div>
-                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Slack</span><span class="btn small disabled">Connect</span></div><p class="provider-note">Available once you're connected to GitHub.</p></div>
-                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Salesforce</span><span class="btn small disabled">Connect</span></div><p class="provider-note">Available once you're connected to GitHub.</p></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">GitHub</span><span class="fix" style="color:var(--qi-ink-faint);font-weight:500;">Signed in as bob-acme.</span></div><p class="provider-note">Connected at the start.</p></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Google</span><span class="btn small">Connect</span></div></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Microsoft 365</span><span class="btn small">Connect</span></div></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Slack</span><span class="btn small">Connect</span></div></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Salesforce</span><span class="btn small">Connect</span></div></div>
               </div>
             </div>
           </div>
@@ -984,15 +1091,6 @@
     </div></div>
 
     <div class="inset-row">
-      <div class="inset">
-        <p class="inset-caption">GitHub: waiting (state 2, device flow)</p>
-        <div class="inset-win">
-          <p style="margin:0 0 10px;font-size:12.2px;font-weight:650;color:var(--qi-ink);">GitHub</p>
-          <div class="qi-field-row"><label>Your code</label><span class="qi-input">WXYZ-4821</span><span class="btn small">Copy code</span></div>
-          <p style="margin:10px 0;"><span class="btn primary small">Open GitHub</span></p>
-          <p style="margin:0;font-size:11.6px;color:var(--qi-ink-faint);">Waiting for you to finish in your browser&hellip;</p>
-        </div>
-      </div>
       <div class="inset">
         <p class="inset-caption">Google / Microsoft 365 / Slack / Salesforce: waiting (state 2, browser redirect)</p>
         <div class="inset-win">
@@ -1013,16 +1111,16 @@
     </div>
 
     <div class="annot-grid">
-      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob sees what's already shared because he's on the team, nothing to click there, then his own accounts as a stack of calm cards: GitHub first, with a note explaining why it comes first, then Google, Microsoft 365, Slack, and Salesforce below it, waiting until GitHub is connected. He presses Connect, a short code appears with a copy button (or, for the browser-redirect providers, his browser just opens), he approves on the provider's own page, and returns to one calm row: "Signed in as bob@acme.com." If his org hasn't approved the app yet, the card says so plainly and asks nothing of him. This is the one moment in the whole journey engineered to feel effortless, and it should.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Grounded in <code>docs/03-design/integration-auth-research.md</code>: the app renders states only, it never runs auth machinery. Sign-in happens on the provider's own page, in the system browser, the industry-standard desktop pattern (several providers block embedded sign-in outright). The token is captured by the CLI and stored in the Mac's keychain; the app never holds it. GitHub gates the other four cards because layer entitlements (GitHub teams) determine what else Bob is even entitled to connect. Re-auth after a provider-set token expiry is routine upkeep and reuses the same Connect affordance, never an error. The device-flow personal sign-in verb (<code>cc auth login &lt;provider&gt; --json</code>) is not yet frozen (NB-1); the shared-versus-personal split is also not yet built (NB-3); today all of it is mock fixtures.</p></div>
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob sees what's already shared because he's on the team, nothing to click there, then his own accounts as a stack of calm cards: GitHub, already showing "Signed in as bob-acme" with a small note that it was connected at the start, then Google, Microsoft 365, Slack, and Salesforce, all plainly enabled and ready for him. He presses Connect on the ones he wants, a short code appears with a copy button (or, for the browser-redirect providers, his browser just opens), he approves on the provider's own page, and returns to one calm row: "Signed in as bob@acme.com." If his org hasn't approved the app yet, the card says so plainly and asks nothing of him. This is the one moment in the whole journey engineered to feel effortless, and it should.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Grounded in <code>docs/03-design/integration-auth-research.md</code>: the app renders states only, it never runs auth machinery. Sign-in happens on the provider's own page, in the system browser, the industry-standard desktop pattern (several providers block embedded sign-in outright). The token is captured by the CLI and stored in the Mac's keychain; the app never holds it. GitHub no longer gates the other four cards: by this point in the flow it is guaranteed, since Bob connected it in step 2. Re-auth after a provider-set token expiry is routine upkeep and reuses the same Connect affordance, never an error. The device-flow personal sign-in verb (<code>cc auth login &lt;provider&gt; --json</code>) is not yet frozen (NB-1); the shared-versus-personal split is also not yet built (NB-3); today all of it is mock fixtures.</p></div>
     </div>
   </section>
 
-  <!-- ---------------- 11. Set up (materialize) ---------------- -->
-  <section id="w6" class="screen" aria-labelledby="h-w6">
+  <!-- ---------------- 12. Set up (materialize) ---------------- -->
+  <section id="w7" class="screen" aria-labelledby="h-w7s">
     <div class="sec-head">
-      <span class="sec-num">11</span>
-      <h2 id="h-w6">Set up</h2>
+      <span class="sec-num">12</span>
+      <h2 id="h-w7s">Set up</h2>
       <p class="sec-sub">Bob watches it actually install and bring things in. He can walk away; he should not feel he must babysit it.</p>
     </div>
 
@@ -1033,6 +1131,7 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Departments</li>
@@ -1043,12 +1142,12 @@
           </ul>
         </div>
         <div class="win-detail">
-          <p class="win-eyebrow">Step 6 of 8</p>
+          <p class="win-eyebrow">Step 7 of 9</p>
           <h3>Bringing in your Sales department&hellip;</h3>
           <p class="win-intro">This part runs on its own. Keep this window open, or close it and let Control Tower finish in the menu bar.</p>
           <div class="win-content">
             <div class="qi-block" style="text-align:center;padding:24px 18px;">
-              <p style="margin:0;font-size:12.3px;color:var(--qi-ink-faint);">Part 2 of 4</p>
+              <p style="margin:0;font-size:12.3px;color:var(--qi-ink-faint);">Part 3 of 5</p>
             </div>
           </div>
           <div class="win-footer"><span></span><span class="status"></span><span class="btn primary disabled">Setting up&hellip;</span></div>
@@ -1062,6 +1161,10 @@
         <div class="inset-win"><p style="margin:0;font-size:12.6px;font-weight:650;color:var(--qi-ink);">Setting up Claude Copilot&hellip;</p><p style="margin:6px 0 0;font-size:11.4px;color:var(--qi-ink-faint);">No part count shown; a plain spinner glyph accompanies the title.</p></div>
       </div>
       <div class="inset">
+        <p class="inset-caption">Alternate: personal-space phase</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.6px;font-weight:650;color:var(--qi-ink);">Creating your personal space on GitHub&hellip;</p><p style="margin:6px 0 0;font-size:11.4px;color:var(--qi-ink-faint);">Part 2 of 5. Runs once, between the component phase and the department phase.</p></div>
+      </div>
+      <div class="inset">
         <p class="inset-caption">Alternate: closed-window variant</p>
         <div class="inset-win">
           <div class="menubar-strip" style="margin-bottom:8px;"><span class="tray-glyph" aria-hidden="true"><svg class="aviator-icon" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg><span class="badge sync">&#8635;</span></span></div>
@@ -1072,15 +1175,15 @@
 
     <div class="annot-grid">
       <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob watches a plain title that names exactly what's happening right now, "Bringing in your Sales department," told he can close the window and it'll keep going in the menu bar. There's a part count when one exists, never a percentage or a clock, and the primary button reads its own progress rather than pretending to be pressable.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The title is the current phase label, verbatim, rotating as the underlying materialize sequence progresses. No time estimate or percentage renders anywhere, matching the SOUL hard rule. If Bob closes the window, the same sequence continues headless, reporting through the tray instead.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The title is the current phase label, verbatim, rotating as the underlying materialize sequence progresses. No time estimate or percentage renders anywhere, matching the SOUL hard rule. If Bob closes the window, the same sequence continues headless, reporting through the tray instead. The personal layer lives in the user's own GitHub account; setup creates it once, its own rotating phase between the component phase and the department phase.</p></div>
     </div>
   </section>
 
-  <!-- ---------------- 12. Verify ---------------- -->
-  <section id="w7" class="screen" aria-labelledby="h-w7">
+  <!-- ---------------- 13. Verify ---------------- -->
+  <section id="w8" class="screen" aria-labelledby="h-w8v">
     <div class="sec-head">
-      <span class="sec-num">12</span>
-      <h2 id="h-w7">Verify</h2>
+      <span class="sec-num">13</span>
+      <h2 id="h-w8v">Verify</h2>
       <p class="sec-sub">Bob sees it confirm everything is actually current. Calm, not a fireworks moment: the only success here is everything actually being up to date.</p>
     </div>
 
@@ -1091,6 +1194,7 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Departments</li>
@@ -1101,7 +1205,7 @@
           </ul>
         </div>
         <div class="win-detail">
-          <p class="win-eyebrow">Step 7 of 8</p>
+          <p class="win-eyebrow">Step 8 of 9</p>
           <h3>Making sure everything's current</h3>
           <p class="win-intro">The only success here is everything actually being up to date.</p>
           <div class="win-content">
@@ -1121,7 +1225,7 @@
       </div>
       <div class="inset">
         <p class="inset-caption">Alternate: honest holding, never fakes a pass</p>
-        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Something can't be confirmed. Routes to the Holding screen, <a href="#w9">screen 14</a>, rather than reporting success it can't back up.</p></div>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Something can't be confirmed. Routes to the Holding screen, <a href="#w10">screen 15</a>, rather than reporting success it can't back up.</p></div>
       </div>
     </div>
 
@@ -1131,11 +1235,11 @@
     </div>
   </section>
 
-  <!-- ---------------- 13. Done ---------------- -->
-  <section id="w8" class="screen" aria-labelledby="h-w8">
+  <!-- ---------------- 14. Done ---------------- -->
+  <section id="w9" class="screen" aria-labelledby="h-w9d">
     <div class="sec-head">
-      <span class="sec-num">13</span>
-      <h2 id="h-w8">Done</h2>
+      <span class="sec-num">14</span>
+      <h2 id="h-w9d">Done</h2>
       <p class="sec-sub">Bob leaves understanding the single most important idea for the rest of his life with the product: quiet means current. This is also the one deliberate, owner-ratified send-off beat in an otherwise flat register.</p>
     </div>
 
@@ -1146,6 +1250,7 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
             <li class="sb-item done"><span class="mark">&#10003;</span>Departments</li>
@@ -1156,7 +1261,7 @@
           </ul>
         </div>
         <div class="win-detail">
-          <p class="win-eyebrow">Step 8 of 8</p>
+          <p class="win-eyebrow">Step 9 of 9</p>
           <h3>That's it. You're ready.</h3>
           <p class="win-intro">Control Tower now lives quietly in your menu bar. When the icon is quiet, everything's current. And when you're added to a new department later, it'll show up there, ready when you are.</p>
           <div class="win-content">
@@ -1194,11 +1299,11 @@
     </div>
   </section>
 
-  <!-- ---------------- 14. Holding ---------------- -->
-  <section id="w9" class="screen" aria-labelledby="h-w9">
+  <!-- ---------------- 15. Holding ---------------- -->
+  <section id="w10" class="screen" aria-labelledby="h-w10">
     <div class="sec-head">
-      <span class="sec-num">14</span>
-      <h2 id="h-w9">Holding</h2>
+      <span class="sec-num">15</span>
+      <h2 id="h-w10">Holding</h2>
       <p class="sec-sub">Something outside Bob's control paused setup. He must never hit a dead end or a raw error; he's told plainly who owns the wait. Rendered inline over whichever step raised it, here shown over Detect; it never adds its own sidebar row.</p>
     </div>
 
@@ -1209,6 +1314,7 @@
           <div class="sb-section-label">Setup</div>
           <ul class="sb-list">
             <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
             <li class="sb-item current"><span class="mark">&#9673;</span>Detect</li>
             <li class="sb-item upcoming"><span class="mark">&#9675;</span>What you're getting</li>
             <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
@@ -1248,7 +1354,7 @@
 
     <div class="annot-grid">
       <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Whatever paused setup, Bob reads one calm sentence naming exactly why and who, if anyone, owns fixing it. It's never his fault and never his job in the org and network cases. He can try again, or leave the wizard open and go about his day in the menu bar; setup picks up on its own the moment the reason clears.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Holding is referenced by Detect (screen 7), Integrations (screen 10), and Verify (screen 12) alike; it never adds its own sidebar row, because it isn't a step, it's a pause. Four reason variants exist: network, org/IT, entitlement, and unreadable, each with its own honest line and never a raw error message.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Holding is referenced by Detect (screen 8), Integrations (screen 11), and Verify (screen 13) alike; it never adds its own sidebar row, because it isn't a step, it's a pause. Four reason variants exist: network, org/IT, entitlement, and unreadable, each with its own honest line and never a raw error message.</p></div>
     </div>
   </section>
 
@@ -1264,7 +1370,7 @@
   <!-- ---------------- 15. The quiet tray ---------------- -->
   <section id="d1" class="screen" aria-labelledby="h-d1">
     <div class="sec-head">
-      <span class="sec-num">15</span>
+      <span class="sec-num">16</span>
       <h2 id="h-d1">The quiet tray</h2>
       <p class="sec-sub">Days pass. Bob glances at the menu bar. The icon is plain, no badge. He doesn't even think about it. That's the win.</p>
     </div>
@@ -1322,7 +1428,7 @@
   <!-- ---------------- 16. Opening the popover ---------------- -->
   <section id="d2" class="screen" aria-labelledby="h-d2">
     <div class="sec-head">
-      <span class="sec-num">16</span>
+      <span class="sec-num">17</span>
       <h2 id="h-d2">Opening the popover</h2>
       <p class="sec-sub">Bob clicks the icon out of curiosity or habit. He sees an honest, calm summary and the reassurance that nothing needs him. Six regions, always in the same order.</p>
     </div>
@@ -1370,14 +1476,14 @@
 
     <div class="annot-grid">
       <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob opens the popover and reads one honest sentence at the top, then a small tree of his four copilots with a quiet dot per layer when it's passing, no detail text to parse. Below that, what's shared with his team (nothing to sign into) and what's his own. At the bottom, one manual lever and two links. Nothing here is a reward; it's just true.</p></div>
-      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The header is a worst-wins glyph plus one sentence; the component tree carries a quiet dot only when a layer is passing, never detail text. There is no green-checkmark reward anywhere in this surface. Region 3, Available to join, is present only when a joinable department exists, so it is absent here (see <a href="#d4">screen 18</a>) and Region 6, the Bob lane, is empty in Healthy.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The header is a worst-wins glyph plus one sentence; the component tree carries a quiet dot only when a layer is passing, never detail text. There is no green-checkmark reward anywhere in this surface. Region 3, Available to join, is present only when a joinable department exists, so it is absent here (see <a href="#d4">screen 19</a>) and Region 6, the Bob lane, is empty in Healthy.</p></div>
     </div>
   </section>
 
   <!-- ---------------- 17. Sync now ---------------- -->
   <section id="d3" class="screen" aria-labelledby="h-d3">
     <div class="sec-head">
-      <span class="sec-num">17</span>
+      <span class="sec-num">18</span>
       <h2 id="h-d3">Sync now</h2>
       <p class="sec-sub">Bob wants to feel in control, or just wants a nudge. He presses Sync now. It's the one manual lever, and it never breaks anything.</p>
     </div>
@@ -1417,7 +1523,7 @@
   <!-- ---------------- 18. A department appears ---------------- -->
   <section id="d4" class="screen" aria-labelledby="h-d4">
     <div class="sec-head">
-      <span class="sec-num">18</span>
+      <span class="sec-num">19</span>
       <h2 id="h-d4">A department appears</h2>
       <p class="sec-sub">Earl added Bob to a team on GitHub. Later, Bob opens the popover and a new joinable department has quietly appeared. The tray never alarmed him about it.</p>
     </div>
@@ -1464,7 +1570,7 @@
   <!-- ---------------- 19. What Bob never has to do ---------------- -->
   <section id="d5" class="screen" aria-labelledby="h-d5">
     <div class="sec-head">
-      <span class="sec-num">19</span>
+      <span class="sec-num">20</span>
       <h2 id="h-d5">What Bob never has to do</h2>
       <p class="sec-sub">A walkthrough summary, not a product screen: the emotional core of steady state is freedom by omission.</p>
     </div>
@@ -1502,7 +1608,7 @@
   <!-- ---------------- 20. An update lands ---------------- -->
   <section id="u1" class="screen" aria-labelledby="h-u1">
     <div class="sec-head">
-      <span class="sec-num">20</span>
+      <span class="sec-num">21</span>
       <h2 id="h-u1">An update lands quietly, on cadence</h2>
       <p class="sec-sub">The owner published a new version. On its normal cadence sync, Bob's machine notices, verifies signatures in the CLI, and pulls. Bob may see a brief syncing state or nothing at all. He did not ask for this and does not need to.</p>
     </div>
@@ -1534,7 +1640,7 @@
   <!-- ---------------- 21. The honest summary ---------------- -->
   <section id="u2" class="screen" aria-labelledby="h-u2">
     <div class="sec-head">
-      <span class="sec-num">21</span>
+      <span class="sec-num">22</span>
       <h2 id="h-u2">The honest summary: 12 projects updated</h2>
       <p class="sec-sub">Bob opens What changed and sees a calm, past-tense account. He learns his copilots got better without any work from him, and, framed as reassurance rather than detail to manage, which things updated once and which fanned out across all his projects.</p>
     </div>
@@ -1590,7 +1696,7 @@
   <!-- ---------------- 22. Silent self-update ---------------- -->
   <section id="u3" class="screen" aria-labelledby="h-u3">
     <div class="sec-head">
-      <span class="sec-num">22</span>
+      <span class="sec-num">23</span>
       <h2 id="h-u3">Silent self-update</h2>
       <p class="sec-sub">Control Tower updates itself. When it works, Bob sees essentially nothing. He is never asked to approve or install an app update.</p>
     </div>
@@ -1620,7 +1726,7 @@
   <!-- ---------------- 23. Kept your working version (PEAK 2) ---------------- -->
   <section id="u4" class="screen peak" aria-labelledby="h-u4">
     <div class="sec-head">
-      <span class="sec-num">23</span>
+      <span class="sec-num">24</span>
       <h2 id="h-u4">Kept your working version</h2>
       <p class="sec-sub">Sanctioned peak #2. An app update was bad, the new bundle failed to start, and the crash-only watchdog reverted to the version that worked, all before Bob noticed. This is the moment the product earns deep trust.</p>
     </div>
@@ -1658,7 +1764,7 @@
   <!-- ---------------- 24. Auto-fixed and reported ---------------- -->
   <section id="p1" class="screen" aria-labelledby="h-p1">
     <div class="sec-head">
-      <span class="sec-num">24</span>
+      <span class="sec-num">25</span>
       <h2 id="h-p1">Route A: auto-fixed and reported</h2>
       <p class="sec-sub">A shared file drifted or a mirror went stale, reversible and disposable. The checker found it, the app rendered the fix. Bob was never asked. He thinks "huh, it fixed itself," and that's exactly right.</p>
     </div>
@@ -1697,7 +1803,7 @@
   <!-- ---------------- 25. Escalated to IT ---------------- -->
   <section id="p2" class="screen" aria-labelledby="h-p2">
     <div class="sec-head">
-      <span class="sec-num">25</span>
+      <span class="sec-num">26</span>
       <h2 id="h-p2">Route B: escalated to IT</h2>
       <p class="sec-sub">Something is wrong that Bob categorically cannot fix. The app states plainly that it's waiting on the org, names who to contact, and signals IT content-free. Bob feels "not my problem, and it already told the right person."</p>
     </div>
@@ -1733,7 +1839,7 @@
   <!-- ---------------- 26. Asked, on his own data ---------------- -->
   <section id="p3" class="screen" aria-labelledby="h-p3">
     <div class="sec-head">
-      <span class="sec-num">26</span>
+      <span class="sec-num">27</span>
       <h2 id="h-p3">Route C: asked, on his own data</h2>
       <p class="sec-sub">An update wants to touch a project where Bob has unsaved work of his own. Only he can decide, because it's his data. The app holds the update, tells him plainly, and offers exactly one affordance: to go look. It never offers "discard."</p>
     </div>
@@ -1798,10 +1904,11 @@
           <tr><td class="phase">AS-4</td><td>Notarization plus staple means Bob sees the friendly Gatekeeper dialog, not the hard block.</td><td>Arc 1, screen 4</td><td>High.</td></tr>
           <tr><td class="phase">AS-5</td><td>Resolved 2026-07-16: the control tower logo is the mark for the download page and all marketing surfaces; the aviator glyph is menu-bar only. See <code>docs/03-design/brand-assets.md</code>.</td><td>Arc 1, screens 2, 5</td><td>Resolved. Owner-ratified brand rule.</td></tr>
           <tr><td class="phase">AS-6</td><td>On first open the wizard auto-presents; opening the app is starting setup.</td><td>Arc 1, screen 5; Arc 2, screen 6</td><td>High. Matches <code>wizard.swift</code>.</td></tr>
-          <tr><td class="phase">AS-7</td><td>Claude Copilot and Codex Copilot are the per-project, fanned-out components; Knowledge and CLI Copilot are global-once.</td><td>Arc 4, screens 20-21</td><td>Medium. Matches the CSE model and owner brief; confirm against the frozen CLI contract.</td></tr>
-          <tr><td class="phase">AS-8</td><td>The <code>AdminContact</code> card on Bob's surface is populated from inherited org config and shows a real human plus address.</td><td>Arc 5, screen 25</td><td>High.</td></tr>
-          <tr><td class="phase">AS-9</td><td>The four education videos are owner-recorded and do not yet exist; every video slot is a labeled placeholder.</td><td>Arc 2, screen 8</td><td>Certain. Videos link out to YouTube; blank placeholders until the owner provides links.</td></tr>
-          <tr><td class="phase">AS-10</td><td>Fan-out counts and folder names shown (12 projects, acme-website) are illustrative fixtures, not live data.</td><td>Arc 4, screen 21</td><td>Certain. Labeled as example data.</td></tr>
+          <tr><td class="phase">AS-7</td><td>Claude Copilot and Codex Copilot are the per-project, fanned-out components; Knowledge and CLI Copilot are global-once.</td><td>Arc 4, screens 21-22</td><td>Medium. Matches the CSE model and owner brief; confirm against the frozen CLI contract.</td></tr>
+          <tr><td class="phase">AS-8</td><td>The <code>AdminContact</code> card on Bob's surface is populated from inherited org config and shows a real human plus address.</td><td>Arc 5, screen 26</td><td>High.</td></tr>
+          <tr><td class="phase">AS-9</td><td>The four education videos are owner-recorded and do not yet exist; every video slot is a labeled placeholder.</td><td>Arc 2, screen 9</td><td>Certain. Videos link out to YouTube; blank placeholders until the owner provides links.</td></tr>
+          <tr><td class="phase">AS-10</td><td>Fan-out counts and folder names shown (12 projects, acme-website) are illustrative fixtures, not live data.</td><td>Arc 4, screen 22</td><td>Certain. Labeled as example data.</td></tr>
+          <tr><td class="phase">AS-11</td><td>The personal layer lives in the user's own GitHub account; setup creates it.</td><td>Arc 2, screens 7, 12</td><td>High, matches the CSE four-layer model.</td></tr>
         </tbody>
       </table>
     </div>
@@ -1817,24 +1924,25 @@
       <p class="sec-sub">Everything this walkthrough shows that is invented or unbuilt, listed honestly, so no one mistakes the walkthrough for shipped reality.</p>
     </div>
     <div class="killed-grid">
-      <div class="killed-card"><h4>Personal sign-in seam</h4><p><code>cc auth login &lt;provider&gt; --json</code>: device flow for GitHub, browser PKCE link-out for Google, Microsoft 365, Slack, and Salesforce. The app holds no secret; the real verb is queued for WS-A. Peak #1 depends on it. Arc 2, screen 10 &middot; M3; G12; WS-E E3.</p></div>
-      <div class="killed-card"><h4>Department discovery and join</h4><p>Validated by GitHub repo access. Shown as mock fixtures. Arc 2, screen 9; Arc 3, screen 18 &middot; WS-E E1; G11.</p></div>
-      <div class="killed-card"><h4>Shared-versus-personal integration split</h4><p>Entitled shared integrations resolved from the secret store. Arc 2, screen 10; Arc 3, screen 16; Arc 5, screen 25 &middot; WS-E E3; G12.</p></div>
-      <div class="killed-card"><h4>Per-component education panel and video slots</h4><p>Entirely new to the wizard's Choose-copilots step. Arc 2, screen 8 &middot; new to this walkthrough.</p></div>
-      <div class="killed-card"><h4>Component fan-out update surface</h4><p>A CLI verb enumerating affected projects with per-project results over <code>--json</code>, the global-once versus per-project distinction, the See projects view, and the held-back-for-dirty-WIP state. Arc 4, screen 21 &middot; new; must live in the CLI per parse-never-compute.</p></div>
-      <div class="killed-card"><h4>App self-update and watchdog rollback</h4><p>"Kept your working version," peak #2. Arc 4, screens 22-23 &middot; WS-D D4.</p></div>
-      <div class="killed-card"><h4>Content-free safety escalation to IT</h4><p>With a mandatory <code>AdminContact</code>. Arc 5, screens 24-25 &middot; WS-F F3.</p></div>
-      <div class="killed-card"><h4>Security-override auto-suspend and its banner</h4><p>The banner's one affordance wording is explicitly unresolved. Arc 5, screen 24 &middot; WS-F F2.</p></div>
-      <div class="killed-card"><h4>Dirty-personal-working-tree detection</h4><p>Drives the ask-Bob prompt with no destructive affordance. Arc 5, screen 26; Arc 4, screen 21 &middot; never-destroy; WS-F.</p></div>
-      <div class="killed-card"><h4>The tray and wizard are mock-backed prototypes</h4><p><code>copilot doctor</code>, <code>copilot layers --json</code>, and the <code>wizard_*</code> verbs are not yet frozen. Every state this walkthrough shows is rendered from fixtures today. All arcs &middot; WS-A dependency.</p></div>
+      <div class="killed-card"><h4>NB-1 &middot; Personal sign-in seam</h4><p><code>cc auth login &lt;provider&gt; --json</code>: device flow for GitHub, browser PKCE link-out for Google, Microsoft 365, Slack, and Salesforce. The app holds no secret; the real verb is queued for WS-A. Peak #1 depends on it. Arc 2, screen 11 &middot; M3; G12; WS-E E3.</p></div>
+      <div class="killed-card"><h4>NB-2 &middot; Department discovery and join</h4><p>Validated by GitHub repo access. Shown as mock fixtures. Arc 2, screen 10; Arc 3, screen 19 &middot; WS-E E1; G11.</p></div>
+      <div class="killed-card"><h4>NB-3 &middot; Shared-versus-personal integration split</h4><p>Entitled shared integrations resolved from the secret store. Arc 2, screen 11; Arc 3, screen 17; Arc 5, screen 26 &middot; WS-E E3; G12.</p></div>
+      <div class="killed-card"><h4>NB-4 &middot; Per-component education panel and video slots</h4><p>Entirely new to the wizard's Choose-copilots step. Arc 2, screen 9 &middot; new to this walkthrough.</p></div>
+      <div class="killed-card"><h4>NB-5 &middot; Component fan-out update surface</h4><p>A CLI verb enumerating affected projects with per-project results over <code>--json</code>, the global-once versus per-project distinction, the See projects view, and the held-back-for-dirty-WIP state. Arc 4, screen 22 &middot; new; must live in the CLI per parse-never-compute.</p></div>
+      <div class="killed-card"><h4>NB-6 &middot; App self-update and watchdog rollback</h4><p>"Kept your working version," peak #2. Arc 4, screens 23-24 &middot; WS-D D4.</p></div>
+      <div class="killed-card"><h4>NB-7 &middot; Content-free safety escalation to IT</h4><p>With a mandatory <code>AdminContact</code>. Arc 5, screens 25-26 &middot; WS-F F3.</p></div>
+      <div class="killed-card"><h4>NB-8 &middot; Security-override auto-suspend and its banner</h4><p>The banner's one affordance wording is explicitly unresolved. Arc 5, screen 25 &middot; WS-F F2.</p></div>
+      <div class="killed-card"><h4>NB-9 &middot; Dirty-personal-working-tree detection</h4><p>Drives the ask-Bob prompt with no destructive affordance. Arc 5, screen 27; Arc 4, screen 22 &middot; never-destroy; WS-F.</p></div>
+      <div class="killed-card"><h4>NB-10 &middot; The tray and wizard are mock-backed prototypes</h4><p><code>copilot doctor</code>, <code>copilot layers --json</code>, and the <code>wizard_*</code> verbs are not yet frozen. Every state this walkthrough shows is rendered from fixtures today. All arcs &middot; WS-A dependency.</p></div>
       <div class="killed-card"><h4>NB-11 &middot; Separate admin and user builds</h4><p>Ratified 2026-07-16. Two executables from one codebase: a public user build and a privately distributed admin build. Packaging, signing, and the private admin channel are not yet built. Arc 1, screen 2; Arc 2, screen 6.</p></div>
-      <div class="killed-card"><h4>NB-12 &middot; Deployable download page</h4><p>The download page shown here ships with the product as a deployable artifact (static page plus the signed <code>.dmg</code>) so a company can host it internally. Hosting story and artifact format are not yet designed. Arc 1, screen 2.</p></div>
+      <div class="killed-card"><h4>NB-12 &middot; Deployable resource site</h4><p>The page shown here ships with the product as a deployable org resource site (static site plus the signed <code>.dmg</code>) so a company can host it internally, swap the videos, name, and contact for their own. Full design: <code>docs/03-design/landing-site.md</code>. Hosting story and artifact format are not yet built. Arc 1, screen 2.</p></div>
+      <div class="killed-card"><h4>NB-13 &middot; GitHub command line install and approval flow</h4><p>Detect finds or installs <code>gh</code> and walks the user through a one-time browser approval. Install mechanics, bundling vs download, and the approval UX are not built. Arc 2, screen 8.</p></div>
     </div>
   </section>
 
   <footer class="page-footer">
     <span>SOUL.md &middot; control-tower-copy-deck.md &middot; three-role-journeys.md &middot; control-tower-interaction-spec.md &middot; wizard.swift</span>
-    <span>End-user walkthrough &middot; 26 screens &middot; Arcs 1-5</span>
+    <span>End-user walkthrough &middot; 27 screens &middot; Arcs 1-5</span>
   </footer>
 
 </main>
