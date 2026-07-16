@@ -24,7 +24,10 @@ ECOSYSTEM_SCHEMA_VERSION="2.0"
 # so it can actually be resolved against real tags; the contract's own "^5.x"
 # illustration is a shape example, not valid semver (an "x" minor/patch can't be
 # compared), so the script picks a concrete floor here.
-FOUNDATION_REF_DEFAULT="^5.13.0"
+# Floor ratified 2026-07-16 against the real published foundation: claude-copilot's
+# highest tag is v5.8.0 (codex-copilot has no tags yet; validate Codex shops only
+# after the foundation publishes a codex-copilot release).
+FOUNDATION_REF_DEFAULT="^5.8.0"
 # The public GitHub org that owns every foundation component repo
 # (<component>-copilot), read over anonymous HTTPS — no credential assumptions.
 FOUNDATION_ORG="Everyone-Needs-A-Copilot"

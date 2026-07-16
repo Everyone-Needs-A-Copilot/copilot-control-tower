@@ -312,28 +312,21 @@ Invitation email (org-sent, by AdminContact)
 
 ---
 
-## 7. Open questions for the owner
+## 7. Ratified decisions (owner, 2026-07-16)
 
-1. **Publisher docs: host or link out?** Should "For admins" and the footer link out to the
-   public GitHub repo for anything publisher-facing, or should the site carry a small
-   publisher/source page of its own? Recommendation: link out. The site stays a thin
-   internal utility; the repo is the project's real documentation home.
-2. **Is the admin standup video public enough for this site?** The `adminStandup` overview
-   is education, not a secret, but it lives on a page every employee can reach. Confirm the
-   overview reveals nothing an org would not want a general employee to see. If it might,
-   move that video behind the private admin channel and drop it from "Watch how it works."
-3. **AdminContact on a public-internal page.** Rendering a named person's email on an
-   intranet page is fine inside a company, but confirm orgs are comfortable with that
-   versus a shared alias (for example `it-help@acme.com`). The config supports either; the
-   default copy assumes a named human because SOUL routes trust through one.
-4. **One org logo or two marks side by side?** The design keeps the Control Tower logo as
-   the product mark and treats an org logo as optional and additive. Confirm the header
-   composition when both are present (Control Tower logo primary, org logo secondary), or
-   whether some orgs want their mark to lead.
-5. **Does "Watch how it works" duplicate the per-copilot videos on "What you get"?** The
-   same explainer videos appear in both places by design (learn-in-context on What you get,
-   find-again in the library). Confirm that repetition is wanted, or fold the copilots into
-   one page.
+1. **Publisher docs link out** to the public GitHub repo. The site stays a thin internal
+   utility; the repo is the project's real documentation home.
+2. **The admin standup overview video stays on the site.** It is education, not a secret,
+   and the site is org-internal; transparency helps curious employees understand the whole
+   system. An org that disagrees can simply omit that entry from its video registry.
+3. **AdminContact defaults to a named human** because SOUL routes trust through one; the
+   config also accepts a shared alias (for example `it-help@acme.com`) for orgs that
+   prefer it.
+4. **Header composition: the Control Tower logo is the product mark; an org logo is
+   optional and secondary.** Both render side by side when present, product mark leading.
+5. **The per-copilot explainer videos appear in both places by design**: learn-in-context
+   on "What you get," find-again on "Watch how it works." One registry entry serves both,
+   so there is no duplicate upkeep.
 
 ---
 
