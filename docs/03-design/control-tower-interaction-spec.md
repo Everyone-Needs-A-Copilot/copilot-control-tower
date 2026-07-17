@@ -5,8 +5,8 @@ inventory in `control-tower-native-experience-architecture.md`; this = the
 **interaction**: flows, navigation, state transitions, focus/keyboard/VoiceOver,
 and interaction patterns; Stage 3 = the visual system by uids). Grounded in and
 consistent with the **corrected CSE model**: the Stage 1 architecture (surfaces
-S1 to S13), `docs/reference/copilot-solutioning-ecosystem.md`,
-`docs/reference/cse-alignment-decisions.md` (D1 to D10),
+S1 to S13), `docs/10-reference/copilot-solutioning-ecosystem.md`,
+`docs/10-reference/cse-alignment-decisions.md` (D1 to D10),
 `docs/03-design/three-role-journeys.md`, `docs/01-architecture/cli-contract.md`
 (the `copilot layers` / `layers join` verbs), the closed sets in `src/types.ts`,
 `SOUL.md`, and `CLAUDE.md`.

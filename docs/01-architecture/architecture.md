@@ -24,7 +24,7 @@ The ecosystem already ships the intelligence: a three-ring installer, a `copilot
 
 The name is the model: a control tower doesn't fly the plane — it watches every flight, keeps them coordinated and on schedule, clears them to proceed, and raises the alarm when something's off. That is exactly the supervisor role, and it maps onto the IT-facing side (a tower is who ops calls). **Control Tower is the productization of the ecosystem's Rings 0–2 + the sync-automation stack into a native, self-installable, always-on presence.**
 
-**Two faces, one open-source binary.** Control Tower is not only Bob's client — it is also the **org admin's setup tool** for standing up the whole Copilot Solutioning Ecosystem (CSE) for their org, and it is **open source** (`Everyone-Needs-A-Copilot/copilot-control-tower`, public). Open source is a *requirement*, not goodwill: an always-on agent that holds a live token and auto-materializes executable-adjacent content must be **auditable** for an org to trust it on every employee's machine — open source + reproducible builds + two-of-N signing (§7) are that trust basis. §2–§7 describe **Operator mode** (the end-user client); **§8 describes Admin mode** (the org-enablement tool + its documentation). See [`cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md) for what Control Tower manages (CSE components) vs. what it never manages (products/projects built with the CSE).
+**Two faces, one open-source binary.** Control Tower is not only Bob's client — it is also the **org admin's setup tool** for standing up the whole Copilot Solutioning Ecosystem (CSE) for their org, and it is **open source** (`Everyone-Needs-A-Copilot/copilot-control-tower`, public). Open source is a *requirement*, not goodwill: an always-on agent that holds a live token and auto-materializes executable-adjacent content must be **auditable** for an org to trust it on every employee's machine — open source + reproducible builds + two-of-N signing (§7) are that trust basis. §2–§7 describe **Operator mode** (the end-user client); **§8 describes Admin mode** (the org-enablement tool + its documentation). See [`cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md) for what Control Tower manages (CSE components) vs. what it never manages (products/projects built with the CSE).
 
 ---
 
@@ -226,4 +226,4 @@ Full reports: [`redteam-use-cases.md`](../04-validation/redteam-use-cases.md) (u
 
 **Design:** [`design-core.md`](../03-design/design-core.md) · [`design-distribution.md`](../03-design/design-distribution.md) · [`design-integration.md`](../03-design/design-integration.md)
 **Validation:** [`redteam-use-cases.md`](../04-validation/redteam-use-cases.md) · [`redteam-platform.md`](../04-validation/redteam-platform.md)
-**Parent architecture:** [`ecosystem-architecture.md`](../reference/ecosystem-architecture.md)
+**Parent architecture:** [`ecosystem-architecture.md`](../10-reference/ecosystem-architecture.md)

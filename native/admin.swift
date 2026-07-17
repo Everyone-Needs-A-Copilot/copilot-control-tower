@@ -190,17 +190,36 @@ enum AdminPaths {
 
     /// CONTRACT SEAM: the interim engine's path, injectable in this one place
     /// so the WS-A freeze swap to `copilot admin bootstrap --verify --json`
-    /// (contract §8) only touches this constant. Resolved relative to the
-    /// working directory, the same convention `AviatorGlyph`/`ControlTowerGlyph`
-    /// use in `models.swift` (the launcher `cd`s to the repo root first).
+    /// (contract §8) only touches this constant. Resolved from the app
+    /// bundle's Resources first (correct once a packaged build copies the
+    /// engine script in), falling back to a working-directory-relative
+    /// resolution — the same convention `AviatorGlyph`/`ControlTowerGlyph`
+    /// use in `models.swift` — for today's unbundled `swiftc` dev build
+    /// (`scripts/build-admin.command`), which does not yet copy any
+    /// resources into a `Contents/Resources`-style directory.
     static var enginePath: String {
+        if let resourcePath = Bundle.main.resourcePath {
+            let bundled = URL(fileURLWithPath: "scripts/admin_bootstrap.sh", relativeTo: URL(fileURLWithPath: resourcePath)).standardizedFileURL
+            if FileManager.default.fileExists(atPath: bundled.path) {
+                return bundled.path
+            }
+        }
         let cwd = FileManager.default.currentDirectoryPath
         return URL(fileURLWithPath: "scripts/admin_bootstrap.sh", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL.path
     }
 
-    /// §2.1: the bundled OSS skill this prototype ships repo-relative, and the
-    /// fixed user-scope location Review-and-hand-off materializes it to.
+    /// §2.1: the bundled OSS skill this prototype ships, and the fixed
+    /// user-scope location Review-and-hand-off materializes it to. Resolved
+    /// from the app bundle's Resources first, with the same
+    /// working-directory-relative fallback as `enginePath` above for today's
+    /// unbundled dev build.
     static var bundledSkillSourcePath: String {
+        if let resourcePath = Bundle.main.resourcePath {
+            let bundled = URL(fileURLWithPath: ".claude/skills/admin-bootstrap/SKILL.md", relativeTo: URL(fileURLWithPath: resourcePath)).standardizedFileURL
+            if FileManager.default.fileExists(atPath: bundled.path) {
+                return bundled.path
+            }
+        }
         let cwd = FileManager.default.currentDirectoryPath
         return URL(fileURLWithPath: ".claude/skills/admin-bootstrap/SKILL.md", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL.path
     }

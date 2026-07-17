@@ -20,7 +20,7 @@ workflow without creating a separate product or giving fleet administrators
 release-signing authority.
 
 For the full role split and handoff, see
-[`../reference/publisher-admin-experience.md`](../reference/publisher-admin-experience.md).
+[`../10-reference/publisher-admin-experience.md`](../10-reference/publisher-admin-experience.md).
 
 ## Publisher vs. administrator
 

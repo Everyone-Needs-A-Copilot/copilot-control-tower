@@ -2,7 +2,7 @@
 
 This repo holds Control Tower's spec + design, and (in a sibling repo) the CLI engine it renders. Read this for orientation; **for the current build state and the immediate next step, read [`HANDOFF.md`](HANDOFF.md) first** — it's the app-build kickoff.
 
-**Start from the corrected model:** [`reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md) (the canonical CSE model) and [`reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md) (the decisions that align this repo to it).
+**Start from the corrected model:** [`10-reference/copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md) (the canonical CSE model) and [`10-reference/cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md) (the decisions that align this repo to it).
 
 **Standing up an organization?** Read [`06-deployment/admin-prerequisites.md`](06-deployment/admin-prerequisites.md) first: what has to be true before setup can run, and the exact GitHub access it needs (and why).
 
@@ -43,7 +43,7 @@ This repo holds Control Tower's spec + design, and (in a sibling repo) the CLI e
 | `06-deployment/` | Deployment/onboarding guides: self-install of the signed app, GitHub repo-access entitlement and onboarding. **Stub** (build-time) |
 | `07-contributing/` | Developer guide + `release-and-versioning.md` (done; root `CONTRIBUTING.md`/`CODE_OF_CONDUCT.md`/`SECURITY.md`) |
 | `08-observability/` | Telemetry spec (two-channel, `machine_id`, fleet dashboard) |
-| `reference/` | Canonical model: [`copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md) + [`cse-alignment-decisions.md`](reference/cse-alignment-decisions.md); four-tier arch, use cases, `glossary.md`, diagrams |
+| `10-reference/` | Canonical model: [`copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md) + [`cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md); four-tier arch, use cases, `glossary.md`, diagrams |
 
 ## What still needs creating (and by what)
 

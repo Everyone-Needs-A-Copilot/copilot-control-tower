@@ -136,7 +136,7 @@ WS-I  Windows re-skin  [P4]          depends: B, D
 
 | Task | Detail | Acceptance |
 |---|---|---|
-| H1 | **Seed generator** — guided `ecosystem.yml` authoring; opens PR to `<org>/copilot-ecosystem` | valid seed produced, no hand-YAML |
+| H1 | **Seed generator** — guided `ecosystem.yml` authoring; opens PR to `<org>/<C>-copilot-internal` | valid seed produced, no hand-YAML |
 | H2 | **Repo & access scaffolding** — create/verify org + separate dept repos; emit team/CODEOWNERS/branch-protection; declared-repo existence check | typo can't ship a 404 |
 | H3 | **Capability-policy** authoring + signing (security key distinct from push) | policy signed by authorized signer |
 | H4 | **Self-install + entitlement guide** — walks a user through installing the signed `.dmg` and discovering/joining an entitled department (replaces MDM profile/zero-touch, D4) | user can self-install and join without an IT push |

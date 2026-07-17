@@ -14,7 +14,7 @@
 > described deployment in terms of enterprise MDM (Jamf/Kandji/Intune,
 > `.mobileconfig` profiles, a forced/managed configuration domain, a
 > fleet-dashboard center of gravity). That framing has been dropped in full;
-> see [`../reference/cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md)
+> see [`../10-reference/cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md)
 > D4. **GitHub repo access is now the entitlement and deployment spine**: a
 > person has a layer (org, or a given department) if and only if they have
 > access to that layer's repo. Admin mode stands up the repos and teams,
@@ -22,7 +22,7 @@
 > and users self-install the signed app and join their entitled departments.
 > Offboarding is a server-side revoke (repo access + secret-store tokens), not
 > a device wipe. This whole directory has been rewritten to that model; read
-> [`../reference/copilot-solutioning-ecosystem.md`](../reference/copilot-solutioning-ecosystem.md)
+> [`../10-reference/copilot-solutioning-ecosystem.md`](../10-reference/copilot-solutioning-ecosystem.md)
 > first if the "component / tier / entitlement" vocabulary below is new to
 > you.
 
@@ -37,7 +37,7 @@ one directory.
 
 Admin deployment starts after the publisher has produced a signed, notarized
 artifact. For the role split and handoff boundary, see
-[`../reference/publisher-admin-experience.md`](../reference/publisher-admin-experience.md) - note that document still describes the MDM-era Admin journey and has not
+[`../10-reference/publisher-admin-experience.md`](../10-reference/publisher-admin-experience.md) - note that document still describes the MDM-era Admin journey and has not
 yet been reconciled to D4; read this README as the current model where the
 two disagree.
 
@@ -96,8 +96,8 @@ on. Nothing in this directory claims a not-yet-built piece works.
 
 ## The deployment model, in one page
 
-Per [`../reference/copilot-solutioning-ecosystem.md`](../reference/copilot-solutioning-ecosystem.md)
-and [`cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md) D3/D4/D6:
+Per [`../10-reference/copilot-solutioning-ecosystem.md`](../10-reference/copilot-solutioning-ecosystem.md)
+and [`cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md) D3/D4/D6:
 
 1. **Stand up the repos.** Each CSE component (Knowledge, CLI, Claude/Codex
    Copilot) exists at four tiers - foundation (public, open-source), org,
@@ -137,7 +137,7 @@ to D4) and the M7 task definitions (`tc task get 60`–`69`) +
 | 3 | `AdminContact` endpoint value (a real IT-owned URL/address) | Safety-escalation delivery - without it, signals fall back to in-app-only (A-H10) | Org decision, no code gap |
 | 4 | Real update-feed endpoint (replaces `updates.controltower.example` in `trust.rs`) | Self-update actually resolving a real `latest.json` | Owner-gated, undecided (D-4-M4) |
 | 5 | Minisign two-of-N real keys + second-key holder assignment | The `verify_update_multisig` verifier being real (and live) rather than dev-keyed and unwired | **Verifier code landed** (dev keys, sibling entrypoint), custody unassigned (M7-S5) - see `two-of-n-custody-runbook.md` |
-| 6 | `EcosystemSeedURL` real seed-repo target + the seed generator's PR target (`<org>/copilot-ecosystem`) | The seed generator opening a real PR instead of a dry-run mock | **Generator code landed**, real PR target not yet wired |
+| 6 | `EcosystemSeedURL` real seed-repo target + the seed generator's PR target (`<org>/<C>-copilot-internal`, one per component) | The seed generator opening a real PR instead of a dry-run mock | **Generator code landed**, real PR target not yet wired |
 | 7 | The opt-in analytics carrier field ratification (G-M7-1) | Analytics ever emitting for a real org | Simplified by D4: since there is no forced domain to choose between, the carrier is the signed `ecosystem.yml` `telemetry` field - confirm the app can't itself forge that signature before trusting it |
 | 8 | Collected-fleet-event source / org collector query API (G-M7-3) | The fleet dashboard rendering anything beyond fixtures | **Frontend landed against fixtures**, backend/collector source not built |
 | 9 | Shared secret-store endpoint (`SharedSecretStoreURL`/`Tier`) | The credential-resolution ladder's shared-store rung | Org infra decision; **also blocked on a code rehoming from the forced/managed domain to signed inherited org config per D4** - not yet done |

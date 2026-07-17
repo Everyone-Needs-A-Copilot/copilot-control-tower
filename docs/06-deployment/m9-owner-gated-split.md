@@ -23,7 +23,7 @@ that table doesn't yet carry M9 rows because, as of this doc, `platform/`
 (Stream-B) has not landed.
 
 > **Reconciliation flag (2026-07-08):** per
-> [`../reference/cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md)
+> [`../10-reference/cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md)
 > D4, MDM is dropped completely from the deployment model (GitHub repo access
 > is the entitlement spine instead). This doc is a **reconcile-only** touch,
 > not a full rewrite: the ADR-M9-003 row below (forced-config parity) and

@@ -78,7 +78,7 @@ This is the seam the architecture calls out: *"IT teams could modify it to set u
 <!-- dev.enac.aviator managed preferences (mobileconfig payload) -->
 OrgSlug                 = "acme-corp"                      <!-- → cc config layers.org; skips wizard Q2 -->
 Department              = "finance"                        <!-- → cc config layers.department; skips Q3 -->
-EcosystemSeedURL        = "https://github.acme.com/acme-corp/copilot-ecosystem"  <!-- the ecosystem.yml seed (§4.2). GHES host honored -->
+EcosystemSeedURL        = "https://github.acme.com/acme-corp/claude-copilot-internal"  <!-- the ecosystem.yml seed (§4.2), the org-layer repo for the "claude" component. GHES host honored -->
 GitHubHost              = "github.acme.com"                <!-- GHES; maps to ecosystem.yml host/api_base/ssh_host -->
 AuthMode                = "gh-device" | "ssh-work" | "gh-app:acme-copilot"  <!-- ecosystem.yml auth -->
 Host                    = "claude" | "codex"               <!-- which foundation host this fleet runs -->

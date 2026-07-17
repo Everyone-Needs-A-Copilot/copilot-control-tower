@@ -9,7 +9,7 @@
 
 > **Product model correction (2026-07-08).** This runbook previously walked
 > an MDM standup (enroll a Mac, push a `.mobileconfig`, force-domain keys).
-> Per [`../reference/cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md)
+> Per [`../10-reference/cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md)
 > D4, MDM is dropped completely. **GitHub repo access is the entitlement and
 > deployment spine.** The steps below now walk: author the seed, stand up
 > the tier repos and grant team access, users self-install and join their
@@ -28,8 +28,9 @@ shape isn't yet CLI-ratified) - flagged there, not glossed over.
 **Prerequisites:**
 - A GitHub org (or equivalent) to hold the org repo and one repo per
   department, with permission to create repos and manage team access.
-- A GitHub org for `<org>/copilot-ecosystem` (or your org's equivalent
-  ecosystem repo), with permission to open PRs against it.
+- A GitHub org for `<org>/<C>-copilot-internal` (the org-layer repo, one per
+  component, that carries `ecosystem.yml`), with permission to open PRs
+  against it.
 - If you use shared integrations (Workday, Salesforce, Microsoft, etc.): a
   tier-scoped shared secret store instance (Infisical or OpenBao), reachable
   by GitHub-team membership.
@@ -86,11 +87,11 @@ until it lands.
 `policy_signers` public-key allow-list, the off-by-default `telemetry`
 block) → the same fail-closed no-secret scan the `.mobileconfig`-era
 generator used → emitted `ecosystem.yml` text. Run it in Admin mode, review
-the diff, and let it open the PR to `<org>/copilot-ecosystem`.
+the diff, and let it open the PR to `<org>/<C>-copilot-internal`.
 
 **Flagged, not silently resolved (G-M7-7):** the shape this generator emits
 is a careful, evidence-cited transcription of
-`docs/reference/ecosystem-architecture.md` §4.2's worked example - it is not
+`docs/10-reference/ecosystem-architecture.md` §4.2's worked example - it is not
 yet a shape the real CLI (`claude-copilot/tools/cc`) parses or validates
 against a ratified schema. Generate to this documented shape; don't treat it
 as a settled contract yet. The seed's per-component department map is

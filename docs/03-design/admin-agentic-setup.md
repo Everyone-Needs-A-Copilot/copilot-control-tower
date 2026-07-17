@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Proposed (architecture). Extends the ratified Admin-mode design (`control-tower-interaction-spec.md` §5) with the automation engine that section assumed but did not specify. |
 | **Owner** | Architecture pass |
-| **Reads on** | `docs/reference/four-tier-topology.md` (repo/team naming — authoritative), `docs/05-security/credentials-and-boundary.md` (shared store, secrets-never-in-git), `docs/reference/cse-alignment-decisions.md` (D1–D10), `docs/03-design/three-role-journeys.md` §2 (Admin journey), `docs/03-design/control-tower-interaction-spec.md` §5 (Admin mode), `docs/01-architecture/cli-contract.md`, `CLAUDE.md` invariants #1/#3/#4/#6. |
+| **Reads on** | `docs/10-reference/four-tier-topology.md` (repo/team naming — authoritative), `docs/05-security/credentials-and-boundary.md` (shared store, secrets-never-in-git), `docs/10-reference/cse-alignment-decisions.md` (D1–D10), `docs/03-design/three-role-journeys.md` §2 (Admin journey), `docs/03-design/control-tower-interaction-spec.md` §5 (Admin mode), `docs/01-architecture/cli-contract.md`, `CLAUDE.md` invariants #1/#3/#4/#6. |
 | **Closes gaps** | G6 (seed generator, engine half), G7 (setup verification), **G8 (GitHub topology is docs-only, not an in-app flow)** — this is the primary gap this spec closes. |
 | **Governing invariants** | #1 parse-never-compute · #3 never-destroy (additive/idempotent) · #4 security inherited-not-weakened · #6 one-way inheritance, secrets never in git. |
 

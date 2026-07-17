@@ -5,7 +5,7 @@
 | **STATUS** | **RATIFIED 2026-07-07 (owner).** Promoted from `proposals/writable-inheritance-and-conflict.md` (draft RFC) to a canonical architecture doc. |
 | **Type** | Architecture RFC (foundational — resolves two of the three open problems in SOUL.md §9) |
 | **Scope** | Reconciles writable org/dept tiers with invariant #3 (never-destroy); designs non-technical merge-conflict resolution (SOUL anti-pattern *The Git Error To A Non-Technical Person*) |
-| **Grounds in** | `architecture.md` §3 · `cli-contract.md` · `reference/four-tier-topology.md` §§3–6 · `reference/ecosystem-architecture.md` §3, §5.2, §5.4, §8.1 · `product-design/02-service-design/10-service-blueprint.md` (W1–W5, F15/F16) · SOUL.md §4 (Leak, Git-Error), §9 |
+| **Grounds in** | `architecture.md` §3 · `cli-contract.md` · `10-reference/four-tier-topology.md` §§3–6 · `10-reference/ecosystem-architecture.md` §3, §5.2, §5.4, §8.1 · `product-design/02-service-design/10-service-blueprint.md` (W1–W5, F15/F16) · SOUL.md §4 (Leak, Git-Error), §9 |
 | **Governed by** | The five invariants in `CLAUDE.md`. This design KEEPS all five intact; the one *optional* invariant-text clarification (§5) was offered for ratification and is **not** adopted unless separately ratified — the ratified design needs no invariant change. |
 | **Red-team IDs addressed** | F15 (merge-conflict UNSOLVED), the #3-strain on writable tiers; adjacent to F16 (credentials-carrier, out of scope here — see §6) |
 
@@ -194,9 +194,9 @@ The invariant **holds as written**; the recommendation needs no change. However,
 
 ## 7. Carried-forward seam — author git-push-credential provisioning — RESOLVED 2026-07-07
 
-**Status change:** this seam is no longer open. The mechanism is per-user, on-device ed25519 key generation (private key keychain/`ssh-agent`-resident, never in git) with the public key registered to the author's **own** GitHub account, authorized via GitHub Team membership — reusing the existing SSH-alias model (`reference/four-tier-topology.md` §6.1) and its own primitives for rotation and revocation. Fully worked in [`docs/05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md) §6, which this section now defers to entirely.
+**Status change:** this seam is no longer open. The mechanism is per-user, on-device ed25519 key generation (private key keychain/`ssh-agent`-resident, never in git) with the public key registered to the author's **own** GitHub account, authorized via GitHub Team membership — reusing the existing SSH-alias model (`10-reference/four-tier-topology.md` §6.1) and its own primitives for rotation and revocation. Fully worked in [`docs/05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md) §6, which this section now defers to entirely.
 
-- **Where it leans.** The intended mechanism was the **four-tier SSH-alias model** — the `ssh-personal` / `ssh-work` / `anon` / `gh-app:<slug>` aliases that `reference/four-tier-topology.md` §6.1 already chose for multi-account git auth. An author's dept/org write credential is the `ssh-work` identity, provisioned once at promotion (§2.4). This reuses existing machinery rather than inventing a new carrier.
+- **Where it leans.** The intended mechanism was the **four-tier SSH-alias model** — the `ssh-personal` / `ssh-work` / `anon` / `gh-app:<slug>` aliases that `10-reference/four-tier-topology.md` §6.1 already chose for multi-account git auth. An author's dept/org write credential is the `ssh-work` identity, provisioned once at promotion (§2.4). This reuses existing machinery rather than inventing a new carrier.
 - **Where it is worked.** The security-side design (generation, GitHub-Team-based authorization, rotation, revocation) lives in `docs/05-security/credentials-and-boundary.md` §6 — now **RATIFIED**, not a draft.
 
 **Net:** the publish contract (§3–§4) and the author-credential provisioning that feeds it are both ratified; write access to a second author is no longer gated on this seam.

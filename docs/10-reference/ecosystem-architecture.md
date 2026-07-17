@@ -109,7 +109,7 @@ Worked example (`Everyone-Needs-A-Copilot` foundation, `acme-corp` enterprise, `
 
 ### 4.2 The `ecosystem.yml` seed — the one thing IT publishes
 
-Given only the org name, the installer fetches ONE artifact and derives the entire matrix. It lives at the const-named seed repo `<org>/copilot-ecosystem` (discovery fallback: seed repo → org `.github` profile → `copilot-ecosystem` topic search). Hardened schema:
+Given only the org name, the installer fetches ONE artifact and derives the entire matrix. It lives at `<org>/<C>-copilot-internal` — the org-layer repo for the org's first configured component (`scripts/admin_bootstrap.sh`'s `_write_ecosystem_yml` target), not a dedicated `copilot-ecosystem` repo. Hardened schema:
 
 ```yaml
 version: 1

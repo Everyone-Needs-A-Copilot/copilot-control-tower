@@ -6,8 +6,8 @@ It supersedes [`HANDOFF.md`](HANDOFF.md) (which was the *build* brief, now done)
 
 > **Model note (read before the rest):** after this pause, an audit found the
 > repo's model needed correction: the Copilot Solutioning Ecosystem (CSE). See
-> [`docs/reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md)
-> and [`docs/reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md),
+> [`docs/10-reference/cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md)
+> and [`docs/10-reference/copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md),
 > which now govern. Two consequences that change the picklist below: MDM is
 > dropped completely as a mechanism (no `.mobileconfig`, no forced/managed
 > domain, no fleet console as Admin's center of gravity); entitlement and

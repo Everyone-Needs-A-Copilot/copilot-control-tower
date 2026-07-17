@@ -7,7 +7,7 @@ implementer can drop each string straight into `native/*.swift`. This deck is th
 placeholder string herein").
 
 **Ground truth read first:** `SOUL.md` (§7 Voice & Tone), the interaction spec, and
-`docs/reference/cse-alignment-decisions.md` (the vocabulary).
+`docs/10-reference/cse-alignment-decisions.md` (the vocabulary).
 
 ## The voice, in one paragraph
 

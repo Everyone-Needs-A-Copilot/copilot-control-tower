@@ -21,7 +21,7 @@ import type { FieldError, LayerInput, LayerRow, SettingsState, Tier } from "../t
 
 /**
  * Product grouping order. `LayerRow.product` is config-driven in the engine
- * (`docs/reference/four-tier-topology.md`: "knowledge|cli|claude|codex + more"),
+ * (`docs/10-reference/four-tier-topology.md`: "knowledge|cli|claude|codex + more"),
  * but the S7 task brief scopes this UI to the 4 named products explicitly
  * ("per product (Knowledge / CLI / Claude / Codex)"); this fixed order is a
  * deliberate scope boundary, not a claim that the engine can't carry more.

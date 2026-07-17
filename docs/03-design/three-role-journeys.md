@@ -5,13 +5,13 @@ Control Tower, grounded in the repo's own docs. Produced during the publisher
 setup redesign; it is the foundation for the Admin and User work that follows.
 
 Evidence base: `SOUL.md` · `CLAUDE.md` · `docs/HANDOFF-PUBLISHER-ADMIN-USER.md`
-· `docs/reference/publisher-admin-experience.md` ·
+· `docs/10-reference/publisher-admin-experience.md` ·
 `docs/07-contributing/publisher-release-runbook.md` ·
 `docs/06-deployment/README.md` · `docs/06-deployment/standup-runbook.md` ·
 `docs/08-observability/operator-guide.md` ·
 `docs/01-architecture/inheritance-and-publish.md` ·
 `docs/05-security/credentials-and-boundary.md` ·
-`docs/reference/four-tier-topology.md` · `scripts/publisher_setup.swift`.
+`docs/10-reference/four-tier-topology.md` · `scripts/publisher_setup.swift`.
 
 ## 0. Reframe: there is no single "the app"
 

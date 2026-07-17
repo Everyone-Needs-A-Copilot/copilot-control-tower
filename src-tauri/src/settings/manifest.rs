@@ -1,5 +1,5 @@
 //! Typed serde model of `copilot.layers.yml` — the layer manifest `cc`
-//! reads (`docs/reference/four-tier-topology.md` §4). Mirrors the shape the
+//! reads (`docs/10-reference/four-tier-topology.md` §4). Mirrors the shape the
 //! REAL consumer/authority enforces:
 //! `claude-copilot/tools/cc/src/cc/core/ecosystem/manifest.py`
 //! (`REQUIRED_LAYER_FIELDS`, `load_layers`, `validate_layers`).

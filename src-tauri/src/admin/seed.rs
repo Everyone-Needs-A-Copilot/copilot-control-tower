@@ -8,7 +8,7 @@
 //!
 //! See `admin`'s own module doc for the full provenance note. In short: the
 //! fields below are a direct, evidence-based transcription of
-//! `docs/reference/ecosystem-architecture.md` §4.2's worked YAML example
+//! `docs/10-reference/ecosystem-architecture.md` §4.2's worked YAML example
 //! plus `docs/08-observability/observability.md` §6's `telemetry` block —
 //! NOT an invented shape, but also not (yet) a shape any real `cc` code
 //! parses today. Generate to this documented shape; do not treat it as an

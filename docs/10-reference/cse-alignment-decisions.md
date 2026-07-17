@@ -64,7 +64,7 @@ Not fork/upstream. Each component x tier is a **separate, co-resolved repo**;
 orgs keep their own additions via **resolver precedence** over the separate
 Foundation repo (referenced by version, e.g. `^5.13.0`, anon HTTPS), and promote
 personal/dept work upward only via a one-way, human-invoked `copilot promote`.
-See `docs/reference/four-tier-topology.md` §6/§8.
+See `docs/10-reference/four-tier-topology.md` §6/§8.
 
 ## D6. Central shared secrets (resolves CSE open question 3)
 
@@ -127,8 +127,8 @@ each need extra repos.
 
 | Doc | Change |
 |---|---|
-| `docs/reference/glossary.md` | Redefine `product` axis as `component`; add Product/Project = output. |
-| `docs/reference/four-tier-topology.md` | Rename `product` axis -> `component`; note it answers CSE open-Q1. |
+| `docs/10-reference/glossary.md` | Redefine `product` axis as `component`; add Product/Project = output. |
+| `docs/10-reference/four-tier-topology.md` | Rename `product` axis -> `component`; note it answers CSE open-Q1. |
 | `SOUL.md` | Name the CSE components as the synced units; import the tooling-not-products line; remove MDM as the managed lane. |
 | `CLAUDE.md` | Rewrite invariant #4 (drop forced MDM domain; trust roots compiled-in + signed inherited config) and invariant #6 (secret-store endpoint via inherited org config, not MDM). |
 | `docs/05-security/credentials-and-boundary.md` | Rehome secret-store endpoint delivery (D4); add personal-key multi-machine sync (D7.3); recast offboarding (D4). |

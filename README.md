@@ -37,7 +37,7 @@ Read **[`docs/START-HERE.md`](docs/START-HERE.md)** first — it orients a fresh
 
 ## Ecosystem context
 
-Control Tower is a client of the Copilot ecosystem defined in the `claude-copilot` initiative `ecosystem-extensions`. Self-contained copies of the relevant ecosystem docs live in [`docs/reference/`](docs/reference/) (the four-tier architecture, the use cases the app delivers, and the two diagrams).
+Control Tower is a client of the Copilot ecosystem defined in the `claude-copilot` initiative `ecosystem-extensions`. Self-contained copies of the relevant ecosystem docs live in [`docs/10-reference/`](docs/10-reference/) (the four-tier architecture, the use cases the app delivers, and the two diagrams).
 
 ## License
 

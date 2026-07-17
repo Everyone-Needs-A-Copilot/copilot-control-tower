@@ -1,4 +1,4 @@
-> **Superseded framing.** This document predates the Copilot Solutioning Ecosystem (CSE) realignment. Its MDM/fleet framing and its use of "product" to mean a CSE tool are superseded. The corrected model is in `docs/reference/copilot-solutioning-ecosystem.md`; the decisions are in `docs/reference/cse-alignment-decisions.md`.
+> **Superseded framing.** This document predates the Copilot Solutioning Ecosystem (CSE) realignment. Its MDM/fleet framing and its use of "product" to mean a CSE tool are superseded. The corrected model is in `docs/10-reference/copilot-solutioning-ecosystem.md`; the decisions are in `docs/10-reference/cse-alignment-decisions.md`.
 
 # Product Overview
 
@@ -7,7 +7,7 @@
 > `scratchpad/interview-ground-truth.md`). That interview **reframed the soul of the product**
 > (see "The reframe" below) and this file has been rewritten to lead with it. Supporting engineering
 > intent still lives in the docs (`product-brief.md`, `soul.md`, `01-architecture/architecture.md`,
-> `02-prd/prd.md`, `04-validation/redteam-use-cases.md`, `reference/ecosystem-use-cases.md`).
+> `02-prd/prd.md`, `04-validation/redteam-use-cases.md`, `10-reference/ecosystem-use-cases.md`).
 > Every foundation stone below carries an honest **Evidence** stamp (TESTED / OBSERVED / GROUNDED /
 > HYPOTHESIS / ASPIRATION); inline `<!-- TODO -->` marks genuine open decisions.
 
@@ -112,7 +112,7 @@ democratization run in the background.
   `> **Evidence: HYPOTHESIS**` — **no real IT operator has ever touched Admin mode, a fleet
   dashboard, or a deprovision.** Whether a real IT admin will trust a dashboard enough to *act* on it
   (vs. wait for Bob to call) is an untested behavioral bet. Modeled as **Earl** (platform lead) and the
-  org security team from `reference/ecosystem-use-cases.md` (UC6, UC11), but those personas are
+  org security team from `10-reference/ecosystem-use-cases.md` (UC6, UC11), but those personas are
   inferred, not interviewed. Stands up the ecosystem and deploys it via Jamf/Kandji/Intune; wants a
   fleet they can see, trust, and provision without hand-editing YAML.
   <!-- TODO: confirm with Pablo — has any real IT/MDM admin reviewed the Admin-mode flow? -->
@@ -121,7 +121,7 @@ democratization run in the background.
   Needs the always-on agent to make the ecosystem *safer* to adopt, not riskier — the whole reason
   the app is open source with reproducible builds and two-of-N signing (`architecture.md` §1, §7).
 
-Secondary context personas from `reference/ecosystem-use-cases.md`: **Rosa** (a developer with all
+Secondary context personas from `10-reference/ecosystem-use-cases.md`: **Rosa** (a developer with all
 four layers), **Mira** (Finance dept lead), **Dwayne** (independent solo user). Control Tower must not
 break their existing CLI workflow — it supervises the same pipeline they run by hand.
 

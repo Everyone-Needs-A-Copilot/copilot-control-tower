@@ -2,7 +2,7 @@
 
 Read [`START-HERE.md`](START-HERE.md) first — it orients a fresh session, states where the project stands, and points at the build order. This index is a map of what lives where.
 
-Start from the corrected model: [`reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md) (the canonical CSE model) and [`reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md) (the decisions that align this repo to it). In short: Control Tower orchestrates the CSE tooling components (Knowledge / CLI / Claude / Codex Copilot) across foundation, org, dept, and personal layers, entitled by GitHub repo access. It does not manage the products/projects you build with that tooling.
+Start from the corrected model: [`10-reference/copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md) (the canonical CSE model) and [`10-reference/cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md) (the decisions that align this repo to it). In short: Control Tower orchestrates the CSE tooling components (Knowledge / CLI / Claude / Codex Copilot) across foundation, org, dept, and personal layers, entitled by GitHub repo access. It does not manage the products/projects you build with that tooling.
 
 | Dir | Contents | Status |
 |---|---|---|
@@ -17,7 +17,7 @@ Start from the corrected model: [`reference/copilot-solutioning-ecosystem.md`](r
 | [`06-deployment/`](06-deployment/) | Deployment/onboarding guides: self-install of the signed, notarized app, GitHub repo-access entitlement and onboarding, offline path, deprovision runbook | Stub |
 | [`07-contributing/`](07-contributing/) | Developer guide (setup/build/signing/self-update) + `release-and-versioning.md` (semver, contract compat, rollback). Root `CONTRIBUTING.md` + `CODE_OF_CONDUCT.md` + `.github/` templates | Seeded |
 | [`08-observability/`](08-observability/) | Telemetry spec — two-channel (safety/IT escalation + opt-in analytics), `machine_id` scheme, fleet dashboard, PII guarantees | Seeded |
-| [`reference/`](reference/) | The canonical model ([`copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md)) + the alignment decisions ([`cse-alignment-decisions.md`](reference/cse-alignment-decisions.md)), four-tier architecture, use cases, `glossary.md` | Seeded |
-| [`assets/`](assets/) | Diagrams referenced by `reference/` docs | Seeded |
+| [`10-reference/`](10-reference/) | The canonical model ([`copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md)) + the alignment decisions ([`cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md)), four-tier architecture, use cases, `glossary.md` | Seeded |
+| [`assets/`](assets/) | Diagrams referenced by `10-reference/` docs | Seeded |
 
 **Seeded** = written and current. **Stub** = a placeholder that states what needs writing and who writes it, so a future session (or agent) knows exactly where to pick up.
