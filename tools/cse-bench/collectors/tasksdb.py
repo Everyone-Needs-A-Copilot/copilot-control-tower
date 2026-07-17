@@ -18,7 +18,7 @@ Design notes
   per-repo entry in the returned ``errors`` list; it never raises out of
   ``collect()`` and never aborts the scan of the remaining repos.
 - Product directories in this ecosystem are sometimes symlinked to a
-  canonical target (e.g. ``shared-docs -> knowledge-copilot``). Two glob
+  canonical target (e.g. ``shared-docs -> knowledge-copilot-internal``). Two glob
   matches that resolve to the same physical ``tasks.db`` are the same
   store counted twice, not two stores -- they are de-duplicated before
   scanning, and the alias name is recorded rather than silently dropped.
@@ -160,7 +160,7 @@ def _scan_repo(db_path: Path) -> dict:
 
 def _dedupe_by_real_path(db_paths: list[Path]) -> list[tuple[Path, str, list[str]]]:
     """Group glob matches by the physical file they resolve to (symlinked
-    product directories, e.g. shared-docs -> knowledge-copilot, otherwise
+    product directories, e.g. shared-docs -> knowledge-copilot-internal, otherwise
     get scanned and counted twice). Returns a list of
     (chosen_db_path, canonical_repo_name, alias_repo_names) tuples, one
     per unique physical store, sorted by canonical repo name.

@@ -35,7 +35,7 @@ COPILOT_ROOT = Path("/Volumes/Dev/Sites/COPILOT")
 REPOS = [
     "claude-copilot",
     "codex-copilot",
-    "knowledge-copilot",
+    "knowledge-copilot-internal",  # mature content; the bare knowledge-copilot name is now a thin public base
     "cli-copilot",
     "copilot-control-tower",
 ]

@@ -35,7 +35,7 @@ run measured a 100% without-arm UNKNOWN rate (see Results below).
 
 1. **Question bank** (`bank.yaml`) — hand-authored against the real
    product dossiers under
-   `/Volumes/Dev/Sites/COPILOT/knowledge-copilot/02-products/04-applications/{convoco,insights-copilot}/`.
+   `/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal/02-products/04-applications/{convoco,insights-copilot}/`.
    This is the LLM-judgment step the task calls out: each question was
    chosen because its answer is a **private fact** — a version number,
    framework/stack specific, internal module name, former product name,
@@ -146,7 +146,7 @@ python3 run.py --model sonnet --concurrency 4 --timeout 120
 
 Requires the `claude` CLI on `PATH` (verified working via `claude -p
 "..." --model sonnet` on this machine) and read access to
-`/Volumes/Dev/Sites/COPILOT/knowledge-copilot` (override with
+`/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal` (override with
 `--dossier-root` if that repo moves; defaults to `$CC_KNOWLEDGE_REPO` when
 set, else the hardcoded path above).
 
@@ -182,7 +182,7 @@ acceptance bar is **≥3 dossiers** — this run does not yet clear it; stated
 honestly rather than rounded up. To extend:
 
 1. Pick a new dossier under
-   `knowledge-copilot/02-products/04-applications/<product>/` (or any
+   `knowledge-copilot-internal/02-products/04-applications/<product>/` (or any
    other Knowledge Copilot dossier tree).
 2. Read its `00-overview.md` through `07-decisions.md` (or equivalent)
    and mine 20-25 private facts using the "would base Claude have any

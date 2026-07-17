@@ -1644,7 +1644,7 @@ def render_knowledge_section(outputs: dict, claims_by_id: dict) -> str:
                 "ecosystem accurately enough to make good build, integrate, extend, and operating decisions"
             ),
             soul_note=(
-                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/knowledge-copilot/SOUL.md</code> — must never '
+                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal/SOUL.md</code> — must never '
                 "become a stale content dump, a marketing-only narrative, or a place where contradictory "
                 "product facts quietly coexist."
             ),

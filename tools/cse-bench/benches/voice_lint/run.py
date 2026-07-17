@@ -59,7 +59,7 @@ HOST_SCOPE = "single-machine-single-user"
 DEFAULT_OUT_DIR = SCRIPT_DIR.parent.parent / "output"
 DEFAULT_RULES_PATH = SCRIPT_DIR / "rules.yaml"
 
-KNOWLEDGE_REPO_ROOT = Path("/Volumes/Dev/Sites/COPILOT/knowledge-copilot")
+KNOWLEDGE_REPO_ROOT = Path("/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal")
 TONE_OF_VOICE_PATH = KNOWLEDGE_REPO_ROOT / "01-company" / "01-brand" / "02-tone-of-voice.md"
 CW_EXTENSION_PATH = KNOWLEDGE_REPO_ROOT / ".claude" / "extensions" / "cw.extension.md"
 

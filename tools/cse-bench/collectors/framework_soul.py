@@ -80,7 +80,7 @@ established pattern in this package)
     ``*/.copilot/tasks.db`` glob) and ``_dedupe_by_real_path`` (the
     symlinked-product-directory dedup this collector would otherwise have
     to reimplement to avoid double-counting a store like
-    shared-docs/knowledge-copilot).
+    shared-docs/knowledge-copilot-internal).
   - collectors/transcripts.py: ``DEFAULT_ARCHIVE_ROOT``,
     ``DEFAULT_LIVE_ROOT``, ``_index_jsonl_files``, ``_merge_indexes``,
     ``_build_merged_corpus`` (the archive-UNION-live corpus merge, and
