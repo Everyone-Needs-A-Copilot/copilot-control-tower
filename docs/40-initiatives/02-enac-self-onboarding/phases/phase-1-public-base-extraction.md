@@ -246,12 +246,31 @@ runtime resolution check that fails closed on an unresolved secret.
 
 ## `claude-copilot` / `codex-copilot` — already public base (+ an agents & skills wizard)
 
-These are already public framework repos, so **no content split is needed**. Create
-`claude-copilot-internal` / `codex-copilot-internal` (private) **only if** ENAC has
-org-level customizations (extra agents, org-default protocol tweaks) to layer on top;
-otherwise skip — the org layer for these can be empty or absent.
+**Decision (ratified): do not rename these and do not backward-engineer a base.** Unlike
+knowledge/cli, they are **already public** and are **already the generic framework**
+(agents, commands, protocol) — there is no private mature version to split and no
+accumulated ENAC business content to strip. Renaming them to `-internal` would invert a
+split that isn't needed and, worse, pull ENAC *off* the public foundation it is meant to
+dogfood (the initiative's shape is "org layer **stacked on** the public foundation").
 
-**But they still get a scaffolding wizard.** To keep all four copilots symmetric and make
+- **Phase 1 work on them is additive only:** ship the agents & skills wizard (below). No
+  rename, no redirect, no leak-scan-gated publicize — they are already public.
+- **ENAC's org-level claude/codex customizations already have a home.** They live today as
+  `.claude/extensions/` files (`sd.override`, `uxd.extension`, `cw.extension`,
+  `do.extension`) inside `knowledge-copilot`, declared via `knowledge-manifest.json`; when
+  knowledge-copilot splits they travel to **`knowledge-copilot-internal`** and are still
+  consumed cross-repo via the manifest.
+- **`claude-copilot-internal` / `codex-copilot-internal` are deferred.** Create one only
+  if you later want ENAC's agent/protocol overrides in a dedicated repo instead of inside
+  `knowledge-copilot-internal` — not required for Phase 1.
+
+> **Pre-existing note:** because these repos are already public, a few ENAC product-name
+> *examples* already appear in their framework docs (e.g. `insights.ineedacopilot.com`,
+> `forces-assessment`, Convoco's `mcp.convocoai.com`). Public products/URLs, not secrets —
+> but a light genericization pass (real names → placeholders) is worth doing eventually.
+> Not a Phase 1 blocker.
+
+**The agents & skills wizard (the one net-new deliverable here).** To keep all four copilots symmetric and make
 extension easy, each ships an **agents & skills wizard** that helps a user create a new
 agent or a new skill — the "right conversation" for its domain (name, trigger/description,
 tools, the methodology or steps, and where it installs). Same base-deliverable rules: it
