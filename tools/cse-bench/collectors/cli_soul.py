@@ -44,7 +44,7 @@ from typing import Optional
 
 COLLECTOR_NAME = "cli_soul"
 
-CLI_COPILOT_ROOT = Path("/Volumes/Dev/Sites/COPILOT/cli-copilot")
+CLI_COPILOT_ROOT = Path("/Volumes/Dev/Sites/COPILOT/cli-copilot-internal")
 TEST_RELATIVE_PATH = Path("tests") / "test_soul_conformance.py"
 
 _SUBPROCESS_TIMEOUT_SECONDS = 120

@@ -47,9 +47,9 @@
     "hook_matcher_covers_read_edit": false,
     "registered_pretool_hook_path": "/Volumes/Dev/Sites/COPILOT/claude-copilot/.claude/hooks/pretool-check.sh"
   },
-  "/Volumes/Dev/Sites/COPILOT/cli-copilot": {
-    "cwd": "/Volumes/Dev/Sites/COPILOT/cli-copilot",
-    "claude_dir": "/Volumes/Dev/Sites/COPILOT/cli-copilot/.claude",
+  "/Volumes/Dev/Sites/COPILOT/cli-copilot-internal": {
+    "cwd": "/Volumes/Dev/Sites/COPILOT/cli-copilot-internal",
+    "claude_dir": "/Volumes/Dev/Sites/COPILOT/cli-copilot-internal/.claude",
     "agents_present": true,
     "mechanical_hooks_registered": false,
     "hook_matcher_covers_read_edit": null,

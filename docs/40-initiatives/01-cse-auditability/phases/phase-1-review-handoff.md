@@ -68,7 +68,7 @@ for p in "$R"/*/; do [ -e "$p.claude/agents" ] && echo "$(basename "$p")"; done 
 find "$R" -maxdepth 3 -name settings.json -path '*/.claude/*' -exec grep -l PreToolUse {} \;  # -> 1
 
 # F-13 — the only claim that passed. RE-RUN THIS; I did not.
-cd /Volumes/Dev/Sites/COPILOT/cli-copilot && python3 -m pytest --cov
+cd /Volumes/Dev/Sites/COPILOT/cli-copilot-internal && python3 -m pytest --cov
 
 # F-14 — the verb that does not exist
 /opt/homebrew/bin/copilot doctor    # -> no such command

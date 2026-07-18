@@ -1693,7 +1693,7 @@ def render_integration_section(outputs: dict, claims_by_id: dict) -> str:
                 "services themselves"
             ),
             soul_note=(
-                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/cli-copilot/SOUL.md</code> — one binary, one '
+                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/cli-copilot-internal/SOUL.md</code> — one binary, one '
                 "grammar; client, never server; honest, hint-bearing failure."
             ),
             lede="Measured against uniformity and honest failure per service — never against how many services exist.",

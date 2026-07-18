@@ -528,7 +528,7 @@ claims:
   - id: cli-copilot-test-suite-verified
     statement: "CLI Copilot's test suite passes: 1,588 tests pass, 16 deselected, 53% coverage, CI green (ruff + format-check + pytest, py3.11/3.12) on push-to-main and PRs."
     definition_refs: []
-    check: "cd /Volumes/Dev/Sites/COPILOT/cli-copilot && python3 -m pytest --cov (external repo — not run by this program's own checker)"
+    check: "cd /Volumes/Dev/Sites/COPILOT/cli-copilot-internal && python3 -m pytest --cov (external repo — not run by this program's own checker)"
     status: unchecked
     evidence: "docs/40-initiatives/01-cse-auditability/phases/phase-1-findings.md (F-13, the only VERIFIED verdict in Phase 1); phase-1-review-handoff.md (item 4: 'I did not re-run it... Re-run it', flagged and still open)"
     last_checked: "2026-07-12"
@@ -650,7 +650,7 @@ claims:
   - id: cli-soul-conformance
     statement: "Every CLI service meets the SOUL §6 quality bar (health, test file, CopilotError, lazy import, config documented, docs entry). Current: 125/138 scorecard cases pass; 13 named gaps tracked as strict-xfail (infisical test file; coolify+infisical error hierarchy; 3 docs entries; 7 services with undocumented env vars). The bar is now mechanically enforced as a test."
     definition_refs: []
-    check: "cd /Volumes/Dev/Sites/COPILOT/cli-copilot && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/test_soul_conformance.py -q; or: python3 cse_bench.py collect --only cli_soul"
+    check: "cd /Volumes/Dev/Sites/COPILOT/cli-copilot-internal && CC=/usr/bin/cc PATH=/usr/bin:$PATH uv run --extra dev pytest tests/test_soul_conformance.py -q; or: python3 cse_bench.py collect --only cli_soul"
     status: failing
     evidence: "tools/cse-bench/output/cli_soul-latest.json (13 tracked gaps; suite green with strict xfail)"
     last_checked: "2026-07-12"
