@@ -2,7 +2,7 @@
 initiative: 02-enac-self-onboarding
 title: ENAC Self-Onboarding — Dogfood the Ecosystem on Everyone Needs A Copilot
 status: active
-status_note: Naming convention ratified and shipped (org layer = <C>-copilot-internal, engine + tests green, 142/142). Docs written. Not yet executed against GitHub — owner runs it with a developer next. Phase 1 (public-base extraction) is the first real work.
+status_note: Live on ENAC's Mac — cli-copilot (and knowledge-copilot) split into public foundation + private -internal and pushed; the CLI tier-inheritance runtime (manifest + overlay loader + layered settings) and the fail-closed credential ladder shipped; all org secrets migrated to Infisical, only the Infisical bootstrap creds + Discord bridge token in keychain (owner-ratified "everything in Infisical, only the necessary in keychain"). Verified (887+15+92+33 tests, 0 fail-closed). Remaining to fully lock in — config inheritance, `copilot update` mirror-sync, fan-out validation — in phases/phase-4-tier-completion-handoff.md. Public flip still gated.
 owner: Pablo Alejo
 created: 2026-07-16
 execution_context:
@@ -14,10 +14,15 @@ superseded_by: null
 # ENAC Self-Onboarding — Dogfood the Ecosystem on Everyone Needs A Copilot
 
 > Mode: Initiative
-> Status: Ratified + tooling-ready; not yet run against GitHub.
-> **Taking this over? Read this README, then execute
-> [`phases/phase-1-public-base-extraction.md`](phases/phase-1-public-base-extraction.md)
-> first, then [`phases/phase-2-standup-and-rollout.md`](phases/phase-2-standup-and-rollout.md).**
+> Status: **Tier runtime + credential ladder LIVE on ENAC's Mac**; foundations
+> split and pushed. Remaining to fully lock in: config inheritance,
+> `copilot update` mirror-sync, fan-out validation, then the gated public flip.
+> **Taking this over? Read this README, then
+> [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md)
+> (what's live) and
+> [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md)
+> (what's left). The Phase 1/2 runbooks remain the reference for the GitHub
+> standup + fan-out mechanics.**
 
 ## Goal
 
@@ -65,12 +70,22 @@ department slug**. This is universal: every customer uses these names, so ENAC
 dogfoods the exact shipped path.
 ([`decisions/ADR-002-internal-naming-convention.md`](decisions/ADR-002-internal-naming-convention.md))
 
-**Shipped this session:** the engine (`scripts/admin_bootstrap.sh`) and its test
-suite now implement `-internal` for the org triplet; the foundation read stays
-bare; `internal` is refused as a department; the undeclared-department scanner
-skips it. `scripts/tests/test_admin_bootstrap.sh` → **142 passed, 0 failed**. The
+**Shipped — naming engine:** `scripts/admin_bootstrap.sh` and its test suite
+implement `-internal` for the org triplet; the foundation read stays bare;
+`internal` is refused as a department; the undeclared-department scanner skips
+it. `scripts/tests/test_admin_bootstrap.sh` → **142 passed, 0 failed**. The
 contract (`docs/01-architecture/admin-standup-contract.md`) carries the normative
 naming table.
+
+**Shipped — tier runtime + secrets (Phase 3, live on ENAC's Mac):**
+`cli-copilot` split into public foundation + private `-internal` and pushed; the
+CLI now runs **base + org overlay** composed by `copilot.layers.yml`; the
+fail-closed **credential ladder** (Infisical managed store → OS keychain) is
+wired into both base and overlay settings; **all org secrets migrated to
+Infisical**, with only the Infisical bootstrap creds + the Discord bridge token
+in the keychain (owner-ratified). Verified (887 foundation + 15 overlay + 92
+service + 33 ladder tests; 0 fail-closed). Full record:
+[`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md).
 
 ## Scope
 
@@ -108,8 +123,10 @@ naming table.
 
 | Phase | Goal | Depends on | Status |
 |---|---|---|---|
-| Phase 1 | **Public-base extraction** — split `knowledge-copilot` & `cli-copilot` into public base + private `-internal`, with a per-file base-vs-internal content map | naming shipped ✓ | **Next — the first real work.** [`phases/phase-1-public-base-extraction.md`](phases/phase-1-public-base-extraction.md) |
-| Phase 2 | **Stand up, wire, validate, roll out** — org standup, manifest, scratch validation, fan-out to real projects, then the gated publicize | Phase 1 | Documented runbook. [`phases/phase-2-standup-and-rollout.md`](phases/phase-2-standup-and-rollout.md) |
+| Phase 1 | **Public-base extraction** — split `knowledge-copilot` & `cli-copilot` into public base + private `-internal` | naming shipped ✓ | **Done** — both split and pushed. [`phases/phase-1-public-base-extraction.md`](phases/phase-1-public-base-extraction.md) |
+| Phase 2 | **Stand up, wire, validate, roll out** — org standup, manifest, scratch validation, fan-out, gated publicize | Phase 1 | Runbook; the GitHub-standup + fan-out mechanics remain the reference. [`phases/phase-2-standup-and-rollout.md`](phases/phase-2-standup-and-rollout.md) |
+| Phase 3 | **Tier runtime + credential ladder** — layered settings, overlay loader, fail-closed secret ladder, full secret migration to Infisical | Phase 1 | **Shipped + live on ENAC's Mac.** [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md) |
+| Phase 4 | **Lock the tier in fully** — config inheritance, `copilot update` mirror-sync, fan-out validation, cleanup | Phase 3 | **Hand-off — the next work.** [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md) |
 
 ## Decisions
 
@@ -133,13 +150,20 @@ naming table.
 
 ## Current Summary
 
-**Status: active, not yet run.** The naming convention is ratified, implemented,
-and green (142/142); the contract and this initiative are written. Nothing has
-touched GitHub yet — that is the owner's next step, with a developer.
+**Status: active — the tier is live, not yet fully locked in.** `cli-copilot`
+(and `knowledge-copilot`) are split into a public foundation and a private
+`-internal` org layer and pushed to GitHub. The CLI tier-inheritance runtime and
+the fail-closed credential ladder are shipped and verified live on ENAC's Mac;
+ENAC's real secrets now resolve through Infisical, with only the Infisical
+bootstrap creds and the Discord bridge token in the keychain (Phase 3).
 
-**The next action** is Phase 1: the per-repo base-vs-`-internal` content map and
-the one-time manual curation. The single thing most likely to go wrong is the
-**rename-redirect hazard** (creating a new repo with the old name silently
-re-points every consumer at the base skeleton) — Phase 1 and Phase 2 sequence
-around it deliberately: rename first, create-new second, re-point every consumer
-via the manifest third.
+**The next action** is Phase 4: make the tier *fully* inheritable — wire config
+inheritance (the store config still lives in a local `.env`), build the
+`copilot update` mirror-sync so a fresh machine materializes the tier with one
+command, and validate the fan-out (V-4). The one-way **public flip** of the base
+repos stays gated to the very end. Hand-off:
+[`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md).
+
+The original **rename-redirect hazard** (creating a new repo with the old name
+silently re-points every consumer at the base skeleton) was navigated during the
+split; Phase 2 remains the reference for the GitHub-standup + fan-out sequencing.
