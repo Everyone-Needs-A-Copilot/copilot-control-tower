@@ -7,6 +7,23 @@
 > the session memory `cli-tier-inheritance-live.md`. Everything below is
 > additive and reversible; the tier is already live and working today.**
 
+## Status — code backlog COMPLETE (2026-07-20)
+
+All five code items below shipped, each independently QA-verified, committed
+(**not yet pushed** — see the push decision with the owner). Full CLI suite
+**979 passed / 10 skipped, zero regressions**.
+
+| Item | What shipped | Commits |
+|---|---|---|
+| #4+#5 | dead-secret cleanup (live `.env`) + keychain hint fix | `cli-copilot-internal 715cde0` |
+| #1 | config inheritance (`TierConfigSource` + store fold); **live mirror migrated + 3-level verified** (isolated test, real 9-secret fetch from inherited config, real-binary smoke) | `cli-copilot 69c3759`, `cli-copilot-internal 8bbe108` |
+| #2a | `copilot update` core sync + never-destroy gate (dirty / non-git / status-exception / ahead>0 unpushed-commits, all fail-safe) | `cli-copilot b8706cd`, `d2a062b` |
+| #2b | semver range→tag resolver (prereleases excluded), versioned `--json` + `update.schema.json`, presence-only store-readiness report | `cli-copilot c68c281` |
+| #3 | per-`requires_secret` `from: store\|keychain` hint (back-compat, fail-closed, invariant #4 verified) | `cli-copilot 8842f19`, `cli-copilot-internal 10e028c` |
+
+Remaining = **owner-only actions** (see "Owner actions" below) + the multi-repo
+**push** of the eight commits above.
+
 ## Where things stand (start here)
 
 ENAC's Mac runs `copilot` as **public foundation + private org overlay**, and
