@@ -21,6 +21,20 @@ enough that the app, the skill, and the script can be built against it independe
 | **Claude Code + the `admin-bootstrap` skill** | Reads the brief as opening context, re-confirms with Earl, drives the **engine script** (§6), narrates each `{step,result,detail}` in plain language. | Makes no check-then-act decision itself — the script does (invariant #1 one level up). |
 | **The engine** (a deterministic idempotent `gh` script now; `copilot admin bootstrap` at freeze) | The ordered additive GitHub matrix (§6), naming enforcement, branch protection, `ecosystem.yml` authorship, fail-closed leak-scan, and the `--verify` read (§3). | Never touches a dirty tree, never `--force`, never provisions people, never writes an integration. |
 
+### 0.1 Shared setup and personal handoff
+
+Admin Setup owns the overall readiness outcome, but its write authority ends at
+the shared organization boundary. It creates or verifies foundation references
+and organization repositories, then emits a non-secret handoff that User Setup
+consumes after the individual authenticates with their own GitHub identity.
+
+User Setup creates or selects the individual's personal repositories and installs
+rank-10 content. Admin Setup may render only the opaque result returned by `cc`
+(present/missing, resolved rank, source provenance, and health); it never creates,
+owns, clones, inspects, or writes a personal repository. This boundary applies to
+both Claude and Codex and is ratified in
+[`ADR-004`](../40-initiatives/02-enac-self-onboarding/decisions/ADR-004-admin-shared-user-personal-onboarding.md).
+
 **Every artifact and verb defined here carries `schema_version` from day one** (§8), following the
 `_envelope.schema.json` convention: `MAJOR.MINOR[.PATCH]`, range-gated in both directions,
 security-adjacent fields fail-closed (a missing/unreadable security field is never treated as safe).
@@ -325,6 +339,7 @@ For a brief with harness list `H` and departments `D`:
 | `ecosystem-file` | `ecosystem.yml` exists in `<org>/<harness>-copilot-internal`, parses, and matches the brief (org, harness set, departments, store status). | Admin | describe |
 | `store` | connected -> the endpoint answers and team_scopes map; **deferred -> `deferred`** (neutral). | IT infra (connected) / Admin (deferred) | connect-store |
 | `foundation-pin` | the version-pinned anon-HTTPS foundation reference resolves. | ENAC/external | external |
+| `personal-handoff` | `ecosystem.yml` declares user-owned personal onboarding for every harness, rank 10, without a personal repo URL, credential, or content pointer. | Admin | describe |
 
 **Drift rows are emitted, not inferred by the app.** A department or a second harness present on
 GitHub but absent from the brief emits a `present-undeclared` `dept-triplet`/`org-triplet` row; the
@@ -377,6 +392,10 @@ github_app:                 # the company's OWN GitHub OAuth App (§1.6)
   client_id: Iv1.a1b2c3d4e5f6a7b8   # PUBLIC; users' device-flow sign-in reads it, secret unused
 foundation:
   ref: "^5.x"               # the pin the SCRIPT applies; Earl chooses no version in v1
+personal:
+  owner: user                # Admin never creates or owns this layer
+  rank: 10
+  repository_pattern: "<user>/<component>-copilot-private"
 ```
 
 Deferred store: `store: { status: deferred }` (no endpoint, no team_scopes).
@@ -385,6 +404,11 @@ Deferred store: `store: { status: deferred }` (no endpoint, no team_scopes).
 not a secret**: it is the one field here that every user install reads, so their "Connect GitHub"
 device flow runs through the company's own app. The engine writes it verbatim from the brief; the
 client secret never enters the brief, this file, or any repo (invariant #6).
+
+**`personal` is a handoff contract, not a personal declaration.** It tells User
+Setup how to create or select user-owned repositories after personal sign-in. It
+must not contain a username, repository URL, token, key, or content path. The
+effective no-department ranks are personal 10, organization 30, foundation 40.
 
 **Additive-merge on re-run.** The script re-authors `ecosystem.yml` by **adding** entries and
 **never rewriting** existing ones: a new department appends to `departments`; the second harness

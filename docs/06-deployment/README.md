@@ -54,7 +54,7 @@ trusting it days later.
 |---|---|---|
 | Seed generator (`ecosystem.yml` authoring: `org`/`foundation`/`departments`/`policy_signers`/`telemetry`, fail-closed no-secret scan) | **Shipped (M7-S6)** | `src-tauri/src/admin/seed.rs` (`EcosystemSeed`, `generate`, `validate_shape`, `validate_no_secrets`) |
 | Preflight red/green validation (seed parses; department repos exist; capability policy signed by an allowed signer; foundation pin/mirror reachable) | **Shipped (M7-S7)** | `src-tauri/src/admin/preflight.rs` |
-| Entitlement discovery + join (`copilot layers` / `copilot layers join`) | **Proposed CLI contract addition (D7.1), not yet in upstream WS-A scope** | `docs/01-architecture/cli-contract.md` §"`copilot layers [join] --json`" - the app has no render code against this verb yet |
+| Entitlement discovery + join (`cc layers` / `cc layers join`) | **Shipped in `tools/cc`; incomplete as onboarding** | The verbs are wired, but do not provision personal repos, produce the unified product-aware manifest, or coordinate the full `cc onboard` transaction |
 | Two-of-N signing verifier (k≥2 compiled-in keys) | **Code landed (M7-S5)** - a sibling entrypoint, dev keys, not yet the active path | `src-tauri/src/updater/multisig.rs` (`TRUST_ROOTS_B64`, `THRESHOLD_K=2`), `verify::verify_update_multisig` - `verify::verify_update` (single-key) is still what's actually invoked; see `two-of-n-custody-runbook.md` |
 | Self-update trust root, single compiled-in minisign key | **Shipped, still the live path** | `src-tauri/src/updater/trust.rs` (`TRUST_ROOT_PUBLIC_KEY_B64` - one key) |
 | Telemetry wire schema (`FleetEvent`, `machine_id` derivation) | **Shipped (M7-S1)** | `src-tauri/src/telemetry/schema.rs` - the type only |
@@ -68,6 +68,11 @@ on. Nothing in this directory claims a not-yet-built piece works.
 
 ## Docs in this directory
 
+- **[`ground-up-claude-codex-installation.md`](ground-up-claude-codex-installation.md)**
+  - the Phase 6 ground-up path: public foundations, Admin/shared setup,
+  User/personal setup, exact cold-machine acceptance evidence, and the boundary
+  between commands that work today and the `cc onboard` transaction still to be
+  implemented.
 - **[`standup-runbook.md`](standup-runbook.md)** - the deployment runbook: seed
   → preflight → stand up the tier repos + team grants → rollout → opt-in
   telemetry → offboarding a leaver. The single "to actually stand up the
@@ -109,15 +114,16 @@ and [`cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md) D
 3. **Configure the shared secret store.** A tier-scoped shared secret store
    (Infisical/OpenBao) holds org/department integration keys, accessed by
    GitHub-team membership. Its endpoint is delivered via inherited org
-   config (D4) - never MDM, never a value in git.
+   config (D4). The endpoint is non-secret and may be committed; credentials
+   remain in the managed store/keychain, never git.
 4. **Author the ecosystem seed.** Run the seed generator (Admin mode) to
    produce `ecosystem.yml`: org identity, the foundation pin, the department
    list, the policy-signer allow-list, and the (off-by-default) telemetry
    endpoint. Review the diff; open the PR.
-5. **Users self-install and join.** A person downloads the signed, notarized
-   release and opens it - no zero-touch, no profile push. The wizard shows
-   which departments they're entitled to (by repo access) and syncs the ones
-   they select.
+5. **Users self-install and finish the personal stage.** A person downloads the
+   signed, notarized release and opens it - no zero-touch, no profile push. User
+   Setup creates/selects user-owned personal repos and joins entitled shared
+   layers through `cc`; Admin receives only opaque readiness evidence.
 6. **Offboard by revoking access.** Remove the person from the relevant
    GitHub team(s) and rotate any shared-secret-store tokens they could read.
    The next `copilot update`/`freshness` check on their machine fails closed.
@@ -142,7 +148,7 @@ to D4) and the M7 task definitions (`tc task get 60`–`69`) +
 | 8 | Collected-fleet-event source / org collector query API (G-M7-3) | The fleet dashboard rendering anything beyond fixtures | **Frontend landed against fixtures**, backend/collector source not built |
 | 9 | Shared secret-store endpoint (`SharedSecretStoreURL`/`Tier`) | The credential-resolution ladder's shared-store rung | Org infra decision; **also blocked on a code rehoming from the forced/managed domain to signed inherited org config per D4** - not yet done |
 | 10 | Stalled-onboarding threshold + safety-channel retry/backoff numbers | `stalled-onboarding` firing deterministically; safety-channel queue/backoff bounds | Unratified numbers |
-| 11 | Entitlement discovery/join verb (`copilot layers` / `copilot layers join`, D7.1) landing in the real CLI and the app rendering it | The wizard's department-join step actually working end to end, replacing the old MDM-pushed `Department` key | **Proposed CLI contract only** - not yet upstream, not yet rendered app-side |
+| 11 | Aggregate `cc onboard` transaction and app rendering | Product-aware Claude/Codex resolution, personal repo provisioning, manifest delivery, and end-to-end User Setup | **Contract ratified for Phase 6; implementation and clean-machine proof remain** |
 
 Items 2–4 restate what `m5-owner-gated-batch.md` already covers in more
 depth (read that file for the exact verification detail per item). Items

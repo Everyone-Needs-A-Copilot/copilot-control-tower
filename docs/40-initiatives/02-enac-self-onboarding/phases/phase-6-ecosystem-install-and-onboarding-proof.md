@@ -36,34 +36,66 @@ tooling allows.** The gaps this phase exposes are almost entirely
 machine-identity bootstrap-cred provisioning, laptop SSH key), not tier-runtime
 gaps.
 
+### Entry-gate update — 2026-07-21
+
+Phase 5 is now evidence-bound in `tc` (Tasks 130–135): the foundation config
+tests pass (92), the org-overlay suite passes (25 + 1 skipped), the live mirror
+is a clean clone at the source commit with no `.env`, and the two plaintext
+secret-bearing Phase 4/5 backups found by the readiness audit were permanently
+removed. External service credential rotation remains owner-gated because it
+changes live trust state.
+
+Codex Copilot is installed and enabled through Codex's native plugin marketplace
+(`codex-copilot@codex-copilot-local`). Release `v0.6.0` is published, the live
+development install carries a cache-busted 0.6.0 package, and the public package
+passes the official plugin validator plus the full smoke suite (39 tests,
+version/parity/routing/eval checks). The content baseline is explicitly pinned
+to canonical Claude `main`; the previously captured unmerged initiative-branch
+lineage is recorded in the parity attestation rather than silently treated as
+the release source.
+
+The false-Healthy seam is closed: when no valid ecosystem `layers.manifest` is
+configured, `cc doctor --json` now emits a failing
+`ecosystem-layer-manifest` checker and `needs-attention`. The app still calls
+one structured CLI and renders its verdict. The machine does not yet have a
+valid unified ecosystem manifest, so this is an honest blocking state, not a
+completed onboarding proof.
+
+**Readiness determination:** the project is ready to *begin* Phase 6. It is not
+ready to claim Phase 6 complete. Phase 6 owns the still-missing product-aware
+resolver/materializer, verified executable-content policy, personal repository
+provisioning, idempotent `cc onboard`, signed distribution, and the two-machine
+cold-start proof. Those are enumerated below and tracked in `tc` PRD-14.
+
 ---
 
 ## 1. The end state we are validating
 
-Three machines, one tier, no `.env`, everything regenerable:
+Three installations, two products, three layers per product, no `.env`,
+everything regenerable:
 
 1. **Admin configured (this machine).** `Everyone-Needs-A-Copilot` carries the
-   private `<C>-copilot-internal` org triplet + branch protection + a matching
+   private Claude and Codex `<C>-copilot-internal` repos + branch protection + a matching
    `ecosystem.yml`, the managed secret store (Infisical at
    `secrets.ineedacopilot.com`) holds the org secrets, and the company GitHub
    OAuth App exists (device-flow enabled, client id public).
 2. **User app on this machine.** The signed/notarized Control Tower user app is
-   installed, supervises the `cc`/`copilot` CLI, renders honest `--json` status,
-   and the CLI resolves the full mature ENAC ecosystem via **org overlay (rank
-   30) + public foundation (rank 40, `^0.3.0` → `v0.3.0`)** with every secret
+   installed, supervises `cc`, renders honest `--json` status, and `cc` resolves
+   both Claude and Codex via **personal (rank 10) + organization (rank 30) +
+   public foundation (rank 40)** with every secret
    resolving through the ladder and **zero secrets in any `.env`**.
 3. **User app on the laptop (second machine).** A machine that started with an
    empty keychain and no work SSH key onboards, `copilot update` clones both
    mirrors, and every service resolves from the inherited config + store with no
    hand-copied `.env` — proving the tier is *inheritable*, not *hand-wired*.
 
-**Acceptance for the whole phase:** on the laptop, from a cold start,
-`copilot --json layers` shows `org-internal (30) → foundation (40)`,
-`copilot update --json` reports `overall: ok` with both mirrors `cloned`/`pulled`
-and store-readiness `ready`, and a store-backed service (e.g. `copilot uspto
-health`) is healthy — with **no secret and no store config ever hand-typed into a
-file**, only the machine-identity bootstrap creds placed in the laptop keychain
-and the laptop's own SSH key registered to GitHub.
+**Acceptance for the whole phase:** on the laptop, from a cold start, one
+`cc onboard --org Everyone-Needs-A-Copilot --products claude,codex --json`
+transaction reports, for each product, `personal (10) -> organization (30) ->
+foundation (40)`; doctor is healthy; CLI mirrors are cloned/pulled; store
+readiness is ready; and a store-backed service is healthy. No secret or store
+config is hand-typed into a file, no SSH private key is copied, and Admin Setup
+never receives access to the personal repositories.
 
 ---
 
@@ -72,12 +104,12 @@ and the laptop's own SSH key registered to GitHub.
 | # | Prerequisite | State today | Source |
 |---|---|---|---|
 | P-1 | GitHub org `Everyone-Needs-A-Copilot` exists; operator is an Owner. | True (live). | `admin-prerequisites.md` |
-| P-2 | `gh` signed in with `repo` + `admin:org` scopes. | The token has historically lacked `admin:org`; run `gh auth refresh -s admin:org -s repo`. | Phase 2 Step B; `admin-prerequisites.md` |
+| P-2 | `gh` signed in with `repo` + `admin:org` scopes. | True (live token includes both scopes). | Phase 2 Step B; live probe 2026-07-21 |
 | P-3 | Company GitHub **OAuth App** (device flow on; client id is public config). | Must be created once at github.com → org → Developer settings → OAuth Apps. | `admin-standup-contract.md §1.6` |
 | P-4 | Managed secret store (Infisical) reachable at `secrets.ineedacopilot.com`, org secrets populated. | Live; org secrets in `copilot-ecosystem/prod/shared`. | Phase 3; `05-scoped-identities-handoff.md` |
-| P-5 | Public foundation pin resolves. `cli` foundation is `^0.3.0`; tags `v0.1.0/v0.2.0/v0.3.0` exist and `origin/main` is current. | True (probed). **Note:** the earlier `^5.13.0` hazard was for the *content* foundation (claude/knowledge); `admin_bootstrap.sh` now defaults `FOUNDATION_REF_DEFAULT="^5.8.0"` (resolves to `v5.8.0`). `codex-copilot` still has **no tags**, so a Codex-shop `foundation-pin` check fails — ENAC is a `claude` shop, so this is not blocking here but must be flagged before any Codex standup. | live probe; `admin_bootstrap.sh:30` |
+| P-5 | Public foundation pins resolve. CLI foundation is `^0.3.0`; Claude uses the ratified compatible pin; Codex resolves `v0.6.0`. | True: the Codex 0.6.0 release tag is published and its package/plugin contract is validated. | live probe; Codex release QA WP-107 |
 | P-6 | Both CLI repos are **pushed** so a laptop can clone them. | True: `cli-copilot` and `cli-copilot-internal` are both even with `origin/main` (probed). The private org repo is cloned over `ssh-work` per the manifest. | live probe |
-| P-7 | App signing/notarization credentials for distribution. | **Missing** — Apple Developer ID cert, notarytool creds, and minisign custody are all owner-gated and not on this machine; the two native binaries have never been packaged/notarized. | `m4-distribution-decisions.md`; `native-app-rebuilt.md` |
+| P-7 | App signing/notarization credentials for distribution. | **Partial** — a valid Developer ID Application identity exists, but notary/release credential evidence and a signed/notarized artifact are absent. | `m4-distribution-decisions.md`; live probe 2026-07-21 |
 
 ---
 
@@ -98,35 +130,39 @@ reference `phase-2-standup-and-rollout.md` Steps A–E).
 - **S1-T3 — Write the standup brief.** At the fixed app-owned path
   `~/Library/Application Support/CopilotControlTower/standup-brief.md`
   (`admin-standup-contract.md §1.1`): `org: Everyone-Needs-A-Copilot`,
-  `harness: [claude]`, `departments: []`, `store: connected` (Infisical endpoint,
+  `harness: [claude, codex]`, `departments: []`, `store: connected` (Infisical endpoint,
   the ENAC scope mapping), `github_app.client_id`. *Complexity: Low.*
 - **S1-T4 — Dry run then real run.** `bash scripts/admin_bootstrap.sh --verify
   --json --brief <path>` (read-only plan-of-record), review, then
   `bash scripts/admin_bootstrap.sh --brief <path>` (additive/idempotent). Creates
   missing `<C>-copilot-internal` repos, sets branch protection, authors
   `ecosystem.yml` v2.0. *Complexity: Medium.*
-- **S1-T5 — Fix the three known engine gaps** alongside the run (Phase 2 Step B
-  "Known engine gaps"): the phantom `<org>/copilot-ecosystem` ref, the
-  ~25 `docs/reference/` links (real: `docs/10-reference/`), and
-  `native/admin.swift`'s cwd-relative engine/skill path resolution (must use
-  `Bundle.main.resourcePath` when packaged). *Complexity: Medium.*
+- **S1-T5 — Confirm the three known engine fixes** alongside the run (Phase 2
+  Step B "Known engine gaps"). They shipped in Control Tower commit `9694b02`:
+  the phantom `<org>/copilot-ecosystem` ref, the stale `docs/reference/` paths,
+  and packaged resource-path resolution in `native/admin.swift`. Do not rebuild
+  them; retain their regression coverage. *Complexity: Low.*
 - **S1-T6 — Setup check (verify verb).** Re-run `--verify --json`; confirm a
   clean column of `pass` with `must_fix: 0`. *Complexity: Low.*
 
 ### What it provisions
 
-Private `knowledge-copilot-internal` / `cli-copilot-internal` / (harness)
-`claude-copilot-internal` repos in `Everyone-Needs-A-Copilot`, branch protection,
+Private `knowledge-copilot-internal` / `cli-copilot-internal` /
+`claude-copilot-internal` / `codex-copilot-internal` repos in
+`Everyone-Needs-A-Copilot`, branch protection,
 `ecosystem.yml` v2.0 (org, harness list, components, departments, store pointer,
 `github_app.client_id`, foundation pin), org base permission `read`. It does
-**not** provision people, integrations, or secrets — those live in GitHub team
-membership, per-repo registries, and Infisical respectively.
+**not** provision people, integrations, secrets, or personal repositories —
+those live in GitHub team membership, per-repo registries, Infisical, and the
+authenticated User Setup stage respectively. It does provision and verify the
+non-secret personal-handoff declaration.
 
 ### Acceptance
 
-Verify verb returns all-`pass`, `must_fix: 0`; the three `-internal` repos exist
+Verify verb returns all-`pass`, `must_fix: 0`; the four `-internal` repos exist
 private with branch protection; `ecosystem.yml` parses and matches the brief; the
-leak-scan passed before push (invariant #6).
+leak-scan passed before push; `personal-handoff` declares user ownership/rank 10
+without identifying a user or repository (invariant #6).
 
 ### Decisions
 
@@ -174,47 +210,39 @@ the already-live tier.
 3. **S2-T3 — First-run wizard.** Connect GitHub (device flow), detect entitled
    layers, join the org layer. *Complexity: Low.*
 
-### First-run behavior — **[VERIFY] the load-bearing unknown**
+### First-run behavior — audited current state
 
-The plan hinges on *what the wizard actually does to place the tier*, and this is
-the least-confirmed area. Two sub-questions to answer by reading the wizard/CLI
-seam before building on it:
+The audit resolved the earlier unknowns:
 
-- **Does the app write `~/.config/copilot/copilot.layers.yml`?** The wizard calls
-  `layersJoin(id:)` at step 5. On this machine the manifest was placed **by hand**
-  (`cli-tier-inheritance-live.md`). It is unconfirmed whether `layersJoin` (or any
-  `cc` verb it shells) *writes the manifest*, or only records a joined-layer
-  intent the app renders. **[VERIFY]** — trace `layersJoin` → the `cc` verb → does
-  it emit/append a manifest entry?
-- **Does the app run `copilot update` on first run / on cadence?** Product-brief
-  and architecture say the supervisor pulls on a cadence. The tray polls
-  `doctor()` every 300 s (`native-app-rebuilt.md`), but whether it invokes the
-  mirror-sync `update` verb (vs. only reading status) is unconfirmed. **[VERIFY]**.
-- **The "two CLIs" seam.** The `copilot update` mirror-sync validated in Phase 5
-  lives in **`cli-copilot`** (`copilot_cli/main.py:365`, `config/sync.py`). Memory
-  `four-programs-two-names` records that **Control Tower's `--json` contract is
-  against `claude-copilot`'s `cc`, not CLI Copilot**, and that the docs disagree.
-  The shared `copilot.layers.yml` spans all four components, but there may be
-  **two distinct `update` verbs** (one per CLI). **[VERIFY / DECISION]** — confirm
-  which binary the app shells for `update`, and whether the content components
-  (claude/knowledge) have their own sync path the app must also drive.
+- The current wizard calls `cc layers join`, but no existing flow constructs the
+  unified Claude/Codex/personal manifest required here. This machine's
+  `~/.config/copilot/copilot.layers.yml` is a hand-placed, CLI-only two-layer
+  manifest, and `cc` has no configured `layers.manifest`.
+- The tray polls `cc doctor`; it does not execute the complete content + service
+  onboarding transaction on first run. CLI Copilot's mirror-sync remains a
+  separate component operation.
+- `cc` is now ratified as the single control-plane seam. Phase 6 implements
+  `cc onboard` to coordinate product resolution, personal provisioning, and CLI
+  mirror sync. Control Tower continues to render one CLI result.
 
 ### Acceptance
 
-App launches, tray renders honest status, wizard completes; after first run
-(or a manual `copilot update`), `copilot --json layers` →
-`org-internal (30) → foundation (40)`; `copilot update --json` → `overall: ok`,
-both mirrors present, store-readiness `ready`; a store-backed service is healthy;
-**no secret in any `.env`**.
+App launches, tray renders the single `cc` verdict, and the wizard completes the
+Admin-to-User handoff. For both Claude and Codex, the structured result shows
+`personal (10) -> organization (30) -> foundation (40)`; CLI mirrors are present,
+store readiness is ready, a store-backed service is healthy, and no secret is in
+an `.env`. The personal repositories are owned by the authenticated user and no
+personal content appears in Admin output.
 
 ### Decisions
 
-- **D3 (who owns onboarding — app or CLI).** Either the app wizard writes the
-  manifest + triggers `update`, **or** a CLI verb (`copilot init`/`copilot
-  onboard`) does it and the app just renders. Recommend the **CLI owns it**
-  (invariant #1: parse-never-compute — the app must not compute the manifest), the
-  app calls a single `cc` verb. This decision gates whether S3 (laptop) can be
-  "one command" at all.
+- **D3 (ratified — who owns onboarding).** `cc onboard` owns the transaction and
+  coordinates the separately installed CLI/service component. Control Tower
+  calls that one verb and renders its result. The app never writes the manifest,
+  resolves precedence, or merges health from two CLIs.
+- **D4 (ratified — personal authority).** Admin Setup prepares and verifies the
+  handoff. User Setup, authenticated as the individual, creates/selects personal
+  repositories and writes rank-10 state. Admin never receives personal access.
 
 ---
 
@@ -230,8 +258,8 @@ exists today.
 
 | # | The laptop needs… | Provided by | Exists today? |
 |---|---|---|---|
-| B-1 | The `cc`/`copilot` CLI installed at a `CliLocator` path (`~/.local/bin/cc`, homebrew prefixes). | A pipx/uv install of `cli-copilot` (foundation) + the `copilot-overlay-internal` editable overlay (`pip install -e … --no-deps`, per the overlay-dep gotcha). | **Partial** — installable by hand from the repos; **no packaged installer** and no one-command bootstrap. |
-| B-2 | The tier manifest at `~/.config/copilot/copilot.layers.yml` (org rank 30 `ssh-work`, foundation rank 40 `anon`). | Placed by hand today. Should be shipped by the app wizard or a `copilot init` verb (D3). | **Missing as one-command** — hand-placed on this machine. |
+| B-1 | The `cc` control-plane CLI and the `copilot` service CLI installed at supported absolute paths. | A packaged installer installs pinned, compatible tools without relying on bare `cc` during compilation (the name shadows the C compiler). | **Partial** — installable by hand from source; **no packaged installer** and no one-command bootstrap. |
+| B-2 | A unified ecosystem manifest for Claude and Codex: personal rank 10, organization rank 30, foundation rank 40. | Derived and written by `cc onboard` from the Admin handoff plus the authenticated user's choices. | **Missing** — the current machine has only a CLI-specific two-layer file and `cc` has no configured `layers.manifest`. |
 | B-3 | SSH access to the **private** `cli-copilot-internal` over the `github-work` alias — a key with org **read**. | A **new, on-device** ed25519 keypair generated on the laptop, its **public** half registered to the owner's GitHub account (which is in the org). Per invariant #6, push creds are per-user on-device — **never copied** from this machine. | **Missing as automation** — `credentials-and-boundary.md §6.1` designs on-device key generation and §6.2 designs `copilot auth rotate-key`, but **generation-at-onboarding is not wired**, and §7 (multi-machine key sync) is an explicit **open design item**. The correct laptop answer per §7 is "each machine keeps its own keypair registered separately under the same GitHub identity" — no key sync needed. |
 | B-4 | The `github-work` SSH host alias in `~/.ssh/config`. | Written by the wizard or by hand (Phase 2 Step C sshconfig block). **Note:** this machine uses a single `IdentityFile ~/.ssh/id_ed25519` for `github-work` (not the design's `id_ed25519_work`), and no `github-personal` alias is present — the laptop should follow the *design* (distinct keys per identity) or consciously mirror this machine. | **Missing as automation** — hand-edited global file. |
 | B-5 | The Infisical **bootstrap** creds (`INFISICAL_CLIENT_ID` / `INFISICAL_CLIENT_SECRET`) in the laptop **keychain**. These live ONLY in the per-user keychain, never in git/inheritance (`managed_store.py` `_NEVER_FROM_STORE`, `_read_bootstrap_cred` = keychain-first). | A machine identity. **Today this is the org-wide `ecosystem-admin` identity** whose creds are on this machine's keychain — high blast radius. The intended mechanism is a **scoped, per-machine identity** minted by `copilot infisical identity provision` and written to the laptop keychain. | **Missing** — `infisical identity` exposes only `list` + org-level `create`; `provision` (scoped role + universal-auth + one-time client-secret mint + `--write-env`/keychain) is **not built** (gap-analysis `TASK-INF-2`, G2/G3/G10). |
@@ -250,17 +278,24 @@ exists today.
    the laptop keychain — currently the shared `ecosystem-admin` creds (B-5).
 5. `copilot update` (B-7) → verify `layers`, store-readiness, a service health.
 
-**The one-command target:** `copilot onboard --org Everyone-Needs-A-Copilot`
-(or the app wizard's equivalent) that: writes the manifest from `ecosystem.yml`,
+**The one-command target:** `cc onboard --org Everyone-Needs-A-Copilot
+--products claude,codex --json` (also invoked by the app wizard) that: consumes
+the Admin handoff, creates/selects user-owned personal repositories, writes the
+product-aware manifest,
 writes the ssh-config alias, generates + registers the on-device SSH key via the
 GitHub device flow (§6.1/§6.2 machinery), drives `copilot infisical identity
 provision` to mint a **scoped per-machine** identity and drop its creds in the
-laptop keychain, then runs `copilot update` and prints the verify summary. **None
-of this orchestration exists yet** — B-1, B-2, B-3, B-4, B-5 are each a separate
-manual step, and B-5's `provision` verb is unbuilt.
+laptop keychain, resolves/materializes Claude and Codex, coordinates `copilot
+update`, and prints one verify summary. **This orchestration does not exist yet**
+— B-1 through B-5 remain separate or missing.
 
 ### 5.3 Tasks to close the laptop gap
 
+- **S3-T0 — Make ecosystem resolution product-aware.** Validate ranks per
+  product; resolve winners by `(product, dimension, item)`; materialize only to
+  allowlisted Claude/Codex roots; and implement real fail-closed signature/policy
+  verification for executable content. Same-named skills must coexist across
+  products. *Unit + integration tests required. Complexity: High.*
 - **S3-T1 — Build `copilot infisical identity provision`** (gap-analysis
   `TASK-INF-1`+`TASK-INF-2`): scoped project role (path-scoped CASL DSL, proven
   with the disposable allow/deny test `TASK-INF-3`), universal-auth attach,
@@ -272,10 +307,12 @@ manual step, and B-5's `provision` verb is unbuilt.
   registered via the GitHub device flow (§6.2). Follow §7's "own keypair per
   machine, same identity" — no key sync. *Unit + integration tests required.*
   *Complexity: High.*
-- **S3-T3 — Build the onboarding verb / wizard step** that writes the manifest
-  (from `ecosystem.yml`), writes the ssh-config alias, and sequences
-  S3-T1/S3-T2 + `copilot update`. Decide app-owns vs CLI-owns per D3. *Unit +
-  integration tests; UI E2E if app-owned.* *Complexity: High.*
+- **S3-T3 — Build `cc onboard` + the rendered wizard step.** Consume the Admin
+  handoff; create/select the authenticated user's Claude and Codex personal
+  repositories; seed rank 10; write the product-aware manifest; write the SSH
+  alias; sequence S3-T0/S3-T1/S3-T2 and CLI mirror update; return opaque personal
+  provenance and complete doctor evidence. *Unit + integration + UI E2E tests
+  required. Complexity: High.*
 - **S3-T4 — Package a laptop CLI installer** (pipx/uv one-liner or the app bundles
   + installs the CLI on first run). *Complexity: Medium.*
 - **S3-T5 — Cold-machine acceptance run** on the real laptop with an empty
@@ -283,13 +320,13 @@ manual step, and B-5's `provision` verb is unbuilt.
 
 ### Acceptance
 
-On the laptop, from cold: `copilot --json layers` → `org-internal (30) →
-foundation (40)`; `copilot update --json` → `overall: ok`, both mirrors
-`cloned`, store-readiness `ready`; `copilot uspto health` (or another
-store-backed service) healthy; the laptop's own SSH key (not this machine's) is
-registered to GitHub and is the only work-push credential; the only secret
-material typed on the laptop is the scoped machine-identity bootstrap pair in the
-keychain — **no `.env`, no hand-copied secret, no copied SSH private key**.
+On the laptop, from cold, `cc onboard ... --json` reports for both Claude and
+Codex: `personal (10) -> organization (30) -> foundation (40)`, all effective
+items have product-correct provenance, and doctor is healthy. CLI mirrors are
+cloned, store readiness is ready, and a store-backed service is healthy. The
+laptop's own SSH key is registered; personal repositories belong to the user;
+and there is **no `.env`, hand-copied secret, copied SSH private key, or personal
+content in Admin output**.
 
 ---
 
@@ -305,45 +342,45 @@ keychain — **no `.env`, no hand-copied secret, no copied SSH private key**.
 | Config inheritance (committed `config:` blocks, no `.env`) | **Built + live** (Phase 4 #1) | — |
 | `copilot update` mirror-sync (never-destroy, semver, `--json`) | **Built + live** | — |
 | Secrets in Infisical + keychain, `.env` emptied | **Built + live** (Phase 5 cutover, 2026-07-21) | — |
-| Manifest delivery to a new machine | **Missing** | Hand-placed today; no `copilot init`/wizard writer confirmed — B-2, D3 |
+| Codex public foundation package | **Built + published** | `v0.6.0`; official plugin validation + smoke suite pass; live cache-busted install enabled |
+| Claude/Codex product-aware resolver | **Missing** | Current resolver/rank validation is not product-scoped; same-named cross-product items can collide — S3-T0 |
+| Product-specific materialization | **Missing** | Current ecosystem materializer has one generic root; Codex requires allowlisted native targets — S3-T0 |
+| Executable-content signature/policy verification | **Missing** | Production policy correctly fails closed but currently blocks all materialization — S3-T0 |
+| Personal layer provisioning | **Missing** | Admin/User authority contract is ratified; user-owned repo creation + rank-10 seeding is not implemented — S3-T3 |
+| Unified manifest delivery to a new machine | **Missing** | Current machine has only a CLI-specific two-layer file; `cc` manifest unset — B-2, S3-T3 |
 | CLI install on a new machine | **Partial** | Hand-installable; no packaged installer/one-liner — B-1, S3-T4 |
 | Machine-identity bootstrap-cred provisioning | **Missing** | `infisical identity provision` unbuilt; uses org-wide `ecosystem-admin` — B-5, S3-T1 |
 | On-device SSH key gen + GitHub registration at onboarding | **Missing** | Designed (§6.1/6.2), not wired; §7 sync is open — B-3, S3-T2 |
 | ssh-config `github-work` alias placement | **Missing as automation** | Hand-edited — B-4 |
 | Native user app (wizard + tray, de-mocked) | **Built** (S1–S17 green) | Not packaged/notarized |
 | App signing / notarization / self-update (signed) | **Missing (owner-gated)** | Apple cert, notarytool creds, minisign custody — P-7 |
-| App first-run: writes manifest / runs `update` | **[VERIFY]** | Unconfirmed; the load-bearing unknown — S2 |
-| "Two CLIs" — which binary owns `update`/`layers` | **[VERIFY]** | `cli-copilot` vs `claude-copilot`'s `cc` — S2 |
+| App first-run orchestration | **Missing** | Ratified: app calls `cc onboard` and renders; implementation remains — S2/S3-T3 |
+| "Two CLIs" ownership | **Ratified** | `cc` is the control plane and coordinates `copilot`; app calls only `cc` |
 
 ---
 
-## 7. Open decisions for the owner
+## 7. Ratified decisions and remaining owner gates
 
-- **OD-1 — Bootstrap-cred provisioning method for a new machine.** Build
-  `copilot infisical identity provision` and mint a **scoped, per-machine**
-  identity (recommended — least privilege, revocable per device), or keep placing
-  the org-wide `ecosystem-admin` creds on each machine (fast, but org-wide blast
-  radius; gap-analysis flags this High). Decides S3-T1.
-- **OD-2 — Who owns onboarding: the user app or the CLI.** Recommend a CLI verb
-  (`copilot onboard`) does the compute (manifest write, key gen, provision, sync)
-  and the app renders it (invariant #1). Decides D3, S3-T3, and whether S3 is ever
-  "one command."
-- **OD-3 — Manifest delivery.** Wizard-written vs `copilot init` vs a downloadable
-  seed. Must be a *parse/derive-from-`ecosystem.yml`* action, never app-computed.
-- **OD-4 — Laptop SSH-key strategy.** Per §7, generate a **new** on-device key on
-  the laptop registered under the same GitHub identity (recommended — no private
-  key ever leaves a machine), vs. any form of key sync (explicitly open/undesigned).
-- **OD-5 — App distribution/signing.** Unblock P-7: Apple Developer ID cert,
+- **RD-1 — Bootstrap credentials.** Use a scoped, revocable per-machine identity;
+  do not distribute the org-wide `ecosystem-admin` credential. Build the
+  provisioning verb in S3-T1.
+- **RD-2 — Onboarding authority.** `cc onboard` computes and mutates; Control
+  Tower renders one structured result.
+- **RD-3 — Manifest delivery.** `cc onboard` derives the manifest from the Admin
+  handoff and authenticated user choices. The app does not author YAML.
+- **RD-4 — Personal boundary.** Admin provisions organization; User Setup creates
+  or selects user-owned personal repositories. Admin sees opaque health only.
+- **RD-5 — Laptop SSH keys.** Generate a new on-device key for each machine under
+  the same GitHub identity. Never sync private keys.
+- **RD-6 — Product isolation.** Resolve by `(product, dimension, item)` and
+  materialize only to per-product allowlisted targets.
+- **OG-1 — App distribution/signing.** Unblock P-7: Apple Developer ID cert,
   notarytool creds, minisign two-of-N custody, update-feed endpoint. Owner-gated;
   blocks S2-T1 and the whole signed-app path.
-- **OD-6 — "Two CLIs" reconciliation.** Confirm and document which binary
-  (`cli-copilot`'s `copilot` vs `claude-copilot`'s `cc`) the app shells for
-  `update`/`layers`/`doctor`, and whether the content components need a second
-  sync path. Fix the docs that disagree (memory `four-programs-two-names`).
-- **OD-7 — Codex foundation pin.** `codex-copilot` has no tags, so a Codex-shop
-  `foundation-pin` check fails. Not blocking for ENAC (claude shop) but must be
-  resolved before any Codex standup — tag `codex-copilot` or special-case it.
-- **OD-8 — Gated public flip** (carried from Phase 2 Step F / Phase 4). The
+- **OG-2 — Company GitHub OAuth App.** An org owner must create it in GitHub's web
+  UI with device flow enabled and supply the public client id; no supported API
+  creates this app on the owner's behalf.
+- **OG-3 — Gated public flip** (carried from Phase 2 Step F / Phase 4). The
   one-way private→public flip of `knowledge-copilot` + `cli-copilot` stays
   deferred until this install/onboarding proof is green. Not part of this phase's
   work; named so it is not forgotten.
@@ -370,7 +407,8 @@ laptop onboards and inherits the tier with no hand-copied secret or key").
 - `…/phases/phase-3-tier-inheritance-and-secrets.md` (what shipped)
 - `…/phases/phase-4-tier-completion-handoff.md` (config inheritance, `update`, per-secret routing — code complete)
 - Phase 5 (org-config migration + cutover): the `phase-5(…)` commits in `cli-copilot`/`cli-copilot-internal`, WP-79, and session memory `phase-5-org-config-migration`
-- `…/decisions/ADR-001/002/003` (one org, `-internal` naming, dogfood ENAC)
+- `…/decisions/ADR-001/002/003/004` (one org, `-internal` naming, dogfood ENAC,
+  Admin-shared/User-personal authority)
 
 **Product & invariants**
 - `CLAUDE.md` (repo root — invariants #1 parse-never-compute, #2 single-process, #3 never-destroy, #4 no-weaken, #6 secrets never in inheritance)
@@ -395,7 +433,14 @@ laptop onboards and inherits the tier with no hand-copied secret or key").
 - `phase-5-org-config-migration.md` (the cutover — org `.env` emptied, mirror is a git clone, `copilot update` idempotent)
 - `native-app-rebuilt.md` (two binaries, wizard/tray de-mocked, S1–S17 green; not packaged)
 - `m4-distribution-decisions.md` (crash-only watchdog, self-update, owner-gated signing list)
-- `four-programs-two-names.md` (the `cc`/`copilot` naming collision — OD-6)
+- `four-programs-two-names.md` (the `cc`/`copilot` naming collision — resolved by
+  RD-2: `cc` is the control plane)
 - `admin-first-live-run-blockers.md` (the `^5.13.0` pin history, `admin:org` scope)
 
-**Live-state probes (2026-07-21, this machine)** — `cli-copilot` & `cli-copilot-internal` both even with `origin/main`; tags `v0.1.0/v0.2.0/v0.3.0` present; keychain holds `INFISICAL_CLIENT_ID`/`_SECRET`; `~/.ssh/config` has a `github-work` alias using a single `id_ed25519`; org mirror is a real git clone at `~/.copilot/mirrors/cli/org-internal/`.
+**Live-state probes (2026-07-21, this machine)** — `cli-copilot` &
+`cli-copilot-internal` both even with `origin/main`; CLI tags
+`v0.1.0/v0.2.0/v0.3.0` and Codex tag `v0.6.0` are present; Codex's live plugin is
+enabled; keychain holds `INFISICAL_CLIENT_ID`/`_SECRET`; `~/.ssh/config` has a
+`github-work` alias using a single `id_ed25519`; org mirror is a real git clone at
+`~/.copilot/mirrors/cli/org-internal/`; `cc doctor --json` honestly reports
+`needs-attention` because no unified `layers.manifest` is configured.

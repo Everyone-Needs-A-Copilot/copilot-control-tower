@@ -4,6 +4,12 @@ Control Tower is a face + supervisor: it **parses machine-readable CLI output; i
 
 > **Freeze status & source of truth (2026-07-16).** The authoritative WS-A contract is defined **upstream**, in the `claude-copilot` repo: [`05-control-tower.md`](/Volumes/Dev/Sites/COPILOT/claude-copilot/docs/40-initiatives/01-ecosystem-extensions/05-control-tower.md), [`06-control-tower-prd.md`](/Volumes/Dev/Sites/COPILOT/claude-copilot/docs/40-initiatives/01-ecosystem-extensions/06-control-tower-prd.md), and [`research/design-control-tower-integration.md`](/Volumes/Dev/Sites/COPILOT/claude-copilot/docs/40-initiatives/01-ecosystem-extensions/research/design-control-tower-integration.md). **The CLI now implements `auth`/`doctor`/`layers`/`freshness`/`update`/`projects` in `claude-copilot`'s `tools/cc` (wired into `cc/main.py`); `repair` and `publish` remain deferred (stubs only).** This prose and the [`schemas/`](schemas/) in this repo *encode the contract these implemented verbs follow*; `repair`/`publish` sections below still describe design intent, not shipped behavior, and must be reconciled with the real CLI as they land. Two known gaps: `publish` (§ below) is a control-tower-originated addition that must still be folded into the upstream PRD; `layers`/`layers join` (§ below, D7.1) is a second control-tower-originated proposal, implemented in `tools/cc` but still not folded into upstream WS-A scope.
 
+> **Fail-closed clarification (2026-07-21).** `cc doctor --json` may not emit
+> `healthy` when `layers.manifest` is absent or invalid. It emits a failing
+> `ecosystem-layer-manifest` checker instead. Control Tower continues to call
+> one structured CLI and renders that verdict; it does not call both `cc` and
+> CLI Copilot and merge their health in the app.
+
 Full detail: [`../03-design/design-integration.md`](../03-design/design-integration.md) §1. Rationale: [`architecture.md`](architecture.md) §6.
 
 > **Machine-readable source of truth:** the versioned JSON Schemas in [`schemas/`](schemas/) (one `*.schema.json` per verb, Draft 2020-12) are authoritative for the CI contract test; this prose and those schemas must stay in sync (**schemas win for machines**).
@@ -23,6 +29,7 @@ Every consumed verb grows a **versioned `--json`** mode. All schemas carry a top
 | `copilot publish --json` **(control-tower-originated proposal, not yet in upstream WS-A scope — must be added upstream at freeze)** | `{schema_version, tier, result, conflict?, resolutions[], parked_ref?, escalated_to?, leak_scan}` | Author-side push of a writable org/dept tier. **CLI computes the merge**; the app only renders the chooser and passes back the choice. Conflict states: `auto-merged` / `needs-choice` / `parked-escalated`. See the subsection below. |
 | `copilot layers --json` **(proposed contract addition, D7.1, not yet in upstream WS-A scope)** | `{schema_version, layers:[{tier(org\|department), id, name, repo, entitled(bool), joined(bool), reason?}]}` | Entitlement discovery. Lists every department/org layer visible for the account context, whether the user is **entitled** (has GitHub repo access to it, per D3, the entitlement spine) and whether it is already **joined** (synced onto this machine). Entitlement is computed **CLI-side**; the app only renders the list. |
 | `copilot layers join <id> --json` **(proposed contract addition, D7.1)** | `{result(joined\|already-joined\|not-entitled\|error), tier, id, synced_lock_sha}` | Join action. Takes the user's pick of an entitled, not-yet-joined layer from the app-rendered list and syncs it onto the machine (equivalent to what `update` materializes for an already-joined layer). `not-entitled` is a normal, renderable outcome, not a crash. |
+| `cc onboard --org <org> --products claude,codex --json` **(Phase 6 contract; not implemented yet)** | `{schema_version,result,stages:[…],products:[{product,layers:[{role,rank,source,status}],materialized:[…]}],personal:{owner,provenance,status},blocked:[…]}` | The single idempotent onboarding transaction. Admin stages provision shared configuration; the authenticated user stage creates/selects user-owned personal repos. Resolution and target selection are CLI-side. No secret or personal content appears in output. |
 
 ## `copilot publish --json` (WS-A addition — 2026-07-07)
 
@@ -53,6 +60,40 @@ Added to close CSE open question 2 / decision D7.1 ([`cse-alignment-decisions.md
 **Parse, never compute.** Entitlement is a fact the CLI computes by checking GitHub repo access per candidate layer (D3, the entitlement spine); Control Tower never evaluates repo permissions itself. The app's only job is to render the returned list (entitled vs. not, joined vs. not) and pass the user's selection back as the `join` argument, the identical pattern to the `publish --resolve` chooser above (invariant #1: parse, never compute; no entitlement logic in the app).
 
 **Exit codes.** `0` = list/join succeeded (including a `not-entitled` result for `join`, a normal, renderable outcome, not an error); `1` = join refused (e.g. unknown layer id, or entitlement revoked between list and join); `2` = env/credential error (e.g. no GitHub identity resolvable at all).
+
+## `cc onboard --json` (Phase 6)
+
+`cc onboard` is the authoritative aggregate onboarding verb. It coordinates the
+content ecosystem and the separately installed CLI/service component; Control
+Tower invokes one verb and renders its result. The app never calls multiple CLIs
+and synthesizes a health verdict.
+
+The transaction has two explicit authority stages:
+
+1. **Admin/shared:** verify the public foundation, create or verify organization
+   repositories and policy, and write a non-secret user handoff.
+2. **User/personal:** after personal GitHub authentication, create or select the
+   individual's private repositories, establish on-device credentials, resolve
+   the effective stack, materialize it, and run doctor evidence.
+
+For ENAC, which has no departments, every requested product must report exactly
+`personal (10) -> organization (30) -> foundation (40)`. Resolution keys are
+`(product, dimension, item)`; ranks compete only inside one product. Each product
+has an allowlisted target map (for example Codex user skills in
+`~/.agents/skills`, native personal agents in `~/.codex/agents`, and global
+instructions in `~/.codex/AGENTS.md`). Same-named Claude and Codex skills must
+coexist rather than shadow across products.
+
+Production materialization remains fail-closed until executable remote content
+passes the ratified signature/policy check. Output may include repository owner,
+role, rank, commit/tag, and health status, but never personal file contents,
+tokens, private keys, keychain values, or secret-store credentials.
+
+**Idempotency and recovery.** Re-running `cc onboard` verifies and repairs only
+missing or stale managed artifacts. It preserves dirty/user-owned content,
+reports held work, and provides a recovery action for every blocked stage. A
+partially completed Admin stage can be resumed by User Setup without repeating
+already-passing mutations.
 
 ## Concurrency (the double-write fix)
 

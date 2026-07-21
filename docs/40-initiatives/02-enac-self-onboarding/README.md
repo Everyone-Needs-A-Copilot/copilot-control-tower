@@ -128,13 +128,14 @@ service + 33 ladder tests; 0 fail-closed). Full record:
 | Phase 3 | **Tier runtime + credential ladder** — layered settings, overlay loader, fail-closed secret ladder, full secret migration to Infisical | Phase 1 | **Shipped + live on ENAC's Mac.** [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md) |
 | Phase 4 | **Lock the tier in fully** — config inheritance, `copilot update` mirror-sync, fan-out validation, cleanup | Phase 3 | **Done + live.** [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md) |
 | Phase 5 | **Org-config migration + cutover** — move all org config out of the gitignored `.env` (non-secret → committed overlay `config:`; secrets → Infisical/keychain); org mirror is now a clean git clone with no `.env` | Phase 4 | **Done + cut over live (2026-07-21).** Recorded in the `phase-5(…)` commits, WP-79, memory `phase-5-org-config-migration`. |
-| Phase 6 | **Ecosystem install + two-machine onboarding proof** — admin on this machine, user app on this machine + laptop; prove the tier is inheritable (not hand-wired) from a cold machine | Phase 5 | **Hand-off — the next work.** [`phases/phase-6-ecosystem-install-and-onboarding-proof.md`](phases/phase-6-ecosystem-install-and-onboarding-proof.md) |
+| Phase 6 | **Ecosystem install + two-machine onboarding proof** — Admin provisions shared Claude/Codex layers; User Setup provisions user-owned personal layers; prove `personal (10) -> organization (30) -> foundation (40)` from a cold machine | Phase 5 | **Entry-ready — implementation and proof are the next work.** [`phases/phase-6-ecosystem-install-and-onboarding-proof.md`](phases/phase-6-ecosystem-install-and-onboarding-proof.md) |
 
 ## Decisions
 
 - [ADR-001 — One org, no second company](decisions/ADR-001-one-org-no-second-company.md)
 - [ADR-002 — `-internal` naming convention (universal)](decisions/ADR-002-internal-naming-convention.md)
 - [ADR-003 — Dogfood ENAC directly, no Acme throwaway](decisions/ADR-003-dogfood-enac-directly.md)
+- [ADR-004 — Admin provisions shared layers; the user provisions the personal layer](decisions/ADR-004-admin-shared-user-personal-onboarding.md)
 
 ## Validation Contract
 
@@ -166,11 +167,13 @@ config lives in the committed overlay, secrets in Infisical + keychain, and
 `copilot update` regenerates the org mirror from a clean git clone (foundation
 pinned `^0.3.0` → `v0.3.0`).
 
-**The next action** is Phase 6: prove the ecosystem can be *installed and
-onboarded* — admin on this machine, the user app on this machine, and a cold
-laptop that inherits the tier (V-5). The real gaps are on the new-machine path
-(manifest delivery, packaged CLI installer, scoped machine-identity provisioning,
-on-device SSH-key generation), not the tier runtime. The one-way **public flip**
+**The next action** is Phase 6: implement and prove the ecosystem can be
+*installed and onboarded* — Admin Setup on this machine, User Setup on this
+machine, and a cold laptop that inherits the three-layer Claude and Codex stacks
+(V-5). The real gaps are on the new-machine path (product-aware resolution and
+materialization, personal provisioning, verified executable-content policy,
+manifest delivery, packaged CLI installer, scoped machine-identity provisioning,
+and on-device SSH-key generation), not the existing CLI tier runtime. The one-way **public flip**
 of the base repos stays gated until that proof is green. Hand-off:
 [`phases/phase-6-ecosystem-install-and-onboarding-proof.md`](phases/phase-6-ecosystem-install-and-onboarding-proof.md).
 

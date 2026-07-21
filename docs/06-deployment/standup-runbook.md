@@ -41,7 +41,7 @@ shape isn't yet CLI-ratified) - flagged there, not glossed over.
 
 ---
 
-## Step 1 - Stand up the four-tier repos and grant access
+## Step 1 - Stand up the shared repos and grant access
 
 **Design status: infra step, no code gap.** Per component (Knowledge Copilot,
 CLI Copilot, Claude/Codex Copilot) and per tier:
@@ -55,7 +55,9 @@ CLI Copilot, Claude/Codex Copilot) and per tier:
   subfolder does not isolate confidential departmental content - a separate
   repo is the only real read boundary; see `four-tier-topology.md` §6.2).
   Grant access via a GitHub team scoped to that department.
-- **Personal** repos belong to each person; nothing for Admin to create.
+- **Personal** repos belong to each person. Admin Setup declares and verifies the
+  handoff contract, but User Setup creates or selects the repos after personal
+  sign-in. Admin never receives personal repository or credential access.
 
 **This is the entitlement step.** There is no separate "enrollment" action - a person is entitled to a layer the moment their GitHub account has read
 access to that layer's repo, via team membership.
@@ -154,25 +156,27 @@ update-signing concern, not a deployment-model one. See
 [`two-of-n-custody-runbook.md`](two-of-n-custody-runbook.md) for the full
 picture.
 
-## Step 8 - Roll out: users self-install and join
+## Step 8 - Roll out: users self-install, create personal, and join shared layers
 
-**Design status: mixed - self-install is shipped; entitlement discovery/join
-is a proposed CLI contract addition (D7.1), not yet real.** There is no push
+**Design status: mixed - self-install and `cc layers`/`cc layers join` are
+shipped; aggregate personal + shared onboarding is not.** There is no push
 step. Share the download link for the signed, notarized build (an internal
 wiki page, a pinned message, a GitHub Releases page - whatever your org
 already uses) with anyone entitled to any layer. Each person downloads it and
 opens it themselves.
 
-On first run, the wizard is meant to call `copilot layers --json` to show
-which org/department layers the signed-in person is entitled to (by GitHub
-repo access) and let them join one with `copilot layers join <id> --json`
-(`docs/01-architecture/cli-contract.md` §"`copilot layers [join] --json`").
-**This verb does not exist in the real CLI yet** - it is a control-tower-
-originated proposal not yet folded into upstream WS-A scope, and the app has
-no render code against it yet. Until it lands, department selection has no
-guided path; this is the one step where "no hand-configuration" genuinely
-isn't true yet, mirroring what step 1 of the old MDM-era runbook used to
-flag about the seed generator.
+On first run, Control Tower calls `cc`; it does not compute or merge layer
+state. The currently shipped `cc layers`/`cc layers join` surface can enumerate
+and join declared shared layers, but it does not yet perform the full onboarding
+transaction. Phase 6 adds `cc onboard`: authenticate the individual, create or
+select their user-owned Claude and Codex personal repositories, install the
+rank-10 personal layer, join the rank-30 organization layer, retain the rank-40
+public foundation, and return one structured verification result.
+
+For an organization with no departments, the required effective stack for each
+product is `personal (10) -> organization (30) -> foundation (40)`. Admin Setup
+may show whether this handoff completed, but it must not display personal content
+or obtain personal write credentials.
 
 ## Step 9 - Verify with the fleet dashboard
 
@@ -215,9 +219,9 @@ authoritative flag of the open question until they are.
 
 ## What's still missing from this runbook
 
-The entitlement-discovery/join verb (step 8) doesn't exist in the real CLI
-yet - there is no guided "which departments am I entitled to" flow until
-`copilot layers`/`copilot layers join` lands (D7.1). The shared secret-store
-endpoint (step 2) still reads from the old forced/managed domain in code,
-not yet from `ecosystem.yml`. Both are pending code changes, not missing
-documentation - tracked in `README.md`'s owner-gated table, items 9 and 11.
+The shipped `cc layers`/`cc layers join` verbs are not a complete onboarding
+transaction. Product-aware resolution, product-specific materialization,
+personal repository provisioning, verified executable-content policy, and the
+idempotent `cc onboard` orchestration remain Phase 6 implementation work. The
+shared secret-store endpoint (step 2) also still reads from the old
+forced/managed domain in code, not yet from `ecosystem.yml`.
