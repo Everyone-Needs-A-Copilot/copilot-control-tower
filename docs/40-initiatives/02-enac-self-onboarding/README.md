@@ -2,7 +2,7 @@
 initiative: 02-enac-self-onboarding
 title: ENAC Self-Onboarding — Dogfood the Ecosystem on Everyone Needs A Copilot
 status: active
-status_note: Live on ENAC's Mac — cli-copilot (and knowledge-copilot) split into public foundation + private -internal and pushed; the CLI tier-inheritance runtime (manifest + overlay loader + layered settings) and the fail-closed credential ladder shipped; all org secrets migrated to Infisical, only the Infisical bootstrap creds + Discord bridge token in keychain (owner-ratified "everything in Infisical, only the necessary in keychain"). Verified (887+15+92+33 tests, 0 fail-closed). Remaining to fully lock in — config inheritance, `copilot update` mirror-sync, fan-out validation — in phases/phase-4-tier-completion-handoff.md. Public flip still gated.
+status_note: Live on ENAC's Mac — cli-copilot (and knowledge-copilot) split into public foundation + private -internal and pushed; the CLI tier-inheritance runtime (manifest + overlay loader + layered settings) and the fail-closed credential ladder shipped; all org secrets migrated to Infisical, only the Infisical bootstrap creds + Discord bridge token in keychain (owner-ratified "everything in Infisical, only the necessary in keychain"). Verified (887+15+92+33 tests, 0 fail-closed). Tier fully locked in + cut over (Phase 4+5, 2026-07-21): config inheritance, `copilot update` mirror-sync, and the full org-`.env` migration all shipped; the org mirror is now a clean git clone with no `.env` (foundation pinned `^0.3.0`→`v0.3.0`). Next: prove install + two-machine onboarding — phases/phase-6-ecosystem-install-and-onboarding-proof.md. Public flip still gated.
 owner: Pablo Alejo
 created: 2026-07-16
 execution_context:
@@ -126,7 +126,9 @@ service + 33 ladder tests; 0 fail-closed). Full record:
 | Phase 1 | **Public-base extraction** — split `knowledge-copilot` & `cli-copilot` into public base + private `-internal` | naming shipped ✓ | **Done** — both split and pushed. [`phases/phase-1-public-base-extraction.md`](phases/phase-1-public-base-extraction.md) |
 | Phase 2 | **Stand up, wire, validate, roll out** — org standup, manifest, scratch validation, fan-out, gated publicize | Phase 1 | Runbook; the GitHub-standup + fan-out mechanics remain the reference. [`phases/phase-2-standup-and-rollout.md`](phases/phase-2-standup-and-rollout.md) |
 | Phase 3 | **Tier runtime + credential ladder** — layered settings, overlay loader, fail-closed secret ladder, full secret migration to Infisical | Phase 1 | **Shipped + live on ENAC's Mac.** [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md) |
-| Phase 4 | **Lock the tier in fully** — config inheritance, `copilot update` mirror-sync, fan-out validation, cleanup | Phase 3 | **Hand-off — the next work.** [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md) |
+| Phase 4 | **Lock the tier in fully** — config inheritance, `copilot update` mirror-sync, fan-out validation, cleanup | Phase 3 | **Done + live.** [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md) |
+| Phase 5 | **Org-config migration + cutover** — move all org config out of the gitignored `.env` (non-secret → committed overlay `config:`; secrets → Infisical/keychain); org mirror is now a clean git clone with no `.env` | Phase 4 | **Done + cut over live (2026-07-21).** Recorded in the `phase-5(…)` commits, WP-79, memory `phase-5-org-config-migration`. |
+| Phase 6 | **Ecosystem install + two-machine onboarding proof** — admin on this machine, user app on this machine + laptop; prove the tier is inheritable (not hand-wired) from a cold machine | Phase 5 | **Hand-off — the next work.** [`phases/phase-6-ecosystem-install-and-onboarding-proof.md`](phases/phase-6-ecosystem-install-and-onboarding-proof.md) |
 
 ## Decisions
 
@@ -147,22 +149,30 @@ service + 33 ladder tests; 0 fail-closed). Full record:
   writes before touching any real project.
 - **V-4 — the fan-out actually propagates.** Phase 2: one `copilot update` after a
   component change updates every enrolled project's `.claude/`.
+- **V-5 — a cold laptop inherits the tier.** Phase 6: a machine that starts with an
+  empty keychain and no work SSH key onboards, `copilot update` clones both
+  mirrors, and every service resolves from the inherited config + store — with no
+  hand-copied secret, no copied SSH private key, and no `.env`.
 
 ## Current Summary
 
-**Status: active — the tier is live, not yet fully locked in.** `cli-copilot`
-(and `knowledge-copilot`) are split into a public foundation and a private
-`-internal` org layer and pushed to GitHub. The CLI tier-inheritance runtime and
-the fail-closed credential ladder are shipped and verified live on ENAC's Mac;
-ENAC's real secrets now resolve through Infisical, with only the Infisical
-bootstrap creds and the Discord bridge token in the keychain (Phase 3).
+**Status: active — the tier is fully live and cut over; next is proving
+install/onboarding.** `cli-copilot` (and `knowledge-copilot`) are split into a
+public foundation and a private `-internal` org layer and pushed. The
+tier-inheritance runtime, fail-closed credential ladder, config inheritance, and
+the `copilot update` mirror-sync are all shipped and verified live on ENAC's Mac.
+As of the 2026-07-21 cutover (Phase 5) the org `.env` is **empty** — non-secret
+config lives in the committed overlay, secrets in Infisical + keychain, and
+`copilot update` regenerates the org mirror from a clean git clone (foundation
+pinned `^0.3.0` → `v0.3.0`).
 
-**The next action** is Phase 4: make the tier *fully* inheritable — wire config
-inheritance (the store config still lives in a local `.env`), build the
-`copilot update` mirror-sync so a fresh machine materializes the tier with one
-command, and validate the fan-out (V-4). The one-way **public flip** of the base
-repos stays gated to the very end. Hand-off:
-[`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md).
+**The next action** is Phase 6: prove the ecosystem can be *installed and
+onboarded* — admin on this machine, the user app on this machine, and a cold
+laptop that inherits the tier (V-5). The real gaps are on the new-machine path
+(manifest delivery, packaged CLI installer, scoped machine-identity provisioning,
+on-device SSH-key generation), not the tier runtime. The one-way **public flip**
+of the base repos stays gated until that proof is green. Hand-off:
+[`phases/phase-6-ecosystem-install-and-onboarding-proof.md`](phases/phase-6-ecosystem-install-and-onboarding-proof.md).
 
 The original **rename-redirect hazard** (creating a new repo with the old name
 silently re-points every consumer at the base skeleton) was navigated during the
