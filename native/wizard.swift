@@ -21,10 +21,10 @@
 // REAL CLI SEAM (no longer mock-backed): every network-shaped step drives
 // `CliClient` (`native/cli-client.swift`) directly —
 //   - Connect GitHub (step 2): `authLoginInitiate()` / `authLoginPoll(deviceCode:)`
-//   - Detect (step 3): `authStatus()` + `doctor()`
+//   - Detect (step 3): `authStatus()` + `doctor()` + aggregate `onboard` plan
 //   - Departments (step 5): `layers()` / `layersJoin(id:)`
-//   - Set up (step 7): `update()` (+ `updateFanout()` when a department was
-//     joined)
+//   - Set up (step 7): aggregate `onboard --apply` (+ `updateFanout()` when a
+//     department was joined)
 //   - Verify (step 8): `doctor()`
 // Integrations (step 6) stays render-only: the per-provider personal-sign-in
 // verb is not yet frozen (see `cli-contract.md`), so its provider cards are
@@ -353,7 +353,7 @@ final class WizardModel: ObservableObject {
         Task {
             async let authAsync = CliClient.shared.authStatus()
             async let doctorAsync = CliClient.shared.doctor()
-            async let onboardAsync = CliClient.shared.onboardPlan(components: self.personalComponents)
+            async let onboardAsync = CliClient.shared.ecosystemOnboardPlan(products: self.copilotProducts)
             let authResult = await authAsync
             let doctorResult = await doctorAsync
             let onboardResult = await onboardAsync
@@ -377,16 +377,9 @@ final class WizardModel: ObservableObject {
                 return
             }
             guard onboard.result != .blocked else {
-                let blocked = onboard.repositories.filter { $0.action == "blocked" }.map { $0.name }.joined(separator: ", ")
-                self.enterHolding(reason: "GitHub couldn't safely confirm your personal repositories: \(blocked). Nothing was created.", origin: .detect)
-                return
-            }
-            if let login = status.identity?.login,
-               login.caseInsensitiveCompare(onboard.owner) != .orderedSame {
-                self.enterHolding(
-                    reason: "Your Copilot sign-in and GitHub command-line account don't match, so I won't create personal repositories in the wrong account.",
-                    origin: .detect
-                )
+                let detail = onboard.stages.last(where: { $0.result == "blocked" })?.detail
+                    ?? "Your organization's setup could not be confirmed safely."
+                self.enterHolding(reason: "\(detail) Nothing existing was changed.", origin: .detect)
                 return
             }
 
@@ -397,7 +390,12 @@ final class WizardModel: ObservableObject {
             } else {
                 lines.append("GitHub: signed in.")
             }
-            lines.append("Personal repositories: \(onboard.owner).")
+            lines.append("Organization: \(onboard.org).")
+            lines.append("Personal spaces: checked against the signed-in GitHub account.")
+            for layer in onboard.layers {
+                let product = layer.product.prefix(1).uppercased() + String(layer.product.dropFirst())
+                lines.append("\(product): \(layer.role) setup, rank \(layer.rank).")
+            }
             // The gh install/approve mechanics are not built yet (the spec's
             // own NB-13) — this line is honest static state, not a live
             // detection, until that verb exists.
@@ -407,16 +405,13 @@ final class WizardModel: ObservableObject {
             // wording here — one honest, already-CLI-derived verdict, never
             // a second opinion.
             lines.append(RenderState.from(doctor, joinable: nil).header.sentence)
-            for repository in onboard.repositories {
-                switch repository.state {
-                case .existingPrivate:
-                    lines.append("\(repository.name): already exists and is private; it will be reused.")
-                case .missing:
-                    lines.append("\(repository.name): confirmed missing; it will be created private when you continue setup.")
-                case .created:
-                    lines.append("\(repository.name): created private.")
-                case .conflictPublic, .unknown:
-                    break
+            for stage in onboard.stages where stage.result == "changes-required" {
+                if stage.stage == "personal-packages" {
+                    lines.append("Your private spaces need setup; only confirmed-missing spaces will be created.")
+                } else if stage.stage == "device-ssh" {
+                    lines.append("This Mac needs its own secure GitHub connection.")
+                } else if stage.stage == "layer-manifest" {
+                    lines.append("Your organization, personal, and foundation layers are ready to be connected.")
                 }
             }
             self.detectLines = lines
@@ -535,11 +530,13 @@ final class WizardModel: ObservableObject {
         let shouldFanOut = !joinedDepartments.isEmpty
 
         Task {
-            switch await CliClient.shared.onboardApply(components: self.personalComponents) {
+            switch await CliClient.shared.ecosystemOnboardApply(products: self.copilotProducts) {
             case .success(let report):
-                guard report.result == .applied || report.result == .ready else {
+                guard report.result == .ready else {
                     self.materializeInFlight = false
-                    self.enterHolding(reason: "GitHub couldn't safely finish your private repository setup. Nothing existing was changed.", origin: .materialize)
+                    let detail = report.stages.last(where: { $0.result == "blocked" })?.detail
+                        ?? "Setup stopped at a safety check."
+                    self.enterHolding(reason: "\(detail) You can retry after it is resolved.", origin: .materialize)
                     return
                 }
             case .failure(let error):
@@ -550,21 +547,14 @@ final class WizardModel: ObservableObject {
             if shouldFanOut {
                 Task { _ = await CliClient.shared.updateFanout() }
             }
-            async let updateResult = CliClient.shared.update()
             await self.cyclePhases(labels)
-            let result = await updateResult
             self.materializeInFlight = false
-            switch result {
-            case .success:
-                self.beginVerify()
-            case .failure(let error):
-                self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .materialize)
-            }
+            self.beginVerify()
         }
     }
 
-    private var personalComponents: [String] {
-        includeCodex ? ["knowledge", "cli", "claude", "codex"] : ["knowledge", "cli", "claude"]
+    private var copilotProducts: [String] {
+        includeCodex ? ["claude", "codex"] : ["claude"]
     }
 
     private func cyclePhases(_ labels: [String]) async {

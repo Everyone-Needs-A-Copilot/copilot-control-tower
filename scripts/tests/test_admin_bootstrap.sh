@@ -126,7 +126,7 @@ seed_content_bearing_repo() {
   fi
 }
 
-STORE_CONNECTED=$'store:\n  status: connected\n  type: infisical\n  endpoint: https://vault.acme-co.example\n  team_scopes:\n    - { team: accounting, scope: dept/accounting }\n    - { team: sales, scope: dept/sales }'
+STORE_CONNECTED=$'store:\n  status: connected\n  type: infisical\n  endpoint: https://vault.acme-co.example\n  workspace_id: "workspace-acme"\n  environment: prod\n  secret_path: "/shared"\n  team_scopes:\n    - { team: accounting, scope: dept/accounting }\n    - { team: sales, scope: dept/sales }'
 STORE_DEFERRED=$'store:\n  status: deferred'
 
 # write_brief PATH STORE_BLOCK [STORE_ENDPOINT_OVERRIDE_BLOCK]
@@ -281,7 +281,8 @@ test_fresh_standup_full_matrix() {
   last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -1 | jq -r .step)"
   second_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -2 | head -1 | jq -r .step)"
   assert_eq "test1: first NDJSON step is readiness" "readiness" "$first_step"
-  assert_eq "test1: ecosystem-yml step precedes the harness repo's branch protection" "ecosystem-yml" "$second_last_step"
+  assert_eq "test1: layer package is initialized before the harness repo's branch protection" "layer-package:codex-copilot-internal" "$second_last_step"
+  assert_contains "test1: ecosystem handoff is written before package initialization" "$RUN_STDOUT" '"step":"ecosystem-yml"'
   assert_eq "test1: last NDJSON step protects the harness repo" "branch-protection:codex-copilot-internal" "$last_step"
 }
 
@@ -362,6 +363,9 @@ store:
   status: connected
   type: infisical
   endpoint: "AKIAABCDEFGHIJKLMNOP"
+  workspace_id: "workspace-acme"
+  environment: prod
+  secret_path: "/shared"
 contacts:
   admin: "Earl P."
 ---
@@ -576,13 +580,14 @@ test_injected_read_failure_surfaces_honestly() {
 
   # Run mode: org-base-permission's read follows the four readiness reads
   # and the nine-repository fail-closed preflight plus the read-only existing
-  # ecosystem contract probe, so it is call #15 in this fixture. Injecting on the
+  # ecosystem contract probe and the three package preflight probes, so it is
+  # call #18 in this fixture. Injecting on the
   # endpoint itself would also trip preflight's earlier, unrelated hit to
   # the same path, so this uses the call-count injection instead.
   st="$(new_org_state inject-run)"
   brief="$WORKDIR/brief-inject-run.md"
   write_brief "$brief" "$STORE_DEFERRED"
-  echo "15" > "$st/inject-error-at-call"
+  echo "18" > "$st/inject-error-at-call"
   log="$WORKDIR/inject-run.log"
 
   run_engine "$st" "$log" --brief "$brief"
@@ -713,6 +718,9 @@ store:
   status: connected
   type: infisical
   endpoint: "AKIAABCDEFGHIJKLMNOP"
+  workspace_id: "workspace-acme"
+  environment: prod
+  secret_path: "/shared"
 contacts:
   admin: "Earl P."
 ---
@@ -771,7 +779,7 @@ test_verify_renders_pending_pr() {
 
   local must_fix
   must_fix="$(printf '%s' "$verify_out" | jq -r '.summary.must_fix')"
-  assert_eq "test13: pending ecosystem, OAuth, and personal-handoff rows count toward must_fix" "3" "$must_fix"
+  assert_eq "test13: pending ecosystem, package, OAuth, and personal-handoff rows count toward must_fix" "4" "$must_fix"
 
   local verify_mutating
   verify_mutating="$(count_mutating_calls "$verify_log")"
@@ -1421,6 +1429,44 @@ test_existing_oauth_identity_conflict_refuses_before_mutation() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 30: layer-package preflight is transactional. Existing unfamiliar
+# content or a mismatched package is detected before any repository/team/
+# permission/content mutation occurs.
+# ---------------------------------------------------------------------------
+
+test_layer_package_conflicts_refuse_before_mutation() {
+  local st brief setup_log log repo_dir
+  st="$(new_org_state layer-package-content-conflict)"
+  brief="$WORKDIR/brief-layer-package-content-conflict.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  setup_log="$WORKDIR/layer-package-content-conflict-setup.log"
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test30: content-conflict fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  repo_dir="$st/repos/acme-co/codex-copilot-internal/refs/main"
+  rm -f "$repo_dir/copilot.layer.yml"
+  printf '%s\n' '# Existing organization documentation' > "$repo_dir/README.md"
+  log="$WORKDIR/layer-package-content-conflict.log"
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test30: unfamiliar content without a package is refused" "2" "$RUN_EXIT"
+  assert_contains "test30: unfamiliar-content refusal names the layer package" "$RUN_STDERR" "without a layer package"
+  assert_eq "test30: unfamiliar-content conflict makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+
+  st="$(new_org_state layer-package-manifest-conflict)"
+  setup_log="$WORKDIR/layer-package-manifest-conflict-setup.log"
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test30: manifest-conflict fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+  repo_dir="$st/repos/acme-co/codex-copilot-internal/refs/main"
+  sed -i.bak 's/role: organization/role: department/' "$repo_dir/copilot.layer.yml"
+  rm -f "$repo_dir/copilot.layer.yml.bak"
+  log="$WORKDIR/layer-package-manifest-conflict.log"
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test30: mismatched layer package is refused" "2" "$RUN_EXIT"
+  assert_contains "test30: mismatched package refusal is explicit" "$RUN_STDERR" "different layer package"
+  assert_eq "test30: package conflict makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1453,6 +1499,7 @@ test_repository_plan_is_fail_closed
 test_two_harness_foundations_are_independent
 test_missing_oauth_client_id_refuses_before_github
 test_existing_oauth_identity_conflict_refuses_before_mutation
+test_layer_package_conflicts_refuse_before_mutation
 
 echo
 echo "-----------------------------------------"

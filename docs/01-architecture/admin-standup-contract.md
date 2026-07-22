@@ -89,6 +89,9 @@ store:                             # connected -> pointer; deferred -> explicit 
   status: connected                # connected | deferred
   type: infisical                  # store type (picker value); omitted when deferred
   endpoint: https://vault.acme-co.com   # a URL, NOT a secret
+  workspace_id: "workspace-acme"   # project/workspace identifier, NOT a secret
+  environment: prod                # exact environment slug for device read access
+  secret_path: "/shared"           # exact path for device read access
   team_scopes:                     # which team maps to which store scope
     - { team: accounting, scope: dept/accounting }
     - { team: sales,      scope: dept/sales }
@@ -139,6 +142,7 @@ The **deferred** store renders as `store: { status: deferred }` in front-matter 
 | `departments` | list of slugs | The **full current** expected set (a re-run rewrites the whole list). Unlike `org`, these are slugs the engine itself **generates** repo names from, so they are forced lowercase (`_valid_slug`), distinct from `org`'s case-preserving `_valid_org` rule. **`internal` is reserved** for the org layer (`<C>-copilot-internal`) and is refused as a department name. |
 | `store.status` | `connected` \| `deferred` | Deferred is a first-class, honest value, never an omission. |
 | `store.type` / `store.endpoint` | string / URL | Present only when connected. Endpoint is not a secret (access stays gated at the store by GitHub-team membership). |
+| `store.workspace_id` / `store.environment` / `store.secret_path` | strings | Required for connected Infisical. Non-secret scope identifiers used by User Setup to provision exact-path, read-only device access. |
 | `store.team_scopes[]` | `{team, scope}` | Non-secret mapping; present only when connected. |
 | `github_app.client_id` | string (GitHub OAuth App client id) | The company's **own** OAuth App identifier, created during standup (§1.6). **Public, not a secret** (it rides in every device-flow request); the client secret is never collected or used. Written into `ecosystem.yml` (§4) so user installs read it for the "Connect GitHub" device flow. Collection accepts GitHub's stable 20-character public identifier shape (ASCII letters, digits, or dots), including legacy `Iv1.` and current prefixes. |
 | `contacts.{publisher,admin,point_of_contact}` | string | Labels for the handoff header and verify-verb owner names. Never grant or change access. |
@@ -384,6 +388,9 @@ store:
   status: connected         # connected | deferred
   type: infisical
   endpoint: https://vault.acme-co.com
+  workspace_id: "workspace-acme"
+  environment: prod
+  secret_path: "/shared"
   team_scopes:
     - { team: accounting, scope: dept/accounting }
     - { team: sales,      scope: dept/sales }
@@ -492,8 +499,8 @@ POST/PATCH/PUT). The script, not the model, makes every decision.
 | 0 | **Preflight auth + scope** | `gh auth status`; actor is an **owner** of `<org>`; scopes `repo` + `admin:org`. | **Refuses** (exit 2, plain instruction, teaches `gh auth refresh -s admin:org -s repo`) if any fail. No mutation before this passes. |
 | 1 | **Org base permission = read** | `PATCH /orgs/{org} -f default_repository_permission=read`. | Set-to-value no-op if already `read`. |
 | 2 | **Create the org triplet** | for each `h` in harness: GET-then-POST `<org>/<h>-copilot-internal`; plus `<org>/knowledge-copilot-internal`, `<org>/cli-copilot-internal` (all **private**). | Existing repo with content -> `already-present`, never clobbered. |
-| 3 | **Branch protection on org repos** (in lieu of signing) | GET-then-PUT protection (require PR review; private) on each org repo. | PUT of the same ruleset is idempotent. |
-| 4 | **Per department (loop)** | 4a create triplet `<h>-copilot-<unit>` (each `h`), `knowledge-copilot-<unit>`, `cli-copilot-<unit>` (private); 4b create team `<org>/<unit>` (**not** nested under an org-parent team, four-tier §6.3); 4c grant the team read/write on its **whole triplet** (`PUT .../teams/{unit}/repos/...`); 4d branch protection on each dept repo. | Existing repo/team -> `already-present`; grant PUT and protection PUT are natively idempotent. |
+| 3 | **Initialize organization harness packages + protect** | After the handoff write, seed a minimal rank-30 `copilot.layer.yml` only in a confirmed-empty harness repository or the engine's known-safe handoff branch, then require PR review. | A valid existing package is reused; unfamiliar content or a different manifest is refused, never overwritten. |
+| 4 | **Per department (loop)** | 4a create triplet `<h>-copilot-<unit>` (each `h`), `knowledge-copilot-<unit>`, `cli-copilot-<unit>` (private); 4b create team `<org>/<unit>`; 4c grant the team its whole triplet; 4d seed minimal rank-20 harness packages only in confirmed-empty repos; 4e branch protection. | Existing package/repo/team -> `already-present`; unfamiliar content holds; grant/protection are idempotent. |
 | 5 | **Write/update `ecosystem.yml`** | Additive merge (§4) into `<org>/<harness>-copilot-internal`: components, departments (`topology: separate` default), harness list, store pointer, **the company GitHub app's public `client_id`** (§1.6), product-specific foundation pins, and the non-secret personal handoff. Initial commit on an empty repo; PR once the repo carries content. | Re-run **adds** a new dept/harness/store entry or first-time public client id/handoff; **never rewrites** an existing organization identity, personal ownership rule, or foundation pin. |
 | 6 | **Fail-closed leak-scan** | Run the leak-scan over `ecosystem.yml` **before any push** (deny-list: key prefixes, `BEGIN PRIVATE KEY`, `.env` shapes, high entropy). | A secret-shaped value -> **refuse to push** (invariant #6). The file carries only the non-secret endpoint + `requires_secret`-free content. |
 

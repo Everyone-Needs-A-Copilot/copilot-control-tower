@@ -1,0 +1,9 @@
+# This machine intentionally installs Claude Copilot as `cc`, which collides
+# with the conventional C compiler name used by Rust build scripts. Pin the
+# Apple toolchain for direct `cargo` commands; release scripts also set this
+# explicitly. A caller can still override CC in its own environment.
+[env]
+CC = { value = "/usr/bin/cc", force = false }
+
+[target.aarch64-apple-darwin]
+linker = "/usr/bin/cc"

@@ -467,6 +467,39 @@ struct OnboardReport: Decodable {
     let summary: RepositoryPlanSummary
 }
 
+struct EcosystemOnboardStage: Decodable {
+    let stage: String
+    let result: String
+    let detail: String?
+    let path: String?
+    let layers: Int?
+    let blocked: Int?
+    let held: Int?
+    let score: Int?
+}
+
+/// Content-free topology proof returned by aggregate onboarding. Repository
+/// URLs, credentials, signer data, and package contents stay on the CLI side
+/// of the seam; the app only renders which layers were connected and the
+/// precedence assigned by the CLI.
+struct EcosystemOnboardLayer: Decodable {
+    let id: String
+    let product: String
+    let role: String
+    let rank: Int
+}
+
+struct EcosystemOnboardReport: Decodable {
+    let schemaVersion: String
+    let scope: String
+    let mode: String
+    let result: OnboardResult
+    let org: String
+    let products: [String]
+    let stages: [EcosystemOnboardStage]
+    let layers: [EcosystemOnboardLayer]
+}
+
 // MARK: - workspace --all --json
 
 enum WorkspaceActivationState: String, Decodable {

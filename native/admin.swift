@@ -732,6 +732,9 @@ final class AdminModel: ObservableObject {
     // Surface 7: Secret store
     @Published var storeKind: StoreKind = .infisical
     @Published var storeAddress = ""
+    @Published var storeWorkspaceID = ""
+    @Published var storeEnvironment = "prod"
+    @Published var storeSecretPath = "/shared"
     @Published var storeAddressTouchedInvalid = false
     @Published var storeScopeByDepartment: [UUID: String] = [:]
     @Published var storeStatus: StoreConnectionStatus = .undecided
@@ -967,7 +970,7 @@ final class AdminModel: ObservableObject {
     }
 
     func finishSecretStore(connect: Bool) {
-        if connect, !storeAddress.isEmpty, SecretShapeCheck.looksLikeURL(storeAddress) {
+        if connect, !storeAddress.isEmpty, SecretShapeCheck.looksLikeURL(storeAddress), storeConnectionDetailsAreValid {
             storeStatus = .connected
         } else if !connect {
             storeStatus = .deferred
@@ -982,6 +985,13 @@ final class AdminModel: ObservableObject {
         case .connected: return "store connected"
         case .deferred, .undecided: return "store not connected yet"
         }
+    }
+
+    var storeConnectionDetailsAreValid: Bool {
+        guard storeKind == .infisical else { return true }
+        return !storeWorkspaceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !storeEnvironment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && storeSecretPath.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("/")
     }
 
     /// The `store.type` slug `buildBriefContents()` (native/admin-support.swift)
@@ -1014,6 +1024,9 @@ final class AdminModel: ObservableObject {
             parts.append("connected")
             parts.append(storeKindSlug)
             parts.append(storeAddress)
+            parts.append(storeWorkspaceID)
+            parts.append(storeEnvironment)
+            parts.append(storeSecretPath)
             for dept in validDepartments {
                 parts.append(storeScopeByDepartment[dept.id] ?? "dept/\(dept.slug)")
             }
@@ -1890,6 +1903,34 @@ extension AdminRootView {
                                 .foregroundColor(Color(nsColor: .systemRed))
                         }
 
+                        if model.storeKind == .infisical {
+                            SecretGuardedField(
+                                label: "Workspace ID",
+                                value: $model.storeWorkspaceID,
+                                placeholder: "Infisical project ID",
+                                helpText: "This identifies the workspace; it is not a secret."
+                            )
+                            .frame(maxWidth: 360)
+                            SecretGuardedField(
+                                label: "Environment",
+                                value: $model.storeEnvironment,
+                                placeholder: "prod"
+                            )
+                            .frame(maxWidth: 360)
+                            SecretGuardedField(
+                                label: "Shared secret path",
+                                value: $model.storeSecretPath,
+                                placeholder: "/shared",
+                                helpText: "Each device receives read-only access to this exact path."
+                            )
+                            .frame(maxWidth: 360)
+                            if !model.storeConnectionDetailsAreValid {
+                                Text("Add the workspace ID, environment, and a path beginning with /.")
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .systemRed))
+                            }
+                        }
+
                         if !model.departments.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Which teams can use it")
@@ -1958,7 +1999,7 @@ extension AdminRootView {
         } leadingActions: {
             backButton { model.goBack(from: .secretStore) }
         } primaryAction: {
-            primaryButton("Continue") {
+            primaryButton("Continue", enabled: model.storeAddressLooksValid && !model.storeAddress.isEmpty && model.storeConnectionDetailsAreValid) {
                 model.finishSecretStore(connect: true)
             }
         }

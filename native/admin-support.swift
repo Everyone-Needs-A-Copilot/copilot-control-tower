@@ -58,6 +58,9 @@ extension AdminModel {
             lines.append("  status: connected")
             lines.append("  type: \(storeKindSlug)")
             lines.append("  endpoint: \(storeAddress)")
+            lines.append("  workspace_id: \(yamlQuote(storeWorkspaceID.trimmingCharacters(in: .whitespacesAndNewlines)))")
+            lines.append("  environment: \(storeEnvironment.trimmingCharacters(in: .whitespacesAndNewlines))")
+            lines.append("  secret_path: \(yamlQuote(storeSecretPath.trimmingCharacters(in: .whitespacesAndNewlines)))")
             if depts.isEmpty {
                 lines.append("  team_scopes: []")
             } else {
@@ -678,7 +681,7 @@ extension AdminRootView {
         } primaryAction: {
             primaryButton(
                 "Copy the command to add it",
-                enabled: model.storeAddressLooksValid && !model.storeAddress.isEmpty
+                enabled: model.storeAddressLooksValid && !model.storeAddress.isEmpty && model.storeConnectionDetailsAreValid
             ) {
                 Task {
                     model.storeStatus = .connected

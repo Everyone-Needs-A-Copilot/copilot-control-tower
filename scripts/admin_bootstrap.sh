@@ -46,8 +46,12 @@ DEPARTMENTS=()
 STORE_STATUS="deferred"
 STORE_TYPE=""
 STORE_ENDPOINT=""
+STORE_WORKSPACE_ID=""
+STORE_ENVIRONMENT=""
+STORE_SECRET_PATH=""
 STORE_TEAM_SCOPES=()
 GITHUB_OAUTH_CLIENT_ID=""
+ECOSYSTEM_PACKAGE_BRANCH=""
 
 # Verify-mode tallies.
 MUST_FIX_COUNT=0
@@ -144,6 +148,10 @@ _b64_decode() {
   printf '%s' "$input" | tr -d '\n' | base64 --decode 2>/dev/null \
     || printf '%s' "$input" | tr -d '\n' | base64 -d 2>/dev/null \
     || echo ""
+}
+
+_b64_encode() {
+  base64 | tr -d '\n'
 }
 
 # _valid_slug VALUE — true if VALUE is a GitHub-safe slug: lowercase letters,
@@ -406,6 +414,14 @@ _load_brief() {
   STORE_STATUS="$(echo "$json" | jq -r '.store.status // "deferred"')"
   STORE_TYPE="$(echo "$json" | jq -r '.store.type // empty')"
   STORE_ENDPOINT="$(echo "$json" | jq -r '.store.endpoint // empty')"
+  STORE_WORKSPACE_ID="$(echo "$json" | jq -r '.store.workspace_id // empty')"
+  STORE_ENVIRONMENT="$(echo "$json" | jq -r '.store.environment // empty')"
+  STORE_SECRET_PATH="$(echo "$json" | jq -r '.store.secret_path // empty')"
+  if [[ "$STORE_STATUS" == "connected" && "$STORE_TYPE" == "infisical" ]]; then
+    if [[ -z "$STORE_WORKSPACE_ID" || -z "$STORE_ENVIRONMENT" || "$STORE_SECRET_PATH" != /* ]]; then
+      refuse "brief" "Connected Infisical setup needs store.workspace_id, store.environment, and an absolute store.secret_path such as /shared. These identifiers are not secrets."
+    fi
+  fi
   STORE_TEAM_SCOPES=()
   while IFS= read -r s; do
     [[ -n "$s" ]] && STORE_TEAM_SCOPES+=("$s")
@@ -543,6 +559,71 @@ _ensure_repo() {
   fi
 }
 
+_layer_seed() {
+  local product="$1" role="$2" rank="$3" owner="$4"
+  printf 'schema_version: "1.0"\n'
+  printf 'package:\n'
+  printf '  role: %s\n' "$role"
+  printf '  rank: %s\n' "$rank"
+  printf '  product: %s\n' "$product"
+  printf '  owner: %s\n' "$owner"
+  printf 'dimensions: []\n'
+}
+
+_ensure_layer_package() {
+  local org="$1" repo="$2" product="$3" role="$4" rank="$5" known_content="$6"
+  local step="layer-package:$repo" content encoded branch="" info err_file
+  [[ "$known_content" == "ecosystem-only" ]] && branch="$ECOSYSTEM_PACKAGE_BRANCH"
+  if [[ -n "$branch" ]]; then
+    err_file="$(mktemp)"
+    if info="$(gh api -X GET "repos/$org/$repo/contents/copilot.layer.yml" -f ref="$branch" 2>"$err_file")"; then
+      _GH_READ_STATUS="ok"
+      _GH_READ_VALUE="$(echo "$info" | jq -r '.content // empty')"
+    elif grep -qi 'HTTP 404' "$err_file"; then
+      _GH_READ_STATUS="not-found"; _GH_READ_VALUE=""
+    else
+      _GH_READ_STATUS="error"; _GH_READ_VALUE=""
+    fi
+    rm -f "$err_file"
+  else
+    _gh_read "repos/$org/$repo/contents/copilot.layer.yml" '.content // empty' || true
+  fi
+  if [[ "$_GH_READ_STATUS" == "ok" ]]; then
+    content="$(printf '%s' "$_GH_READ_VALUE" | _b64_decode)"
+    if [[ "$content" == *"  role: $role"* && "$content" == *"  rank: $rank"* && "$content" == *"  product: $product"* ]]; then
+      emit_step "$step" "already-present" "$org/$repo already has the expected $role layer package."
+      return
+    fi
+    refuse "$step" "$org/$repo already has a different copilot.layer.yml. I won't reinterpret or replace it."
+  fi
+  if [[ "$_GH_READ_STATUS" != "not-found" ]]; then
+    refuse "$step" "I couldn't confirm whether $org/$repo already has a layer package, so I won't write one. Check GitHub access and try again."
+  fi
+
+  _repo_default_branch_and_commits "$org" "$repo" "$step"
+  if [[ "$_REPO_HAS_COMMITS" == "true" && "$known_content" != "ecosystem-only" ]]; then
+    refuse "$step" "$org/$repo already contains unfamiliar work without a recognized layer package. I won't add or replace anything."
+  fi
+  if [[ "$_REPO_HAS_COMMITS" == "true" && "$known_content" == "ecosystem-only" && -z "$branch" ]]; then
+    local root_names
+    if ! root_names="$(gh api "repos/$org/$repo/contents" --jq '.[].name' 2>/dev/null)"; then
+      refuse "$step" "I couldn't confirm the existing content in $org/$repo, so I won't add a layer package."
+    fi
+    if [[ "$root_names" != "ecosystem.yml" ]]; then
+      refuse "$step" "$org/$repo contains work other than the known ecosystem handoff. I won't add a package directly."
+    fi
+  fi
+  content="$(_layer_seed "$product" "$role" "$rank" "$org")"
+  encoded="$(printf '%s' "$content" | _b64_encode)"
+  local args=(gh api -X PUT "repos/$org/$repo/contents/copilot.layer.yml" -f message="Initialize $role Copilot layer" -f content="$encoded")
+  [[ -n "$branch" ]] && args+=(-f branch="$branch")
+  if "${args[@]}" >/dev/null 2>&1; then
+    emit_step "$step" "created" "Initialized the $role rank-$rank package in $org/$repo."
+  else
+    fail_step "$step" "Could not initialize the layer package in $org/$repo. It's safe to run setup again."
+  fi
+}
+
 # _probe_repo ORG REPO sets a four-state result. Only an explicit HTTP 404
 # becomes "missing"; every other read failure is unknown and blocks writes.
 _probe_repo() {
@@ -580,6 +661,59 @@ _preflight_repository_matrix() {
   if [[ "${#blocked[@]}" -gt 0 ]]; then
     refuse "repository-plan" "Repository setup is blocked: $(_join_comma "${blocked[@]}"). Nothing was created."
   fi
+}
+
+_preflight_layer_packages() {
+  local org="$1" product repo unit rank expected_role first_repo="${HARNESS_LIST[0]}-copilot-internal"
+  local content root_names ecosystem_present
+  for product in "${HARNESS_LIST[@]}"; do
+    for unit in organization ${DEPARTMENTS[@]+"${DEPARTMENTS[@]}"}; do
+      if [[ "$unit" == "organization" ]]; then
+        repo="${product}-copilot-internal"; rank="30"; expected_role="organization"
+      else
+        repo="${product}-copilot-${unit}"; rank="20"; expected_role="department"
+      fi
+      _probe_repo "$org" "$repo"
+      case "$_REPO_PROBE_STATE" in
+        existing-private) ;;
+        missing) continue ;;
+        conflict-public)
+          refuse "repository-plan" "$org/$repo is public. Nothing was created."
+          ;;
+        unknown)
+          refuse "repository-plan" "I couldn't inspect $org/$repo before checking its layer package. Nothing was created."
+          ;;
+      esac
+      if _gh_read "repos/$org/$repo/contents/copilot.layer.yml" '.content // empty'; then
+        content="$(printf '%s' "$_GH_READ_VALUE" | _b64_decode)"
+        if [[ "$content" != *"  product: $product"* || "$content" != *"  role: $expected_role"* || "$content" != *"  rank: $rank"* ]]; then
+          refuse "repository-plan" "$org/$repo has a different layer package. Nothing was created."
+        fi
+        continue
+      elif [[ "$_GH_READ_STATUS" != "not-found" ]]; then
+        refuse "repository-plan" "I couldn't inspect $org/$repo's layer package. Nothing was created."
+      fi
+      _repo_default_branch_and_commits "$org" "$repo" "repository-plan"
+      [[ "$_REPO_HAS_COMMITS" == "true" ]] || continue
+      if [[ "$repo" != "$first_repo" ]]; then
+        refuse "repository-plan" "$org/$repo contains unfamiliar work without a layer package. Nothing was created."
+      fi
+      ecosystem_present=false
+      if _gh_read "repos/$org/$repo/contents/ecosystem.yml" '.content // empty'; then
+        ecosystem_present=true
+      elif [[ "$_GH_READ_STATUS" != "not-found" ]]; then
+        refuse "repository-plan" "I couldn't inspect $org/$repo's organization handoff. Nothing was created."
+      fi
+      if $ecosystem_present; then
+        if ! root_names="$(gh api "repos/$org/$repo/contents" --jq '.[].name' 2>/dev/null)"; then
+          refuse "repository-plan" "I couldn't inspect the existing files in $org/$repo. Nothing was created."
+        fi
+        if [[ "$root_names" != "ecosystem.yml" ]]; then
+          refuse "repository-plan" "$org/$repo contains unfamiliar work without a layer package. Nothing was created."
+        fi
+      fi
+    done
+  done
 }
 
 run_repository_plan() {
@@ -860,6 +994,9 @@ _STATE_DEPT_UNITS=()
 _STATE_STORE_STATUS=""
 _STATE_STORE_TYPE=""
 _STATE_STORE_ENDPOINT=""
+_STATE_STORE_WORKSPACE_ID=""
+_STATE_STORE_ENVIRONMENT=""
+_STATE_STORE_SECRET_PATH=""
 _STATE_STORE_SCOPES=()
 _STATE_GITHUB_CLIENT_ID=""
 _STATE_FOUNDATION_LEGACY_REF=""
@@ -885,6 +1022,9 @@ _read_ecosystem_state() {
   _STATE_STORE_STATUS=""
   _STATE_STORE_TYPE=""
   _STATE_STORE_ENDPOINT=""
+  _STATE_STORE_WORKSPACE_ID=""
+  _STATE_STORE_ENVIRONMENT=""
+  _STATE_STORE_SECRET_PATH=""
   _STATE_STORE_SCOPES=()
   _STATE_GITHUB_CLIENT_ID=""
   _STATE_FOUNDATION_LEGACY_REF=""
@@ -938,6 +1078,15 @@ _read_ecosystem_state() {
       "  endpoint: "*)
         [[ "$section" == "store" ]] && _STATE_STORE_ENDPOINT="${line#  endpoint: }"
         ;;
+      "  workspace_id: "*)
+        [[ "$section" == "store" ]] && _STATE_STORE_WORKSPACE_ID="$(_yaml_unquote "${line#  workspace_id: }")"
+        ;;
+      "  environment: "*)
+        [[ "$section" == "store" ]] && _STATE_STORE_ENVIRONMENT="${line#  environment: }"
+        ;;
+      "  secret_path: "*)
+        [[ "$section" == "store" ]] && _STATE_STORE_SECRET_PATH="$(_yaml_unquote "${line#  secret_path: }")"
+        ;;
       "  client_id: "*)
         [[ "$section" == "github-app" ]] && _STATE_GITHUB_CLIENT_ID="$(_yaml_unquote "${line#  client_id: }")"
         ;;
@@ -970,6 +1119,9 @@ MERGE_DEPTS=()
 MERGE_STORE_STATUS="deferred"
 MERGE_STORE_TYPE=""
 MERGE_STORE_ENDPOINT=""
+MERGE_STORE_WORKSPACE_ID=""
+MERGE_STORE_ENVIRONMENT=""
+MERGE_STORE_SECRET_PATH=""
 MERGE_STORE_SCOPES=()
 
 _render_ecosystem_yml() {
@@ -994,6 +1146,9 @@ _render_ecosystem_yml() {
     printf '  status: connected\n'
     printf '  type: %s\n' "$MERGE_STORE_TYPE"
     printf '  endpoint: %s\n' "$MERGE_STORE_ENDPOINT"
+    printf '  workspace_id: "%s"\n' "$MERGE_STORE_WORKSPACE_ID"
+    printf '  environment: %s\n' "$MERGE_STORE_ENVIRONMENT"
+    printf '  secret_path: "%s"\n' "$MERGE_STORE_SECRET_PATH"
     printf '  team_scopes:\n'
     for s in "${MERGE_STORE_SCOPES[@]+"${MERGE_STORE_SCOPES[@]}"}"; do
       printf '    - %s\n' "$s"
@@ -1211,6 +1366,7 @@ _write_ecosystem_yml() {
   # unchanged; a content-bearing repo never gets a direct push, PR or not.
   _repo_default_branch_and_commits "$org" "$target_repo" "$step"
   local default_branch="$_DEFAULT_BRANCH" repo_has_commits="$_REPO_HAS_COMMITS"
+  ECOSYSTEM_PACKAGE_BRANCH=""
 
   local get_out
   if get_out="$(gh api "repos/$org/$target_repo/contents/ecosystem.yml" 2>/dev/null)"; then
@@ -1223,6 +1379,9 @@ _write_ecosystem_yml() {
   MERGE_STORE_STATUS="$STORE_STATUS"
   MERGE_STORE_TYPE="$STORE_TYPE"
   MERGE_STORE_ENDPOINT="$STORE_ENDPOINT"
+  MERGE_STORE_WORKSPACE_ID="$STORE_WORKSPACE_ID"
+  MERGE_STORE_ENVIRONMENT="$STORE_ENVIRONMENT"
+  MERGE_STORE_SECRET_PATH="$STORE_SECRET_PATH"
   MERGE_STORE_SCOPES=("${STORE_TEAM_SCOPES[@]+"${STORE_TEAM_SCOPES[@]}"}")
 
   if [[ -n "$existing_content" ]]; then
@@ -1233,6 +1392,9 @@ _write_ecosystem_yml() {
       MERGE_STORE_STATUS="connected"
       MERGE_STORE_TYPE="$_STATE_STORE_TYPE"
       MERGE_STORE_ENDPOINT="$_STATE_STORE_ENDPOINT"
+      MERGE_STORE_WORKSPACE_ID="$_STATE_STORE_WORKSPACE_ID"
+      MERGE_STORE_ENVIRONMENT="$_STATE_STORE_ENVIRONMENT"
+      MERGE_STORE_SECRET_PATH="$_STATE_STORE_SECRET_PATH"
       MERGE_STORE_SCOPES=("${_STATE_STORE_SCOPES[@]+"${_STATE_STORE_SCOPES[@]}"}")
     fi
   fi
@@ -1293,6 +1455,7 @@ _write_ecosystem_yml() {
   # Content-bearing repo: never a direct push. Land the change on the fixed
   # work branch and open a PR to the default branch instead — merging is a
   # human review act this engine never performs itself.
+  ECOSYSTEM_PACKAGE_BRANCH="$WORK_BRANCH"
   _ensure_ecosystem_pr "$org" "$target_repo" "$default_branch" "$new_content" "$step"
 }
 
@@ -1306,6 +1469,7 @@ run_standup() {
   _preflight "$org"
   _preflight_repository_matrix "$org"
   _preflight_ecosystem_contract "$org"
+  _preflight_layer_packages "$org"
   _ensure_org_base_permission "$org"
 
   while IFS= read -r repo; do
@@ -1333,15 +1497,24 @@ run_standup() {
       _ensure_team_grant "$org" "$unit" "$repo" "dept-grant:$unit:$repo"
     done < <(_dept_triplet_repos "$unit")
 
-    # Department repos are never seeded with content in this slice either,
-    # so their protection also honestly stays "skipped" for now.
+    for repo in "${HARNESS_LIST[@]}"; do
+      _ensure_layer_package "$org" "${repo}-copilot-${unit}" "$repo" "department" "20" "empty-only"
+    done
+
     while IFS= read -r repo; do
       _ensure_branch_protection "$org" "$repo" "branch-protection:$repo"
     done < <(_dept_triplet_repos "$unit")
   done
 
   _write_ecosystem_yml "$org"
-  _ensure_branch_protection "$org" "$harness_repo" "branch-protection:$harness_repo"
+  for repo in "${HARNESS_LIST[@]}"; do
+    if [[ "${repo}-copilot-internal" == "$harness_repo" ]]; then
+      _ensure_layer_package "$org" "$harness_repo" "$repo" "organization" "30" "ecosystem-only"
+    else
+      _ensure_layer_package "$org" "${repo}-copilot-internal" "$repo" "organization" "30" "empty-only"
+    fi
+    _ensure_branch_protection "$org" "${repo}-copilot-internal" "branch-protection:${repo}-copilot-internal"
+  done
 }
 
 run_add_department() {
@@ -1355,7 +1528,12 @@ run_add_department() {
   fi
 
   _preflight "$org"
+  if ! _array_contains "$unit" "${DEPARTMENTS[@]+"${DEPARTMENTS[@]}"}"; then
+    DEPARTMENTS+=("$unit")
+  fi
+  _preflight_repository_matrix "$org"
   _preflight_ecosystem_contract "$org"
+  _preflight_layer_packages "$org"
 
   while IFS= read -r repo; do
     _ensure_repo "$org" "$repo" "dept-repo:$unit:$repo"
@@ -1366,6 +1544,10 @@ run_add_department() {
   while IFS= read -r repo; do
     _ensure_team_grant "$org" "$unit" "$repo" "dept-grant:$unit:$repo"
   done < <(_dept_triplet_repos "$unit")
+
+  for repo in "${HARNESS_LIST[@]}"; do
+    _ensure_layer_package "$org" "${repo}-copilot-${unit}" "$repo" "department" "20" "empty-only"
+  done
 
   while IFS= read -r repo; do
     _ensure_branch_protection "$org" "$repo" "branch-protection:$repo"
@@ -1579,6 +1761,11 @@ _check_ecosystem_file() {
     _array_contains "$u" "${_STATE_DEPT_UNITS[@]+"${_STATE_DEPT_UNITS[@]}"}" || missing_u+=("$u")
   done
   [[ "$_STATE_GITHUB_CLIENT_ID" == "$GITHUB_OAUTH_CLIENT_ID" ]] || missing_config+=("github_app.client_id")
+  if [[ "$STORE_STATUS" == "connected" ]]; then
+    [[ "$_STATE_STORE_WORKSPACE_ID" == "$STORE_WORKSPACE_ID" ]] || missing_config+=("store.workspace_id")
+    [[ "$_STATE_STORE_ENVIRONMENT" == "$STORE_ENVIRONMENT" ]] || missing_config+=("store.environment")
+    [[ "$_STATE_STORE_SECRET_PATH" == "$STORE_SECRET_PATH" ]] || missing_config+=("store.secret_path")
+  fi
   if [[ "$_STATE_PERSONAL_OWNER" != "user" \
     || "$_STATE_PERSONAL_RANK" != "10" \
     || "$_STATE_PERSONAL_REPOSITORY_PATTERN" != "<user>/<component>-copilot-private" ]]; then
@@ -1661,6 +1848,22 @@ _check_personal_handoff() {
   fi
 }
 
+_check_layer_package() {
+  local org="$1" repo="$2" product="$3" role="$4" rank="$5" content
+  if _gh_read "repos/$org/$repo/contents/copilot.layer.yml" '.content // empty'; then
+    content="$(printf '%s' "$_GH_READ_VALUE" | _b64_decode)"
+    if [[ "$content" == *"  role: $role"* && "$content" == *"  rank: $rank"* && "$content" == *"  product: $product"* ]]; then
+      _check_row "layer-package:$repo" "pass" "$org/$repo has the expected $role rank-$rank package." "" "none"
+    else
+      _check_row "layer-package:$repo" "fail" "$org/$repo has a different or invalid layer package. It was not rewritten." "Admin" "describe"
+    fi
+  elif [[ "$_GH_READ_STATUS" == "not-found" ]]; then
+    _check_row "layer-package:$repo" "fail" "$org/$repo has no recognized layer package yet." "Admin" "describe"
+  else
+    _check_row "layer-package:$repo" "unknown" "I couldn't read $org/$repo's layer package, so I won't guess." "Admin" "describe"
+  fi
+}
+
 _tcp_reachable() {
   local url="$1" scheme rest host port
   scheme="${url%%://*}"
@@ -1739,6 +1942,12 @@ run_verify() {
   row="$(_check_ecosystem_file "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
   row="$(_check_github_app "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
   row="$(_check_personal_handoff "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+  for h in "${HARNESS_LIST[@]}"; do
+    row="$(_check_layer_package "$org" "${h}-copilot-internal" "$h" "organization" "30")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+    for unit in "${DEPARTMENTS[@]+"${DEPARTMENTS[@]}"}"; do
+      row="$(_check_layer_package "$org" "${h}-copilot-${unit}" "$h" "department" "20")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+    done
+  done
   row="$(_check_store)"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
   for h in "${HARNESS_LIST[@]}"; do
     row="$(_check_foundation_pin "$h")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"

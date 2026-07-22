@@ -456,5 +456,45 @@ if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/contents/ecosystem\.yml$ ]]; then
   exit 0
 fi
 
+# GET /repos/{org}/{repo}/contents — list default-branch root files.
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/contents$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  default_branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo main)"
+  root_dir="$repo_dir/refs/$default_branch"
+  [[ -d "$root_dir" ]] || not_found
+  names_json="$(find "$root_dir" -mindepth 1 -maxdepth 1 -type f -print | sed 's#^.*/##' | jq -R -s 'split("\n") | map(select(length > 0)) | map({name:.})')"
+  emit "$names_json"
+  exit 0
+fi
+
+# GET/PUT any other root content file (layer package fixtures).
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/contents/(.+)$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"; content_path="${BASH_REMATCH[3]}"
+  repo_dir="$ST/repos/$org/$repo"
+  default_branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo main)"
+  if [[ "$method" == "PUT" ]]; then
+    target_ref="$(field_value branch || echo "$default_branch")"
+  else
+    target_ref="$(field_value ref || echo "$default_branch")"
+  fi
+  file="$repo_dir/refs/$target_ref/$content_path"
+  if [[ "$method" == "PUT" ]]; then
+    content_b64="$(field_value content || echo "")"
+    mkdir -p "$(dirname "$file")"
+    printf '%s' "$content_b64" | tr -d '\n' | base64 --decode > "$file" 2>/dev/null \
+      || printf '%s' "$content_b64" | tr -d '\n' | base64 -d > "$file" 2>/dev/null
+    [[ "$target_ref" == "$default_branch" ]] && touch "$repo_dir/has_commits"
+    sha="$(shasum -a 1 "$file" | awk '{print $1}')"
+    emit "{\"content\": {\"sha\": \"$sha\"}}"
+    exit 0
+  fi
+  if [[ ! -f "$file" ]]; then not_found; fi
+  b64="$(base64 < "$file" | tr -d '\n')"
+  sha="$(shasum -a 1 "$file" | awk '{print $1}')"
+  emit "{\"sha\": \"$sha\", \"content\": \"$b64\"}"
+  exit 0
+fi
+
 echo "mock gh: unhandled endpoint '$method $endpoint'" >&2
 exit 1

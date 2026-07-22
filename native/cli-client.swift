@@ -262,6 +262,14 @@ actor CliClient {
         await decodeVerb(["onboard", "--scope", "personal", "--components", components.joined(separator: ","), "--apply", "--json"])
     }
 
+    func ecosystemOnboardPlan(products: [String]) async -> Result<EcosystemOnboardReport, CliError> {
+        await decodeVerb(["onboard", "--org", "auto", "--products", products.joined(separator: ","), "--json"])
+    }
+
+    func ecosystemOnboardApply(products: [String]) async -> Result<EcosystemOnboardReport, CliError> {
+        await decodeVerb(["onboard", "--org", "auto", "--products", products.joined(separator: ","), "--apply", "--json"])
+    }
+
     func workspaces() async -> Result<WorkspacesReport, CliError> {
         await decodeVerb(["workspace", "--all", "--json"])
     }

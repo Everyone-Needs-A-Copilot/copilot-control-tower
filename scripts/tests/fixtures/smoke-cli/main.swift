@@ -195,6 +195,26 @@ case .failure(let error):
     check("onboard apply decodes", false, "got \(error)")
 }
 
+switch await CliClient.shared.ecosystemOnboardPlan(products: ["claude", "codex"]) {
+case .success(let report):
+    check("ecosystem onboard plan decodes", report.result == .changesRequired)
+    check("ecosystem onboard plan discovers the organization", report.org == "acme-co")
+    check("ecosystem onboard plan carries the complete transaction", report.stages.contains(where: { $0.stage == "device-ssh" }) && report.stages.contains(where: { $0.stage == "codex-plugin" }))
+    check("ecosystem onboard plan carries six content-free layers", report.layers.count == 6)
+    check("ecosystem layer ranks preserve personal, organization, foundation precedence", Set(report.layers.map(\.rank)) == Set([10, 30, 40]))
+case .failure(let error):
+    check("ecosystem onboard plan decodes", false, "got \(error)")
+}
+
+switch await CliClient.shared.ecosystemOnboardApply(products: ["claude", "codex"]) {
+case .success(let report):
+    check("ecosystem onboard apply decodes", report.result == .ready)
+    check("ecosystem onboard apply finishes doctor", report.stages.last?.stage == "doctor")
+    check("ecosystem onboard apply includes both products", Set(report.layers.map(\.product)) == Set(["claude", "codex"]))
+case .failure(let error):
+    check("ecosystem onboard apply decodes", false, "got \(error)")
+}
+
 // MARK: - workspace: invisible status then explicit setup apply
 
 switch await CliClient.shared.workspaces() {
