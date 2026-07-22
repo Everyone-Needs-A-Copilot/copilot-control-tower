@@ -5,7 +5,7 @@
 set -euo pipefail
 
 CLAUDE_REPO="${ENAC_CLAUDE_REPO:-https://github.com/Everyone-Needs-A-Copilot/claude-copilot.git}"
-CLAUDE_REF="5aeef61ee1d63f2e6790621a2bb2880372f7b82c"
+CLAUDE_REF="3dcb5684c196d41caf5b727dba17d74dfa7c7ecd"
 CLI_REPO="${ENAC_CLI_REPO:-https://github.com/Everyone-Needs-A-Copilot/cli-copilot.git}"
 CLI_REF="c6e1e02fc4e0e4db3d1413ed6e369367fa7bd9fc"
 INSTALL_HOME="${ENAC_INSTALL_HOME:-$HOME}"
