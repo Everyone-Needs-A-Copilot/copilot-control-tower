@@ -42,7 +42,10 @@ extension AdminModel {
         lines.append("schema_version: \"1.0\"")
         lines.append("org: \(orgSlug)")
         lines.append("harness:")
-        lines.append("  - \(harness.repoToken)")
+        lines.append("  - claude")
+        lines.append("  - codex")
+        lines.append("github_app:")
+        lines.append("  client_id: \(yamlQuote(githubOAuthClientID))")
         if depts.isEmpty {
             lines.append("departments: []")
         } else {
@@ -88,6 +91,9 @@ extension AdminModel {
         lines.append("## Shared secret store")
         lines.append(storeProseSentence(depts))
         lines.append("")
+        lines.append("## Company GitHub app")
+        lines.append("The public OAuth App Client ID is \(githubOAuthClientID). The client secret is never collected or used.")
+        lines.append("")
         lines.append("## What this file is")
         lines.append("A plain description Claude Code reads as a starting point. It confirms it with you, then does the work. GitHub is the source of truth; the Setup check reads it fresh.")
         return lines.joined(separator: "\n") + "\n"
@@ -100,7 +106,7 @@ extension AdminModel {
         let storePart = storeStatus == .connected
             ? "Its shared secret store is connected."
             : "Its shared secret store isn't connected yet."
-        return "\(orgSlug), a \(harness.displayName) shop, with \(deptPart). \(storePart) This file carries no secrets and no integrations."
+        return "\(orgSlug), using Claude and Codex, with \(deptPart). \(storePart) This file carries no secrets and no integrations."
     }
 
     private func storeProseSentence(_ depts: [DepartmentEntry]) -> String {
@@ -122,6 +128,11 @@ extension AdminModel {
     /// succeed, per the contract's fallback story.
     func writeBriefAndMaterializeSkill() async {
         briefWriteState = .working
+        guard githubOAuthClientIDIsValid else {
+            briefWriteState = .failure
+            skillMaterializeState = .failure
+            return
+        }
         let contents = buildBriefContents()
         let wrote = await AdminIO.writeFile(contents: contents, to: AdminPaths.briefPath)
         briefWriteState = wrote ? .success : .failure
@@ -134,6 +145,57 @@ extension AdminModel {
             enginePath: AdminPaths.enginePath
         )
         skillMaterializeState = materialized ? .success : .failure
+    }
+
+    func loadRepositoryPlan() async {
+        repositoryPlanState = .working
+        repositoryPlan = nil
+        repositorySetupMessage = nil
+        guard FileManager.default.fileExists(atPath: AdminPaths.enginePath) else {
+            repositoryPlanState = .failure
+            repositorySetupMessage = "I can't find the organization setup engine on this Mac, so I won't guess."
+            return
+        }
+        let result = await ShellRunner.run(
+            executable: "/bin/bash",
+            arguments: [AdminPaths.enginePath, "--plan", "--brief", AdminPaths.briefPath, "--json"]
+        )
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        guard let data = result.stdout.data(using: .utf8),
+              let plan = try? decoder.decode(OnboardReport.self, from: data),
+              Self.isSchemaVersionSupported(plan.schemaVersion)
+        else {
+            repositoryPlanState = .failure
+            repositorySetupMessage = "I couldn't read the repository inventory, so I won't create anything. Check GitHub access and try again."
+            return
+        }
+        repositoryPlan = plan
+        repositoryPlanState = .success
+        if plan.result == .blocked {
+            repositorySetupMessage = "One or more repositories are public or unreadable. Nothing will be created until that is resolved."
+        }
+    }
+
+    func applyRepositoryPlan() async {
+        guard repositoryPlan?.result != .blocked else { return }
+        repositoryApplyState = .working
+        repositorySetupMessage = nil
+        // The engine repeats its complete fail-closed repository preflight
+        // before any mutation; this is the explicit application confirmation.
+        let result = await ShellRunner.run(
+            executable: "/bin/bash",
+            arguments: [AdminPaths.enginePath, "--brief", AdminPaths.briefPath]
+        )
+        guard result.exitCode == 0 else {
+            repositoryApplyState = .failure
+            await loadRepositoryPlan()
+            repositorySetupMessage = "Organization setup stopped safely. Existing repositories were not overwritten. Resolve the reported GitHub issue, then try again."
+            return
+        }
+        repositoryApplyState = .success
+        repositorySetupMessage = "Organization repositories are in place. Existing private repositories were reused and confirmed-missing repositories were created private."
+        await loadRepositoryPlan()
     }
 }
 

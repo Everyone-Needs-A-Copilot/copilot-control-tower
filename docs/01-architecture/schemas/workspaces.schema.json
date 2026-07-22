@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/workspaces.schema.json",
+  "title": "Workspace activation report",
+  "description": "Read-only status and explicit configure results for bounded Git workspace discovery. A shared declaration is never installation proof.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "result", "workspaces", "summary"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "mode": { "enum": ["status", "plan", "apply"] },
+    "result": { "enum": ["ready", "action-required", "applied", "blocked"] },
+    "workspaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "name", "project_id", "state", "detail", "declared_components", "installed_components", "recommended_components", "personal_profile"],
+        "properties": {
+          "path": { "type": "string" },
+          "name": { "type": "string" },
+          "project_id": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
+          "state": { "enum": ["ready", "setup-available", "activation-required", "blocked"] },
+          "detail": { "type": "string" },
+          "declared_components": { "$ref": "#/$defs/components" },
+          "installed_components": { "$ref": "#/$defs/components" },
+          "recommended_components": { "$ref": "#/$defs/components" },
+          "personal_profile": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state", "project_id"],
+            "properties": {
+              "state": { "enum": ["associated", "available", "local-only"] },
+              "project_id": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ready", "setup-available", "activation-required", "blocked", "total"],
+      "properties": {
+        "ready": { "type": "integer", "minimum": 0 },
+        "setup-available": { "type": "integer", "minimum": 0 },
+        "activation-required": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "scope", "status", "detail"],
+        "properties": {
+          "id": { "enum": ["activate-components", "share-project-setup", "associate-personal"] },
+          "scope": { "enum": ["project", "personal"] },
+          "status": { "enum": ["planned", "applied"] },
+          "detail": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "components": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["claude", "codex"] }
+    }
+  }
+}

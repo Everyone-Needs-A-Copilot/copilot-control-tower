@@ -55,6 +55,11 @@ if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
     CC=/usr/bin/cc PATH=/usr/bin:$PATH /usr/bin/env swiftc -D CT_ADMIN_BUILD "${SOURCES[@]}" -o "${BIN}"
 fi
 
+# The unbundled development binary carries the deterministic Admin engine
+# beside it. Packaged builds resolve the same script from app Resources.
+cp scripts/admin_bootstrap.sh "${BUILD_DIR}/admin_bootstrap.sh"
+chmod 755 "${BUILD_DIR}/admin_bootstrap.sh"
+
 if [[ "${1:-}" == "--build-only" ]]; then
     exit 0
 fi

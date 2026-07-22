@@ -176,6 +176,57 @@ case .failure(let error):
     check("auth status decodes", false, "got \(error)")
 }
 
+// MARK: - onboard: plan then apply decode the fail-closed repository contract
+
+switch await CliClient.shared.onboardPlan(components: ["knowledge", "cli", "claude", "codex"]) {
+case .success(let report):
+    check("onboard plan decodes", report.result == .changesRequired)
+    check("onboard plan includes four components", report.repositories.count == 4)
+    check("onboard plan reuses existing private Claude repo", report.repositories.first(where: { $0.component == "claude" })?.state == .existingPrivate)
+case .failure(let error):
+    check("onboard plan decodes", false, "got \(error)")
+}
+
+switch await CliClient.shared.onboardApply(components: ["knowledge", "cli", "claude", "codex"]) {
+case .success(let report):
+    check("onboard apply decodes", report.result == .applied)
+    check("onboard apply reports three created", report.summary.created == 3)
+case .failure(let error):
+    check("onboard apply decodes", false, "got \(error)")
+}
+
+// MARK: - workspace: invisible status then explicit setup apply
+
+switch await CliClient.shared.workspaces() {
+case .success(let report):
+    check("workspace status decodes", report.result == .actionRequired)
+    check("workspace status offers one project", report.summary.setupAvailable == 1)
+    check("workspace status recommends both hosts", report.workspaces.first?.recommendedComponents == ["claude", "codex"])
+case .failure(let error):
+    check("workspace status decodes", false, "got \(error)")
+}
+
+switch await CliClient.shared.configureWorkspace(
+    path: "/tmp/example-project",
+    components: ["claude", "codex"],
+    shareWithProject: true,
+    apply: true
+) {
+case .success(let report):
+    check("workspace configure decodes", report.result == .applied)
+    check("workspace configure requires explicit installed proof", report.workspaces.first?.state == .ready)
+case .failure(let error):
+    check("workspace configure decodes", false, "got \(error)")
+}
+
+switch await CliClient.shared.approveWorkspaceRoot(path: "/tmp/Projects") {
+case .success(let report):
+    check("workspace root approval decodes", report.result == .applied)
+    check("workspace root approval exposes only display name", report.root.name == "Projects")
+case .failure(let error):
+    check("workspace root approval decodes", false, "got \(error)")
+}
+
 // MARK: - projects: freshness --all-projects (all_projects_freshness shape)
 
 setenv("CT_FIXTURE", "mixed-fresh-and-stale", 1)

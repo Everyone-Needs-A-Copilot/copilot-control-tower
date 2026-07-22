@@ -113,6 +113,12 @@ final class TrayModel: ObservableObject {
     /// in-memory `lastFanout` yet but a prior sync's results are still
     /// visible in the per-project sweep.
     @Published private(set) var lastFreshness: AllProjectsFreshness?
+    /// Bounded Git-workspace activation state computed by `cc`. Ready
+    /// workspaces stay invisible; only a missing/unfinished shared setup can
+    /// enter the Bob lane below.
+    @Published private(set) var lastWorkspaces: WorkspacesReport?
+    @Published private(set) var isConfiguringWorkspace = false
+    @Published private(set) var workspaceBlocker: WorkspaceEntry?
 
     /// Concurrently calls `doctor()` + `layers()` (steady-state verdict +
     /// Region 3's join candidates) and `authStatus()` + `freshnessAllProjects()`
@@ -126,11 +132,13 @@ final class TrayModel: ObservableObject {
         async let layersResult = CliClient.shared.layers()
         async let authResult = CliClient.shared.authStatus()
         async let freshnessResult = CliClient.shared.freshnessAllProjects()
+        async let workspacesResult = CliClient.shared.workspaces()
 
         let doctor = await doctorResult
         let layers = await layersResult
         let auth = await authResult
         let freshness = await freshnessResult
+        let workspaces = await workspacesResult
 
         switch doctor {
         case .success(let report):
@@ -159,6 +167,49 @@ final class TrayModel: ObservableObject {
         // A failed sweep keeps whatever `lastFreshness` this app already had
         // — a stale-but-present sweep is still useful for the "What changed"
         // gate; a failure is never treated as "nothing happened".
+
+        if case .success(let report) = workspaces {
+            lastWorkspaces = report
+            // A portable project identity lets the CLI associate the user's
+            // private profile locally. This is reversible machine state, not
+            // a shared-repository write, so ready workspaces need no prompt.
+            for workspace in report.workspaces where
+                workspace.state == .ready && workspace.personalProfile.state == .available {
+                _ = await CliClient.shared.configureWorkspace(
+                    path: workspace.path,
+                    components: workspace.recommendedComponents,
+                    shareWithProject: false,
+                    apply: true
+                )
+            }
+        }
+    }
+
+    var workspaceNeedingSetup: WorkspaceEntry? {
+        workspaceBlocker ?? lastWorkspaces?.workspaces.first {
+            $0.state == .setupAvailable || $0.state == .activationRequired
+        }
+    }
+
+    func configureWorkspace(_ workspace: WorkspaceEntry) async {
+        guard !isConfiguringWorkspace else { return }
+        isConfiguringWorkspace = true
+        defer { isConfiguringWorkspace = false }
+        let shouldShare = workspace.declaredComponents.isEmpty
+        if case .success(let report) = await CliClient.shared.configureWorkspace(
+            path: workspace.path,
+            components: workspace.recommendedComponents,
+            shareWithProject: shouldShare,
+            apply: true
+        ) {
+            lastWorkspaces = report
+            if let blocked = report.workspaces.first(where: { $0.state == .blocked }) {
+                workspaceBlocker = blocked
+                return
+            }
+            workspaceBlocker = nil
+        }
+        await refresh()
     }
 
     /// Region 5's "Sync now": the one manual escape hatch in steady state.
@@ -599,6 +650,26 @@ struct PopoverContentView: View {
                         showingProjectDrillIn = true
                     }
                     .buttonStyle(.bordered)
+                }
+                .padding(.horizontal, 12)
+            } else if model.state.clientState != .cliUnreadable,
+                      let workspace = model.workspaceNeedingSetup {
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(workspace.state == .blocked
+                         ? workspace.detail
+                         : (workspace.state == .setupAvailable
+                            ? "Copilot is available for \(workspace.name)."
+                            : "Finish Copilot setup for \(workspace.name) on this Mac."))
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .labelColor))
+                    Button(workspace.state == .blocked
+                           ? "Try again"
+                           : (workspace.state == .setupAvailable ? "Set up this project" : "Finish setup")) {
+                        Task { await model.configureWorkspace(workspace) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isConfiguringWorkspace)
                 }
                 .padding(.horizontal, 12)
             }

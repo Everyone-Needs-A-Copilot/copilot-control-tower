@@ -18,8 +18,8 @@
 //     flagged it as new/finalized-here.
 //   - docs/01-architecture/admin-standup-contract.md — the real machine seams:
 //     the brief file format (§1), the handoff command (§2), the verify verb
-//     JSON (§3). `scripts/admin_bootstrap.sh` (owned by a parallel agent; NOT
-//     touched by this file) implements the engine side of that contract.
+//     JSON (§3). `scripts/admin_bootstrap.sh` implements the deterministic
+//     plan/apply/verify engine side of that contract.
 //   - docs/03-design/control-tower-visual-system.md — the "Quiet Instrument"
 //     language (shape-first status, `surface.field` for code/handoff blocks,
 //     no raw error strings, no time estimates, no em-dashes).
@@ -32,9 +32,10 @@
 //     sanctioned here) — that row is honestly rendered as a permanent "can't
 //     check this from here" (`// CONTRACT SEAM` below), never a fabricated
 //     pass.
-//   - The Setup check (`native/admin-support.swift`) shells the real
-//     `scripts/admin_bootstrap.sh --verify --brief <path> --json` and renders
-//     its rows verbatim; if the engine or `gh` is missing, it renders the
+//   - Review and the Setup check (`native/admin-support.swift`) execute the real
+//     `scripts/admin_bootstrap.sh --verify --brief <path> --json` and render
+//     its plan/check rows verbatim; the explicit setup action invokes its
+//     additive apply path. If the engine or `gh` is missing, it renders the
 //     honest degraded state (`unknown`, never a fabricated green).
 //   - The brief writer and skill materializer (`native/admin-support.swift`)
 //     perform real file I/O against the paths the contract names.
@@ -62,7 +63,7 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Process runner (real, read-only shell-outs only)
+// MARK: - Process runner (real process calls, always off the main thread)
 
 /// Runs a command inside the user's own login shell so PATH resolution
 /// matches what Earl would see in his own Terminal (Homebrew, asdf, etc.),
@@ -100,6 +101,34 @@ enum ShellRunner {
                     exitCode: process.terminationStatus,
                     stdout: String(data: outData, encoding: .utf8) ?? "",
                     stderr: String(data: errData, encoding: .utf8) ?? ""
+                ))
+            }
+        }
+    }
+
+    /// Executes a fixed binary with an argument array. Mutating setup uses
+    /// this path so organization names and file paths never enter a shell.
+    static func run(executable: String, arguments: [String]) async -> Output {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: executable)
+                process.arguments = arguments
+                let outPipe = Pipe()
+                let errPipe = Pipe()
+                process.standardOutput = outPipe
+                process.standardError = errPipe
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(returning: Output(exitCode: -1, stdout: "", stderr: error.localizedDescription))
+                    return
+                }
+                process.waitUntilExit()
+                continuation.resume(returning: Output(
+                    exitCode: process.terminationStatus,
+                    stdout: String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "",
+                    stderr: String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
                 ))
             }
         }
@@ -203,6 +232,11 @@ enum AdminPaths {
             if FileManager.default.fileExists(atPath: bundled.path) {
                 return bundled.path
             }
+        }
+        let executableDir = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.deletingLastPathComponent()
+        let besideBinary = executableDir.appendingPathComponent("admin_bootstrap.sh").path
+        if FileManager.default.fileExists(atPath: besideBinary) {
+            return besideBinary
         }
         let cwd = FileManager.default.currentDirectoryPath
         return URL(fileURLWithPath: "scripts/admin_bootstrap.sh", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL.path
@@ -659,6 +693,9 @@ final class AdminModel: ObservableObject {
 
     // Surface 4: Connect GitHub (shared org identity with Describe, below)
     @Published var orgNameInput = ""
+    @Published var githubOAuthClientIDInput = ""
+    @Published var githubOAuthClientIDTouched = false
+    @Published var githubOAuthClientIDRefused = false
     @Published var readinessRows: [ReadinessRow] = ReadinessRow.Kind.allCases.map { ReadinessRow(kind: $0) }
     @Published var githubChecking = false
     @Published var githubCheckDegraded = false
@@ -672,6 +709,20 @@ final class AdminModel: ObservableObject {
     /// app-derived slugs (`AdminSlug.derive`), unchanged, since their repo
     /// names are generated, not an existing identifier.
     var orgSlug: String { orgNameInput.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// GitHub OAuth client IDs are public identifiers. GitHub has issued more
+    /// than one prefix over time, so validate the stable contract instead of
+    /// hard-coding one generation: exactly 20 ASCII letters, digits, or dots.
+    var githubOAuthClientID: String {
+        githubOAuthClientIDInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var githubOAuthClientIDIsValid: Bool {
+        githubOAuthClientID.range(
+            of: #"^[A-Za-z0-9.]{20}$"#,
+            options: .regularExpression
+        ) != nil
+    }
 
     // Surface 5: Describe your organization
     @Published var harness: Harness = .codex
@@ -694,6 +745,10 @@ final class AdminModel: ObservableObject {
     @Published var briefWriteState: WriteState = .idle
     @Published var skillMaterializeState: WriteState = .idle
     @Published var lastWrittenBriefFingerprint: String? = nil
+    @Published var repositoryPlanState: WriteState = .idle
+    @Published var repositoryPlan: OnboardReport? = nil
+    @Published var repositoryApplyState: WriteState = .idle
+    @Published var repositorySetupMessage: String? = nil
 
     // Surface 10: Setup check
     @Published var verifyState: WriteState = .idle // idle == never run
@@ -878,18 +933,17 @@ final class AdminModel: ObservableObject {
         guard orgSlugIsValid else { return [] }
         var lines: [String] = []
         let org = orgSlug
-        let token = harness.repoToken
-        lines.append("Three shared spaces for your whole organization:")
-        lines.append("\(org)/\(token)-copilot")
-        lines.append("\(org)/knowledge-copilot")
-        lines.append("\(org)/cli-copilot   Private.")
+        lines.append("Four private shared spaces for your whole organization:")
+        for component in ["knowledge", "cli", "claude", "codex"] {
+            lines.append("\(org)/\(component)-copilot-internal")
+        }
         for dept in departments where !dept.slug.isEmpty {
             let display = dept.name.trimmingCharacters(in: .whitespacesAndNewlines)
             lines.append("")
-            lines.append("Three spaces for the \(display) department:")
-            lines.append("\(org)/\(token)-copilot-\(dept.slug)")
-            lines.append("\(org)/knowledge-copilot-\(dept.slug)")
-            lines.append("\(org)/cli-copilot-\(dept.slug)   Private.")
+            lines.append("Four private spaces for the \(display) department:")
+            for component in ["knowledge", "cli", "claude", "codex"] {
+                lines.append("\(org)/\(component)-copilot-\(dept.slug)")
+            }
             // Rephrased to avoid an a/an article choice on an arbitrary typed
             // name (QA fix: "an Sales team" mis-articled a consonant name).
             lines.append("A team for \(display) that can reach them.")
@@ -953,7 +1007,7 @@ final class AdminModel: ObservableObject {
     /// rewrite the brief (QA fix: a stale fingerprint used to let Back +
     /// edit + return show an out-of-date command).
     var briefFingerprint: String {
-        var parts: [String] = [orgSlug, harness.rawValue]
+        var parts: [String] = [orgSlug, githubOAuthClientID, harness.rawValue]
         parts.append(contentsOf: validDepartments.map { $0.slug })
         switch storeStatus {
         case .connected:
@@ -1431,6 +1485,48 @@ extension AdminRootView {
                         .frame(maxWidth: 320)
                 }
 
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("GitHub OAuth App client ID")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    // A GitHub OAuth Client ID intentionally looks like a
+                    // high-entropy token, but it is public configuration.
+                    // This dedicated field validates the exact public shape;
+                    // a client secret is longer and cannot pass that gate.
+                    TextField(
+                        "Iv1.a1b2c3d4e5f6a7b8",
+                        text: Binding(
+                            get: { model.githubOAuthClientIDInput },
+                            set: { newValue in
+                                model.githubOAuthClientIDTouched = true
+                                if newValue.count <= 20 {
+                                    model.githubOAuthClientIDRefused = false
+                                    model.githubOAuthClientIDInput = newValue
+                                } else {
+                                    model.githubOAuthClientIDRefused = true
+                                }
+                            }
+                        )
+                    )
+                        .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 320)
+                    Text("Paste the public Client ID from your organization's device-flow-enabled GitHub OAuth App. Never paste its client secret.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if model.githubOAuthClientIDRefused {
+                        Text("That is not a public Client ID, so it was not accepted. Never paste the OAuth client secret here.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemRed))
+                    } else if model.githubOAuthClientIDTouched,
+                       !model.githubOAuthClientIDInput.isEmpty,
+                       !model.githubOAuthClientIDIsValid {
+                        Text("That doesn't look like a GitHub OAuth client ID. Copy the 20-character public Client ID from the OAuth App settings.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemRed))
+                    }
+                }
+
                 AdminCard {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(ReadinessRow.Kind.allCases) { kind in
@@ -1553,7 +1649,7 @@ extension AdminRootView {
                     .frame(maxWidth: 320)
                     .accessibilityLabel("Development harness, \(model.harness.displayName) selected, your organization's default")
 
-                    Text("This is your organization's default. Anyone can still use the other harness for themselves, on the open-source foundation plus their own personal setup. And you can add the second harness for the whole organization later, as a safe re-run that only adds what's new.")
+                    Text("This chooses the default experience. Setup provisions both Claude and Codex organization layers, plus Knowledge and CLI, so either harness is ready without another repository pass.")
                         .font(.callout)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
@@ -1875,8 +1971,8 @@ extension AdminRootView {
     var reviewView: some View {
         StepShell(
             eyebrow: "ONBOARDING",
-            title: "Review and hand off",
-            intro: "Here's everything setup will create. Copy the command below, open your terminal, and paste it. Claude Code walks you through the rest and checks everything with GitHub as it goes."
+            title: "Review organization setup",
+            intro: "Here's the complete private repository plan. Setup checks every target first, reuses existing private repositories, and creates only repositories GitHub confirms are missing."
         ) {
             VStack(alignment: .leading, spacing: 20) {
                 AdminCard {
@@ -1888,13 +1984,14 @@ extension AdminRootView {
 
                 AdminCard(title: "What setup will create") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Org spaces: \(model.orgSlug)/\(model.harness.repoToken)-copilot, \(model.orgSlug)/knowledge-copilot, \(model.orgSlug)/cli-copilot. Private.")
+                        Text("Org spaces: knowledge, CLI, Claude, and Codex repositories ending in -internal. Private.")
                         ForEach(model.departments.filter { !$0.slug.isEmpty }) { dept in
-                            Text("\(dept.name): three spaces and a team for \(dept.name) that can reach them.")
+                            Text("\(dept.name): four spaces and a team for \(dept.name) that can reach them.")
                         }
                         Text("Your organization's setup file (ecosystem.yml).")
+                        Text("Your organization's public GitHub OAuth App client ID. The client secret is never collected.")
                         Text("Your whole organization set to read by default.")
-                        Text("Harness: \(model.harness.displayName).")
+                        Text("Harnesses: Claude and Codex. Default: \(model.harness.displayName).")
                         Text(model.storeStatus == .connected ? "Store: connected." : "Store: not connected yet.")
                     }
                     .font(.body)
@@ -1903,14 +2000,21 @@ extension AdminRootView {
                 }
 
                 briefCard
-
-                commandCard
+                repositoryInventoryCard
             }
         } leadingActions: {
             backButton { model.goBack(from: .review) }
         } primaryAction: {
-            primaryButton("Open Terminal") {
-                openTerminalAndAdvance()
+            primaryButton(
+                model.repositoryApplyState == .working ? "Setting up…" : "Set up organization",
+                enabled: model.githubOAuthClientIDIsValid && model.repositoryPlanState == .success && model.repositoryPlan?.result != .blocked && model.repositoryApplyState != .working
+            ) {
+                Task {
+                    await model.applyRepositoryPlan()
+                    if model.repositoryApplyState == .success {
+                        model.advance(from: .review)
+                    }
+                }
             }
         }
         .task {
@@ -2001,6 +2105,46 @@ extension AdminRootView {
         }
     }
 
+    private var repositoryInventoryCard: some View {
+        AdminCard(title: "GitHub repository inventory") {
+            VStack(alignment: .leading, spacing: 8) {
+                switch model.repositoryPlanState {
+                case .idle, .working:
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Checking every organization and department repository…")
+                    }
+                case .failure:
+                    Text(model.repositorySetupMessage ?? "I couldn't read the repository inventory, so I won't create anything.")
+                        .foregroundColor(Color(nsColor: .systemRed))
+                    Button("Try again") { Task { await model.loadRepositoryPlan() } }
+                        .buttonStyle(.bordered)
+                case .success:
+                    if let plan = model.repositoryPlan {
+                        ForEach(plan.repositories, id: \.name) { repository in
+                            HStack(alignment: .top, spacing: 8) {
+                                Text(repository.state == .existingPrivate ? "✓" : (repository.state == .missing ? "+" : "!"))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(repository.owner)/\(repository.name)")
+                                        .font(.system(.callout, design: .monospaced))
+                                    Text(repository.detail)
+                                        .font(.caption)
+                                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                }
+                            }
+                        }
+                        Text("Existing private repositories are reused. Only confirmed-missing repositories are created, and every new repository is private.")
+                            .font(.callout.weight(.medium))
+                    }
+                    if let message = model.repositorySetupMessage {
+                        Text(message)
+                            .foregroundColor(model.repositoryPlan?.result == .blocked ? Color(nsColor: .systemRed) : Color(nsColor: .secondaryLabelColor))
+                    }
+                }
+            }
+        }
+    }
+
     private func openTerminalAndAdvance() {
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
         model.advance(from: .review)
@@ -2022,6 +2166,7 @@ extension AdminRootView {
         await model.writeBriefAndMaterializeSkill()
         if model.briefWriteState == .success {
             model.lastWrittenBriefFingerprint = fingerprint
+            await model.loadRepositoryPlan()
         }
     }
 }

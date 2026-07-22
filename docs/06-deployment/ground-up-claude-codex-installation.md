@@ -5,6 +5,11 @@ layer. It separates commands that work today from the onboarding transaction
 Phase 6 still has to implement. Do not replace a missing automated step with
 hand-written layer YAML and then call the machine onboarded.
 
+There are three separate experiences: Admin establishes organization resources;
+User Setup enrolls the person and device; recurring workspace activation checks
+projects under approved roots and silently applies already-declared setup. A
+project is self-contained shared context, not a fourth inheritance layer.
+
 ## Required result
 
 Both products must resolve the same roles without sharing namespaces:
@@ -97,11 +102,27 @@ Admin Setup must then:
 6. return `must_fix: 0`, including `github-app`, `foundation-pin`, and
    `personal-handoff` checks.
 
-The existing engine supports the shared-repository work, but Phase 6 must add the
-personal-handoff and complete GitHub-app verification before this section is
-accepted end to end.
+The engine and Admin development app now support this contract offline. The app
+collects the public client id (never the secret); the engine refuses missing or
+conflicting organization identity before mutation, emits independent Claude and
+Codex pins plus the personal handoff, and verifies `github-app` and
+`personal-handoff` as separate rows. Live-org execution is still required before
+this section is accepted end to end.
 
-## 5. Run User Setup (Phase 6 target; command not implemented yet)
+## 5. Run User Setup (personal repository slice works; aggregate target remains)
+
+The current plan/apply slice can safely inventory and create the signed-in
+user's missing private component repositories:
+
+```bash
+cc onboard --scope personal --components claude,codex,knowledge,cli --json
+cc onboard --scope personal --components claude,codex,knowledge,cli --apply --json
+```
+
+Plan is read-only. Apply repeats the complete preflight before creation. An
+existing private repository is reused; a public collision or unreadable target
+blocks the transaction; only an explicit GitHub 404 is treated as missing.
+This slice does not yet seed rank-10 manifests or materialize product content.
 
 The intended single transaction is:
 
@@ -120,11 +141,38 @@ It must:
 7. coordinate CLI mirror sync and run doctor;
 8. return opaque personal provenance and the three-layer result for each product.
 
-Until this verb exists, the machine is not a valid ground-up onboarding proof.
-Do not hand-place a unified manifest or reuse an administrator credential to make
-the status appear green.
+Until the aggregate form completes repository setup, rank-10 seeding,
+product-specific materialization, device credentials, sync, and doctor, the
+machine is not a valid ground-up onboarding proof. Do not hand-place a unified
+manifest or reuse an administrator credential to make the status appear green.
 
 ## 6. Acceptance evidence
+
+### Recurring project activation (implemented development slice)
+
+After User Setup configures one or more approved project roots:
+
+```bash
+cc workspace approve-root --path /absolute/path/to/projects --apply --json
+cc workspace --all --json
+cc workspace configure --project /absolute/path/to/project --components auto --share-with-project --apply --json
+```
+
+The first command is read-only and discovers Git projects even when they have no
+Copilot lock yet. The second performs a complete collision preflight, activates
+the installed Claude/Codex foundations additively, writes
+`copilot.project.json` only after installation proof exists, and privately
+associates the canonical project identity. Existing project setup is never
+replaced. Projects without a remote remain local-only. Control Tower runs these
+verbs and stays silent for `ready`; it prompts only for `setup-available` or
+`activation-required`.
+
+This recurring project flow does not complete the separate aggregate person and
+device enrollment transaction described above. It assumes the public
+foundations are installed and does not create organization/personal repositories,
+mint SSH or store credentials, or resolve the three-layer product stack.
+
+## 7. Acceptance evidence
 
 Capture all of the following on both the Admin machine and a clean User machine:
 
@@ -140,9 +188,46 @@ Capture all of the following on both the Admin machine and a clean User machine:
 
 Store this evidence against PRD-14/TASK-147 before declaring Phase 6 complete.
 
-## 7. Recovery
+## 8. Recovery
 
 All setup steps are additive. A failed stage must return a resumable blocker and
 leave already-passing stages intact. Revoke a compromised per-machine identity or
 SSH key at its provider, then rerun User Setup. Never repair onboarding by copying
 another machine's private key, personal repository, keychain record, or `.env`.
+
+## 9. Clean-laptop reset prompt
+
+Use this only after the signed replacement installer and the Admin/User workflow
+have passed on the first machine. Remote organization and personal repositories
+are durable source-of-truth and must not be deleted for a device reset.
+
+```text
+I need to reset this laptop's local Copilot development environment before a
+ground-up Phase 6 onboarding proof.
+
+Work in two gates. Gate 1 is read-only: inventory Claude Copilot, Codex Copilot,
+the cc CLI, Copilot Control Tower Admin/User apps and support files, local ENAC
+checkouts/mirrors, launch agents/login items, project links, SSH aliases/keys,
+and relevant keychain entries. Resolve symlinks and executable provenance.
+Classify every item as managed Copilot state, potentially user-authored/dirty
+data, unrelated data, or unknown. Check git status for every repository. Confirm
+that the replacement installer/source checkout is available. Produce an exact
+reset plan with explicit absolute paths and commands, then stop for my approval.
+
+Gate 2 begins only after I explicitly approve that exact plan. Do not delete or
+change any GitHub repository, organization setting, OAuth App, Infisical secret,
+remote SSH key, or other remote resource. Do not touch unrelated Claude/Codex
+configuration, projects, source repositories, or user-authored files. Move
+approved local targets into one timestamped quarantine directory in the Trash
+instead of using rm; preserve metadata and write a restore manifest. Remove only
+approved Copilot launch/login registrations and local keychain records. Never
+print secret values. Verify the named paths are absent/inactive, verify Codex,
+Claude Code, git, gh, and the system compiler still resolve as expected, and
+report the quarantine path plus exact rollback commands. Do not reinstall or
+onboard until I give a separate instruction.
+```
+
+After reset, run Admin Setup only on an owner-authorized machine to verify/create
+organization resources. Then run User Setup separately on each computer as the
+individual; it must rediscover and reuse existing private personal repositories
+rather than create duplicates.

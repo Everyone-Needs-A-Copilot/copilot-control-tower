@@ -24,10 +24,11 @@ ECOSYSTEM_SCHEMA_VERSION="2.0"
 # so it can actually be resolved against real tags; the contract's own "^5.x"
 # illustration is a shape example, not valid semver (an "x" minor/patch can't be
 # compared), so the script picks a concrete floor here.
-# Floor ratified 2026-07-16 against the real published foundation: claude-copilot's
-# highest tag is v5.8.0 (codex-copilot has no tags yet; validate Codex shops only
-# after the foundation publishes a codex-copilot release).
-FOUNDATION_REF_DEFAULT="^5.8.0"
+# Product-specific floors ratified against the published foundations. Keeping
+# these separate prevents a Claude major version from being interpreted as a
+# Codex version merely because both products share one ecosystem.
+FOUNDATION_CLAUDE_REF="^5.8.0"
+FOUNDATION_CODEX_REF="^0.6.0"
 # The public GitHub org that owns every foundation component repo
 # (<component>-copilot), read over anonymous HTTPS — no credential assumptions.
 FOUNDATION_ORG="Everyone-Needs-A-Copilot"
@@ -46,6 +47,7 @@ STORE_STATUS="deferred"
 STORE_TYPE=""
 STORE_ENDPOINT=""
 STORE_TEAM_SCOPES=()
+GITHUB_OAUTH_CLIENT_ID=""
 
 # Verify-mode tallies.
 MUST_FIX_COUNT=0
@@ -71,6 +73,10 @@ Usage:
   admin_bootstrap.sh --verify [--brief <path>] --json
       Read-only verification against GitHub truth. Computes drift against
       the brief when one is available. Never mutates anything.
+
+  admin_bootstrap.sh --plan [--brief <path>] --json
+      Read-only repository inventory. Reports every organization and
+      department target before setup is allowed to create anything.
 
   admin_bootstrap.sh --help
       Show this help.
@@ -160,6 +166,20 @@ _valid_slug() {
 _valid_org() {
   local v="$1"
   [[ "$v" =~ ^[A-Za-z0-9](-?[A-Za-z0-9])*$ ]] && [[ "${#v}" -le 39 ]]
+}
+
+# GitHub has issued multiple OAuth client-id prefixes. The stable public shape
+# is 20 ASCII letters/digits/dots; no client secret is accepted or needed.
+_valid_github_oauth_client_id() {
+  [[ "$1" =~ ^[A-Za-z0-9.]{20}$ ]]
+}
+
+_foundation_ref_for() {
+  case "$1" in
+    claude) printf '%s' "$FOUNDATION_CLAUDE_REF" ;;
+    codex) printf '%s' "$FOUNDATION_CODEX_REF" ;;
+    *) return 1 ;;
+  esac
 }
 
 # _suggest_slug VALUE FALLBACK — a display-only suggestion for a refusal
@@ -350,6 +370,12 @@ _load_brief() {
   if [[ "${#HARNESS_LIST[@]}" -eq 0 ]]; then
     refuse "brief" "The brief at $path names no development harness, so I won't guess which spaces to create."
   fi
+  local h
+  for h in "${HARNESS_LIST[@]}"; do
+    if [[ "$h" != "claude" && "$h" != "codex" ]]; then
+      refuse "brief" "The brief names an unsupported harness, $h. Use claude, codex, or both."
+    fi
+  done
 
   DEPARTMENTS=()
   while IFS= read -r d; do
@@ -368,6 +394,14 @@ _load_brief() {
       refuse "validate-slug" "\"internal\" is reserved for the org layer and can't be a department name. Rename that department and update the brief."
     fi
   done
+
+  GITHUB_OAUTH_CLIENT_ID="$(echo "$json" | jq -r '.github_app.client_id // empty')"
+  if [[ -z "$GITHUB_OAUTH_CLIENT_ID" ]]; then
+    refuse "brief" "The brief is missing your organization's public GitHub OAuth App client ID. Add github_app.client_id; never add the client secret."
+  fi
+  if ! _valid_github_oauth_client_id "$GITHUB_OAUTH_CLIENT_ID"; then
+    refuse "brief" "github_app.client_id doesn't look like a public GitHub OAuth client ID. Copy the 20-character Client ID from the OAuth App settings; never paste the client secret."
+  fi
 
   STORE_STATUS="$(echo "$json" | jq -r '.store.status // "deferred"')"
   STORE_TYPE="$(echo "$json" | jq -r '.store.type // empty')"
@@ -488,15 +522,89 @@ _ensure_org_base_permission() {
 
 _ensure_repo() {
   local org="$1" reponame="$2" step="$3"
-  if gh api "repos/$org/$reponame" >/dev/null 2>&1; then
-    emit_step "$step" "already-present" "$org/$reponame already exists."
-    return
-  fi
+  _probe_repo "$org" "$reponame"
+  case "$_REPO_PROBE_STATE" in
+    existing-private)
+      emit_step "$step" "already-present" "$org/$reponame already exists, private."
+      return
+      ;;
+    conflict-public)
+      refuse "$step" "$org/$reponame already exists but is public. I won't change its visibility or create over it."
+      ;;
+    unknown)
+      refuse "$step" "I couldn't confirm whether $org/$reponame exists, so I won't guess or create it. Check GitHub access and try again."
+      ;;
+    missing) ;;
+  esac
   if gh api -X POST "orgs/$org/repos" -f name="$reponame" -F private=true >/dev/null 2>&1; then
     emit_step "$step" "created" "Created $org/$reponame, private."
   else
     fail_step "$step" "Could not create $org/$reponame."
   fi
+}
+
+# _probe_repo ORG REPO sets a four-state result. Only an explicit HTTP 404
+# becomes "missing"; every other read failure is unknown and blocks writes.
+_probe_repo() {
+  local org="$1" repo="$2"
+  if _gh_read "repos/$org/$repo" '.private'; then
+    case "$_GH_READ_VALUE" in
+      true) _REPO_PROBE_STATE="existing-private" ;;
+      false) _REPO_PROBE_STATE="conflict-public" ;;
+      *) _REPO_PROBE_STATE="unknown" ;;
+    esac
+  elif [[ "$_GH_READ_STATUS" == "not-found" ]]; then
+    _REPO_PROBE_STATE="missing"
+  else
+    _REPO_PROBE_STATE="unknown"
+  fi
+}
+
+_repository_targets() {
+  local repo unit
+  while IFS= read -r repo; do printf 'org||%s\n' "$repo"; done < <(_org_triplet_repos)
+  for unit in "${DEPARTMENTS[@]+"${DEPARTMENTS[@]}"}"; do
+    while IFS= read -r repo; do printf 'department|%s|%s\n' "$unit" "$repo"; done < <(_dept_triplet_repos "$unit")
+  done
+}
+
+_preflight_repository_matrix() {
+  local org="$1" role unit repo blocked=()
+  while IFS='|' read -r role unit repo; do
+    _probe_repo "$org" "$repo"
+    case "$_REPO_PROBE_STATE" in
+      conflict-public) blocked+=("$org/$repo is public") ;;
+      unknown) blocked+=("$org/$repo is unreadable") ;;
+    esac
+  done < <(_repository_targets)
+  if [[ "${#blocked[@]}" -gt 0 ]]; then
+    refuse "repository-plan" "Repository setup is blocked: $(_join_comma "${blocked[@]}"). Nothing was created."
+  fi
+}
+
+run_repository_plan() {
+  local org="$1" role unit repo component action visibility detail rows result
+  rows="$(mktemp)"
+  while IFS='|' read -r role unit repo; do
+    _probe_repo "$org" "$repo"
+    component="${repo%%-copilot-*}"
+    action="blocked"; visibility=""; detail="GitHub could not confirm whether this repository exists."
+    case "$_REPO_PROBE_STATE" in
+      existing-private) action="none"; visibility="private"; detail="Existing private repository will be reused." ;;
+      missing) action="create"; detail="Repository does not exist and can be created privately." ;;
+      conflict-public) visibility="public"; detail="A public repository already uses this name." ;;
+    esac
+    jq -nc --arg component "$component" --arg role "$role" --arg unit "$unit" \
+      --arg owner "$org" --arg name "$repo" --arg visibility "$visibility" \
+      --arg state "$_REPO_PROBE_STATE" --arg action "$action" --arg detail "$detail" \
+      '{component:$component,role:$role,unit:(if $unit=="" then null else $unit end),owner:$owner,name:$name,visibility:(if $visibility=="" then null else $visibility end),state:$state,action:$action,detail:$detail}' >> "$rows"
+  done < <(_repository_targets)
+  if jq -e 'select(.action=="blocked")' "$rows" >/dev/null; then result="blocked"
+  elif jq -e 'select(.state=="missing")' "$rows" >/dev/null; then result="changes-required"
+  else result="ready"; fi
+  jq -s --arg owner "$org" --arg result "$result" '{schema_version:"1.0",scope:"organization",owner:$owner,mode:"plan",result:$result,repositories:.,summary:{existing:(map(select(.state=="existing-private"))|length),missing:(map(select(.state=="missing"))|length),created:0,blocked:(map(select(.action=="blocked"))|length)}}' "$rows"
+  rm -f "$rows"
+  [[ "$result" != "blocked" ]]
 }
 
 _ensure_branch_protection() {
@@ -753,6 +861,22 @@ _STATE_STORE_STATUS=""
 _STATE_STORE_TYPE=""
 _STATE_STORE_ENDPOINT=""
 _STATE_STORE_SCOPES=()
+_STATE_GITHUB_CLIENT_ID=""
+_STATE_FOUNDATION_LEGACY_REF=""
+_STATE_FOUNDATION_CLAUDE_REF=""
+_STATE_FOUNDATION_CODEX_REF=""
+_STATE_PERSONAL_OWNER=""
+_STATE_PERSONAL_RANK=""
+_STATE_PERSONAL_REPOSITORY_PATTERN=""
+
+_yaml_unquote() {
+  local value="$1"
+  if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+    value="${value#\"}"
+    value="${value%\"}"
+  fi
+  printf '%s' "$value"
+}
 
 _read_ecosystem_state() {
   local content="$1"
@@ -762,6 +886,13 @@ _read_ecosystem_state() {
   _STATE_STORE_TYPE=""
   _STATE_STORE_ENDPOINT=""
   _STATE_STORE_SCOPES=()
+  _STATE_GITHUB_CLIENT_ID=""
+  _STATE_FOUNDATION_LEGACY_REF=""
+  _STATE_FOUNDATION_CLAUDE_REF=""
+  _STATE_FOUNDATION_CODEX_REF=""
+  _STATE_PERSONAL_OWNER=""
+  _STATE_PERSONAL_RANK=""
+  _STATE_PERSONAL_REPOSITORY_PATTERN=""
 
   local section="" line trimmed
   while IFS= read -r line; do
@@ -770,7 +901,13 @@ _read_ecosystem_state() {
       "components:") section="components"; continue ;;
       "departments:") section="departments"; continue ;;
       "store:") section="store"; continue ;;
+      "github_app:") section="github-app"; continue ;;
       "foundation:") section="foundation"; continue ;;
+      "personal:") section="personal"; continue ;;
+      "  refs:")
+        [[ "$section" == "foundation" ]] && section="foundation-refs"
+        continue
+        ;;
       "schema_version:"*|"org:"*) section=""; continue ;;
     esac
     case "$line" in
@@ -800,6 +937,27 @@ _read_ecosystem_state() {
         ;;
       "  endpoint: "*)
         [[ "$section" == "store" ]] && _STATE_STORE_ENDPOINT="${line#  endpoint: }"
+        ;;
+      "  client_id: "*)
+        [[ "$section" == "github-app" ]] && _STATE_GITHUB_CLIENT_ID="$(_yaml_unquote "${line#  client_id: }")"
+        ;;
+      "  ref: "*)
+        [[ "$section" == "foundation" ]] && _STATE_FOUNDATION_LEGACY_REF="$(_yaml_unquote "${line#  ref: }")"
+        ;;
+      "    claude: "*)
+        [[ "$section" == "foundation-refs" ]] && _STATE_FOUNDATION_CLAUDE_REF="$(_yaml_unquote "${line#    claude: }")"
+        ;;
+      "    codex: "*)
+        [[ "$section" == "foundation-refs" ]] && _STATE_FOUNDATION_CODEX_REF="$(_yaml_unquote "${line#    codex: }")"
+        ;;
+      "  owner: "*)
+        [[ "$section" == "personal" ]] && _STATE_PERSONAL_OWNER="${line#  owner: }"
+        ;;
+      "  rank: "*)
+        [[ "$section" == "personal" ]] && _STATE_PERSONAL_RANK="${line#  rank: }"
+        ;;
+      "  repository_pattern: "*)
+        [[ "$section" == "personal" ]] && _STATE_PERSONAL_REPOSITORY_PATTERN="$(_yaml_unquote "${line#  repository_pattern: }")"
         ;;
     esac
   done <<< "$content"
@@ -841,10 +999,63 @@ _render_ecosystem_yml() {
       printf '    - %s\n' "$s"
     done
   else
-    printf '  status: deferred\n'
+  printf '  status: deferred\n'
   fi
+  printf 'github_app:\n'
+  printf '  client_id: "%s"\n' "$GITHUB_OAUTH_CLIENT_ID"
   printf 'foundation:\n'
-  printf '  ref: "%s"\n' "$FOUNDATION_REF_DEFAULT"
+  printf '  refs:\n'
+  for h in "${MERGE_HARNESS[@]}"; do
+    printf '    %s: "%s"\n' "$h" "$(_foundation_ref_for "$h")"
+  done
+  printf 'personal:\n'
+  printf '  owner: user\n'
+  printf '  rank: 10\n'
+  printf '  repository_pattern: "<user>/<component>-copilot-private"\n'
+}
+
+_assert_existing_ecosystem_compatible() {
+  local org="$1" target_repo="$2" content="$3" h existing_ref desired_ref
+  _read_ecosystem_state "$content"
+  if [[ -n "$_STATE_GITHUB_CLIENT_ID" && "$_STATE_GITHUB_CLIENT_ID" != "$GITHUB_OAUTH_CLIENT_ID" ]]; then
+    refuse "ecosystem-yml" "$org/$target_repo already carries a different github_app.client_id. I won't replace organization identity config. Confirm the OAuth App and update it through review."
+  fi
+  if [[ -n "$_STATE_FOUNDATION_LEGACY_REF" ]]; then
+    refuse "ecosystem-yml" "$org/$target_repo still uses the legacy single foundation.ref. I won't reinterpret it across Claude and Codex. Migrate it through review to product-specific foundation.refs first."
+  fi
+  if [[ -n "$_STATE_PERSONAL_OWNER" && "$_STATE_PERSONAL_OWNER" != "user" ]] \
+    || [[ -n "$_STATE_PERSONAL_RANK" && "$_STATE_PERSONAL_RANK" != "10" ]] \
+    || [[ -n "$_STATE_PERSONAL_REPOSITORY_PATTERN" && "$_STATE_PERSONAL_REPOSITORY_PATTERN" != "<user>/<component>-copilot-private" ]]; then
+    refuse "ecosystem-yml" "$org/$target_repo carries a different personal handoff contract. I won't rewrite personal ownership or repository naming automatically."
+  fi
+  for h in "${HARNESS_LIST[@]}"; do
+    desired_ref="$(_foundation_ref_for "$h")"
+    case "$h" in
+      claude) existing_ref="$_STATE_FOUNDATION_CLAUDE_REF" ;;
+      codex) existing_ref="$_STATE_FOUNDATION_CODEX_REF" ;;
+    esac
+    if [[ -n "$existing_ref" && "$existing_ref" != "$desired_ref" ]]; then
+      refuse "ecosystem-yml" "$org/$target_repo already pins $h to $existing_ref, not $desired_ref. I won't change a foundation pin without review."
+    fi
+  done
+}
+
+_preflight_ecosystem_contract() {
+  local org="$1" target_repo="${HARNESS_LIST[0]}-copilot-internal" info content err_file
+  err_file="$(mktemp)"
+  if info="$(gh api "repos/$org/$target_repo/contents/ecosystem.yml" 2>"$err_file")"; then
+    rm -f "$err_file"
+    content="$(printf '%s' "$(echo "$info" | jq -r '.content')" | _b64_decode)"
+    [[ -n "$content" ]] || refuse "ecosystem-yml" "I couldn't decode $org/$target_repo's existing ecosystem.yml, so I won't mutate organization setup."
+    _assert_existing_ecosystem_compatible "$org" "$target_repo" "$content"
+    return
+  fi
+  if grep -qi 'HTTP 404' "$err_file" 2>/dev/null; then
+    rm -f "$err_file"
+    return
+  fi
+  rm -f "$err_file"
+  refuse "ecosystem-yml" "I couldn't read $org/$target_repo's existing ecosystem.yml, so I won't mutate organization setup."
 }
 
 _leak_scan() {
@@ -1015,7 +1226,7 @@ _write_ecosystem_yml() {
   MERGE_STORE_SCOPES=("${STORE_TEAM_SCOPES[@]+"${STORE_TEAM_SCOPES[@]}"}")
 
   if [[ -n "$existing_content" ]]; then
-    _read_ecosystem_state "$existing_content"
+    _assert_existing_ecosystem_compatible "$org" "$target_repo" "$existing_content"
     MERGE_HARNESS=("${_STATE_HARNESS[@]+"${_STATE_HARNESS[@]}"}")
     MERGE_DEPTS=("${_STATE_DEPT_UNITS[@]+"${_STATE_DEPT_UNITS[@]}"}")
     if [[ "$_STATE_STORE_STATUS" == "connected" ]]; then
@@ -1093,6 +1304,8 @@ run_standup() {
   local org="$1" repo unit harness_repo="${HARNESS_LIST[0]}-copilot-internal"
 
   _preflight "$org"
+  _preflight_repository_matrix "$org"
+  _preflight_ecosystem_contract "$org"
   _ensure_org_base_permission "$org"
 
   while IFS= read -r repo; do
@@ -1142,6 +1355,7 @@ run_add_department() {
   fi
 
   _preflight "$org"
+  _preflight_ecosystem_contract "$org"
 
   while IFS= read -r repo; do
     _ensure_repo "$org" "$repo" "dept-repo:$unit:$repo"
@@ -1357,18 +1571,93 @@ _check_ecosystem_file() {
     return
   fi
   _read_ecosystem_state "$content"
-  local h missing_h=() u missing_u=()
+  local h missing_h=() u missing_u=() missing_config=() actual_ref desired_ref
   for h in "${HARNESS_LIST[@]}"; do
     _array_contains "$h" "${_STATE_HARNESS[@]+"${_STATE_HARNESS[@]}"}" || missing_h+=("$h")
   done
   for u in "${DEPARTMENTS[@]+"${DEPARTMENTS[@]}"}"; do
     _array_contains "$u" "${_STATE_DEPT_UNITS[@]+"${_STATE_DEPT_UNITS[@]}"}" || missing_u+=("$u")
   done
-  if [[ "${#missing_h[@]}" -eq 0 && "${#missing_u[@]}" -eq 0 ]]; then
+  [[ "$_STATE_GITHUB_CLIENT_ID" == "$GITHUB_OAUTH_CLIENT_ID" ]] || missing_config+=("github_app.client_id")
+  if [[ "$_STATE_PERSONAL_OWNER" != "user" \
+    || "$_STATE_PERSONAL_RANK" != "10" \
+    || "$_STATE_PERSONAL_REPOSITORY_PATTERN" != "<user>/<component>-copilot-private" ]]; then
+    missing_config+=("personal handoff")
+  fi
+  for h in "${HARNESS_LIST[@]}"; do
+    desired_ref="$(_foundation_ref_for "$h")"
+    case "$h" in
+      claude) actual_ref="$_STATE_FOUNDATION_CLAUDE_REF" ;;
+      codex) actual_ref="$_STATE_FOUNDATION_CODEX_REF" ;;
+    esac
+    [[ "$actual_ref" == "$desired_ref" ]] || missing_config+=("foundation.refs.$h")
+  done
+  if [[ "${#missing_h[@]}" -eq 0 && "${#missing_u[@]}" -eq 0 && "${#missing_config[@]}" -eq 0 ]]; then
     _check_row "ecosystem-file" "pass" "$org/$target_repo's ecosystem.yml matches your plan." "" "none"
   else
     _check_ecosystem_drift_row "$org" "$target_repo" "$default_branch" \
-      "$org/$target_repo's ecosystem.yml is missing: $(_join_comma "${missing_h[@]+"${missing_h[@]}"}" "${missing_u[@]+"${missing_u[@]}"}")."
+      "$org/$target_repo's ecosystem.yml is missing or differs on: $(_join_comma "${missing_h[@]+"${missing_h[@]}"}" "${missing_u[@]+"${missing_u[@]}"}" "${missing_config[@]+"${missing_config[@]}"}")."
+  fi
+}
+
+_read_contract_ecosystem() {
+  local org="$1" target_repo="${HARNESS_LIST[0]}-copilot-internal" info content err_file
+  err_file="$(mktemp)"
+  if ! info="$(gh api "repos/$org/$target_repo/contents/ecosystem.yml" 2>"$err_file")"; then
+    if grep -qi 'HTTP 404' "$err_file" 2>/dev/null; then
+      _CONTRACT_ECOSYSTEM_STATUS="missing"
+    else
+      _CONTRACT_ECOSYSTEM_STATUS="unknown"
+    fi
+    rm -f "$err_file"
+    return 1
+  fi
+  rm -f "$err_file"
+  content="$(printf '%s' "$(echo "$info" | jq -r '.content')" | _b64_decode)"
+  if [[ -z "$content" ]]; then
+    _CONTRACT_ECOSYSTEM_STATUS="unknown"
+    return 1
+  fi
+  _read_ecosystem_state "$content"
+  _CONTRACT_ECOSYSTEM_STATUS="ok"
+  return 0
+}
+
+_check_github_app() {
+  local org="$1"
+  if ! _read_contract_ecosystem "$org"; then
+    if [[ "$_CONTRACT_ECOSYSTEM_STATUS" == "missing" ]]; then
+      _check_row "github-app" "fail" "ecosystem.yml does not carry the organization's public GitHub OAuth App client ID yet." "Admin" "describe"
+    else
+      _check_row "github-app" "unknown" "I couldn't read ecosystem.yml, so I won't guess whether the GitHub OAuth App client ID is ready." "Admin" "describe"
+    fi
+    return
+  fi
+  if _valid_github_oauth_client_id "$_STATE_GITHUB_CLIENT_ID" && [[ "$_STATE_GITHUB_CLIENT_ID" == "$GITHUB_OAUTH_CLIENT_ID" ]]; then
+    _check_row "github-app" "pass" "ecosystem.yml carries the expected public GitHub OAuth App client ID." "" "none"
+  elif [[ -z "$_STATE_GITHUB_CLIENT_ID" ]]; then
+    _check_row "github-app" "fail" "ecosystem.yml is missing github_app.client_id." "Admin" "describe"
+  else
+    _check_row "github-app" "fail" "ecosystem.yml carries a malformed or different github_app.client_id. I won't treat organization identity as interchangeable." "Admin" "describe"
+  fi
+}
+
+_check_personal_handoff() {
+  local org="$1"
+  if ! _read_contract_ecosystem "$org"; then
+    if [[ "$_CONTRACT_ECOSYSTEM_STATUS" == "missing" ]]; then
+      _check_row "personal-handoff" "fail" "ecosystem.yml does not carry the User Setup handoff yet." "Admin" "describe"
+    else
+      _check_row "personal-handoff" "unknown" "I couldn't read ecosystem.yml, so I won't guess whether the personal repository handoff is ready." "Admin" "describe"
+    fi
+    return
+  fi
+  if [[ "$_STATE_PERSONAL_OWNER" == "user" \
+    && "$_STATE_PERSONAL_RANK" == "10" \
+    && "$_STATE_PERSONAL_REPOSITORY_PATTERN" == "<user>/<component>-copilot-private" ]]; then
+    _check_row "personal-handoff" "pass" "User Setup is delegated to the signed-in user and the private component repository pattern is present." "" "none"
+  else
+    _check_row "personal-handoff" "fail" "ecosystem.yml is missing or differs from the non-secret personal repository handoff contract." "Admin" "describe"
   fi
 }
 
@@ -1410,28 +1699,29 @@ _check_foundation_pin() {
   # each name, not the sibling just assigned earlier in the same statement —
   # a real bash gotcha, not sequential assignment. Chaining them here would
   # silently resolve `repo` against an empty `h`.
-  local h="${HARNESS_LIST[0]}"
-  local repo="${h}-copilot" range="$FOUNDATION_REF_DEFAULT"
+  local h="$1"
+  local repo="${h}-copilot" range
+  range="$(_foundation_ref_for "$h")"
   if _resolve_foundation_pin "$repo" "$range"; then
-    _check_row "foundation-pin" "pass" "The foundation reference for $h resolves to $_RESOLVED_TAG (satisfies $range)." "" "none"
+    _check_row "foundation-pin:$h" "pass" "The foundation reference for $h resolves to $_RESOLVED_TAG (satisfies $range)." "" "none"
     return
   fi
   case "$_RESOLVE_STATUS" in
     no-match)
-      _check_row "foundation-pin" "fail" "No published tag of $FOUNDATION_ORG/$repo satisfies $range." "ENAC/external" "external"
+      _check_row "foundation-pin:$h" "fail" "No published tag of $FOUNDATION_ORG/$repo satisfies $range." "ENAC/external" "external"
       ;;
     bad-range)
-      _check_row "foundation-pin" "fail" "The foundation pin \"$range\" isn't a caret range I understand." "ENAC/external" "external"
+      _check_row "foundation-pin:$h" "fail" "The foundation pin \"$range\" isn't a caret range I understand." "ENAC/external" "external"
       ;;
     *)
-      _check_row "foundation-pin" "unknown" "I couldn't read $FOUNDATION_ORG/$repo's published tags, so I won't guess whether $range resolves." "ENAC/external" "external"
+      _check_row "foundation-pin:$h" "unknown" "I couldn't read $FOUNDATION_ORG/$repo's published tags, so I won't guess whether $range resolves." "ENAC/external" "external"
       ;;
   esac
 }
 
 run_verify() {
   local org="$ORG"
-  local checks_json="[]" row unit
+  local checks_json="[]" row unit h
 
   row="$(_check_org_triplet "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
   row="$(_check_org_base_read "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
@@ -1447,8 +1737,12 @@ run_verify() {
   done < <(_check_undeclared_departments "$org")
 
   row="$(_check_ecosystem_file "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+  row="$(_check_github_app "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+  row="$(_check_personal_handoff "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
   row="$(_check_store)"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
-  row="$(_check_foundation_pin)"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+  for h in "${HARNESS_LIST[@]}"; do
+    row="$(_check_foundation_pin "$h")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+  done
 
   jq -n --arg sv "$VERIFY_SCHEMA_VERSION" --argjson checks "$checks_json" \
         --argjson mf "$MUST_FIX_COUNT" --argjson un "$UNKNOWN_COUNT" \
@@ -1486,6 +1780,10 @@ main() {
         ;;
       --verify)
         mode="verify"
+        shift
+        ;;
+      --plan)
+        mode="plan"
         shift
         ;;
       --json)
@@ -1533,6 +1831,15 @@ main() {
       fi
       _load_brief "$brief_path"
       run_verify
+      ;;
+    plan)
+      if ! $json_flag; then
+        echo "--plan requires --json." >&2
+        exit 1
+      fi
+      [[ -n "$brief_path" ]] || brief_path="$DEFAULT_BRIEF_PATH"
+      _load_brief "$brief_path"
+      run_repository_plan "$ORG"
       ;;
   esac
 }

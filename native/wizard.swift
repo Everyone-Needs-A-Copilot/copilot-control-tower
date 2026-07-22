@@ -183,9 +183,10 @@ final class WizardModel: ObservableObject {
     @Published var deviceFlow = DeviceFlowState()
     @Published var authorizedLogin: String?
     @Published var detectLines: [String] = []
-    @Published var includeCodex = false
+    @Published var includeCodex = true
     @Published var departments: [DepartmentRow] = []
     @Published var materialize = MaterializePhaseState()
+    @Published var workspaceFolderName: String?
 
     private var pollTask: Task<Void, Never>?
     private var materializeInFlight = false
@@ -352,8 +353,10 @@ final class WizardModel: ObservableObject {
         Task {
             async let authAsync = CliClient.shared.authStatus()
             async let doctorAsync = CliClient.shared.doctor()
+            async let onboardAsync = CliClient.shared.onboardPlan(components: self.personalComponents)
             let authResult = await authAsync
             let doctorResult = await doctorAsync
+            let onboardResult = await onboardAsync
 
             guard case .success(let status) = authResult else {
                 if case .failure(let error) = authResult {
@@ -367,6 +370,25 @@ final class WizardModel: ObservableObject {
                 }
                 return
             }
+            guard case .success(let onboard) = onboardResult else {
+                if case .failure(let error) = onboardResult {
+                    self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .detect)
+                }
+                return
+            }
+            guard onboard.result != .blocked else {
+                let blocked = onboard.repositories.filter { $0.action == "blocked" }.map { $0.name }.joined(separator: ", ")
+                self.enterHolding(reason: "GitHub couldn't safely confirm your personal repositories: \(blocked). Nothing was created.", origin: .detect)
+                return
+            }
+            if let login = status.identity?.login,
+               login.caseInsensitiveCompare(onboard.owner) != .orderedSame {
+                self.enterHolding(
+                    reason: "Your Copilot sign-in and GitHub command-line account don't match, so I won't create personal repositories in the wrong account.",
+                    origin: .detect
+                )
+                return
+            }
 
             var lines: [String] = []
             if let login = status.identity?.login {
@@ -375,6 +397,7 @@ final class WizardModel: ObservableObject {
             } else {
                 lines.append("GitHub: signed in.")
             }
+            lines.append("Personal repositories: \(onboard.owner).")
             // The gh install/approve mechanics are not built yet (the spec's
             // own NB-13) — this line is honest static state, not a live
             // detection, until that verb exists.
@@ -384,8 +407,17 @@ final class WizardModel: ObservableObject {
             // wording here — one honest, already-CLI-derived verdict, never
             // a second opinion.
             lines.append(RenderState.from(doctor, joinable: nil).header.sentence)
-            if !doctor.checkers.contains(where: { $0.layer == Layer.personal.rawValue }) {
-                lines.append("No personal setup on this Mac yet. Control Tower will create your personal space on GitHub in a later step.")
+            for repository in onboard.repositories {
+                switch repository.state {
+                case .existingPrivate:
+                    lines.append("\(repository.name): already exists and is private; it will be reused.")
+                case .missing:
+                    lines.append("\(repository.name): confirmed missing; it will be created private when you continue setup.")
+                case .created:
+                    lines.append("\(repository.name): created private.")
+                case .conflictPublic, .unknown:
+                    break
+                }
             }
             self.detectLines = lines
             self.phase = .detected
@@ -495,7 +527,7 @@ final class WizardModel: ObservableObject {
         materializeInFlight = true
         phase = .materializing
 
-        var labels = ["Setting up Claude Copilot…", "Creating your personal space on GitHub…"]
+        var labels = ["Confirming your private GitHub spaces…", "Setting up your copilots…"]
         labels += joinedDepartments.map { "Bringing in your \($0.name) department…" }
         labels.append("Finishing up…")
         materialize = MaterializePhaseState(label: labels[0], index: 1, total: labels.count)
@@ -503,6 +535,18 @@ final class WizardModel: ObservableObject {
         let shouldFanOut = !joinedDepartments.isEmpty
 
         Task {
+            switch await CliClient.shared.onboardApply(components: self.personalComponents) {
+            case .success(let report):
+                guard report.result == .applied || report.result == .ready else {
+                    self.materializeInFlight = false
+                    self.enterHolding(reason: "GitHub couldn't safely finish your private repository setup. Nothing existing was changed.", origin: .materialize)
+                    return
+                }
+            case .failure(let error):
+                self.materializeInFlight = false
+                self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .materialize)
+                return
+            }
             if shouldFanOut {
                 Task { _ = await CliClient.shared.updateFanout() }
             }
@@ -517,6 +561,10 @@ final class WizardModel: ObservableObject {
                 self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .materialize)
             }
         }
+    }
+
+    private var personalComponents: [String] {
+        includeCodex ? ["knowledge", "cli", "claude", "codex"] : ["knowledge", "cli", "claude"]
     }
 
     private func cyclePhases(_ labels: [String]) async {
@@ -572,6 +620,23 @@ final class WizardModel: ObservableObject {
         // why this isn't `UserDefaults.standard`.
         LocalDefaults.set(true, forKey: "ct.hasCompletedFirstRun")
         onClose()
+    }
+
+    func chooseWorkspaceFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        panel.message = "Choose the folder where you keep code projects. Control Tower will look only inside this folder."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            if case .success(let report) = await CliClient.shared.approveWorkspaceRoot(path: url.path),
+               report.result == .applied || report.result == .ready {
+                self.workspaceFolderName = report.root.name
+            }
+        }
     }
 
     // MARK: Holding (#w10)
@@ -1344,6 +1409,22 @@ struct WizardRootView: View {
                     .foregroundColor(Color(nsColor: .labelColor))
                     .fixedSize(horizontal: false, vertical: true)
                 videoLinkRow("See what you can build with this")
+                if model.includeCodex {
+                    sectionCard("Your code projects") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(model.workspaceFolderName == nil
+                                 ? "Choose the folder where you keep code. Control Tower will quietly set up new projects there when they need it."
+                                 : "Control Tower is watching \(model.workspaceFolderName ?? "your chosen folder") for projects.")
+                                .font(.callout)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button(model.workspaceFolderName == nil ? "Choose projects folder" : "Change folder") {
+                                model.chooseWorkspaceFolder()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
             }
         } leadingActions: {
             EmptyView()

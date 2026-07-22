@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/workspace-root.schema.json",
+  "title": "Workspace discovery root approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "result", "root"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "mode": { "enum": ["plan", "apply"] },
+    "result": { "enum": ["ready", "action-required", "applied", "blocked"] },
+    "root": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "state", "detail"],
+      "properties": {
+        "name": { "type": "string" },
+        "state": { "enum": ["available", "approved", "blocked"] },
+        "detail": { "type": "string" }
+      }
+    }
+  }
+}

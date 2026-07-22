@@ -254,6 +254,42 @@ actor CliClient {
         await decodeVerb(["update", "--project", path, "--json"])
     }
 
+    func onboardPlan(components: [String]) async -> Result<OnboardReport, CliError> {
+        await decodeVerb(["onboard", "--scope", "personal", "--components", components.joined(separator: ","), "--json"])
+    }
+
+    func onboardApply(components: [String]) async -> Result<OnboardReport, CliError> {
+        await decodeVerb(["onboard", "--scope", "personal", "--components", components.joined(separator: ","), "--apply", "--json"])
+    }
+
+    func workspaces() async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb(["workspace", "--all", "--json"])
+    }
+
+    func configureWorkspace(
+        path: String,
+        components: [String],
+        shareWithProject: Bool,
+        apply: Bool
+    ) async -> Result<WorkspacesReport, CliError> {
+        var arguments = [
+            "workspace", "configure", "--project", path,
+            "--components", components.joined(separator: ","),
+        ]
+        if shareWithProject {
+            arguments.append("--share-with-project")
+        }
+        if apply {
+            arguments.append("--apply")
+        }
+        arguments.append("--json")
+        return await decodeVerb(arguments)
+    }
+
+    func approveWorkspaceRoot(path: String) async -> Result<WorkspaceRootReport, CliError> {
+        await decodeVerb(["workspace", "approve-root", "--path", path, "--apply", "--json"])
+    }
+
     // MARK: Shared decode pipeline
 
     /// The shared `{schema_version, error:{code,message}}` envelope every

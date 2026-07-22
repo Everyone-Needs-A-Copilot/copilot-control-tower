@@ -420,3 +420,132 @@ struct FanoutReport: Decodable {
     let summary: FanoutSummary
     let results: [ResultItem]
 }
+
+// MARK: - onboard --scope personal --json
+
+enum OnboardResult: String, Decodable {
+    case ready
+    case changesRequired = "changes-required"
+    case applied
+    case blocked
+}
+
+enum RepositoryState: String, Decodable {
+    case existingPrivate = "existing-private"
+    case missing
+    case created
+    case conflictPublic = "conflict-public"
+    case unknown
+}
+
+struct RepositoryPlanRow: Decodable {
+    let component: String
+    let role: String
+    let unit: String?
+    let owner: String
+    let name: String
+    let visibility: String?
+    let state: RepositoryState
+    let action: String
+    let detail: String
+}
+
+struct RepositoryPlanSummary: Decodable {
+    let existing: Int
+    let missing: Int
+    let created: Int
+    let blocked: Int
+}
+
+struct OnboardReport: Decodable {
+    let schemaVersion: String
+    let scope: String
+    let owner: String
+    let mode: String
+    let result: OnboardResult
+    let repositories: [RepositoryPlanRow]
+    let summary: RepositoryPlanSummary
+}
+
+// MARK: - workspace --all --json
+
+enum WorkspaceActivationState: String, Decodable {
+    case ready
+    case setupAvailable = "setup-available"
+    case activationRequired = "activation-required"
+    case blocked
+}
+
+enum PersonalProfileState: String, Decodable {
+    case associated
+    case available
+    case localOnly = "local-only"
+}
+
+struct WorkspacePersonalProfile: Decodable {
+    let state: PersonalProfileState
+    let projectId: String?
+}
+
+struct WorkspaceEntry: Decodable, Identifiable {
+    var id: String { path }
+    let path: String
+    let name: String
+    let projectId: String?
+    let state: WorkspaceActivationState
+    let detail: String
+    let declaredComponents: [String]
+    let installedComponents: [String]
+    let recommendedComponents: [String]
+    let personalProfile: WorkspacePersonalProfile
+}
+
+struct WorkspaceSummary: Decodable {
+    let ready: Int
+    let setupAvailable: Int
+    let activationRequired: Int
+    let blocked: Int
+    let total: Int
+
+    enum CodingKeys: String, CodingKey {
+        case ready, blocked, total
+        case setupAvailable = "setup-available"
+        case activationRequired = "activation-required"
+    }
+}
+
+enum WorkspaceReportResult: String, Decodable {
+    case ready
+    case actionRequired = "action-required"
+    case applied
+    case blocked
+}
+
+struct WorkspaceAction: Decodable {
+    let id: String
+    let scope: String
+    let status: String
+    let detail: String
+}
+
+struct WorkspacesReport: Decodable {
+    let schemaVersion: String
+    let mode: String
+    let result: WorkspaceReportResult
+    let workspaces: [WorkspaceEntry]
+    let summary: WorkspaceSummary
+    let actions: [WorkspaceAction]?
+}
+
+struct WorkspaceRoot: Decodable {
+    let name: String
+    let state: String
+    let detail: String
+}
+
+struct WorkspaceRootReport: Decodable {
+    let schemaVersion: String
+    let mode: String
+    let result: WorkspaceReportResult
+    let root: WorkspaceRoot
+}

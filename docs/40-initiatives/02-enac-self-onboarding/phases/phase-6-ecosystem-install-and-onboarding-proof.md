@@ -17,7 +17,8 @@
 
 Phases 1–5 delivered the hard machinery: the public foundation / private
 `-internal` org split (Phase 1, pushed), the GitHub standup engine
-(`scripts/admin_bootstrap.sh`, 142/142 tests — Phase 2), the live **base +
+(`scripts/admin_bootstrap.sh`, 173/173 tests — Phase 2 plus the Phase 6 repository, OAuth,
+personal-handoff, and product-pin gates), the live **base +
 org-overlay tier runtime** with a fail-closed credential ladder (Phase 3), then
 **config inheritance** (`TierConfigSource` + committed `config:` blocks), the
 **`copilot update` mirror-sync verb** (never-destroy, semver-range resolver,
@@ -63,9 +64,50 @@ completed onboarding proof.
 
 **Readiness determination:** the project is ready to *begin* Phase 6. It is not
 ready to claim Phase 6 complete. Phase 6 owns the still-missing product-aware
-resolver/materializer, verified executable-content policy, personal repository
-provisioning, idempotent `cc onboard`, signed distribution, and the two-machine
-cold-start proof. Those are enumerated below and tracked in `tc` PRD-14.
+resolver/materializer, verified executable-content policy, personal-layer
+content seeding/materialization, completion of the aggregate `cc onboard`
+transaction, signed distribution, and the two-machine cold-start proof. Those
+are enumerated below and tracked in `tc` PRD-14.
+
+### Repository-provisioning update — 2026-07-21
+
+The repository authority split is now implemented and compiled into both app
+paths. Admin Review writes a `[claude, codex]` brief, runs a read-only inventory
+for the Knowledge, CLI, Claude, and Codex organization/department repositories,
+renders every result, and requires an explicit **Set up organization** action.
+The engine repeats the complete inventory before mutation. Existing private
+repositories are reused; only explicit HTTP 404s are created private; public
+collisions and unreadable responses stop the run.
+
+User Detect now calls the implemented personal repository stage of `cc
+onboard`, renders the four authenticated-account targets, and invokes
+`--apply` only after the user continues setup. Personal repository names are
+`<component>-copilot-private`; existing private repositories are reused and new
+ones are created private on the authenticated personal account. The live
+read-only inventory currently reports one existing private repository
+(`claude-copilot-private`) and three confirmed missing repositories. No live
+creation was performed during this audit.
+
+This closes the repository discovery/create gap only. It does not close the
+remaining Phase 6 product-aware resolver/materializer, signature policy,
+signed/notarized distribution, or second-machine proof.
+
+### Workspace-activation update — 2026-07-22
+
+The recurring project experience is now separated from both Admin organization
+standup and User person/device enrollment. `cc workspace --all --json` discovers
+Git projects only under approved roots/the explicit registry, including new
+clones with no Copilot lock. `cc workspace configure` uses a portable
+`copilot.project.json`, a remote-stable opaque project id, all-product collision
+preflight, additive Claude/Codex setup adapters, and a private machine-local
+personal-profile association. A declaration is not installation proof.
+
+The User app decodes this contract. Ready projects remain silent; a private
+profile associates without entering the shared repo; and only missing or
+unfinished shared setup creates one plain-language action. Existing paths block
+before either selected product writes. Codex users get one optional macOS folder
+picker during User Setup; non-developers never enumerate repositories. This closes the recurring workspace
+activation slice, not the aggregate cold-machine onboarding transaction.
 
 ---
 
@@ -335,15 +377,15 @@ content in Admin output**.
 | Piece | Status | Gap |
 |---|---|---|
 | Public/private foundation split, pushed | **Built** | — |
-| GitHub standup engine (`admin_bootstrap.sh`), verify verb | **Built** (142/142) | Three known engine gaps (phantom ref, `docs/reference/` links, `admin.swift` cwd path) — S1-T5 |
-| `ecosystem.yml` v2.0 authorship | **Built** (engine step 5) | `github-app` verify-check is a v1 contract seam, not implemented |
+| GitHub standup engine (`admin_bootstrap.sh`), plan/apply/verify verbs | **Built** (173/173 offline assertions) | App renders the repository plan and invokes apply directly; the development build packages the engine beside the Admin binary. |
+| `ecosystem.yml` v2.0 authorship | **Built** (engine step 5) | Public OAuth client id, product-specific Claude/Codex pins, and the non-secret personal handoff are emitted and verified; live-org proof remains in S4. |
 | Tier runtime (base + overlay, nearest-wins) | **Built + live** | — |
 | Credential ladder (store → keychain → device-flow stub → paste) | **Built + live** | Rung 3 device-flow is a clean stub (unbuilt) |
 | Config inheritance (committed `config:` blocks, no `.env`) | **Built + live** (Phase 4 #1) | — |
 | `copilot update` mirror-sync (never-destroy, semver, `--json`) | **Built + live** | — |
 | Secrets in Infisical + keychain, `.env` emptied | **Built + live** (Phase 5 cutover, 2026-07-21) | — |
 | Codex public foundation package | **Built + published** | `v0.6.0`; official plugin validation + smoke suite pass; live cache-busted install enabled |
-| Claude/Codex product-aware resolver | **Missing** | Current resolver/rank validation is not product-scoped; same-named cross-product items can collide — S3-T0 |
+| Claude/Codex product-aware resolver | **Built; QA slice green** | Resolution identity is now `(product, dimension, item)`; ranks are unique/ordered per product, layer ids are globally unique, and same-named Claude/Codex items coexist. Product-specific materialization remains — S3-T0. |
 | Product-specific materialization | **Missing** | Current ecosystem materializer has one generic root; Codex requires allowlisted native targets — S3-T0 |
 | Executable-content signature/policy verification | **Missing** | Production policy correctly fails closed but currently blocks all materialization — S3-T0 |
 | Personal layer provisioning | **Missing** | Admin/User authority contract is ratified; user-owned repo creation + rank-10 seeding is not implemented — S3-T3 |
@@ -355,6 +397,7 @@ content in Admin output**.
 | Native user app (wizard + tray, de-mocked) | **Built** (S1–S17 green) | Not packaged/notarized |
 | App signing / notarization / self-update (signed) | **Missing (owner-gated)** | Apple cert, notarytool creds, minisign custody — P-7 |
 | App first-run orchestration | **Missing** | Ratified: app calls `cc onboard` and renders; implementation remains — S2/S3-T3 |
+| Recurring workspace activation | **Built; QA approved** | `TASK-149`–`TASK-152`; bounded discovery, root approval, portable declaration + ownership lock, opaque personal association, portable two-product additive setup, and User-app prompt are implemented (WP-124–WP-136). Cold-machine foundations and personal-repository hydration remain in aggregate onboarding. |
 | "Two CLIs" ownership | **Ratified** | `cc` is the control plane and coordinates `copilot`; app calls only `cc` |
 
 ---
@@ -387,7 +430,106 @@ content in Admin output**.
 
 ---
 
-## 8. Placement + index updates
+## 8. Execution plan — software completion through two-machine proof
+
+This is the durable execution order approved on 2026-07-22. Live status,
+dependencies, QA metadata, and work products remain authoritative in `tc`
+PRD-14; this section records the delivery sequence and completion contract.
+
+### A. Complete the shared Codex organization layer (`TASK-144`)
+
+1. Define the loadable `codex-copilot-internal` package shape and its signed
+   organization manifest.
+2. Make Admin Setup seed only a confirmed-missing/empty private repository;
+   reuse existing private content without overwriting it.
+3. Extend Admin verify so an existing repository is not considered ready until
+   its manifest, package content, policy, foundation pin, and branch protection
+   are valid.
+4. Prove the organization package installs above Codex foundation `v0.6.0`
+   without changing the public foundation or exposing organization content.
+
+### B. Complete personal layers and product isolation (`TASK-145`)
+
+1. Change manifest validation and resolution identity from
+   `(dimension, item)` to `(product, dimension, item)`. Rank uniqueness and
+   ordering are enforced inside each product stack, so Claude rank 10 and Codex
+   rank 10 may coexist while duplicate ranks within one product fail closed.
+2. Define allowlisted Claude and Codex materialization targets. A product may
+   never write to the other product's target roots.
+3. After User Setup reuses or creates each private personal repository, seed a
+   minimal rank-10 package only when the repository has no user content. Never
+   replace an existing manifest or infer that an unfamiliar repository is safe
+   to initialize.
+4. Return content-free provenance and health. Personal names, paths, and file
+   contents must not enter Admin output, telemetry, or shared repositories.
+5. Prove a second run is idempotent and a dirty/user-owned target is held rather
+   than overwritten or pruned.
+
+### C. Build the aggregate cold-machine transaction (`TASK-146`)
+
+The recurring workspace slice (`TASK-149`–`TASK-152`) is an input to this work,
+not a substitute for it. It assumes installed public foundations and an enrolled
+person/device; the aggregate transaction must establish those prerequisites on
+a cold machine before workspace activation can become invisible.
+
+1. Add resumable stages to `cc onboard --org <org> --products
+   claude,codex --json`: authenticate; consume the signed Admin handoff;
+   inventory/apply personal repositories; establish the machine's GitHub SSH
+   identity; provision its scoped store identity; write the unified manifest;
+   sync mirrors; resolve; materialize; and run doctor.
+2. Add supported, pinned installation of `cc` and `copilot` for a machine that
+   has neither tool. Resolve binaries by absolute path and never rely on bare
+   `cc` during compilation.
+3. Generate a distinct on-device SSH key and surgical `github-work` host block;
+   register only the public key. Never copy another machine's private key.
+4. Provision a scoped, revocable per-machine Infisical identity into the OS
+   keychain. Never reuse the organization-wide administrator identity as the
+   user bootstrap credential.
+5. Have Control Tower invoke and render this one structured transaction. The
+   app must not author manifests, resolve precedence, merge CLI health, or
+   weaken a failed stage.
+
+Every mutating stage repeats its read-only preflight, reports `planned`,
+`applied`, `reused`, `held`, or `blocked`, and is safe to resume after a partial
+failure. Already-passing stages remain intact.
+
+### D. Produce the release candidate and close owner-controlled gates
+
+1. Supply the organization GitHub OAuth App client id with device flow enabled.
+2. Supply Developer ID/notary credentials and settle minisign/update-feed key
+   custody.
+3. Build pinned CLI artifacts plus the user and Admin applications; sign,
+   notarize, staple, checksum, and verify them from a clean install location.
+4. Keep every unavailable credential or external authorization as an explicit
+   blocker. No development key, administrator credential, hand-authored YAML,
+   or bypass flag may be substituted to manufacture a green result.
+
+### E. Execute the proof in the only safe order (`TASK-147`)
+
+1. On this machine, run Admin Setup for `Everyone-Needs-A-Copilot` with
+   `harness: [claude, codex]` and no departments. Review the plan before apply,
+   then require four private organization repositories and `must_fix: 0`.
+2. In a fresh local macOS user account, install the release candidate and run
+   User Setup. Require both three-layer stacks, valid provenance, ready store,
+   healthy doctor, idempotence, and a demonstrated dirty-file hold.
+3. Only after steps 1–2 pass, reset the laptop's Copilot-owned local state using
+   the separately reviewed quarantine-first reset procedure. Do not delete the
+   public, organization, or personal remote repositories; an existing private
+   personal repository is a valid reuse-path proof.
+4. Install the same signed release on the laptop and repeat User Setup with a
+   newly generated laptop SSH key and laptop-scoped store identity.
+5. Store redacted evidence for both machines against `TASK-147`. Phase 6 closes
+   only when the clean laptop reaches the acceptance state in §1 without a
+   copied secret, copied private key, `.env`, or hand-written manifest.
+
+The laptop is deliberately not reset before a signed replacement path passes
+on this machine. Erasing the current environment earlier would create a clean
+machine without a supported way back and would not constitute onboarding
+evidence.
+
+---
+
+## 9. Placement + index updates
 
 This doc: `docs/40-initiatives/02-enac-self-onboarding/phases/phase-6-ecosystem-install-and-onboarding-proof.md`
 
@@ -399,7 +541,7 @@ laptop onboards and inherits the tier with no hand-copied secret or key").
 
 ---
 
-## 9. References
+## 10. References
 
 **Initiative & phases**
 - `docs/40-initiatives/02-enac-self-onboarding/README.md`

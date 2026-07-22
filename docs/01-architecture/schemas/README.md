@@ -23,6 +23,8 @@ it implements no resolution/merge/sign/wipe logic of its own.
 | `publish.schema.json` | `copilot publish --json` | Author-side push; `auto-merged` / `needs-choice` / `parked-escalated` conflict states; fail-closed `tier` + `leak_scan`. |
 | `layers.schema.json` | `copilot layers [join] --json` **(proposed, D7.1)** | Entitlement discovery (`list_report`) + join action (`join_result`), discriminated structurally (`layers[]` vs. `result`). `entitled: null` fails closed (never treated as `true`). |
 | `projects.schema.json` | `copilot projects freshness --all --json` / `copilot materialize --fanout --json` | Component Sync (`docs/80-initiatives/02-component-sync/`) machine-wide fan-out: all-projects freshness sweep + fan-out roll-up. A single project's own `copilot materialize --project <path> --json` result reuses `update.schema.json`'s shape (see its additive `path` property) rather than a third shape. |
+| `workspaces.schema.json` | `cc workspace --all --json` / `cc workspace configure --project <path> --json` | Bounded Git-workspace discovery, portable project declarations, and opaque personal-project association. A declaration is never accepted as installation proof. |
+| `workspace-root.schema.json` | `cc workspace approve-root --path <folder> [--apply] --json` | One explicit, non-symlinked folder approval for bounded project discovery; output uses only the display name. |
 
 ## Versioning
 

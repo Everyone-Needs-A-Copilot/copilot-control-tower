@@ -91,9 +91,9 @@ assert_true() {
 
 # new_org_state NAME — prints the path to a fresh state dir for a ready,
 # valid acme-co org (signed in, owner, full scopes, base perm not yet read).
-# Also seeds a foundation tag (v5.13.0) satisfying the engine's default
-# ^5.13.0 pin for the "codex" harness, so every existing test's foundation-pin
-# check resolves to pass unless a test deliberately overrides it.
+# Also seeds published Claude and Codex foundation tags satisfying the
+# product-specific default pins, so existing verification tests resolve unless
+# a test deliberately overrides one product.
 new_org_state() {
   local st="$WORKDIR/state-$1"
   rm -rf "$st"
@@ -103,7 +103,8 @@ new_org_state() {
   echo "admin" > "$st/orgs/acme-co/membership_earladmin"
   echo "admin" > "$st/orgs/acme-co/default_permission"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
-  printf 'v5.13.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
+  printf 'v5.8.0\n' > "$st/tags/Everyone-Needs-A-Copilot/claude-copilot"
+  printf 'v0.6.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
   printf '%s' "$st"
 }
 
@@ -135,6 +136,8 @@ write_brief() {
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -146,6 +149,28 @@ contacts:
 ---
 
 # Standup brief for acme-co (test fixture)
+EOF
+}
+
+write_both_harness_brief() {
+  local path="$1"
+  cat > "$path" <<'EOF'
+---
+schema_version: "1.0"
+org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
+harness:
+  - claude
+  - codex
+departments: []
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+
+# Both-harness standup brief (test fixture)
 EOF
 }
 
@@ -226,6 +251,13 @@ test_fresh_standup_full_matrix() {
   assert_eq "test1: grants 6 team-repo permissions (3 per department)" "6" "$grant_count"
   assert_eq "test1: sets org base permission exactly once" "1" "$base_perm_count"
   assert_eq "test1: writes ecosystem.yml exactly once" "1" "$eco_count"
+
+  local ecosystem_content
+  ecosystem_content="$(cat "$st/repos/acme-co/codex-copilot-internal/refs/main/ecosystem.yml")"
+  assert_contains "test1: ecosystem.yml carries the public OAuth client ID" "$ecosystem_content" 'client_id: "Iv1.a1b2c3d4e5f6a7b8"'
+  assert_contains "test1: ecosystem.yml carries the Codex-specific foundation pin" "$ecosystem_content" 'codex: "^0.6.0"'
+  assert_contains "test1: ecosystem.yml delegates personal ownership to User Setup" "$ecosystem_content" 'owner: user'
+  assert_contains "test1: personal repositories stay private-patterned and user-owned" "$ecosystem_content" 'repository_pattern: "<user>/<component>-copilot-private"'
 
   local expected_repos=(
     "acme-co/codex-copilot-internal" "acme-co/knowledge-copilot-internal" "acme-co/cli-copilot-internal"
@@ -320,6 +352,8 @@ test_leak_scan_blocks_before_push() {
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -405,6 +439,12 @@ test_verify_json_schema() {
   assert_true "test5: includes a deferred store row" "$has_deferred" "$verify_out"
   assert_true "test5: includes a present-undeclared row for the undeclared hr department" "$has_undeclared" "$verify_out"
 
+  local github_app_status personal_handoff_status
+  github_app_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "github-app") | .status')"
+  personal_handoff_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "personal-handoff") | .status')"
+  assert_eq "test5: verifies the public GitHub OAuth App client ID" "pass" "$github_app_status"
+  assert_eq "test5: verifies the personal User Setup handoff" "pass" "$personal_handoff_status"
+
   local deferred_excluded=1
   if echo "$verify_out" | jq -e '.summary.must_fix == 0 and .summary.unknown >= 0' >/dev/null 2>&1; then
     deferred_excluded=0
@@ -456,6 +496,8 @@ test_invalid_department_slug_refuses() {
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -532,15 +574,15 @@ EOF
 test_injected_read_failure_surfaces_honestly() {
   local st brief log
 
-  # Run mode: org-base-permission's read (orgs/acme-co) is call #5 in a
-  # fresh run (login, scopes, org-exists, membership, then this read) —
-  # the exact "injected call-5 failure" shape QA proved. Injecting on the
+  # Run mode: org-base-permission's read follows the four readiness reads
+  # and the nine-repository fail-closed preflight plus the read-only existing
+  # ecosystem contract probe, so it is call #15 in this fixture. Injecting on the
   # endpoint itself would also trip preflight's earlier, unrelated hit to
   # the same path, so this uses the call-count injection instead.
   st="$(new_org_state inject-run)"
   brief="$WORKDIR/brief-inject-run.md"
   write_brief "$brief" "$STORE_DEFERRED"
-  echo "5" > "$st/inject-error-at-call"
+  echo "15" > "$st/inject-error-at-call"
   log="$WORKDIR/inject-run.log"
 
   run_engine "$st" "$log" --brief "$brief"
@@ -661,6 +703,8 @@ test_leak_scan_blocks_branch_push() {
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -727,7 +771,7 @@ test_verify_renders_pending_pr() {
 
   local must_fix
   must_fix="$(printf '%s' "$verify_out" | jq -r '.summary.must_fix')"
-  assert_eq "test13: the pending-PR row counts toward must_fix" "1" "$must_fix"
+  assert_eq "test13: pending ecosystem, OAuth, and personal-handoff rows count toward must_fix" "3" "$must_fix"
 
   local verify_mutating
   verify_mutating="$(count_mutating_calls "$verify_log")"
@@ -744,14 +788,14 @@ test_foundation_pin_resolves_highest_matching_tag() {
   st="$(new_org_state semver-highest)"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
   cat > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot" <<'EOF'
-v5.12.0
-v5.13.0
-5.13.2
-v5.13.5
-v5.13.10
-v6.0.0
+v0.5.0
+v0.6.0
+0.6.2
+v0.6.5
+v0.6.10
+v0.7.0
 not-a-version
-v5.13.0-rc1
+v0.6.0-rc1
 EOF
   brief="$WORKDIR/brief-semver-highest.md"
   write_brief "$brief" "$STORE_DEFERRED"
@@ -766,11 +810,11 @@ EOF
   verify_out="$RUN_STDOUT"
 
   local row_status row_detail
-  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .status')"
-  row_detail="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .detail')"
+  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .status')"
+  row_detail="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .detail')"
 
   assert_eq "test14: foundation-pin resolves to pass" "pass" "$row_status"
-  assert_contains "test14: detail names the highest satisfying tag, excluding the higher-major v6.0.0" "$row_detail" "v5.13.10"
+  assert_contains "test14: detail names the highest satisfying tag, excluding v0.7.0" "$row_detail" "v0.6.10"
 
   local tags_call_count paginate_recorded
   tags_call_count="$(count_calls "$verify_log" '^GET$' '^repos/Everyone-Needs-A-Copilot/codex-copilot/tags$')"
@@ -790,9 +834,9 @@ test_foundation_pin_no_match_fails() {
   st="$(new_org_state semver-no-match)"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
   cat > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot" <<'EOF'
-v4.9.0
-v4.10.0
-v6.0.0
+v0.5.9
+v0.7.0
+v1.0.0
 EOF
   brief="$WORKDIR/brief-semver-no-match.md"
   write_brief "$brief" "$STORE_DEFERRED"
@@ -807,8 +851,8 @@ EOF
   verify_out="$RUN_STDOUT"
 
   local row_status row_owner
-  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .status')"
-  row_owner="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .owner')"
+  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .status')"
+  row_owner="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .owner')"
 
   assert_eq "test15: no tag satisfies the range, so foundation-pin fails" "fail" "$row_status"
   assert_eq "test15: fail is owned by ENAC/external" "ENAC/external" "$row_owner"
@@ -827,7 +871,7 @@ test_foundation_pin_injected_error_unknown() {
   local st brief log
   st="$(new_org_state semver-error)"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
-  printf 'v5.13.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
+  printf 'v0.6.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
   mkdir -p "$st/inject-error"
   touch "$st/inject-error/repos__Everyone-Needs-A-Copilot__codex-copilot__tags"
   brief="$WORKDIR/brief-semver-error.md"
@@ -843,7 +887,7 @@ test_foundation_pin_injected_error_unknown() {
   verify_out="$RUN_STDOUT"
 
   local row_status
-  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .status')"
+  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .status')"
   assert_eq "test16: an unreadable tags endpoint renders unknown, never pass or fail" "unknown" "$row_status"
 
   local verify_mutating
@@ -867,6 +911,8 @@ test_stale_branch_content_gets_updated_not_already_present() {
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -885,6 +931,8 @@ EOF
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -1092,13 +1140,15 @@ test_org_verbatim_mixed_case_accepted() {
   echo "admin" > "$st/orgs/Acme-Copilot/membership_earladmin"
   echo "admin" > "$st/orgs/Acme-Copilot/default_permission"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
-  printf 'v5.13.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
+  printf 'v0.6.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
 
   brief="$WORKDIR/brief-mixed-case-org.md"
   cat > "$brief" <<'EOF'
 ---
 schema_version: "1.0"
 org: Acme-Copilot
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -1252,6 +1302,125 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# Test 26: --plan is read-only and distinguishes private, confirmed-missing,
+# public collisions, and unreadable responses before setup can mutate.
+# ---------------------------------------------------------------------------
+
+test_repository_plan_is_fail_closed() {
+  local st brief log states mutations public_state unknown_state
+  st="$(new_org_state repository-plan)"
+  brief="$WORKDIR/brief-repository-plan.md"
+  write_both_harness_brief "$brief"
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
+  log="$WORKDIR/repository-plan.log"
+
+  run_engine "$st" "$log" --plan --brief "$brief" --json
+  assert_eq "test26: repository plan exits 0 when every target is private or confirmed missing" "0" "$RUN_EXIT" "$RUN_STDERR"
+  assert_eq "test26: repository plan emits valid JSON" "1" "$(printf '%s' "$RUN_STDOUT" | jq -e '.schema_version == "1.0"' >/dev/null && echo 1 || echo 0)"
+  assert_eq "test26: both-harness no-department plan has all four org repositories" "4" "$(printf '%s' "$RUN_STDOUT" | jq '.repositories | length')"
+  states="$(printf '%s' "$RUN_STDOUT" | jq -r '.repositories[] | select(.name == "codex-copilot-internal") | .state')"
+  assert_eq "test26: existing private repository is reused" "existing-private" "$states"
+  mutations="$(count_mutating_calls "$log")"
+  assert_eq "test26: plan makes zero mutating calls" "0" "$mutations"
+
+  echo false > "$st/repos/acme-co/codex-copilot-internal/private"
+  run_engine "$st" "$log" --plan --brief "$brief" --json
+  public_state="$(printf '%s' "$RUN_STDOUT" | jq -r '.repositories[] | select(.name == "codex-copilot-internal") | .state')"
+  assert_eq "test26: public collision blocks the plan" "1" "$RUN_EXIT"
+  assert_eq "test26: public collision is explicit" "conflict-public" "$public_state"
+  assert_eq "test26: blocked public plan makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+
+  echo true > "$st/repos/acme-co/codex-copilot-internal/private"
+  mkdir -p "$st/inject-error"
+  touch "$st/inject-error/repos__acme-co__knowledge-copilot-internal"
+  run_engine "$st" "$log" --plan --brief "$brief" --json
+  unknown_state="$(printf '%s' "$RUN_STDOUT" | jq -r '.repositories[] | select(.name == "knowledge-copilot-internal") | .state')"
+  assert_eq "test26: unreadable repository blocks the plan" "1" "$RUN_EXIT"
+  assert_eq "test26: unreadable response is unknown, never missing" "unknown" "$unknown_state"
+  assert_eq "test26: blocked unknown plan makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+}
+
+# ---------------------------------------------------------------------------
+# Test 27: a two-harness standup writes and verifies independent Claude and
+# Codex foundation references in one shared ecosystem.
+# ---------------------------------------------------------------------------
+
+test_two_harness_foundations_are_independent() {
+  local st brief log ecosystem_content verify_log verify_out
+  st="$(new_org_state two-harness-foundations)"
+  brief="$WORKDIR/brief-two-harness-foundations.md"
+  write_both_harness_brief "$brief"
+  log="$WORKDIR/two-harness-foundations.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test27: two-harness standup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  ecosystem_content="$(cat "$st/repos/acme-co/claude-copilot-internal/refs/main/ecosystem.yml")"
+  assert_contains "test27: ecosystem.yml pins Claude independently" "$ecosystem_content" 'claude: "^5.8.0"'
+  assert_contains "test27: ecosystem.yml pins Codex independently" "$ecosystem_content" 'codex: "^0.6.0"'
+
+  verify_log="$WORKDIR/two-harness-foundations-verify.log"
+  run_engine "$st" "$verify_log" --verify --brief "$brief" --json
+  verify_out="$RUN_STDOUT"
+  assert_eq "test27: two-harness verify exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+  assert_eq "test27: Claude foundation verifies" "pass" "$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:claude") | .status')"
+  assert_eq "test27: Codex foundation verifies" "pass" "$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .status')"
+}
+
+# ---------------------------------------------------------------------------
+# Test 28: a missing OAuth client ID is refused while the run is still purely
+# local, before even a read-only GitHub probe.
+# ---------------------------------------------------------------------------
+
+test_missing_oauth_client_id_refuses_before_github() {
+  local st brief log
+  st="$(new_org_state missing-oauth-client-id)"
+  brief="$WORKDIR/brief-missing-oauth-client-id.md"
+  cat > "$brief" <<'EOF'
+---
+schema_version: "1.0"
+org: acme-co
+harness:
+  - codex
+departments: []
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+EOF
+  log="$WORKDIR/missing-oauth-client-id.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test28: missing OAuth client ID exits 2" "2" "$RUN_EXIT"
+  assert_contains "test28: refusal asks only for the public client ID" "$RUN_STDERR" "public GitHub OAuth App client ID"
+  assert_contains "test28: refusal warns against the client secret" "$RUN_STDERR" "never add the client secret"
+  assert_eq "test28: missing OAuth client ID makes zero GitHub calls" "0" "$(wc -l < "$log" | tr -d ' ')"
+}
+
+# ---------------------------------------------------------------------------
+# Test 29: existing organization identity config is never overwritten. The
+# conflict is detected after read-only repository inventory and before any
+# repository, permission, branch, team, or content mutation.
+# ---------------------------------------------------------------------------
+
+test_existing_oauth_identity_conflict_refuses_before_mutation() {
+  local st brief log existing
+  st="$(new_org_state oauth-identity-conflict)"
+  existing=$'schema_version: "2.0"\norg: acme-co\nharness:\n  - codex\ncomponents:\n  - knowledge\n  - cli\n  - codex\ndepartments:\nstore:\n  status: deferred\ngithub_app:\n  client_id: "Iv1.ffffffffffffffff"\nfoundation:\n  refs:\n    codex: "^0.6.0"\npersonal:\n  owner: user\n  rank: 10\n  repository_pattern: "<user>/<component>-copilot-private"'
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal "$existing"
+  brief="$WORKDIR/brief-oauth-identity-conflict.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/oauth-identity-conflict.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test29: different existing OAuth client ID exits 2" "2" "$RUN_EXIT"
+  assert_contains "test29: refusal names the identity conflict" "$RUN_STDERR" "different github_app.client_id"
+  assert_contains "test29: refusal states that identity will not be replaced" "$RUN_STDERR" "won't replace organization identity config"
+  assert_eq "test29: identity conflict makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1280,6 +1449,10 @@ test_org_verbatim_mixed_case_accepted
 test_invalid_org_values_refuse_at_preflight
 test_department_case_only_still_refuses
 test_department_named_internal_refuses
+test_repository_plan_is_fail_closed
+test_two_harness_foundations_are_independent
+test_missing_oauth_client_id_refuses_before_github
+test_existing_oauth_identity_conflict_refuses_before_mutation
 
 echo
 echo "-----------------------------------------"
