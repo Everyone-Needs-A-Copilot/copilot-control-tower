@@ -68,11 +68,14 @@ on. Nothing in this directory claims a not-yet-built piece works.
 
 ## Docs in this directory
 
+- **[`admin-first-two-machine-setup-runbook.md`](admin-first-two-machine-setup-runbook.md)**
+  - the current operator sequence for using Admin on the first Mac, enforcing
+  the pre-reset handoff gate, safely quarantining the laptop's old local setup,
+  and completing User Setup plus acceptance checks on the clean laptop.
 - **[`ground-up-claude-codex-installation.md`](ground-up-claude-codex-installation.md)**
   - the Phase 6 ground-up path: public foundations, Admin/shared setup,
-  User/personal setup, exact cold-machine acceptance evidence, and the boundary
-  between commands that work today and the `cc onboard` transaction still to be
-  implemented.
+  User/personal setup, exact cold-machine acceptance evidence, and implementation
+  background. Use the admin-first runbook above for the live operator sequence.
 - **[`standup-runbook.md`](standup-runbook.md)** - the deployment runbook: seed
   → preflight → stand up the tier repos + team grants → rollout → opt-in
   telemetry → offboarding a leaver. The single "to actually stand up the

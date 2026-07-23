@@ -963,12 +963,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let env = ProcessInfo.processInfo.environment
+
+        #if CT_ADMIN_BUILD
+        // The Admin distribution is a conventional double-clickable app, not
+        // the User tray with a hidden Administration menu item. Keep the old
+        // SELFTEST route for deterministic launch regression coverage.
+        if env["CT_SELFTEST"] != "1" {
+            NSApp.setActivationPolicy(.regular)
+
+            if env["CT_ADMIN_READINESS_SELFTEST"] == "1" {
+                let model = AdminModel()
+                model.orgNameInput = env["CT_ADMIN_ORG"] ?? "acme-co"
+                Task { @MainActor in
+                    await model.runGitHubReadinessCheck()
+                    let rows = ReadinessRow.Kind.allCases.map {
+                        "\($0.rawValue)=\(String(describing: model.readinessRows[$0].status))"
+                    }.joined(separator: ",")
+                    print("ADMIN_READINESS \(rows)")
+                    exit(model.githubReadinessComplete ? 0 : 1)
+                }
+                return
+            }
+
+            AdminWindowController.shared.show()
+            return
+        }
+        #endif
+
         NSApp.setActivationPolicy(.accessory)
 
         let controller = StatusBarController()
         statusBarController = controller
 
-        let env = ProcessInfo.processInfo.environment
         let isFirstRun = !LocalDefaults.bool(forKey: Self.firstRunDefaultsKey)
         let forceWizard = env["CT_OPEN_WIZARD"] == "1"
 

@@ -174,6 +174,21 @@ contacts:
 EOF
 }
 
+write_both_harness_json_brief() {
+  local path="$1"
+  cat > "$path" <<'EOF'
+{
+  "schema_version": "1.0",
+  "org": "acme-co",
+  "github_app": {"client_id": "Iv1.a1b2c3d4e5f6a7b8"},
+  "harness": ["claude", "codex"],
+  "departments": [],
+  "store": {"status": "deferred"},
+  "contacts": {"admin": "Earl P."}
+}
+EOF
+}
+
 # run_engine STATE_DIR LOG_PATH ARGS... — sets RUN_STDOUT, RUN_STDERR, RUN_EXIT.
 run_engine() {
   local st="$1" log="$2"
@@ -1467,6 +1482,25 @@ test_layer_package_conflicts_refuse_before_mutation() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 31: the packaged app's JSON brief twin drives the same read-only plan
+# without invoking the Markdown/Python parser.
+# ---------------------------------------------------------------------------
+
+test_json_brief_drives_read_only_plan() {
+  local st brief log
+  st="$(new_org_state json-brief-plan)"
+  brief="$WORKDIR/brief-packaged-admin.json"
+  write_both_harness_json_brief "$brief"
+  log="$WORKDIR/json-brief-plan.log"
+
+  run_engine "$st" "$log" --plan --brief "$brief" --json
+  assert_eq "test31: JSON brief plan exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+  assert_eq "test31: JSON brief preserves the organization" "acme-co" "$(printf '%s' "$RUN_STDOUT" | jq -r '.owner')"
+  assert_eq "test31: JSON brief includes four no-department org repositories" "4" "$(printf '%s' "$RUN_STDOUT" | jq '.repositories | length')"
+  assert_eq "test31: JSON brief plan makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1500,6 +1534,7 @@ test_two_harness_foundations_are_independent
 test_missing_oauth_client_id_refuses_before_github
 test_existing_oauth_identity_conflict_refuses_before_mutation
 test_layer_package_conflicts_refuse_before_mutation
+test_json_brief_drives_read_only_plan
 
 echo
 echo "-----------------------------------------"

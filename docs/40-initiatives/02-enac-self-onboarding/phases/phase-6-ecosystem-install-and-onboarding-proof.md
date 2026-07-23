@@ -17,7 +17,7 @@
 
 Phases 1–5 delivered the hard machinery: the public foundation / private
 `-internal` org split (Phase 1, pushed), the GitHub standup engine
-(`scripts/admin_bootstrap.sh`, 182/182 tests — Phase 2 plus the Phase 6 repository, OAuth,
+(`scripts/admin_bootstrap.sh`, 186/186 tests — Phase 2 plus the Phase 6 repository, OAuth,
 personal-handoff, and product-pin gates), the live **base +
 org-overlay tier runtime** with a fail-closed credential ladder (Phase 3), then
 **config inheritance** (`TierConfigSource` + committed `config:` blocks), the
@@ -419,7 +419,7 @@ content in Admin output**.
 | Piece | Status | Gap |
 |---|---|---|
 | Public/private foundation split, pushed | **Built** | — |
-| GitHub standup engine (`admin_bootstrap.sh`), plan/apply/verify verbs | **Built** (182/182 offline assertions) | App renders the repository plan and invokes apply directly; the development build packages the engine beside the Admin binary. |
+| GitHub standup engine (`admin_bootstrap.sh`), plan/apply/verify verbs | **Built** (186/186 offline assertions) | App renders the repository plan and invokes apply directly; the development app packages the engine and its pinned tools. |
 | `ecosystem.yml` v2.0 authorship | **Built** (engine step 5) | Public OAuth client id, product-specific Claude/Codex pins, and the non-secret personal handoff are emitted and verified; live-org proof remains in S4. |
 | Tier runtime (base + overlay, nearest-wins) | **Built + live** | — |
 | Credential ladder (store → keychain → device-flow stub → paste) | **Built + live** | Rung 3 device-flow is a clean stub (unbuilt) |

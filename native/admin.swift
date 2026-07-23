@@ -1,11 +1,8 @@
 //
-// Copilot Control Tower — Admin mode (the 16-surface baton-pass rebuild).
-// Two faces, one binary: `control-tower-tray.swift` is the user face (Bob);
-// this file (+ `native/admin-support.swift`) is the Admin face (Earl).
-// Reached via the tray's right-click menu ("Open Administration...") or
-// `CT_OPEN_ADMIN=1` at launch — both call `AdminWindowController.shared.show()`,
-// the one seam `control-tower-tray.swift` depends on; nothing else there
-// changed for this rebuild.
+// Copilot Control Tower — Admin mode.
+// `control-tower-tray.swift` is the User face (Bob); this file plus
+// `native/admin-support.swift` is the separately packaged Admin face (Earl).
+// The Admin build opens this window directly as a conventional macOS app.
 //
 // Ground truth, read together (see docs/HANDOFF-ADMIN-MODE-BUILD.md for the
 // fuller map):
@@ -17,7 +14,7 @@
 //     verbatim from there or marked `[cw]` in a comment where the design doc
 //     flagged it as new/finalized-here.
 //   - docs/01-architecture/admin-standup-contract.md — the real machine seams:
-//     the brief file format (§1), the handoff command (§2), the verify verb
+//     the brief formats (§1), the in-app transaction amendment, and the verify
 //     JSON (§3). `scripts/admin_bootstrap.sh` implements the deterministic
 //     plan/apply/verify engine side of that contract.
 //   - docs/03-design/control-tower-visual-system.md — the "Quiet Instrument"
@@ -25,20 +22,17 @@
 //     no raw error strings, no time estimates, no em-dashes).
 //
 // REAL vs HONESTLY-DEGRADED (no mocks pretending to be real):
-//   - Connect GitHub (this file, below) shells real, read-only local checks:
-//     `gh --version`, `gh auth status` (parsed for sign-in + scopes), and
-//     `command -v claude`. The ONE thing NOT locally checkable from the
-//     sanctioned detection set is GitHub org ownership (no `gh api` call is
-//     sanctioned here) — that row is honestly rendered as a permanent "can't
-//     check this from here" (`// CONTRACT SEAM` below), never a fabricated
-//     pass.
+//   - Connect GitHub (this file, below) checks the bundled Admin tools, parses
+//     `gh auth status --json`, and verifies active organization ownership
+//     through GitHub's membership API. Missing identity/scopes route through
+//     GitHub's browser authorization; no terminal remediation is rendered.
 //   - Review and the Setup check (`native/admin-support.swift`) execute the real
 //     `scripts/admin_bootstrap.sh --verify --brief <path> --json` and render
 //     its plan/check rows verbatim; the explicit setup action invokes its
 //     additive apply path. If the engine or `gh` is missing, it renders the
 //     honest degraded state (`unknown`, never a fabricated green).
-//   - The brief writer and skill materializer (`native/admin-support.swift`)
-//     perform real file I/O against the paths the contract names.
+//   - The brief writer (`native/admin-support.swift`) persists both the
+//     human-readable Markdown and machine-readable JSON transaction input.
 //   - Surfaces with no real backing seam yet (Someone left's team/key listing,
 //     Org setup's live `ecosystem.yml` fetch) render their designed
 //     empty/degraded state honestly and are marked `// CONTRACT SEAM:` —
@@ -54,22 +48,20 @@
 //
 // File split: this file holds the process/file I/O primitives, the shared
 // secret-shape guard, the sidebar inventory, `AdminModel`, the window chrome
-// (handoff header + sidebar + root shell), and surfaces 1-8 (Orientation
-// through Review and hand off). `native/admin-support.swift` holds surfaces
-// 9-16 (Handed off through the five Governance surfaces), the verify/brief/
-// skill plumbing, and `AdminWindowController`. Both compile into the same
-// module (`swiftc native/*.swift`), so types split freely across the two.
+// (publisher header + sidebar + root shell), and surfaces 1-8 (Orientation
+// through Review and setup). `native/admin-support.swift` holds surfaces 9-16,
+// the verify/brief plumbing, and `AdminWindowController`. Both compile into
+// the same module (`swiftc native/*.swift`), so types split freely across the
+// two.
 
 import AppKit
 import SwiftUI
 
 // MARK: - Process runner (real process calls, always off the main thread)
 
-/// Runs a command inside the user's own login shell so PATH resolution
-/// matches what Earl would see in his own Terminal (Homebrew, asdf, etc.),
-/// the same reasoning `scripts/publisher_setup.swift`'s `runStreamingCommand`
-/// documents for its own `/bin/bash -lc` calls. Always off the main thread;
-/// never called from a SwiftUI `init()` (see this file's header).
+/// Runs commands off the main thread. Admin's packaged tools are prepended to
+/// PATH for every child process, so the product never depends on Homebrew or
+/// the administrator's shell configuration at runtime.
 enum ShellRunner {
     struct Output {
         let exitCode: Int32
@@ -84,6 +76,7 @@ enum ShellRunner {
                 let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
                 process.executableURL = URL(fileURLWithPath: shell)
                 process.arguments = ["-lc", command]
+                process.environment = AdminPaths.childProcessEnvironment
                 let outPipe = Pipe()
                 let errPipe = Pipe()
                 process.standardOutput = outPipe
@@ -114,6 +107,7 @@ enum ShellRunner {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: executable)
                 process.arguments = arguments
+                process.environment = AdminPaths.childProcessEnvironment
                 let outPipe = Pipe()
                 let errPipe = Pipe()
                 process.standardOutput = outPipe
@@ -153,55 +147,6 @@ enum AdminIO {
         }
     }
 
-    /// Materializes the bundled skill (admin-standup-contract.md §2.1), but
-    /// NOT as a byte-for-byte copy: the operator runs the materialized copy
-    /// from an arbitrary terminal `cwd` (their home directory, not the repo),
-    /// so every repo-relative `bash scripts/admin_bootstrap.sh` run command
-    /// in the source is rewritten to `bash "<absolute enginePath>"` (quoted,
-    /// so a path containing spaces still works) before it's written to
-    /// `destination`. The repo copy at `source` is never touched, so a
-    /// clone-and-run of the skill straight from the repository keeps the
-    /// repo-relative form and runs from the repository root.
-    ///
-    /// Idempotent by content, not mtime: writes only when the transformed
-    /// text actually differs from what's already at `destination` (covers
-    /// both "not materialized yet" and "the bundled skill or the engine path
-    /// changed since the last materialize").
-    static func materializeSkill(source: String, destination: String, enginePath: String) async -> Bool {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                let fm = FileManager.default
-                guard let sourceData = fm.contents(atPath: source),
-                      let sourceText = String(data: sourceData, encoding: .utf8)
-                else {
-                    continuation.resume(returning: false)
-                    return
-                }
-
-                let transformed = sourceText.replacingOccurrences(
-                    of: "bash scripts/admin_bootstrap.sh",
-                    with: "bash \"\(enginePath)\""
-                )
-
-                if let existingData = fm.contents(atPath: destination),
-                   let existingText = String(data: existingData, encoding: .utf8),
-                   existingText == transformed {
-                    continuation.resume(returning: true)
-                    return
-                }
-
-                do {
-                    let destURL = URL(fileURLWithPath: destination)
-                    try fm.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try transformed.write(to: destURL, atomically: true, encoding: .utf8)
-                    continuation.resume(returning: true)
-                } catch {
-                    continuation.resume(returning: false)
-                }
-            }
-        }
-    }
-
     static func revealInFinder(_ path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
@@ -215,6 +160,42 @@ enum AdminPaths {
     /// drift baseline across every re-run.
     static var briefPath: String {
         NSHomeDirectory() + "/Library/Application Support/CopilotControlTower/standup-brief.md"
+    }
+
+    /// Machine-readable twin of the operator-readable brief. The packaged
+    /// app passes this file to the engine so Admin has no Python dependency.
+    static var briefJSONPath: String {
+        NSHomeDirectory() + "/Library/Application Support/CopilotControlTower/standup-brief.json"
+    }
+
+    /// Build and test override first, then app resources, then the unbundled
+    /// development binary's sibling directory.
+    static var bundledBinPath: String {
+        if let override = ProcessInfo.processInfo.environment["CT_ADMIN_TOOLS_DIR"],
+           !override.isEmpty {
+            return override
+        }
+        if let resourcePath = Bundle.main.resourcePath {
+            let bundled = URL(fileURLWithPath: "bin", relativeTo: URL(fileURLWithPath: resourcePath)).standardizedFileURL.path
+            if FileManager.default.fileExists(atPath: bundled) {
+                return bundled
+            }
+        }
+        let executableDir = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.deletingLastPathComponent()
+        return executableDir.appendingPathComponent("bin").path
+    }
+
+    static func bundledTool(_ name: String) -> String? {
+        let candidate = URL(fileURLWithPath: name, relativeTo: URL(fileURLWithPath: bundledBinPath)).standardizedFileURL.path
+        guard FileManager.default.isExecutableFile(atPath: candidate) else { return nil }
+        return candidate
+    }
+
+    static var childProcessEnvironment: [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        let existing = environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        environment["PATH"] = "\(bundledBinPath):\(existing)"
+        return environment
     }
 
     /// CONTRACT SEAM: the interim engine's path, injectable in this one place
@@ -240,26 +221,6 @@ enum AdminPaths {
         }
         let cwd = FileManager.default.currentDirectoryPath
         return URL(fileURLWithPath: "scripts/admin_bootstrap.sh", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL.path
-    }
-
-    /// §2.1: the bundled OSS skill this prototype ships, and the fixed
-    /// user-scope location Review-and-hand-off materializes it to. Resolved
-    /// from the app bundle's Resources first, with the same
-    /// working-directory-relative fallback as `enginePath` above for today's
-    /// unbundled dev build.
-    static var bundledSkillSourcePath: String {
-        if let resourcePath = Bundle.main.resourcePath {
-            let bundled = URL(fileURLWithPath: ".claude/skills/admin-bootstrap/SKILL.md", relativeTo: URL(fileURLWithPath: resourcePath)).standardizedFileURL
-            if FileManager.default.fileExists(atPath: bundled.path) {
-                return bundled.path
-            }
-        }
-        let cwd = FileManager.default.currentDirectoryPath
-        return URL(fileURLWithPath: ".claude/skills/admin-bootstrap/SKILL.md", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL.path
-    }
-
-    static var materializedSkillDestPath: String {
-        NSHomeDirectory() + "/.claude/skills/admin-bootstrap/SKILL.md"
     }
 
     /// Display-only, abbreviated the same way the copy deck shows it
@@ -506,8 +467,8 @@ enum AdminOnboardingStage: Int, CaseIterable, Identifiable {
         case .describeOrg: return "Describe your organization"
         case .integrations: return "Integrations"
         case .secretStore: return "Secret store"
-        case .review: return "Review and hand off"
-        case .handedOff: return "Handed off"
+        case .review: return "Review setup"
+        case .handedOff: return "Organization setup"
         case .setupCheck: return "Setup check"
         case .done: return "Done"
         }
@@ -523,7 +484,7 @@ enum AdminOnboardingStage: Int, CaseIterable, Identifiable {
         case .integrations: return "puzzlepiece.extension"
         case .secretStore: return "lock.doc"
         case .review: return "arrow.left.arrow.right.circle"
-        case .handedOff: return "terminal"
+        case .handedOff: return "checkmark.seal"
         case .setupCheck: return "checklist.checked"
         case .done: return "checkmark.seal"
         }
@@ -604,12 +565,9 @@ enum StoreKind: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// Connect GitHub's five readiness rows (interaction-design Surface 4; copy
-/// deck §3.6). `owner` (row 3) is a `// CONTRACT SEAM`: the sanctioned local
-/// detection set (gh presence/version, `gh auth status` sign-in + scopes,
-/// Claude Code presence) has no real check for GitHub org ownership, so this
-/// row can never honestly reach `.pass` here — it renders a permanent,
-/// truthful "can't check this from here" rather than a fabricated green.
+/// Readiness rows for the self-contained Admin app. Local tools ship inside
+/// the app; GitHub identity, scopes, and organization ownership are read from
+/// GitHub through the bundled CLI.
 enum ReadinessStatus: Equatable {
     case notChecked
     case checking
@@ -620,7 +578,7 @@ enum ReadinessStatus: Equatable {
 
 struct ReadinessRow: Identifiable {
     enum Kind: String, CaseIterable, Identifiable {
-        case ghInstalled, signedIn, owner, scopes, claudeInstalled
+        case adminTools, signedIn, owner, scopes
         var id: String { rawValue }
     }
 
@@ -628,15 +586,13 @@ struct ReadinessRow: Identifiable {
     let kind: Kind
     var status: ReadinessStatus = .notChecked
     var detail: String = ""
-    var copyCommand: String? = nil
 
     func baseTitle(org: String) -> String {
         switch kind {
-        case .ghInstalled: return "GitHub's command-line tool is installed"
-        case .signedIn: return "You're signed in"
+        case .adminTools: return "Admin tools are included"
+        case .signedIn: return "GitHub account"
         case .owner: return "Your account is an owner of \(org.isEmpty ? "your organization" : org)"
-        case .scopes: return "Your sign-in has the access setup needs"
-        case .claudeInstalled: return "Claude Code is installed"
+        case .scopes: return "Setup permission"
         }
     }
 }
@@ -698,8 +654,10 @@ final class AdminModel: ObservableObject {
     @Published var githubOAuthClientIDRefused = false
     @Published var readinessRows: [ReadinessRow] = ReadinessRow.Kind.allCases.map { ReadinessRow(kind: $0) }
     @Published var githubChecking = false
+    @Published var githubAuthorizing = false
+    @Published var githubAuthorizationMessage: String? = nil
     @Published var githubCheckDegraded = false
-    @Published var copiedCommandID: String? = nil
+    private var readinessDebounceTask: Task<Void, Never>? = nil
 
     /// The org identity is an EXISTING GitHub organization name, not a value
     /// this app derives or slugifies: it is used verbatim (trimmed of
@@ -746,7 +704,6 @@ final class AdminModel: ObservableObject {
     // simply re-visiting Review without changing anything must not spuriously
     // rewrite. See `AdminModel.briefFingerprint` in native/admin-support.swift.
     @Published var briefWriteState: WriteState = .idle
-    @Published var skillMaterializeState: WriteState = .idle
     @Published var lastWrittenBriefFingerprint: String? = nil
     @Published var repositoryPlanState: WriteState = .idle
     @Published var repositoryPlan: OnboardReport? = nil
@@ -767,9 +724,6 @@ final class AdminModel: ObservableObject {
     // native/admin-support.swift's someoneLeftView)
     @Published var someoneLeftLookup = ""
     @Published var someoneLeftLookedUp = false
-
-    // Governance: Connect the shared store
-    @Published var governanceStoreCommandReady = false
 
     // MARK: Navigation helpers
 
@@ -805,115 +759,238 @@ final class AdminModel: ObservableObject {
         advance(from: .contacts)
     }
 
-    // MARK: Connect GitHub (real, read-only, sanctioned detection only)
+    // MARK: Connect GitHub
 
     func checkGitHubReadiness() {
         Task { await runGitHubReadinessCheck() }
     }
 
-    private func runGitHubReadinessCheck() async {
+    func scheduleGitHubReadinessCheck() {
+        readinessDebounceTask?.cancel()
+        guard orgSlugIsValid else {
+            var owner = readinessRows[.owner]
+            owner.status = .cannotCheckLocally
+            owner.detail = "Enter the existing GitHub organization name so Admin can verify ownership."
+            readinessRows[.owner] = owner
+            return
+        }
+        readinessDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard !Task.isCancelled else { return }
+            await runGitHubReadinessCheck()
+        }
+    }
+
+    func runGitHubReadinessCheck() async {
         githubChecking = true
         githubCheckDegraded = false
+        githubAuthorizationMessage = nil
         for i in readinessRows.indices { readinessRows[i].status = .checking }
 
-        let ghVersion = await ShellRunner.run("gh --version")
-        let ghPresent = ghVersion.exitCode == 0 && !ghVersion.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
-        if ghPresent {
-            var row = readinessRows[.ghInstalled]
-            row.status = .pass
-            row.detail = ""
-            row.copyCommand = nil
-            readinessRows[.ghInstalled] = row
-        } else {
-            var row = readinessRows[.ghInstalled]
+        guard let ghPath = AdminPaths.bundledTool("gh"),
+              let jqPath = AdminPaths.bundledTool("jq")
+        else {
+            var row = readinessRows[.adminTools]
             row.status = .fail
-            row.detail = "GitHub's command-line tool isn't on this Mac yet. Setup runs through it."
-            row.copyCommand = "brew install gh"
-            readinessRows[.ghInstalled] = row
+            row.detail = "This Admin app is incomplete. Download or rebuild the complete app before continuing."
+            readinessRows[.adminTools] = row
+            for kind in [ReadinessRow.Kind.signedIn, .owner, .scopes] {
+                var dependent = readinessRows[kind]
+                dependent.status = .cannotCheckLocally
+                dependent.detail = "Waiting for the complete Admin app."
+                readinessRows[kind] = dependent
+            }
+            githubCheckDegraded = true
+            githubChecking = false
+            return
         }
 
-        if ghPresent {
-            let auth = await ShellRunner.run("gh auth status 2>&1")
-            let combined = auth.stdout + auth.stderr
-            let signedIn = combined.lowercased().contains("logged in to")
+        async let ghVersionAsync = ShellRunner.run(executable: ghPath, arguments: ["--version"])
+        async let jqVersionAsync = ShellRunner.run(executable: jqPath, arguments: ["--version"])
+        let ghVersion = await ghVersionAsync
+        let jqVersion = await jqVersionAsync
+        let toolsReady = ghVersion.exitCode == 0 && jqVersion.exitCode == 0
 
-            var signedInRow = readinessRows[.signedIn]
-            if signedIn {
-                signedInRow.status = .pass
-                signedInRow.detail = ""
-                signedInRow.copyCommand = nil
-            } else {
-                signedInRow.status = .fail
-                signedInRow.detail = "You're not signed in to GitHub's command-line tool yet."
-                signedInRow.copyCommand = "gh auth login"
-            }
-            readinessRows[.signedIn] = signedInRow
-
-            var scopesRow = readinessRows[.scopes]
-            if signedIn {
-                let hasAdminOrg = combined.contains("admin:org")
-                let hasRepo = combined.contains("'repo'") || combined.contains("\"repo\"")
-                if hasAdminOrg && hasRepo {
-                    scopesRow.status = .pass
-                    scopesRow.detail = ""
-                    scopesRow.copyCommand = nil
-                } else {
-                    scopesRow.status = .fail
-                    scopesRow.detail = "Your GitHub sign-in is missing the access setup needs."
-                    scopesRow.copyCommand = "gh auth refresh -s admin:org -s repo"
-                }
-            } else {
-                scopesRow.status = .cannotCheckLocally
-                scopesRow.detail = "Can't check this until you're signed in."
-                scopesRow.copyCommand = nil
-            }
-            readinessRows[.scopes] = scopesRow
+        var toolsRow = readinessRows[.adminTools]
+        if toolsReady {
+            toolsRow.status = .pass
+            toolsRow.detail = "Everything Admin needs locally is inside this app."
         } else {
-            var signedInRow = readinessRows[.signedIn]
-            signedInRow.status = .cannotCheckLocally
-            signedInRow.detail = "Can't check this until GitHub's command-line tool is installed."
-            readinessRows[.signedIn] = signedInRow
+            toolsRow.status = .fail
+            toolsRow.detail = "The tools inside this Admin app did not start correctly. Download or rebuild the complete app."
+            githubCheckDegraded = true
+        }
+        readinessRows[.adminTools] = toolsRow
 
-            var scopesRow = readinessRows[.scopes]
+        guard toolsReady else {
+            for kind in [ReadinessRow.Kind.signedIn, .owner, .scopes] {
+                var dependent = readinessRows[kind]
+                dependent.status = .cannotCheckLocally
+                dependent.detail = "Waiting for the complete Admin app."
+                readinessRows[kind] = dependent
+            }
+            githubChecking = false
+            return
+        }
+
+        let auth = await ShellRunner.run(
+            executable: ghPath,
+            arguments: ["auth", "status", "--active", "--hostname", "github.com", "--json", "hosts"]
+        )
+        let account = Self.activeGitHubAccount(from: auth.stdout)
+
+        var signedInRow = readinessRows[.signedIn]
+        if let account, account.state == "success", !account.login.isEmpty {
+            signedInRow.status = .pass
+            signedInRow.detail = "Connected as \(account.login)."
+        } else {
+            signedInRow.status = .fail
+            signedInRow.detail = "This Mac is not connected to GitHub yet."
+        }
+        readinessRows[.signedIn] = signedInRow
+
+        var scopesRow = readinessRows[.scopes]
+        if let account, account.state == "success" {
+            let scopes = Set(account.scopes.split(separator: ",").map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            })
+            if scopes.contains("admin:org") && scopes.contains("repo") {
+                scopesRow.status = .pass
+                scopesRow.detail = "GitHub has granted the access organization setup needs."
+            } else {
+                scopesRow.status = .fail
+                scopesRow.detail = "GitHub still needs your approval to create and configure private organization spaces."
+            }
+        } else {
             scopesRow.status = .cannotCheckLocally
-            scopesRow.detail = "Can't check this until GitHub's command-line tool is installed."
-            readinessRows[.scopes] = scopesRow
+            scopesRow.detail = "Checked after GitHub authorization."
         }
+        readinessRows[.scopes] = scopesRow
 
-        // CONTRACT SEAM: org ownership has no sanctioned local check (it would
-        // need a live `gh api orgs/<org>/memberships/<user>` read, which is
-        // outside the sanctioned detection set for this surface). Render this
-        // honestly: never fabricated green, never a hard block either.
         var ownerRow = readinessRows[.owner]
-        ownerRow.status = .cannotCheckLocally
-        ownerRow.detail = "This app can't check organization ownership from this Mac. If setup later says you're not one, ask an owner to run this, or to make you one."
-        readinessRows[.owner] = ownerRow
-
-        let claude = await ShellRunner.run("command -v claude")
-        var claudeRow = readinessRows[.claudeInstalled]
-        if claude.exitCode == 0 && !claude.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            claudeRow.status = .pass
-            claudeRow.detail = ""
-        } else {
-            claudeRow.status = .fail
-            claudeRow.detail = "Claude Code isn't on this Mac yet. Setup runs there, so you'll want it before you hand off."
+        guard let account, account.state == "success" else {
+            ownerRow.status = .cannotCheckLocally
+            ownerRow.detail = "Checked after GitHub authorization."
+            readinessRows[.owner] = ownerRow
+            githubChecking = false
+            return
         }
-        readinessRows[.claudeInstalled] = claudeRow
+        guard orgSlugIsValid else {
+            ownerRow.status = .cannotCheckLocally
+            ownerRow.detail = "Enter the existing GitHub organization name so Admin can verify ownership."
+            readinessRows[.owner] = ownerRow
+            githubChecking = false
+            return
+        }
 
+        let membership = await ShellRunner.run(
+            executable: ghPath,
+            arguments: [
+                "api",
+                "orgs/\(orgSlug)/memberships/\(account.login)",
+                "--jq",
+                ".role + \":\" + .state",
+            ]
+        )
+        let membershipState = membership.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if membership.exitCode == 0 && membershipState == "admin:active" {
+            ownerRow.status = .pass
+            ownerRow.detail = "GitHub confirms this account is an active owner."
+        } else {
+            ownerRow.status = .fail
+            ownerRow.detail = "GitHub does not report this account as an active owner of \(orgSlug). An existing owner must grant that role."
+        }
+        readinessRows[.owner] = ownerRow
         githubChecking = false
     }
 
-    func copyToClipboard(_ text: String, id: String) {
-        let board = NSPasteboard.general
-        board.clearContents()
-        board.setString(text, forType: .string)
-        copiedCommandID = id
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            if self?.copiedCommandID == id {
-                self?.copiedCommandID = nil
+    private struct GitHubAccount {
+        let login: String
+        let state: String
+        let scopes: String
+    }
+
+    private static func activeGitHubAccount(from json: String) -> GitHubAccount? {
+        guard let data = json.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hosts = root["hosts"] as? [String: Any],
+              let accounts = hosts["github.com"] as? [[String: Any]],
+              let account = accounts.first(where: { ($0["active"] as? Bool) == true }),
+              let login = account["login"] as? String,
+              let state = account["state"] as? String
+        else { return nil }
+        return GitHubAccount(
+            login: login,
+            state: state,
+            scopes: account["scopes"] as? String ?? ""
+        )
+    }
+
+    var githubNeedsAuthorization: Bool {
+        readinessRows[.signedIn].status == .fail || readinessRows[.scopes].status == .fail
+    }
+
+    var githubReadinessComplete: Bool {
+        ReadinessRow.Kind.allCases.allSatisfy { readinessRows[$0].status == .pass }
+    }
+
+    var canContinueFromGitHub: Bool {
+        githubReadinessComplete && githubOAuthClientIDIsValid
+    }
+
+    func authorizeGitHub() {
+        guard !githubAuthorizing, let ghPath = AdminPaths.bundledTool("gh") else { return }
+        githubAuthorizing = true
+        githubAuthorizationMessage = "Finish authorizing in the GitHub browser window. Admin will check again when it closes."
+        Task {
+            let signedIn = readinessRows[.signedIn].status == .pass
+            let arguments: [String]
+            if signedIn {
+                arguments = [
+                    "auth", "refresh",
+                    "--hostname", "github.com",
+                    "--clipboard",
+                    "--scopes", "repo,read:org,admin:org",
+                ]
+            } else {
+                arguments = [
+                    "auth", "login",
+                    "--hostname", "github.com",
+                    "--git-protocol", "https",
+                    "--web",
+                    "--clipboard",
+                    "--scopes", "repo,read:org,admin:org",
+                    "--skip-ssh-key",
+                ]
+            }
+            let result = await ShellRunner.run(executable: ghPath, arguments: arguments)
+            githubAuthorizing = false
+            await runGitHubReadinessCheck()
+            if result.exitCode != 0 {
+                githubAuthorizationMessage = "GitHub authorization did not finish. Nothing was changed; try again when you're ready."
             }
         }
+    }
+
+    func openOrganizationSettings() {
+        guard orgSlugIsValid,
+              let url = URL(string: "https://github.com/organizations/\(orgSlug)/settings/profile")
+        else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func openOAuthAppSettings() {
+        let path = orgSlugIsValid
+            ? "https://github.com/organizations/\(orgSlug)/settings/applications"
+            : "https://github.com/settings/developers"
+        if let url = URL(string: path) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func advanceFromGitHub() {
+        guard canContinueFromGitHub else { return }
+        advance(from: .connectGitHub)
     }
 
     // MARK: Describe your organization
@@ -1247,14 +1324,14 @@ extension AdminRootView {
                 AdminCard {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("1. Describe your organization here.")
-                        Text("2. Claude Code sets it up in your terminal.")
-                        Text("3. Come back and run the Setup check.")
+                        Text("2. Review exactly what Admin found and will create.")
+                        Text("3. Let Admin set it up and verify the result.")
                     }
                     .font(.body)
                     .foregroundColor(Color(nsColor: .labelColor))
                 }
 
-                Text("This app never changes anything on GitHub itself. It gets you ready, hands the work to Claude Code, and checks the result.")
+                Text("Admin checks GitHub first, reuses what is already safe, creates only confirmed-missing private spaces, and verifies the result.")
                     .font(.callout)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
@@ -1392,7 +1469,7 @@ extension AdminRootView {
         StepShell(
             eyebrow: "ONBOARDING",
             title: "Before you begin",
-            intro: "A few things need to be true before setup can run. None of them happen here. This is just so nothing stops you halfway."
+            intro: "Admin includes the local tools it needs and checks them for you. You only provide organization decisions and approve GitHub access."
         ) {
             AdminCard {
                 VStack(alignment: .leading, spacing: 16) {
@@ -1415,11 +1492,7 @@ extension AdminRootView {
                     }
                     HStack(alignment: .top, spacing: 8) {
                         Text("•").foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        Text("You have GitHub's command-line tool and Claude Code on this Mac. The next step checks and helps.")
-                    }
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("•").foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        Text("Setup needs permission to work in your GitHub organization. It creates your shared repositories and sets up your teams and their access, so the GitHub command-line tool needs two permissions, called scopes: repo and admin:org. The next step checks for these and gives you the exact command to grant them if they are missing.")
+                        Text("The next step checks this Mac, your GitHub sign-in, organization ownership, and setup permission automatically. If GitHub needs your approval, one button opens its browser authorization.")
                     }
                     HStack(alignment: .top, spacing: 8) {
                         Text("•").foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -1487,7 +1560,7 @@ extension AdminRootView {
         StepShell(
             eyebrow: "ONBOARDING",
             title: "Get this Mac ready",
-            intro: "A quick check that this Mac can run the terminal session. This changes nothing. Claude Code checks all of this again when setup runs, and helps you fix anything that's off."
+            intro: "Admin includes the local tools it needs. It checks GitHub access and your organization automatically, then asks only for approvals GitHub requires from you."
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -1496,6 +1569,15 @@ extension AdminRootView {
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     SecretGuardedField(label: "", value: $model.orgNameInput, placeholder: "acme-co")
                         .frame(maxWidth: 320)
+                        .onChange(of: model.orgNameInput) { _ in
+                            model.orgSlugTouched = true
+                            model.scheduleGitHubReadinessCheck()
+                        }
+                    if model.orgSlugTouched, !model.orgNameInput.isEmpty, !model.orgSlugIsValid {
+                        Text("Use the organization's exact GitHub name.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemRed))
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -1527,6 +1609,11 @@ extension AdminRootView {
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
+                    Button("Open OAuth App settings") {
+                        model.openOAuthAppSettings()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!model.orgSlugIsValid)
                     if model.githubOAuthClientIDRefused {
                         Text("That is not a public Client ID, so it was not accepted. Never paste the OAuth client secret here.")
                             .font(.caption)
@@ -1551,22 +1638,46 @@ extension AdminRootView {
                     }
                 }
 
-                Text("This step just gives you a head start. It never blocks the hand-off.")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                if let message = model.githubAuthorizationMessage {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .accessibilityAddTraits(.updatesFrequently)
+                } else if model.canContinueFromGitHub {
+                    Text("Everything required on this Mac and GitHub is ready.")
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .labelColor))
+                }
             }
         } leadingActions: {
             backButton { model.goBack(from: .connectGitHub) }
-            if model.githubChecking {
+            if model.githubChecking || model.githubAuthorizing {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text("Checking your GitHub access...")
+                    Text(model.githubAuthorizing ? "Waiting for GitHub authorization..." : "Checking your GitHub access...")
                         .font(.callout)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
             }
         } primaryAction: {
-            primaryButton("Check again") {
+            if model.githubAuthorizing || model.githubChecking {
+                primaryButton("Checking…", enabled: false) {}
+            } else if model.githubNeedsAuthorization {
+                primaryButton("Authorize GitHub") {
+                    model.authorizeGitHub()
+                }
+            } else if model.canContinueFromGitHub {
+                primaryButton("Continue") {
+                    model.advanceFromGitHub()
+                }
+            } else {
+                primaryButton("Check again", enabled: model.orgSlugIsValid) {
+                    model.checkGitHubReadiness()
+                }
+            }
+        }
+        .task {
+            if model.readinessRows.allSatisfy({ $0.status == .notChecked }) {
                 model.checkGitHubReadiness()
             }
         }
@@ -1586,15 +1697,17 @@ extension AdminRootView {
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    if let command = row.copyCommand {
-                        CopyableCodeBlock(text: command)
-                            .frame(maxWidth: 360)
+                    if row.kind == .owner, row.status == .fail {
+                        Button("Open organization settings") {
+                            model.openOrganizationSettings()
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
                 Spacer()
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("\(row.baseTitle(org: model.orgSlug)), \(accessibilityWord(row.status))\(row.detail.isEmpty ? "" : ", " + row.detail)")
     }
 
@@ -2112,40 +2225,6 @@ extension AdminRootView {
         }
     }
 
-    private var commandCard: some View {
-        AdminCard(title: "The setup command") {
-            if model.briefWriteState == .success && model.skillMaterializeState == .success {
-                VStack(alignment: .leading, spacing: 10) {
-                    CopyableCodeBlock(text: model.handoffCommand, copyLabel: "Copy the setup command")
-                    Text("This hands Claude Code a plain description of your organization. It carries no secrets. Claude Code checks it with you, then does the work.")
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("When Claude Code says it's done, come back here and run the Setup check.")
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button {
-                        model.advance(from: .review)
-                    } label: {
-                        Text("When you've pasted it, come here to wait ›")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(Color(nsColor: .controlAccentColor))
-                }
-                .font(.callout)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            } else if model.skillMaterializeState == .failure {
-                Text("I couldn't get the setup skill ready on this Mac, so I won't hand off a command that can't run. Try again.")
-                    .foregroundColor(Color(nsColor: .systemRed))
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Getting the setup skill ready...")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                }
-            }
-        }
-    }
-
     private var repositoryInventoryCard: some View {
         AdminCard(title: "GitHub repository inventory") {
             VStack(alignment: .leading, spacing: 8) {
@@ -2204,7 +2283,7 @@ extension AdminRootView {
 
     private func performReviewWrite() async {
         let fingerprint = model.briefFingerprint
-        await model.writeBriefAndMaterializeSkill()
+        await model.writeBrief()
         if model.briefWriteState == .success {
             model.lastWrittenBriefFingerprint = fingerprint
             await model.loadRepositoryPlan()

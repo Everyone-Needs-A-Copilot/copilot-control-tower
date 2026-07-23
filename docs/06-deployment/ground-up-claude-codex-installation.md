@@ -1,9 +1,13 @@
 # Ground-up Claude and Codex installation
 
-This is the Phase 6 operator path for an ENAC installation with no department
-layer. It separates commands that work today from the onboarding transaction
-Phase 6 still has to implement. Do not replace a missing automated step with
-hand-written layer YAML and then call the machine onboarded.
+This is the Phase 6 implementation and acceptance reference for an ENAC
+installation with no department layer. The aggregate onboarding transaction is
+implemented; signed distribution, published foundation signer trust anchors,
+and the two-machine live proof remain. For the exact Admin-first, laptop-second
+operator sequence, use
+[`admin-first-two-machine-setup-runbook.md`](admin-first-two-machine-setup-runbook.md).
+Do not bypass a remaining trust gate with hand-written layer YAML and then call
+the machine onboarded.
 
 There are three separate experiences: Admin establishes organization resources;
 User Setup enrolls the person and device; recurring workspace activation checks
@@ -109,9 +113,9 @@ Codex pins plus the personal handoff, and verifies `github-app` and
 `personal-handoff` as separate rows. Live-org execution is still required before
 this section is accepted end to end.
 
-## 5. Run User Setup (personal repository slice works; aggregate target remains)
+## 5. Run User Setup (aggregate transaction implemented)
 
-The current plan/apply slice can safely inventory and create the signed-in
+The lower-level plan/apply slice can safely inventory and create the signed-in
 user's missing private component repositories:
 
 ```bash
@@ -122,15 +126,16 @@ cc onboard --scope personal --components claude,codex,knowledge,cli --apply --js
 Plan is read-only. Apply repeats the complete preflight before creation. An
 existing private repository is reused; a public collision or unreadable target
 blocks the transaction; only an explicit GitHub 404 is treated as missing.
-This slice does not yet seed rank-10 manifests or materialize product content.
+The aggregate transaction below uses that repository safety contract, seeds the
+rank-10 packages, and continues through device and materialization setup.
 
-The intended single transaction is:
+The implemented single transaction is:
 
 ```bash
 cc onboard --org Everyone-Needs-A-Copilot --products claude,codex --json
 ```
 
-It must:
+It:
 
 1. authenticate the individual through the organization's device-flow client;
 2. create or select the user's private Claude and Codex personal repositories;
@@ -141,10 +146,10 @@ It must:
 7. coordinate CLI mirror sync and run doctor;
 8. return opaque personal provenance and the three-layer result for each product.
 
-Until the aggregate form completes repository setup, rank-10 seeding,
-product-specific materialization, device credentials, sync, and doctor, the
-machine is not a valid ground-up onboarding proof. Do not hand-place a unified
-manifest or reuse an administrator credential to make the status appear green.
+The transaction is implemented and test-covered. A machine is still not a valid
+ground-up proof until that transaction runs live with published trusted
+foundation signatures and returns healthy. Do not hand-place a unified manifest
+or reuse an administrator credential to make the status appear green.
 
 ## 6. Acceptance evidence
 

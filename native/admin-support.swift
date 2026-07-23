@@ -2,28 +2,16 @@
 // Copilot Control Tower — Admin mode, part 2.
 //
 // Continues `native/admin.swift` (read that file's header first): surfaces
-// 9-16 (Handed off through the five Governance surfaces), the brief writer +
-// skill materializer + verify-verb shelling (the real machine seams named in
-// docs/01-architecture/admin-standup-contract.md), and `AdminWindowController`
-// (the one entry point `control-tower-tray.swift` calls). Compiles into the
-// same module as every other `native/*.swift` file.
+// 9-16, the brief writer, the deterministic plan/apply/verify shelling, and
+// `AdminWindowController`. Compiles into the same module as every other
+// `native/*.swift` file.
 
 import AppKit
 import SwiftUI
 
-// MARK: - AdminModel: the brief writer + skill materializer (admin-standup-
-// contract.md §1 and §2.1) — REAL file I/O against the contract's paths.
+// MARK: - AdminModel: readable + machine-readable standup briefs
 
 extension AdminModel {
-    /// The single copyable handoff line (contract §2): starts an interactive
-    /// Claude Code session with the `admin-bootstrap` skill as the opening
-    /// prompt, pointed at the brief's fully-resolved path (not a literal `~`,
-    /// so the pasted line works regardless of the destination shell's quoting
-    /// rules around tilde-expansion inside double quotes).
-    var handoffCommand: String {
-        "claude \"/admin-bootstrap \(AdminPaths.briefPath)\""
-    }
-
     private func yamlQuote(_ value: String) -> String {
         "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\""
     }
@@ -98,8 +86,47 @@ extension AdminModel {
         lines.append("The public OAuth App Client ID is \(githubOAuthClientID). The client secret is never collected or used.")
         lines.append("")
         lines.append("## What this file is")
-        lines.append("A plain description Claude Code reads as a starting point. It confirms it with you, then does the work. GitHub is the source of truth; the Setup check reads it fresh.")
+        lines.append("A plain description Admin uses for its read-only plan, explicit setup action, and Setup check. GitHub is the source of truth.")
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// Machine-readable twin of the human-readable standup brief. The app
+    /// passes this to the deterministic engine so the packaged Admin path has
+    /// no Python or YAML-parser prerequisite.
+    func buildBriefJSONContents() -> String? {
+        let depts = validDepartments
+        var store: [String: Any] = ["status": storeStatus == .connected ? "connected" : "deferred"]
+        if storeStatus == .connected {
+            store["type"] = storeKindSlug
+            store["endpoint"] = storeAddress
+            store["workspace_id"] = storeWorkspaceID.trimmingCharacters(in: .whitespacesAndNewlines)
+            store["environment"] = storeEnvironment.trimmingCharacters(in: .whitespacesAndNewlines)
+            store["secret_path"] = storeSecretPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            store["team_scopes"] = depts.map { dept in
+                [
+                    "team": dept.slug,
+                    "scope": storeScopeByDepartment[dept.id] ?? "dept/\(dept.slug)",
+                ]
+            }
+        }
+        let payload: [String: Any] = [
+            "schema_version": "1.0",
+            "org": orgSlug,
+            "harness": ["claude", "codex"],
+            "github_app": ["client_id": githubOAuthClientID],
+            "departments": depts.map(\.slug),
+            "store": store,
+            "contacts": [
+                "publisher": contactPublisher,
+                "admin": contactAdmin,
+                "point_of_contact": contactPointOfContact,
+            ],
+        ]
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+              let json = String(data: data, encoding: .utf8)
+        else { return nil }
+        return json + "\n"
     }
 
     private func describeSummarySentence(_ depts: [DepartmentEntry]) -> String {
@@ -125,29 +152,23 @@ extension AdminModel {
         }
     }
 
-    /// Writes the canonical brief (§1.4: exactly one, rewritten in place on
-    /// every write) then materializes the bundled skill (§2.1), in that
-    /// order — the Review surface offers the copyable command only once both
-    /// succeed, per the contract's fallback story.
-    func writeBriefAndMaterializeSkill() async {
+    /// Writes the operator-readable brief and its machine-readable twin.
+    func writeBrief() async {
         briefWriteState = .working
         guard githubOAuthClientIDIsValid else {
             briefWriteState = .failure
-            skillMaterializeState = .failure
             return
         }
         let contents = buildBriefContents()
-        let wrote = await AdminIO.writeFile(contents: contents, to: AdminPaths.briefPath)
+        guard let jsonContents = buildBriefJSONContents() else {
+            briefWriteState = .failure
+            return
+        }
+        async let markdownWrite = AdminIO.writeFile(contents: contents, to: AdminPaths.briefPath)
+        async let jsonWrite = AdminIO.writeFile(contents: jsonContents, to: AdminPaths.briefJSONPath)
+        let (wroteMarkdown, wroteJSON) = await (markdownWrite, jsonWrite)
+        let wrote = wroteMarkdown && wroteJSON
         briefWriteState = wrote ? .success : .failure
-        guard wrote else { return }
-
-        skillMaterializeState = .working
-        let materialized = await AdminIO.materializeSkill(
-            source: AdminPaths.bundledSkillSourcePath,
-            destination: AdminPaths.materializedSkillDestPath,
-            enginePath: AdminPaths.enginePath
-        )
-        skillMaterializeState = materialized ? .success : .failure
     }
 
     func loadRepositoryPlan() async {
@@ -161,7 +182,7 @@ extension AdminModel {
         }
         let result = await ShellRunner.run(
             executable: "/bin/bash",
-            arguments: [AdminPaths.enginePath, "--plan", "--brief", AdminPaths.briefPath, "--json"]
+            arguments: [AdminPaths.enginePath, "--plan", "--brief", AdminPaths.briefJSONPath, "--json"]
         )
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -188,7 +209,7 @@ extension AdminModel {
         // before any mutation; this is the explicit application confirmation.
         let result = await ShellRunner.run(
             executable: "/bin/bash",
-            arguments: [AdminPaths.enginePath, "--brief", AdminPaths.briefPath]
+            arguments: [AdminPaths.enginePath, "--brief", AdminPaths.briefJSONPath]
         )
         guard result.exitCode == 0 else {
             repositoryApplyState = .failure
@@ -211,10 +232,6 @@ extension AdminModel {
         Task { await performSetupCheck() }
     }
 
-    private func shellQuote(_ value: String) -> String {
-        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
-    }
-
     private func performSetupCheck() async {
         verifyState = .working
         verifyDegradedLine = nil
@@ -229,16 +246,17 @@ extension AdminModel {
             return
         }
 
-        let ghPresent = await ShellRunner.run("command -v gh")
-        guard ghPresent.exitCode == 0 else {
-            verifyDegradedLine = "GitHub's command-line tool isn't on this Mac yet, so I can't read what's really on GitHub. Install it, then run this again."
+        guard AdminPaths.bundledTool("gh") != nil else {
+            verifyDegradedLine = "This Admin app is incomplete, so I can't read what's really on GitHub. Download or rebuild the complete app."
             verifyUnknown = 1
             verifyState = .success
             return
         }
 
-        let command = "bash \(shellQuote(AdminPaths.enginePath)) --verify --brief \(shellQuote(AdminPaths.briefPath)) --json"
-        let result = await ShellRunner.run(command)
+        let result = await ShellRunner.run(
+            executable: "/bin/bash",
+            arguments: [AdminPaths.enginePath, "--verify", "--brief", AdminPaths.briefJSONPath, "--json"]
+        )
 
         guard let payload = Self.parseVerifyPayload(result.stdout), Self.isSchemaVersionSupported(payload.schemaVersion) else {
             let honest = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -285,7 +303,7 @@ extension AdminModel {
     /// The count-never-score summary line (copy deck §3.12), pluralized
     /// honestly, never a percentage or gauge.
     var verifySummaryLine: String {
-        if verifyMustFix == 0 && verifyUnknown == 0 { return "Everything's ready to hand over." }
+        if verifyMustFix == 0 && verifyUnknown == 0 { return "Everything is set up and verified." }
         let mustFixPart: String
         if verifyMustFix == 0 { mustFixPart = "Nothing must be fixed." }
         else if verifyMustFix == 1 { mustFixPart = "1 thing must be fixed." }
@@ -307,18 +325,18 @@ extension AdminModel {
     }
 }
 
-// MARK: - Surface 9: Handed off (the blind resting state, no fake spinner)
+// MARK: - Surface 9: Organization setup completed
 
 extension AdminRootView {
     var handedOffView: some View {
         StepShell(
             eyebrow: "ONBOARDING",
-            title: "Setup is running in your terminal",
-            intro: "Claude Code is setting up your organization now."
+            title: "Organization setup is in place",
+            intro: "Admin finished the approved setup action. Run the independent Setup check before handing the result to users."
         ) {
             AdminCard {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("This app can't see your terminal, so it won't guess how it's going. When Claude Code says it's done, run the Setup check and this app will read the result straight from GitHub.")
+                    Text("The Setup check reads GitHub again from scratch. It confirms that the private spaces, organization setup, OAuth handoff, store pointer, and foundation references match your plan.")
                         .fixedSize(horizontal: false, vertical: true)
 
                     Button {
@@ -328,7 +346,7 @@ extension AdminRootView {
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Text("You can close this. Your organization's setup lives on GitHub, and the Setup check reads it fresh every time.")
+                    Text("Your organization's setup lives on GitHub, and the Setup check reads it fresh every time.")
                         .font(.callout)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
@@ -664,14 +682,8 @@ extension AdminRootView {
                 }
 
                 AdminCard(title: "How this is added") {
-                    Text("This adds your store pointer to your organization's setup. It never deletes or overwrites anything already there. Claude Code makes the change in your terminal, the same way it set up your organization.")
+                    Text("Admin adds the store pointer to your organization's setup. It checks the existing repositories first and never deletes or overwrites unfamiliar content.")
                         .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if model.governanceStoreCommandReady {
-                    AdminCard {
-                        CopyableCodeBlock(text: model.handoffCommand, copyLabel: "Copy the command to add it")
-                    }
                 }
             }
             .font(.body)
@@ -680,13 +692,16 @@ extension AdminRootView {
             EmptyView()
         } primaryAction: {
             primaryButton(
-                "Copy the command to add it",
+                "Review store update",
                 enabled: model.storeAddressLooksValid && !model.storeAddress.isEmpty && model.storeConnectionDetailsAreValid
             ) {
                 Task {
                     model.storeStatus = .connected
-                    await model.writeBriefAndMaterializeSkill()
-                    model.governanceStoreCommandReady = model.briefWriteState == .success
+                    await model.writeBrief()
+                    if model.briefWriteState == .success {
+                        await model.loadRepositoryPlan()
+                        model.selection = .onboarding(.review)
+                    }
                 }
             }
         }

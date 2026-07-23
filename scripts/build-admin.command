@@ -21,6 +21,11 @@ cd "${REPO_ROOT}"
 
 BUILD_DIR=".copilot/control-tower-admin"
 BIN="${BUILD_DIR}/Copilot Control Tower (Admin)"
+APP="build/Copilot Control Tower Admin.app"
+APP_CONTENTS="${APP}/Contents"
+APP_MACOS="${APP_CONTENTS}/MacOS"
+APP_RESOURCES="${APP_CONTENTS}/Resources"
+APP_BIN="${APP_MACOS}/Copilot Control Tower Admin"
 
 SOURCES=(
     native/models.swift
@@ -34,6 +39,17 @@ SOURCES=(
 )
 
 mkdir -p "${BUILD_DIR}"
+
+GH_SOURCE="${CT_ADMIN_GH_PATH:-$(bash scripts/vendor-admin-tool.sh gh)}"
+JQ_SOURCE="${CT_ADMIN_JQ_PATH:-$(bash scripts/vendor-admin-tool.sh jq)}"
+if [[ -z "${GH_SOURCE}" || ! -x "${GH_SOURCE}" ]]; then
+    echo "error: gh is required on the build machine so it can be bundled into Admin." >&2
+    exit 2
+fi
+if [[ -z "${JQ_SOURCE}" || ! -x "${JQ_SOURCE}" ]]; then
+    echo "error: jq is required on the build machine so it can be bundled into Admin." >&2
+    exit 2
+fi
 
 # CC=/usr/bin/cc PATH=/usr/bin:$PATH avoids the `copilot` CLI's own `cc`
 # alias shadowing the real C compiler on this machine (see repo memory:
@@ -49,6 +65,9 @@ else
             break
         fi
     done
+    if [[ "scripts/build-admin.command" -nt "${BIN}" ]]; then
+        NEEDS_BUILD=1
+    fi
 fi
 
 if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
@@ -59,9 +78,32 @@ fi
 # beside it. Packaged builds resolve the same script from app Resources.
 cp scripts/admin_bootstrap.sh "${BUILD_DIR}/admin_bootstrap.sh"
 chmod 755 "${BUILD_DIR}/admin_bootstrap.sh"
+mkdir -p "${BUILD_DIR}/bin"
+cp "${GH_SOURCE}" "${BUILD_DIR}/bin/gh"
+cp "${JQ_SOURCE}" "${BUILD_DIR}/bin/jq"
+chmod 755 "${BUILD_DIR}/bin/gh" "${BUILD_DIR}/bin/jq"
+
+# Conventional double-clickable macOS bundle. The bare binary above stays in
+# place because the existing smoke harness launches it directly.
+if [[ -d "${APP}" ]]; then
+    rm -rf "${APP}"
+fi
+mkdir -p "${APP_MACOS}" "${APP_RESOURCES}/scripts" "${APP_RESOURCES}/bin"
+cp packaging/macos/Admin-Info.plist "${APP_CONTENTS}/Info.plist"
+cp "${BIN}" "${APP_BIN}"
+cp scripts/admin_bootstrap.sh "${APP_RESOURCES}/scripts/admin_bootstrap.sh"
+cp "${GH_SOURCE}" "${APP_RESOURCES}/bin/gh"
+cp "${JQ_SOURCE}" "${APP_RESOURCES}/bin/jq"
+cp src-tauri/icons/icon.icns "${APP_RESOURCES}/ControlTower.icns"
+chmod 755 "${APP_BIN}" "${APP_RESOURCES}/scripts/admin_bootstrap.sh" "${APP_RESOURCES}/bin/gh" "${APP_RESOURCES}/bin/jq"
+
+# Local development builds are ad-hoc signed so macOS can validate bundle
+# integrity. Release distribution still uses the Developer ID/notary pipeline.
+codesign --force --deep --sign - "${APP}" >/dev/null
 
 if [[ "${1:-}" == "--build-only" ]]; then
+    echo "${APP}"
     exit 0
 fi
 
-exec "${BIN}"
+open "${APP}"

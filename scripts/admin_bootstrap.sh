@@ -208,6 +208,14 @@ _suggest_slug() {
 
 _parse_brief_frontmatter() {
   local brief_path="$1"
+  # The packaged Admin app writes a machine-readable JSON twin beside the
+  # human-readable Markdown brief. Prefer that path in-product so Admin has no
+  # Python runtime dependency. The Markdown parser remains for source/operator
+  # compatibility.
+  if [[ "$brief_path" == *.json ]]; then
+    jq -c . "$brief_path"
+    return
+  fi
   python3 - "$brief_path" <<'PYEOF'
 import sys, json
 

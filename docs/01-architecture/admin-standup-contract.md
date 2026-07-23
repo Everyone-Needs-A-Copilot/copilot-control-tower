@@ -1,12 +1,24 @@
 # The Admin standup contract (machine contracts for the redesigned Admin experience)
 
+> **Implementation amendment — 2026-07-23.** The packaged Admin app now owns
+> the complete zero-terminal transaction. It automatically checks its bundled
+> tools, GitHub identity, required scopes, and active organization-owner role;
+> browser-authorizes GitHub when needed; renders the engine's read-only
+> repository plan; invokes apply only after **Set up organization**; and renders
+> verify from a fresh read. This supersedes the historical baton-pass language
+> in §0, §1's “app → terminal” framing, §2, and the skill-materialization
+> requirements. The deterministic engine, brief schema, fail-closed plan/apply
+> behavior, idempotence, ownership boundary, and verify schema remain
+> normative. The Markdown brief remains human-readable; the app passes its
+> JSON twin to the engine so Python is not a packaged runtime dependency.
+
 | | |
 |---|---|
-| **Status** | Proposed (architecture). Pins the machine contracts the owner-approved Admin-mode redesign implies, as one versioned document. Control-tower-originated; folds into WS-A at freeze (§8). |
+| **Status** | Implemented with the 2026-07-23 zero-terminal amendment above. Historical baton-pass sections remain for lineage and are non-normative where the amendment supersedes them. |
 | **Serves** | `docs/03-design/admin-experience-service-design.md` (the approved service blueprint, Journeys A/B/C) and `docs/03-design/admin-experience-interaction-design.md` (the 16-surface interaction spec). Everything here must render exactly what those two design docs describe. |
 | **Reads on (authoritative)** | `docs/10-reference/four-tier-topology.md` (resolver / teams / auth mechanics), `docs/01-architecture/cli-contract.md` + `schemas/_envelope.schema.json` (schema_version, fail-closed conventions), `docs/10-reference/copilot-solutioning-ecosystem.md` (CSE component model). |
 | **Supersedes (in part)** | `docs/03-design/admin-agentic-setup.md` and `docs/03-design/control-tower-admin-flow.md` — see the reconciliation table (§7). |
-| **Governing invariants** | #1 parse-never-compute (the app collects and renders; a deterministic engine computes and executes; Claude Code narrates) · #3 never-destroy (additive/idempotent) · #4 security inherited-not-weakened (no `--force`/`--skip-verify`, no bypass; **no signing/policy-signer machinery anywhere in v1**) · #6 one-way inheritance, secrets never in git (no field defined here may hold a secret). |
+| **Governing invariants** | #1 parse-never-compute (the app collects, confirms, invokes, and renders; a deterministic engine computes and executes) · #3 never-destroy (additive/idempotent) · #4 security inherited-not-weakened (no `--force`/`--skip-verify`, no bypass; **no signing/policy-signer machinery anywhere in v1**) · #6 one-way inheritance, secrets never in git (no field defined here may hold a secret). |
 
 ---
 
