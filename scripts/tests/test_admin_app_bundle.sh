@@ -115,4 +115,18 @@ for expected in \
   fi
 done
 
+harness_output="$(
+  CT_ADMIN_HARNESS_SELFTEST=1 \
+  "${BIN}"
+)"
+if [[ "${harness_output}" != *"ADMIN_HARNESSES selected=claude,codex yaml=pass json=pass single=pass empty=pass"* ]]; then
+  echo "Admin harness selftest did not preserve both default selections through the brief: ${harness_output}" >&2
+  exit 1
+fi
+
+if rg -Fq 'Picker("", selection: $model.harness)' native/admin.swift; then
+  echo "Admin still uses an exclusive harness picker" >&2
+  exit 1
+fi
+
 echo "admin app bundle tests: PASS"

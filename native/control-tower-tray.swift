@@ -972,6 +972,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if env["CT_SELFTEST"] != "1" {
             NSApp.setActivationPolicy(.regular)
 
+            if env["CT_ADMIN_HARNESS_SELFTEST"] == "1" {
+                let model = AdminModel()
+                model.orgNameInput = "acme-co"
+                model.githubOAuthClientIDInput = "Iv1.a1b2c3d4e5f6a7b8"
+                let yaml = model.buildBriefContents()
+                let json = model.buildBriefJSONContents() ?? ""
+                let yamlHasBoth = yaml.contains("  - claude\n")
+                    && yaml.contains("  - codex\n")
+                let jsonHarnesses: [String]
+                if let data = json.data(using: .utf8),
+                   let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let harnesses = payload["harness"] as? [String] {
+                    jsonHarnesses = harnesses
+                } else {
+                    jsonHarnesses = []
+                }
+                let selected = model.orderedHarnesses.map(\.rawValue)
+                model.setHarness(.codex, selected: false)
+                let singleYaml = model.buildBriefContents()
+                let singleSelectionPass = model.orderedHarnesses.map(\.rawValue) == ["claude"]
+                    && singleYaml.contains("  - claude\n")
+                    && !singleYaml.contains("  - codex\n")
+                    && !model.planCardLines.contains("acme-co/codex-copilot-internal")
+                model.setHarness(.claude, selected: false)
+                let emptySelectionPass = !model.selectedHarnessesAreValid
+                print(
+                    "ADMIN_HARNESSES selected=\(selected.joined(separator: ",")) "
+                        + "yaml=\(yamlHasBoth ? "pass" : "fail") "
+                        + "json=\(jsonHarnesses == selected ? "pass" : "fail") "
+                        + "single=\(singleSelectionPass ? "pass" : "fail") "
+                        + "empty=\(emptySelectionPass ? "pass" : "fail")"
+                )
+                exit(
+                    selected == ["claude", "codex"]
+                        && yamlHasBoth
+                        && jsonHarnesses == selected
+                        && singleSelectionPass
+                        && emptySelectionPass
+                        ? 0 : 1
+                )
+            }
+
             if env["CT_ADMIN_READINESS_SELFTEST"] == "1" {
                 let model = AdminModel()
                 model.orgNameInput = env["CT_ADMIN_ORG"] ?? "acme-co"

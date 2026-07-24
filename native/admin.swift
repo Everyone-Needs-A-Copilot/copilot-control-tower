@@ -558,12 +558,18 @@ enum AdminProgressMark: Equatable {
 
 // MARK: - Domain types
 
-enum Harness: String, CaseIterable, Identifiable {
+enum Harness: String, CaseIterable, Identifiable, Hashable {
     case claude, codex
     var id: String { rawValue }
     var displayName: String {
         switch self {
         case .claude: return "Claude Code"
+        case .codex: return "Codex"
+        }
+    }
+    var componentDisplayName: String {
+        switch self {
+        case .claude: return "Claude"
         case .codex: return "Codex"
         }
     }
@@ -709,7 +715,7 @@ final class AdminModel: ObservableObject {
     }
 
     // Surface 5: Describe your organization
-    @Published var harness: Harness = .codex
+    @Published var selectedHarnesses: Set<Harness> = Set(Harness.allCases)
     @Published var departments: [DepartmentEntry] = []
     @Published var orgSlugTouched = false
 
@@ -1039,15 +1045,16 @@ final class AdminModel: ObservableObject {
         guard orgSlugIsValid else { return [] }
         var lines: [String] = []
         let org = orgSlug
-        lines.append("Four private shared spaces for your whole organization:")
-        for component in ["knowledge", "cli", "claude", "codex"] {
+        let components = selectedComponentRepoTokens
+        lines.append("Private shared spaces for your whole organization (\(components.count)):")
+        for component in components {
             lines.append("\(org)/\(component)-copilot-internal")
         }
         for dept in departments where !dept.slug.isEmpty {
             let display = dept.name.trimmingCharacters(in: .whitespacesAndNewlines)
             lines.append("")
-            lines.append("Four private spaces for the \(display) department:")
-            for component in ["knowledge", "cli", "claude", "codex"] {
+            lines.append("Private spaces for the \(display) department (\(components.count)):")
+            for component in components {
                 lines.append("\(org)/\(component)-copilot-\(dept.slug)")
             }
             // Rephrased to avoid an a/an article choice on an arbitrary typed
@@ -1114,13 +1121,54 @@ final class AdminModel: ObservableObject {
         departments.filter { !$0.slug.isEmpty }
     }
 
+    /// Stable ordering for UI copy, plans, fingerprints, and the standup
+    /// brief. A Set gives the screen independent multi-selection semantics;
+    /// this ordered projection keeps generated artifacts deterministic.
+    var orderedHarnesses: [Harness] {
+        Harness.allCases.filter { selectedHarnesses.contains($0) }
+    }
+
+    var selectedHarnessesAreValid: Bool {
+        !selectedHarnesses.isEmpty
+    }
+
+    var selectedHarnessDisplayNames: String {
+        switch orderedHarnesses.map(\.displayName) {
+        case []:
+            return "none"
+        case let names where names.count == 1:
+            return names[0]
+        case let names:
+            return names.dropLast().joined(separator: ", ") + " and " + names.last!
+        }
+    }
+
+    var selectedComponentDisplayNames: [String] {
+        ["Knowledge", "CLI"] + orderedHarnesses.map(\.componentDisplayName)
+    }
+
+    var selectedComponentRepoTokens: [String] {
+        ["knowledge", "cli"] + orderedHarnesses.map(\.repoToken)
+    }
+
+    func setHarness(_ harness: Harness, selected: Bool) {
+        var next = selectedHarnesses
+        if selected {
+            next.insert(harness)
+        } else {
+            next.remove(harness)
+        }
+        selectedHarnesses = next
+    }
+
     /// A cheap, order-stable fingerprint of every field that feeds
     /// `buildBriefContents()`, contacts included. Compared against
     /// `lastWrittenBriefFingerprint` to decide whether Review needs to
     /// rewrite the brief (QA fix: a stale fingerprint used to let Back +
     /// edit + return show an out-of-date command).
     var briefFingerprint: String {
-        var parts: [String] = [orgSlug, githubOAuthClientID, harness.rawValue]
+        var parts: [String] = [orgSlug, githubOAuthClientID]
+        parts.append(contentsOf: orderedHarnesses.map(\.rawValue))
         parts.append(contentsOf: validDepartments.map { $0.slug })
         switch storeStatus {
         case .connected:
@@ -1770,7 +1818,7 @@ extension AdminRootView {
         StepShell(
             eyebrow: "ONBOARDING",
             title: "Describe your organization",
-            intro: "Tell setup your organization's name, the harness it builds with, and its departments. As you type, you'll see exactly what will be created. Nothing is created here. This is the plan setup will follow."
+            intro: "Tell setup your organization's name, the development harnesses it uses, and its departments. As you type, you'll see exactly what will be created. Nothing is created here. This is the plan setup will follow."
         ) {
             VStack(alignment: .leading, spacing: 20) {
                 AdminCard {
@@ -1785,23 +1833,32 @@ extension AdminRootView {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Which development harness does your company build with?")
+                    Text("Which development harnesses does your company use?")
                         .font(.body)
                         .foregroundColor(Color(nsColor: .labelColor))
-                    Picker("", selection: $model.harness) {
+                    HStack(spacing: 24) {
                         ForEach(Harness.allCases) { h in
-                            Text(h.displayName).tag(h)
+                            Toggle(
+                                h.displayName,
+                                isOn: Binding(
+                                    get: { model.selectedHarnesses.contains(h) },
+                                    set: { model.setHarness(h, selected: $0) }
+                                )
+                            )
+                            .toggleStyle(.checkbox)
+                            .accessibilityHint("Select to set up the \(h.displayName) organization and department layers.")
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: 320)
-                    .accessibilityLabel("Development harness, \(model.harness.displayName) selected, your organization's default")
 
-                    Text("This chooses the default experience. Setup provisions both Claude and Codex organization layers, plus Knowledge and CLI, so either harness is ready without another repository pass.")
+                    Text("Select both to set up Claude Code and Codex together. Knowledge and CLI are included with either choice.")
                         .font(.callout)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
+                    if !model.selectedHarnessesAreValid {
+                        Text("Select at least one development harness.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemRed))
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -1826,7 +1883,7 @@ extension AdminRootView {
         } leadingActions: {
             backButton { model.goBack(from: .describeOrg) }
         } primaryAction: {
-            primaryButton("Continue", enabled: model.orgSlugIsValid) {
+            primaryButton("Continue", enabled: model.orgSlugIsValid && model.selectedHarnessesAreValid) {
                 model.advance(from: .describeOrg)
             }
         }
@@ -1888,7 +1945,7 @@ extension AdminRootView {
                     ForEach(Array(model.planCardLines.enumerated()), id: \.offset) { _, line in
                         if line.isEmpty {
                             Spacer().frame(height: 6)
-                        } else if line.hasPrefix("Three ") || line.hasPrefix("Your whole organization") || line.hasPrefix("An ") {
+                        } else if line.hasPrefix("Private ") || line.hasPrefix("Your whole organization") || line.hasPrefix("An ") {
                             Text(line)
                                 .font(.body)
                                 .foregroundColor(Color(nsColor: .labelColor))
@@ -2164,14 +2221,14 @@ extension AdminRootView {
 
                 AdminCard(title: "The complete organization setup") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Org spaces: knowledge, CLI, Claude, and Codex repositories ending in -internal. Private.")
+                        Text("Org spaces: \(model.selectedComponentDisplayNames.joined(separator: ", ")) repositories ending in -internal. Private.")
                         ForEach(model.departments.filter { !$0.slug.isEmpty }) { dept in
-                            Text("\(dept.name): four spaces and a team for \(dept.name) that can reach them.")
+                            Text("\(dept.name): \(model.selectedComponentRepoTokens.count) spaces and a team for \(dept.name) that can reach them.")
                         }
                         Text("Your organization's setup file (ecosystem.yml).")
                         Text("Your organization's public GitHub OAuth App client ID. The client secret is never collected.")
                         Text("Your whole organization set to read by default.")
-                        Text("Harnesses: Claude and Codex. Default: \(model.harness.displayName).")
+                        Text("Harnesses: \(model.selectedHarnessDisplayNames).")
                         Text(model.storeStatus == .connected ? "Store: connected." : "Store: not connected yet.")
                     }
                     .font(.body)
@@ -2239,7 +2296,7 @@ extension AdminRootView {
                             .buttonStyle(.plain)
                             .foregroundColor(Color(nsColor: .controlAccentColor))
                         }
-                        Text("At a glance: \(model.orgSlug) · \(model.harness.displayName) · \(model.departments.filter { !$0.slug.isEmpty }.count) departments · \(model.storeAtAGlance).")
+                        Text("At a glance: \(model.orgSlug) · \(model.selectedHarnessDisplayNames) · \(model.departments.filter { !$0.slug.isEmpty }.count) departments · \(model.storeAtAGlance).")
                             .font(.callout)
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         Text("It carries no secrets and no integrations.")

@@ -30,8 +30,9 @@ extension AdminModel {
         lines.append("schema_version: \"1.0\"")
         lines.append("org: \(orgSlug)")
         lines.append("harness:")
-        lines.append("  - claude")
-        lines.append("  - codex")
+        for harness in orderedHarnesses {
+            lines.append("  - \(harness.rawValue)")
+        }
         lines.append("github_app:")
         lines.append("  client_id: \(yamlQuote(githubOAuthClientID))")
         if depts.isEmpty {
@@ -112,7 +113,7 @@ extension AdminModel {
         let payload: [String: Any] = [
             "schema_version": "1.0",
             "org": orgSlug,
-            "harness": ["claude", "codex"],
+            "harness": orderedHarnesses.map(\.rawValue),
             "github_app": ["client_id": githubOAuthClientID],
             "departments": depts.map(\.slug),
             "store": store,
@@ -136,7 +137,7 @@ extension AdminModel {
         let storePart = storeStatus == .connected
             ? "Its shared secret store is connected."
             : "Its shared secret store isn't connected yet."
-        return "\(orgSlug), using Claude and Codex, with \(deptPart). \(storePart) This file carries no secrets and no integrations."
+        return "\(orgSlug), using \(selectedHarnessDisplayNames), with \(deptPart). \(storePart) This file carries no secrets and no integrations."
     }
 
     private func storeProseSentence(_ depts: [DepartmentEntry]) -> String {
@@ -155,7 +156,7 @@ extension AdminModel {
     /// Writes the operator-readable brief and its machine-readable twin.
     func writeBrief() async {
         briefWriteState = .working
-        guard githubOAuthClientIDIsValid else {
+        guard githubOAuthClientIDIsValid, selectedHarnessesAreValid else {
             briefWriteState = .failure
             return
         }
@@ -573,7 +574,7 @@ extension AdminRootView {
     private var existingStateLine: String {
         let names = model.departments.filter { !$0.slug.isEmpty }.map { $0.name }
         let deptText = names.isEmpty ? "no departments yet" : names.joined(separator: ", ")
-        return "Your organization already has: \(deptText), on \(model.harness.displayName). Add a new department and you'll see the plan for just its three spaces and its team. You can also add the other harness alongside \(model.harness.displayName) for the whole organization; it only adds the new spaces and leaves everything else alone."
+        return "Your organization already has \(deptText), using \(model.selectedHarnessDisplayNames). Add a department or another harness and setup only adds what's new; it leaves everything already there alone."
     }
 }
 
@@ -727,7 +728,7 @@ extension AdminRootView {
                     }
                 } else {
                     AdminCard(title: "Copilots & harness") {
-                        Text("Harness: \(model.harness.displayName). Codex · Knowledge · CLI.")
+                        Text("Harnesses: \(model.selectedHarnessDisplayNames). \(model.selectedComponentDisplayNames.joined(separator: " · ")).")
                     }
                     AdminCard(title: "Departments") {
                         let names = model.departments.filter { !$0.slug.isEmpty }.map { $0.name }
