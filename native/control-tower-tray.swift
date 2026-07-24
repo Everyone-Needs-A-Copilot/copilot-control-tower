@@ -67,13 +67,17 @@ enum JoinRowState: Equatable {
 // MARK: - Region 6, projects notice + drill-in (adopt-and-project-setup spec)
 
 /// One project row's transient, session-local UI state while `TrayModel.
-/// addProject(_:)`/`addAllProjects()` is in flight — never persisted, never
-/// read back from the CLI (`nil` in `TrayModel.projectRowActions` means
-/// "render straight from the last `WorkspacesReport`", i.e. `ProjectRowRender`
-/// below).
+/// addProject(_:)`/`addAllProjects()`/`undoProject(_:)` is in flight — never
+/// persisted, never read back from the CLI (`nil` in `TrayModel.
+/// projectRowActions` means "render straight from the last `WorkspacesReport`",
+/// i.e. `ProjectRowRender` below). `undoing`/`undoFailed` are B3's own pair,
+/// mirroring `adding`/`failed` for the **Undo** control (spec, "Undo": "Result"
+/// / "Failed").
 enum ProjectRowAction: Equatable {
     case adding
     case failed
+    case undoing
+    case undoFailed
 }
 
 /// Pure: the Region 6 notice's count and copy. A `static`, instance-free
@@ -98,6 +102,22 @@ enum ProjectsNoticeRender {
     }
 }
 
+/// Pure: the ONE-TIME "first automatic setup ever" notice's text (spec,
+/// "Menu bar: the projects notice", "Notice, first automatic setup ever").
+/// A `static`, instance-free namespace — same reason `ProjectsNoticeRender`
+/// above is one — shared between `PopoverContentView` and
+/// `CT_TRAY_PROJECTS_SELFTEST` below. WHETHER to show it (shown once, ever,
+/// gated by `LocalDefaults`) lives on `TrayModel`; this only ever picks the
+/// wording once that gate has already said yes.
+enum RecentlySetUpRender {
+    static func noticeText(_ entries: [WorkspaceRecentlySetUp]) -> String {
+        if entries.count == 1, let only = entries.first {
+            return "New projects get your copilots automatically now. I just set up \(only.name)."
+        }
+        return "New projects get your copilots automatically now. I just set up \(entries.count) new projects."
+    }
+}
+
 /// Pure: one project row's caption + control label for the drill-in
 /// (`ProjectRowAction` above overrides the caption/control while an add is
 /// in flight or just failed; this covers every OTHER row state). Mirrors
@@ -109,12 +129,20 @@ enum ProjectRowRender {
         case canBeSetUp
         case needsFinishing
         case alreadySetUp
+        /// A `ready` project the CLI's top-level `recently_set_up` record
+        /// names by `name` (B3, adopt-and-project-setup spec, "Automatic
+        /// setup for new projects" / "Discover it happened") — set up
+        /// without being asked, with **Undo** offered for as long as
+        /// `workspace.undo.available` says the CLI can still prove what it
+        /// added is untouched. The app never infers "this one was
+        /// automatic" any other way than checking that CLI-provided name
+        /// list (CLAUDE.md invariant #1) — passed in as
+        /// `recentlySetUpNames` by every function below, defaulting to
+        /// empty so every existing call site (and `alreadySetUp`'s prior
+        /// behavior) is unchanged when the caller has no such list yet.
+        case automaticallySetUp
         /// A project `revert` (Undo) previously excluded — "Left alone at
-        /// your request.", re-offering `Add`. `setup_policy: "automatic"`
-        /// (the OTHER route to this row, per the spec) is reserved and not
-        /// yet emitted by the CLI (`workspaces.schema.json`'s own
-        /// description), so this `Kind` is reached only via `excluded`
-        /// today.
+        /// your request.", re-offering `Add`.
         case excluded
         /// A genuinely blocked project (not a project workspace, an
         /// unreadable declaration, ...) — no control, the CLI's own
@@ -122,31 +150,40 @@ enum ProjectRowRender {
         case keptAsIs
     }
 
-    static func kind(for workspace: WorkspaceEntry) -> Kind {
+    static func kind(for workspace: WorkspaceEntry, recentlySetUpNames: Set<String> = []) -> Kind {
         switch workspace.state {
-        case .ready: return .alreadySetUp
+        case .ready:
+            return recentlySetUpNames.contains(workspace.name) ? .automaticallySetUp : .alreadySetUp
         case .setupAvailable: return workspace.setupPolicy == .excluded ? .excluded : .canBeSetUp
         case .activationRequired: return .needsFinishing
         case .blocked: return .keptAsIs
         }
     }
 
-    static func caption(for workspace: WorkspaceEntry) -> String {
-        switch kind(for: workspace) {
+    static func caption(for workspace: WorkspaceEntry, recentlySetUpNames: Set<String> = []) -> String {
+        switch kind(for: workspace, recentlySetUpNames: recentlySetUpNames) {
         case .canBeSetUp: return "Copilot can be set up here."
         case .needsFinishing: return "Set up here already, but not active on this Mac yet."
         case .alreadySetUp: return "Already set up."
+        case .automaticallySetUp:
+            // Spec, "Undo": "Unavailable: 'You've changed these files
+            // since, so I'll leave them alone.' with no Undo control at
+            // all" — that reason is the CLI's own `undo.detail`, rendered
+            // verbatim, never invented here.
+            return workspace.undo.available ? "Set up automatically when you created it." : workspace.undo.detail
         case .excluded: return "Left alone at your request."
         case .keptAsIs: return workspace.detail
         }
     }
 
     /// `nil` means the row carries no control at all (`alreadySetUp`,
-    /// `keptAsIs`).
-    static func controlLabel(for workspace: WorkspaceEntry) -> String? {
-        switch kind(for: workspace) {
+    /// `keptAsIs`, or an `automaticallySetUp` row whose files were edited
+    /// since — "no Undo control at all, never a disabled one").
+    static func controlLabel(for workspace: WorkspaceEntry, recentlySetUpNames: Set<String> = []) -> String? {
+        switch kind(for: workspace, recentlySetUpNames: recentlySetUpNames) {
         case .canBeSetUp, .excluded: return "Add"
         case .needsFinishing: return "Finish setup"
+        case .automaticallySetUp: return workspace.undo.available ? "Undo" : nil
         case .alreadySetUp, .keptAsIs: return nil
         }
     }
@@ -178,6 +215,14 @@ final class TrayModel: ObservableObject {
         header: HeaderView(glyphState: .none, sentence: "Checking your setup…"),
         components: []
     )
+
+    /// B3, "Discover it happened": the ONE-TIME first-automatic-setup-ever
+    /// notice (spec, "Notice, first automatic setup ever, shown once and
+    /// never again") is gated by this persisted flag, not by any in-memory
+    /// "have I shown it this session" bit — `LocalDefaults`, same reasoning
+    /// as `AppDelegate.firstRunDefaultsKey` (`native/models.swift`'s own
+    /// doc comment on why this isn't `UserDefaults`/cfprefsd).
+    private static let automaticSetupNoticeShownKey = "ct.hasShownAutomaticProjectsNotice"
 
     @Published private(set) var state: RenderState = TrayModel.notYetChecked
     /// Region 3, "Available to join": entitled-but-not-joined department/org
@@ -212,6 +257,14 @@ final class TrayModel: ObservableObject {
     /// uses for `LayerEntry.id` — a row with no entry here renders from
     /// `lastWorkspaces` alone (`ProjectRowRender`).
     @Published private(set) var projectRowActions: [String: ProjectRowAction] = [:]
+    /// Whether THIS session should render the one-time "New projects get
+    /// your copilots automatically now…" notice (spec, "Notice, first
+    /// automatic setup ever"). Set true by `refresh()` the first time it
+    /// ever sees a non-empty `recentlySetUp` AND `automaticSetupNoticeShownKey`
+    /// hasn't been persisted yet (at which point it IS persisted, so this
+    /// never fires again on any future launch); cleared by
+    /// `dismissAutomaticSetupNotice()` once the person acts on it.
+    @Published private(set) var showAutomaticSetupNotice = false
 
     /// Concurrently calls `doctor()` + `layers()` (steady-state verdict +
     /// Region 3's join candidates) and `authStatus()` + `freshnessAllProjects()`
@@ -261,8 +314,42 @@ final class TrayModel: ObservableObject {
         // — a stale-but-present sweep is still useful for the "What changed"
         // gate; a failure is never treated as "nothing happened".
 
-        if case .success(let report) = workspaces {
+        if case .success(let initialReport) = workspaces {
+            var report = initialReport
+
+            // Automatic setup for a brand-new project (B3, spec's
+            // "Automatic setup for new projects"): `setup_policy:
+            // "automatic"` means there is nothing of the person's to
+            // protect and no decision only they can make, so the app
+            // applies EXACTLY what the CLI told it, silently — no prompt,
+            // no notification, "the person perceives nothing at the moment
+            // it happens." The same poll that already runs is what checks
+            // for this (spec: "The check runs on the poll that already
+            // exists, adding no process and no privilege").
+            let automatic = report.workspaces.filter { $0.setupPolicy == .automatic }
+            for workspace in automatic {
+                _ = await CliClient.shared.configureWorkspace(
+                    path: workspace.path,
+                    components: workspace.recommendedComponents,
+                    shareWithProject: workspace.declaredComponents.isEmpty,
+                    apply: true
+                )
+            }
+            if !automatic.isEmpty, case .success(let refreshed) = await CliClient.shared.workspaces() {
+                // Re-read rather than assemble a report locally — the CLI
+                // remains the sole source of truth for `recently_set_up`
+                // and every workspace's post-apply state (CLAUDE.md
+                // invariant #1).
+                report = refreshed
+            }
+
             lastWorkspaces = report
+            if let recent = report.recentlySetUp, !recent.isEmpty,
+               !LocalDefaults.bool(forKey: Self.automaticSetupNoticeShownKey) {
+                showAutomaticSetupNotice = true
+                LocalDefaults.set(true, forKey: Self.automaticSetupNoticeShownKey)
+            }
+
             // A portable project identity lets the CLI associate the user's
             // private profile locally. This is reversible machine state, not
             // a shared-repository write, so ready workspaces need no prompt.
@@ -278,10 +365,25 @@ final class TrayModel: ObservableObject {
         }
     }
 
-    /// True while ANY row is adding — the drill-in's own state-coverage
-    /// rule: "Disabled while another add is in flight, hint 'Finishing the
-    /// last one first.'"
-    var isAnyProjectAdding: Bool { projectRowActions.values.contains(.adding) }
+    /// The person has acted on (or seen) the one-time automatic-setup
+    /// notice — hides it for the rest of this session. The persisted
+    /// `LocalDefaults` flag is already set the moment `refresh()` first
+    /// shows it, so this never re-arms it; this only controls how long it
+    /// stays visible within the session that showed it.
+    func dismissAutomaticSetupNotice() {
+        showAutomaticSetupNotice = false
+    }
+
+    /// True while ANY row is adding OR undoing — the drill-in's own
+    /// state-coverage rule: "Disabled while another add is in flight, hint
+    /// 'Finishing the last one first.'" Undo shares this same one-at-a-time
+    /// gate (never a second, independent gate) because both write to a
+    /// project's own lock file, and the property name is kept as-is (not
+    /// renamed to `isAnyProjectBusy`) to keep this a minimal, additive
+    /// change to an already-established name.
+    var isAnyProjectAdding: Bool {
+        projectRowActions.values.contains(.adding) || projectRowActions.values.contains(.undoing)
+    }
 
     /// One row's **Add** / **Finish setup** (Region 6 drill-in). By this
     /// point the copilots this project's setup copies from already exist on
@@ -305,6 +407,34 @@ final class TrayModel: ObservableObject {
             projectRowActions[workspace.path] = nil
         } else {
             projectRowActions[workspace.path] = .failed
+        }
+    }
+
+    /// **Undo** (B3, spec's "Undo" section) — a project the CLI's
+    /// `recently_set_up` record names, calling the CLI's own `revert`
+    /// verb. `revertWorkspace` decodes `WorkspaceRevertReport`, a narrower
+    /// shape than `WorkspacesReport` (no `summary`/`discovery`), so this
+    /// method re-`refresh()`es on success rather than trying to read those
+    /// off the revert call's own result — the CLI stays the sole source of
+    /// truth for the post-undo state (`state`, `undo`, `recently_set_up`
+    /// all change together: `revert_project` purges the project from
+    /// `recently_set_up` immediately).
+    func undoProject(_ workspace: WorkspaceEntry) async {
+        guard !isAnyProjectAdding else { return }
+        projectRowActions[workspace.path] = .undoing
+        let result = await CliClient.shared.revertWorkspace(path: workspace.path, apply: true)
+        switch result {
+        case .success(let report) where report.result != .blocked:
+            projectRowActions[workspace.path] = nil
+            await refresh()
+        default:
+            // Spec, "Undo": "Failed: Couldn't undo that right now. Nothing
+            // was changed." — a fixed app string, not the CLI's own
+            // `revert.detail` (that detail is reserved for the row's own
+            // "Unavailable" caption, rendered by `ProjectRowRender.caption`
+            // straight from `workspace.undo.detail` before Undo is ever
+            // pressed).
+            projectRowActions[workspace.path] = .undoFailed
         }
     }
 
@@ -836,7 +966,27 @@ struct PopoverContentView: View {
                let workspaces = model.lastWorkspaces,
                workspaces.discovery?.state != .declined {
                 let actionable = ProjectsNoticeRender.actionableCount(workspaces)
-                if actionable > 0 {
+                let recentlySetUp = workspaces.recentlySetUp ?? []
+                // "at most one" notice: the one-time automatic-setup notice
+                // wins over the ordinary actionable-count notice while it's
+                // showing (spec, "Notice, first automatic setup ever") —
+                // `model.showAutomaticSetupNotice` is itself gated to fire
+                // only once ever, so this branch is rare, not a standing
+                // override.
+                if model.showAutomaticSetupNotice, !recentlySetUp.isEmpty {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(RecentlySetUpRender.noticeText(recentlySetUp))
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .labelColor))
+                        Button("Review projects") {
+                            model.dismissAutomaticSetupNotice()
+                            showingProjectsPanel = true
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(.horizontal, 12)
+                } else if actionable > 0 {
                     Divider()
                     VStack(alignment: .leading, spacing: 6) {
                         Text(ProjectsNoticeRender.noticeText(count: actionable))
@@ -892,6 +1042,11 @@ struct PopoverContentView: View {
                 let actionable = ProjectsNoticeRender.actionableCount(workspaces)
                 let ready = workspaces.workspaces.filter { $0.state == .ready }
                 let rest = workspaces.workspaces.filter { $0.state != .ready }
+                // Membership-only signal for "was this row set up
+                // automatically" (`ProjectRowRender.Kind.automaticallySetUp`'s
+                // own doc comment) — the CLI's own `recently_set_up` names,
+                // never inferred any other way.
+                let recentlySetUpNames = Set((workspaces.recentlySetUp ?? []).map(\.name))
 
                 if workspaces.workspaces.isEmpty {
                     if workspaces.discovery?.state == .granted {
@@ -928,7 +1083,7 @@ struct PopoverContentView: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(rest) { workspace in
-                                    projectDrillInRow(workspace)
+                                    projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
                                 }
                             }
                         }
@@ -939,7 +1094,7 @@ struct PopoverContentView: View {
                         DisclosureGroup("\(ready.count) already set up ›") {
                             VStack(alignment: .leading, spacing: 4) {
                                 ForEach(ready) { workspace in
-                                    projectDrillInRow(workspace)
+                                    projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
                                 }
                             }
                         }
@@ -965,13 +1120,14 @@ struct PopoverContentView: View {
         .padding(.horizontal, 12)
     }
 
-    private func projectDrillInRow(_ workspace: WorkspaceEntry) -> some View {
+    private func projectDrillInRow(_ workspace: WorkspaceEntry, recentlySetUpNames: Set<String>) -> some View {
         let localAction = model.projectRowActions[workspace.path]
         let caption: String
         switch localAction {
         case .adding: caption = "Adding…"
         case .failed: caption = "Couldn't add it right now. Nothing existing was changed."
-        case nil: caption = ProjectRowRender.caption(for: workspace)
+        case .undoFailed: caption = "Couldn't undo that right now. Nothing was changed."
+        case .undoing, nil: caption = ProjectRowRender.caption(for: workspace, recentlySetUpNames: recentlySetUpNames)
         }
 
         return HStack(alignment: .top, spacing: 8) {
@@ -985,7 +1141,7 @@ struct PopoverContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
-            projectDrillInRowControl(workspace, localAction: localAction)
+            projectDrillInRowControl(workspace, localAction: localAction, recentlySetUpNames: recentlySetUpNames)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
@@ -993,9 +1149,9 @@ struct PopoverContentView: View {
     }
 
     @ViewBuilder
-    private func projectDrillInRowControl(_ workspace: WorkspaceEntry, localAction: ProjectRowAction?) -> some View {
+    private func projectDrillInRowControl(_ workspace: WorkspaceEntry, localAction: ProjectRowAction?, recentlySetUpNames: Set<String>) -> some View {
         switch localAction {
-        case .adding:
+        case .adding, .undoing:
             ProgressView()
                 .controlSize(.small)
                 .frame(width: 14, height: 14)
@@ -1005,8 +1161,29 @@ struct PopoverContentView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+        case .undoFailed:
+            Button("Try again") {
+                Task { await model.undoProject(workspace) }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         case nil:
-            if let label = ProjectRowRender.controlLabel(for: workspace) {
+            let kind = ProjectRowRender.kind(for: workspace, recentlySetUpNames: recentlySetUpNames)
+            if kind == .automaticallySetUp {
+                if let label = ProjectRowRender.controlLabel(for: workspace, recentlySetUpNames: recentlySetUpNames) {
+                    Button(label) {
+                        Task { await model.undoProject(workspace) }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(model.isAnyProjectAdding)
+                    .help(model.isAnyProjectAdding ? "Finishing the last one first." : "")
+                }
+                // No control at all when `undo.available` is false (files
+                // edited since) — spec, "Undo": "no Undo control at all,
+                // never a disabled one with no explanation." The row's own
+                // caption already carries the CLI's honest reason.
+            } else if let label = ProjectRowRender.controlLabel(for: workspace, recentlySetUpNames: recentlySetUpNames) {
                 Button(label) {
                     Task { await model.addProject(workspace) }
                 }
@@ -1014,7 +1191,7 @@ struct PopoverContentView: View {
                 .controlSize(.small)
                 .disabled(model.isAnyProjectAdding)
                 .help(model.isAnyProjectAdding ? "Finishing the last one first." : "")
-            } else if ProjectRowRender.kind(for: workspace) == .keptAsIs {
+            } else if kind == .keptAsIs {
                 Text("Kept as is")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -1027,7 +1204,13 @@ struct PopoverContentView: View {
     // the pinned reassurance line, verbatim.
 
     private var whatChangedRegion: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // B3, "Discover it happened": `recentlySetUp` is independent of
+        // `lastFanout` (a `Sync now` result) — a person can have automatic
+        // project setups to show here with no sync ever having run, so this
+        // is read up front rather than nested inside the `fanout` branch
+        // below.
+        let recentlySetUp = model.lastWorkspaces?.recentlySetUp ?? []
+        return VStack(alignment: .leading, spacing: 8) {
             Button("‹ Back") {
                 showingWhatChanged = false
                 showingProjectDrillIn = false
@@ -1080,13 +1263,42 @@ struct PopoverContentView: View {
                         }
                     }
                 }
-            } else {
+            } else if recentlySetUp.isEmpty {
                 Text("Nothing has changed since you last looked.")
                     .font(.body)
                     .foregroundColor(Color(nsColor: .tertiaryLabelColor))
             }
+
+            // B3, spec: "Projects set up for you" group label, "a past-tense
+            // line in What changed every time" — reuses the SAME grammar
+            // `projectDrillIn(_:)` above already establishes for the fanout
+            // sync case (title, pinned reassurance, rows), never nested
+            // inside `showingProjectDrillIn` since these entries carry no
+            // per-project path to drill any further into.
+            if !showingProjectDrillIn, !recentlySetUp.isEmpty {
+                Divider()
+                recentlySetUpGroup(recentlySetUp)
+            }
         }
         .padding(.horizontal, 12)
+    }
+
+    private func recentlySetUpGroup(_ entries: [WorkspaceRecentlySetUp]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Projects set up for you")
+                .font(.body.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+            Text("Only your copilots' shared files were added. Your own work in these projects wasn't touched.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+                    Text(entry.detail)
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .labelColor))
+                }
+            }
+        }
     }
 
     private func projectDrillIn(_ fanout: FanoutReport) -> some View {
@@ -1567,7 +1779,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // personal-scope inventory into ask rows (`reversible: true`) and
     // review rows (`action: "review"`) and leaves an ordinary `reuse` row
     // out of both; (3) the `personal-<component>` id round-trips through
-    // `componentId(fromPersonalInventoryId:)`.
+    // `componentId(fromPersonalInventoryId:)`; (4) B3: both DTOs decode
+    // `decline_detail` verbatim when present, and leave it `nil` — never a
+    // fabricated string — when the CLI omits it on an ask row.
     private static func runOnboardQuestionSelftest() -> Bool {
         let repositoryRowJSON = """
         {
@@ -1590,7 +1804,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               "rank": 10,
               "package_state": "adoptable",
               "package_action": "adopt",
-              "package_detail": "Your own content is already in here. I'll keep all of it and add a small note that says it belongs with your copilots."
+              "package_detail": "Your own content is already in here. I'll keep all of it and add a small note that says it belongs with your copilots.",
+              "decline_detail": "Without this, Claude Copilot can't be set up on this Mac. You can include it later."
             }
           ],
           "summary": {"existing": 1, "missing": 0, "created": 0, "blocked": 0, "adoptable": 1}
@@ -1607,6 +1822,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && row.packageAction == "adopt"
             && !row.packageDetail.isEmpty
             && onboardReport.summary.adoptable == 1
+            && row.declineDetail == "Without this, Claude Copilot can't be set up on this Mac. You can include it later."
 
         let inventoryJSON = """
         {
@@ -1619,11 +1835,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "stages": [],
           "layers": [],
           "inventory": [
-            {"id": "personal-claude", "scope": "personal", "title": "Your Claude Copilot space", "state": "adoptable", "action": "create", "detail": "Your own content is already in here. I'll keep all of it and add a small note that says it belongs with your copilots.", "source_path": null, "destination_path": null, "reversible": true},
+            {"id": "personal-claude", "scope": "personal", "title": "Your Claude Copilot space", "state": "adoptable", "action": "create", "detail": "Your own content is already in here. I'll keep all of it and add a small note that says it belongs with your copilots.", "source_path": null, "destination_path": null, "reversible": true, "decline_detail": "Without this, Claude Copilot can't be set up on this Mac. You can include it later."},
+            {"id": "personal-cli", "scope": "personal", "title": "Your CLI Copilot space", "state": "adoptable", "action": "create", "detail": "Your own content is already in here. I'll keep all of it and add a small note that says it belongs with your copilots.", "source_path": null, "destination_path": null, "reversible": true},
             {"id": "personal-codex", "scope": "personal", "title": "Your Codex Copilot space", "state": "held", "action": "review", "detail": "I don't recognize how this space is set up, so I'll leave it exactly as it is.", "source_path": null, "destination_path": null, "reversible": false},
             {"id": "personal-knowledge", "scope": "personal", "title": "Your Knowledge Copilot space", "state": "ready", "action": "reuse", "detail": "Already set up. Everything in here will be kept.", "source_path": null, "destination_path": null, "reversible": false}
           ],
-          "inventory_summary": {"reused": 1, "changes": 1, "review": 1}
+          "inventory_summary": {"reused": 1, "changes": 2, "review": 1}
         }
         """
         guard let inventoryData = inventoryJSON.data(using: .utf8),
@@ -1632,16 +1849,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
         let (ask, review) = WizardModel.personalOnboardQuestion(from: ecosystemReport)
-        let splitPass = ask.count == 1 && ask.first?.id == "personal-claude"
+        let splitPass = ask.count == 2 && Set(ask.map(\.id)) == Set(["personal-claude", "personal-cli"])
             && review.count == 1 && review.first?.id == "personal-codex"
         let componentIdPass = WizardModel.componentId(fromPersonalInventoryId: "personal-claude") == "claude"
             && WizardModel.componentId(fromPersonalInventoryId: "not-personal") == nil
+        // B3: present on "personal-claude" -> decoded verbatim; absent on
+        // "personal-cli" -> `nil`, never invented (spec's own
+        // failure/recovery row for this exact field).
+        let declineDetailPass = ask.first(where: { $0.id == "personal-claude" })?.declineDetail
+            == "Without this, Claude Copilot can't be set up on this Mac. You can include it later."
+            && ask.first(where: { $0.id == "personal-cli" })?.declineDetail == nil
 
-        let passed = repoRowDecodePass && splitPass && componentIdPass
+        let passed = repoRowDecodePass && splitPass && componentIdPass && declineDetailPass
         print(
             "SELFTEST onboardQuestion repoRowDecode=\(repoRowDecodePass ? "pass" : "fail") "
                 + "askCount=\(ask.count) reviewCount=\(review.count) "
-                + "componentId=\(componentIdPass ? "pass" : "fail")"
+                + "componentId=\(componentIdPass ? "pass" : "fail") "
+                + "declineDetail=\(declineDetailPass ? "pass" : "fail")"
         )
         return passed
     }
@@ -1720,7 +1944,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // unsaved-changes state; (2) `ProjectRowRender` maps every
     // `WorkspaceEntry` state (including the `excluded` `setup_policy`, i.e.
     // a project `revert` previously undid) to the exact caption/control
-    // pair the drill-in's own spec table names.
+    // pair the drill-in's own spec table names; (3) B3: `WorkspacesReport`
+    // decodes the top-level `recently_set_up` list, `ProjectRowRender`
+    // renders the `automaticallySetUp` row pair (Undo available and
+    // unavailable) purely from CLI-provided name membership + `undo`, never
+    // inferred any other way; (4) `RecentlySetUpRender` pluralizes the
+    // one-time notice; (5) `WorkspaceRevertReport` decodes `cc workspace
+    // revert`'s real, narrower shape (no `summary`) — the exact decode this
+    // task's `revertWorkspace` fix makes possible.
     private static func runTrayProjectsSelftest() -> Bool {
         let singularJSON = """
         {"schema_version": "1.0", "mode": "status", "result": "action-required", "workspaces": [], "summary": {"ready": 0, "setup-available": 1, "activation-required": 0, "blocked": 0, "total": 1}}
@@ -1752,9 +1983,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             {"path": "/p/b", "name": "b", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "excluded", "policy_detail": "You asked me not to set this project up again.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
             {"path": "/p/c", "name": "c", "project_id": null, "state": "activation-required", "detail": "Shared Copilot setup is present but is not active on this Mac.", "declared_components": ["claude"], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
             {"path": "/p/d", "name": "d", "project_id": null, "state": "ready", "detail": "Copilot is ready for this project.", "declared_components": ["claude"], "installed_components": ["claude"], "recommended_components": ["claude"], "personal_profile": {"state": "associated", "project_id": null}, "setup_policy": "not-offered", "policy_detail": "Copilot is already set up here, so there's nothing to ask.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
-            {"path": "/p/e", "name": "e", "project_id": null, "state": "blocked", "detail": "This folder is not a project workspace.", "declared_components": [], "installed_components": [], "recommended_components": [], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "not-offered", "policy_detail": "This can't be set up automatically right now.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}}
+            {"path": "/p/e", "name": "e", "project_id": null, "state": "blocked", "detail": "This folder is not a project workspace.", "declared_components": [], "installed_components": [], "recommended_components": [], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "not-offered", "policy_detail": "This can't be set up automatically right now.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/p/f", "name": "f", "project_id": null, "state": "ready", "detail": "Copilot is ready for this project.", "declared_components": ["claude"], "installed_components": ["claude"], "recommended_components": ["claude"], "personal_profile": {"state": "associated", "project_id": null}, "setup_policy": "not-offered", "policy_detail": "Copilot is already set up here, so there's nothing to ask.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": true, "detail": "Removes only what I added. Your own files are left alone."}},
+            {"path": "/p/g", "name": "g", "project_id": null, "state": "ready", "detail": "Copilot is ready for this project.", "declared_components": ["claude"], "installed_components": ["claude"], "recommended_components": ["claude"], "personal_profile": {"state": "associated", "project_id": null}, "setup_policy": "not-offered", "policy_detail": "Copilot is already set up here, so there's nothing to ask.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "You've changed these files since, so I'll leave them alone."}}
           ],
-          "summary": {"ready": 1, "setup-available": 2, "activation-required": 1, "blocked": 1, "total": 5}
+          "summary": {"ready": 3, "setup-available": 2, "activation-required": 1, "blocked": 1, "total": 7},
+          "recently_set_up": [{"name": "f", "detail": "Set your copilots up in f."}, {"name": "g", "detail": "Set your copilots up in g."}]
         }
         """
         guard let rowsData = rowsJSON.data(using: .utf8),
@@ -1775,10 +2009,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && ProjectRowRender.kind(for: rows[4]) == .keptAsIs
             && ProjectRowRender.caption(for: rows[4]) == "This folder is not a project workspace."
 
-        let passed = noticePass && rowsPass
+        // B3: `recentlySetUpNames` is the ONLY signal that distinguishes an
+        // ordinary `ready` row (`rows[3]`, "d", above — absent from
+        // `recently_set_up`, stays `alreadySetUp`) from one the CLI just
+        // named as automatic (`rows[5]`/`rows[6]`, "f"/"g").
+        let recentlySetUpNames = Set((rowsReport.recentlySetUp ?? []).map(\.name))
+        let automaticAvailable = rows[5]
+        let automaticUnavailable = rows[6]
+        let automaticPass = recentlySetUpNames == Set(["f", "g"])
+            && ProjectRowRender.kind(for: automaticAvailable, recentlySetUpNames: recentlySetUpNames) == .automaticallySetUp
+            && ProjectRowRender.caption(for: automaticAvailable, recentlySetUpNames: recentlySetUpNames) == "Set up automatically when you created it."
+            && ProjectRowRender.controlLabel(for: automaticAvailable, recentlySetUpNames: recentlySetUpNames) == "Undo"
+            && ProjectRowRender.kind(for: automaticUnavailable, recentlySetUpNames: recentlySetUpNames) == .automaticallySetUp
+            && ProjectRowRender.caption(for: automaticUnavailable, recentlySetUpNames: recentlySetUpNames) == "You've changed these files since, so I'll leave them alone."
+            && ProjectRowRender.controlLabel(for: automaticUnavailable, recentlySetUpNames: recentlySetUpNames) == nil
+            // A `ready` row absent from `recently_set_up` is unaffected —
+            // the default-empty-set overloads used everywhere else in this
+            // file behave exactly as before B3.
+            && ProjectRowRender.kind(for: rows[3]) == .alreadySetUp
+
+        let automaticNoticePass = RecentlySetUpRender.noticeText([WorkspaceRecentlySetUp(name: "Convoco", detail: "Set your copilots up in Convoco.")])
+            == "New projects get your copilots automatically now. I just set up Convoco."
+            && RecentlySetUpRender.noticeText((1...12).map { WorkspaceRecentlySetUp(name: "p\($0)", detail: "Set your copilots up in p\($0).") })
+            == "New projects get your copilots automatically now. I just set up 12 new projects."
+
+        let revertJSON = """
+        {"schema_version": "1.0", "mode": "apply", "result": "applied", "workspaces": [{"path": "/p/f", "name": "f", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "excluded", "policy_detail": "You asked me not to set this project up again.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}}], "revert": {"removed": ["claude"], "kept": [], "detail": "Removed. Your own files were left alone, and I won't set this project up again unless you ask."}}
+        """
+        guard let revertData = revertJSON.data(using: .utf8),
+              let revertReport = try? selftestDecoder().decode(WorkspaceRevertReport.self, from: revertData) else {
+            print("SELFTEST trayProjects revertDecode=fail")
+            return false
+        }
+        let revertDecodePass = revertReport.result == .applied
+            && revertReport.revert.removed == ["claude"]
+            && revertReport.workspaces.first?.path == "/p/f"
+            && revertReport.workspaces.first?.setupPolicy == .excluded
+
+        let passed = noticePass && rowsPass && automaticPass && automaticNoticePass && revertDecodePass
         print(
             "SELFTEST trayProjects notice=\(noticePass ? "pass" : "fail") "
-                + "rows=\(rowsPass ? "pass" : "fail")"
+                + "rows=\(rowsPass ? "pass" : "fail") "
+                + "automatic=\(automaticPass ? "pass" : "fail") "
+                + "automaticNotice=\(automaticNoticePass ? "pass" : "fail") "
+                + "revert=\(revertDecodePass ? "pass" : "fail")"
         )
         return passed
     }

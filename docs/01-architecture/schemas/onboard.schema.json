@@ -37,7 +37,8 @@
         "visibility": { "enum": ["private", "public", null] },
         "state": { "enum": ["existing-private", "missing", "created", "conflict-public", "unknown"] },
         "action": { "enum": ["none", "create", "blocked"] },
-        "detail": { "type": "string", "minLength": 1 }
+        "detail": { "type": "string", "minLength": 1 },
+        "decline_detail": { "type": "string" }
       }
     },
     "repositorySummary": {
@@ -133,7 +134,8 @@
         "detail": { "type": "string", "minLength": 1 },
         "source_path": { "type": ["string", "null"] },
         "destination_path": { "type": ["string", "null"] },
-        "reversible": { "type": "boolean" }
+        "reversible": { "type": "boolean" },
+        "decline_detail": { "type": "string" }
       }
     },
     "inventorySummary": {

@@ -462,6 +462,14 @@ struct RepositoryPlanRow: Decodable {
     let packageState: String
     let packageAction: String
     let packageDetail: String
+    /// Added 2026-07-24 (B3, undo/decline-cost close-out): the CLI now puts
+    /// a plain, component-specific sentence on an adoptable row naming what
+    /// declining it costs — `onboard.schema.json`'s `repository.decline_detail`
+    /// (optional; older CLI builds omit it). Rendered verbatim, never
+    /// invented, on the "One question first" screen's cleared-row caption —
+    /// `nil` renders no caption at all, per the spec's own failure/recovery
+    /// row for this exact field.
+    let declineDetail: String?
 }
 
 struct RepositoryPlanSummary: Decodable {
@@ -521,6 +529,13 @@ struct EcosystemInventoryItem: Decodable, Identifiable {
     let sourcePath: String?
     let destinationPath: String?
     let reversible: Bool
+    /// Added 2026-07-24 (B3, undo/decline-cost close-out): same field, same
+    /// verbatim-or-nothing rule as `RepositoryPlanRow.declineDetail` above —
+    /// `onboard.schema.json`'s `inventoryItem.decline_detail` (optional).
+    /// This is the one the "One question first" screen's ask rows actually
+    /// decode from (`WizardModel.personalOnboardQuestion(from:)` builds its
+    /// `ask` rows from THIS report's `inventory`, not `RepositoryPlanRow`'s).
+    let declineDetail: String?
 }
 
 struct EcosystemInventorySummary: Decodable {
@@ -667,6 +682,17 @@ struct WorkspaceRevertResult: Decodable {
     let detail: String
 }
 
+/// One past-tense automatic-setup record (`workspaces.schema.json`'s
+/// `recently_set_up`) — `detail` is already the full rendered sentence
+/// (e.g. "Set your copilots up in Convoco."), never assembled from `name`
+/// here. Entries age out of the CLI's own record after 168h and are purged
+/// immediately on `revert` — the app holds no equivalent state itself
+/// across launches (spec, "CLI contract additions").
+struct WorkspaceRecentlySetUp: Decodable {
+    let name: String
+    let detail: String
+}
+
 struct WorkspacesReport: Decodable {
     let schemaVersion: String
     let mode: String
@@ -681,6 +707,32 @@ struct WorkspacesReport: Decodable {
     let discovery: WorkspaceDiscovery?
     /// `cc workspace revert --project <path> --json` only.
     let revert: WorkspaceRevertResult?
+    /// Added 2026-07-24 (B3) — `cc workspace --all/--project --json`'s
+    /// top-level "Projects set up for you" record (`build_workspaces_report`
+    /// on the CLI side; see `WorkspaceRecentlySetUp` above). Absent on the
+    /// narrower `configure`/`approve-root`/etc. reports that don't route
+    /// through that helper — optional, never defaulted to an empty list
+    /// standing in for "nothing happened" vs. "this report doesn't carry
+    /// the field at all".
+    let recentlySetUp: [WorkspaceRecentlySetUp]?
+}
+
+/// `cc workspace revert --project <path> [--apply] --json` — a NARROWER
+/// report shape than `WorkspacesReport` above: the real command handler
+/// (`workspaces.py`'s `revert`) builds this dict by hand rather than
+/// through `_report()`/`build_workspaces_report()`, so it carries no
+/// `summary`/`discovery`/`actions`/`recently_set_up` at all — only
+/// `workspaces` (always exactly one entry, the reverted project's own
+/// fresh status) and `revert`. Decoding this verb's real output as
+/// `WorkspacesReport` (which REQUIRES `summary`) would fail every single
+/// call, success or blocked, which is exactly the bug this dedicated type
+/// fixes — `native/cli-client.swift`'s `revertWorkspace` decodes THIS type.
+struct WorkspaceRevertReport: Decodable {
+    let schemaVersion: String
+    let mode: String
+    let result: WorkspaceReportResult
+    let workspaces: [WorkspaceEntry]
+    let revert: WorkspaceRevertResult
 }
 
 struct WorkspaceRoot: Decodable {

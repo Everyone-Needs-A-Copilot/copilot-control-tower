@@ -1625,15 +1625,20 @@ struct WizardRootView: View {
                     .font(.callout.weight(.semibold))
                     .foregroundColor(Color(nsColor: .labelColor))
                 // Microinteraction: "a cleared row is declined; the feedback
-                // is the CLI's decline sentence appearing under that row".
-                // No `decline_detail` field exists on this report yet (the
-                // CLI's own personal-onboard rows carry only one `detail`
-                // per item) — per the spec's own failure/recovery row, "A
-                // missing decline sentence renders the row with no caption
-                // rather than invented copy", so a cleared row shows no
-                // caption at all instead of fabricating one.
+                // is the CLI's decline sentence appearing under that row in
+                // 150ms with no layout jump elsewhere". `item.declineDetail`
+                // (B3, `onboard.schema.json`'s `inventoryItem.decline_detail`)
+                // is rendered VERBATIM, never invented — per the spec's own
+                // failure/recovery row, "A missing decline sentence renders
+                // the row with no caption rather than invented copy", so an
+                // absent `declineDetail` still shows no caption at all.
                 if isSelected {
                     Text(item.detail)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let declineDetail = item.declineDetail {
+                    Text(declineDetail)
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
@@ -1647,7 +1652,7 @@ struct WizardRootView: View {
         .accessibilityLabel(
             isSelected
                 ? "\(item.title), will be included, \(item.detail)"
-                : "\(item.title), will be left alone"
+                : "\(item.title), will be left alone" + (item.declineDetail.map { ", \($0)" } ?? "")
         )
     }
 

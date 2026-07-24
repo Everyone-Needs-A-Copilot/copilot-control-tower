@@ -347,8 +347,11 @@ actor CliClient {
 
     /// **Undo** — removes only the files the CLI recorded as its own (and
     /// whose recorded checksums still match), keeps everything else, and
-    /// records the project as excluded from automatic setup.
-    func revertWorkspace(path: String, apply: Bool) async -> Result<WorkspacesReport, CliError> {
+    /// records the project as excluded from automatic setup. Decodes
+    /// `WorkspaceRevertReport`, NOT `WorkspacesReport` — `cc workspace
+    /// revert`'s own report is a narrower shape (no `summary`); see that
+    /// type's doc comment in `native/cli-dtos.swift`.
+    func revertWorkspace(path: String, apply: Bool) async -> Result<WorkspaceRevertReport, CliError> {
         var arguments = ["workspace", "revert", "--project", path]
         if apply {
             arguments.append("--apply")

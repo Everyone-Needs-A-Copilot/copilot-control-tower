@@ -5,7 +5,8 @@
   "description": "Read-only status, explicit configure results (including bulk `--apply-all`), and undo (`revert`) for bounded Git workspace discovery. A shared declaration is never installation proof.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "mode", "result", "workspaces", "summary"],
+  "required": ["schema_version", "mode", "result", "workspaces"],
+  "$comment": "`summary`/`discovery`/`recently_set_up` are present on `cc workspace --all|--project [--json]` and on `configure`/`configure --apply-all`, all of which route through the CLI's `build_workspaces_report()`/`_report()` helpers. `cc workspace revert --project <path> [--apply] --json` builds its own report BY HAND and carries none of the three -- only `workspaces` (always exactly one entry) plus its own `revert` object. native/cli-dtos.swift decodes that verb's report as a SEPARATE, narrower type (`WorkspaceRevertReport`) for exactly this reason, rather than requiring fields this schema's own `revert` verb never sends.",
   "properties": {
     "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
     "mode": { "enum": ["status", "plan", "apply"] },
@@ -40,7 +41,7 @@
           },
           "setup_policy": {
             "enum": ["ask", "automatic", "excluded", "not-offered"],
-            "description": "Whether the app must ask before setting this project up. `automatic` (a project created since its root was approved, nothing of the person's to protect) is reserved -- the CLI does not emit it yet; see claude-copilot's core/ecosystem/workspaces.py module docstring for why. `excluded` is real: set by `revert`."
+            "description": "Whether the app must ask before setting this project up. `automatic` means a project created since its root was approved, with nothing of the person's to protect and no decision only they can make -- the app applies it silently, the same way it already associates a ready project's private profile (see `recently_set_up` below for how this becomes discoverable after the fact). `excluded` is set by `revert`."
           },
           "policy_detail": { "type": "string" },
           "can_apply_now": {
@@ -87,6 +88,19 @@
       }
     },
     "discovery": { "$ref": "#/$defs/discovery" },
+    "recently_set_up": {
+      "type": "array",
+      "description": "The 'Projects set up for you' record: one past-tense sentence per project the CLI set up automatically in the last 168h (newest first), purged of a project immediately once `revert` undoes it. Absent on the `configure`/`approve-root`/etc. reports that don't route through `build_workspaces_report()`; present (possibly `[]`) on `cc workspace --all|--project --json`. Drives BOTH the one-time 'New projects get your copilots automatically now' notice (shown once, ever) and the past-tense 'Projects set up for you' group in What changed -- the app holds no equivalent state itself across launches.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "detail"],
+        "properties": {
+          "name": { "type": "string" },
+          "detail": { "type": "string", "description": "The full rendered sentence, e.g. \"Set your copilots up in Convoco.\" -- never assembled from `name` by the app." }
+        }
+      }
+    },
     "revert": {
       "type": "object",
       "additionalProperties": false,
