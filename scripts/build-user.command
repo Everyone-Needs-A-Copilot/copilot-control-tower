@@ -22,6 +22,11 @@ cd "${REPO_ROOT}"
 
 BUILD_DIR=".copilot/control-tower-tray"
 BIN="${BUILD_DIR}/Copilot Control Tower"
+APP="build/Copilot Control Tower.app"
+APP_CONTENTS="${APP}/Contents"
+APP_MACOS="${APP_CONTENTS}/MacOS"
+APP_RESOURCES="${APP_CONTENTS}/Resources"
+APP_BIN="${APP_MACOS}/Copilot Control Tower"
 
 SOURCES=(
     native/models.swift
@@ -38,7 +43,13 @@ mkdir -p "${BUILD_DIR}"
 # alias shadowing the real C compiler on this machine (see repo memory:
 # "cc name collision breaks cargo" — the same collision can shadow the Swift
 # toolchain's C compiler lookup for any linked C dependency).
-NEEDS_BUILD=0
+case "${CT_FORCE_REBUILD:-0}" in
+    0|1) NEEDS_BUILD="${CT_FORCE_REBUILD:-0}" ;;
+    *)
+        echo "error: CT_FORCE_REBUILD must be 0 or 1." >&2
+        exit 2
+        ;;
+esac
 if [[ ! -x "${BIN}" ]]; then
     NEEDS_BUILD=1
 else
@@ -48,14 +59,33 @@ else
             break
         fi
     done
+    if [[ "scripts/build-user.command" -nt "${BIN}" ]]; then
+        NEEDS_BUILD=1
+    fi
 fi
 
 if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
     CC=/usr/bin/cc PATH=/usr/bin:$PATH /usr/bin/env swiftc "${SOURCES[@]}" -o "${BIN}"
 fi
 
+# Conventional double-clickable macOS bundle. The bare binary remains in
+# place because lower-level smoke harnesses exercise it directly.
+if [[ -d "${APP}" ]]; then
+    rm -rf "${APP}"
+fi
+mkdir -p "${APP_MACOS}" "${APP_RESOURCES}"
+cp packaging/macos/User-Info.plist "${APP_CONTENTS}/Info.plist"
+cp "${BIN}" "${APP_BIN}"
+cp src-tauri/icons/icon.icns "${APP_RESOURCES}/ControlTower.icns"
+chmod 755 "${APP_BIN}"
+
+# Local development builds are ad-hoc signed so macOS validates the exact
+# bundle the user opens. Distribution still uses Developer ID + notarization.
+codesign --force --deep --sign - "${APP}" >/dev/null
+
 if [[ "${1:-}" == "--build-only" ]]; then
+    echo "${APP}"
     exit 0
 fi
 
-exec "${BIN}"
+open "${APP}"

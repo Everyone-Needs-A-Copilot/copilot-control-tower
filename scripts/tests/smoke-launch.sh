@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # smoke-launch.sh — the launch-crash regression gate for BOTH native binaries.
 #
-# Builds the User face (`scripts/build-user.command`) and the Admin face
-# (`scripts/build-admin.command`), then launches each under `CT_SELFTEST=1`
+# Builds the User app (`scripts/build-user.command`) and the Admin app
+# (`scripts/build-admin.command`), then launches each bundle executable under `CT_SELFTEST=1`
 # against the mock CLI (`src-tauri/fixtures/mock-cc`) with a healthy fixture,
 # asserting:
 #   1. the process exits status 0 — NOT killed by a signal. This is the
@@ -42,8 +42,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
 MOCK_CC="${REPO_ROOT}/src-tauri/fixtures/mock-cc"
-USER_BIN="${REPO_ROOT}/.copilot/control-tower-tray/Copilot Control Tower"
-ADMIN_BIN="${REPO_ROOT}/.copilot/control-tower-admin/Copilot Control Tower (Admin)"
+USER_BIN="${REPO_ROOT}/build/Copilot Control Tower.app/Contents/MacOS/Copilot Control Tower"
+ADMIN_BIN="${REPO_ROOT}/build/Copilot Control Tower Admin.app/Contents/MacOS/Copilot Control Tower Admin"
 LAUNCH_TIMEOUT_SECS="${CT_SMOKE_LAUNCH_TIMEOUT:-20}"
 
 FAILS=0

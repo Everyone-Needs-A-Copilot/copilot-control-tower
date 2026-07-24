@@ -252,7 +252,7 @@ the already-live tier.
 
 ### What exists today
 
-- Two native SwiftUI executables build green: `scripts/build-user.command`
+- Two native SwiftUI app bundles build green: `scripts/build-user.command`
   (admin code not compiled in) and `build-admin.command` (`-D CT_ADMIN_BUILD`);
   9-step wizard + tray de-mocked against the real CLI seam; smoke suites S1–S17
   green (`native-app-rebuilt.md`, commit `66916c6`).

@@ -78,10 +78,15 @@ From the Control Tower checkout:
 bash scripts/tests/test_admin_bootstrap.sh
 bash scripts/build-admin.command --build-only
 bash scripts/build-user.command --build-only
+bash scripts/tests/test_admin_app_bundle.sh
+bash scripts/tests/test_user_app_bundle.sh
 ```
 
-These commands prove the development builds. Distribution still requires the
-signed/notarized pipeline and its owner-controlled credentials.
+The build commands produce the double-clickable development artifacts at
+`build/Copilot Control Tower Admin.app` and
+`build/Copilot Control Tower.app`. They are ad-hoc signed for local testing.
+Distribution still requires the Developer ID/notarized pipeline and its
+owner-controlled credentials.
 
 ## 4. Run Admin Setup (Phase 6 execution)
 

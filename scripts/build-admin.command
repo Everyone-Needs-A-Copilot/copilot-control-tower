@@ -55,7 +55,13 @@ fi
 # alias shadowing the real C compiler on this machine (see repo memory:
 # "cc name collision breaks cargo" — the same collision can shadow the Swift
 # toolchain's C compiler lookup for any linked C dependency).
-NEEDS_BUILD=0
+case "${CT_FORCE_REBUILD:-0}" in
+    0|1) NEEDS_BUILD="${CT_FORCE_REBUILD:-0}" ;;
+    *)
+        echo "error: CT_FORCE_REBUILD must be 0 or 1." >&2
+        exit 2
+        ;;
+esac
 if [[ ! -x "${BIN}" ]]; then
     NEEDS_BUILD=1
 else

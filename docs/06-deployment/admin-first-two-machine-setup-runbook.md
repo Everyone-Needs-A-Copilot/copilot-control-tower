@@ -324,10 +324,12 @@ installs. Inspect and quarantine a collision; do not overwrite it.
 
 ```bash
 bash scripts/build-user.command --build-only
-bash scripts/build-user.command
+bash scripts/tests/test_user_app_bundle.sh
+open "build/Copilot Control Tower.app"
 ```
 
-The second command launches the development User app. Keep the terminal open.
+The final command opens the same signed development app bundle a user would
+double-click. It does not require the terminal to remain open.
 
 ## Part 5 — Run User Setup on the laptop
 
