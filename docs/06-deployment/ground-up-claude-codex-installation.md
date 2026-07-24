@@ -129,6 +129,14 @@ blocks the transaction; only an explicit GitHub 404 is treated as missing.
 The aggregate transaction below uses that repository safety contract, seeds the
 rank-10 packages, and continues through device and materialization setup.
 
+The app does not require a clean machine. Before Apply, User Setup shows every
+recognized item as **Keep**, **Add**, **Move safely**, or **Complete**. A
+recognized earlier manifest is merged with the missing Claude/Codex layers, so
+existing CLI or other product layers remain in place. A local rollback copy is
+written before a move or repair. Unfamiliar personal content, an unmanaged SSH
+alias, or a conflicting manifest is shown as **Needs review** and stops the
+complete transaction before mutation.
+
 The implemented single transaction is:
 
 ```bash
@@ -137,14 +145,16 @@ cc onboard --org Everyone-Needs-A-Copilot --products claude,codex --json
 
 It:
 
-1. authenticate the individual through the organization's device-flow client;
-2. create or select the user's private Claude and Codex personal repositories;
-3. generate independent on-device SSH credentials and register only public keys;
-4. provision a scoped per-machine store identity into the OS keychain;
-5. resolve winners by `(product, dimension, item)`;
-6. materialize only to product-specific allowlisted targets;
-7. coordinate CLI mirror sync and run doctor;
-8. return opaque personal provenance and the three-layer result for each product.
+1. performs a complete read-only inventory and renders the adoption plan;
+2. authenticates the individual through the organization's device-flow client;
+3. creates or selects the user's private Claude and Codex personal repositories;
+4. generates independent on-device SSH credentials and registers only public keys;
+5. adopts or safely repairs the unified manifest without dropping existing products;
+6. provisions a scoped per-machine store identity into the OS keychain;
+7. resolves winners by `(product, dimension, item)`;
+8. materializes only to product-specific allowlisted targets;
+9. coordinates CLI mirror sync and runs doctor;
+10. returns opaque personal provenance and the three-layer result for each product.
 
 The transaction is implemented and test-covered. A machine is still not a valid
 ground-up proof until that transaction runs live with published trusted
@@ -195,10 +205,13 @@ Store this evidence against PRD-14/TASK-147 before declaring Phase 6 complete.
 
 ## 8. Recovery
 
-All setup steps are additive. A failed stage must return a resumable blocker and
-leave already-passing stages intact. Revoke a compromised per-machine identity or
-SSH key at its provider, then rerun User Setup. Never repair onboarding by copying
-another machine's private key, personal repository, keychain record, or `.env`.
+All setup steps are additive or rollback-backed. A failed stage must return a
+resumable blocker and leave already-passing stages intact. Manifest repair and
+migration keep the prior bytes under the manifest directory's
+`.copilot-control-tower-backups/<sha256>/` folder. Revoke a compromised
+per-machine identity or SSH key at its provider, then rerun User Setup. Never
+repair onboarding by copying another machine's private key, personal repository,
+keychain record, or `.env`.
 
 ## 9. Clean-laptop reset prompt
 

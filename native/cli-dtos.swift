@@ -471,7 +471,9 @@ struct EcosystemOnboardStage: Decodable {
     let stage: String
     let result: String
     let detail: String?
+    let action: String?
     let path: String?
+    let rollbackPath: String?
     let layers: Int?
     let blocked: Int?
     let held: Int?
@@ -489,6 +491,27 @@ struct EcosystemOnboardLayer: Decodable {
     let rank: Int
 }
 
+/// A content-free adoption decision computed by `cc onboard`. The app never
+/// inspects paths or decides whether something is safe to move; it renders the
+/// CLI's reuse/create/migrate/repair/review verdict.
+struct EcosystemInventoryItem: Decodable, Identifiable {
+    let id: String
+    let scope: String
+    let title: String
+    let state: String
+    let action: String
+    let detail: String
+    let sourcePath: String?
+    let destinationPath: String?
+    let reversible: Bool
+}
+
+struct EcosystemInventorySummary: Decodable {
+    let reused: Int
+    let changes: Int
+    let review: Int
+}
+
 struct EcosystemOnboardReport: Decodable {
     let schemaVersion: String
     let scope: String
@@ -498,6 +521,8 @@ struct EcosystemOnboardReport: Decodable {
     let products: [String]
     let stages: [EcosystemOnboardStage]
     let layers: [EcosystemOnboardLayer]
+    let inventory: [EcosystemInventoryItem]?
+    let inventorySummary: EcosystemInventorySummary?
 }
 
 // MARK: - workspace --all --json

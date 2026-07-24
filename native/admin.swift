@@ -1357,7 +1357,7 @@ extension AdminRootView {
                     .foregroundColor(Color(nsColor: .labelColor))
                 }
 
-                Text("Admin checks GitHub first, reuses what is already safe, creates only confirmed-missing private spaces, and verifies the result.")
+                Text("Admin checks GitHub first, adopts what is already safe, creates only confirmed-missing private spaces, and stops for review instead of overwriting unfamiliar content. Nobody has to delete an existing setup to use this app.")
                     .font(.callout)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
@@ -2152,17 +2152,17 @@ extension AdminRootView {
         StepShell(
             eyebrow: "ONBOARDING",
             title: "Review organization setup",
-            intro: "Here's the complete private repository plan. Setup checks every target first, reuses existing private repositories, and creates only repositories GitHub confirms are missing."
+            intro: "Here's what Admin found and how it will finish the setup. Existing private repositories are kept, compatible setup is completed in place, and only confirmed-missing repositories are created."
         ) {
             VStack(alignment: .leading, spacing: 20) {
                 AdminCard {
-                    Text("This adds and updates. It never deletes or overwrites anything already there.")
+                    Text("You do not need to remove an existing ecosystem. Admin preserves it, adds only what is missing, and stops before any ambiguous change.")
                         .font(.body.weight(.medium))
                         .foregroundColor(Color(nsColor: .labelColor))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                AdminCard(title: "What setup will create") {
+                AdminCard(title: "The complete organization setup") {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Org spaces: knowledge, CLI, Claude, and Codex repositories ending in -internal. Private.")
                         ForEach(model.departments.filter { !$0.slug.isEmpty }) { dept in
@@ -2252,7 +2252,7 @@ extension AdminRootView {
     }
 
     private var repositoryInventoryCard: some View {
-        AdminCard(title: "GitHub repository inventory") {
+        AdminCard(title: "What Admin found on GitHub") {
             VStack(alignment: .leading, spacing: 8) {
                 switch model.repositoryPlanState {
                 case .idle, .working:
@@ -2269,17 +2269,29 @@ extension AdminRootView {
                     if let plan = model.repositoryPlan {
                         ForEach(plan.repositories, id: \.name) { repository in
                             HStack(alignment: .top, spacing: 8) {
-                                Text(repository.state == .existingPrivate ? "✓" : (repository.state == .missing ? "+" : "!"))
+                                Image(systemName: repositoryInventoryGlyph(repository.state))
+                                    .foregroundColor(repositoryInventoryColor(repository.state))
+                                    .frame(width: 18)
+                                    .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(repository.owner)/\(repository.name)")
-                                        .font(.system(.callout, design: .monospaced))
+                                    HStack {
+                                        Text("\(repository.owner)/\(repository.name)")
+                                            .font(.system(.callout, design: .monospaced))
+                                        Spacer()
+                                        Text(repositoryInventoryAction(repository.state))
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundColor(repositoryInventoryColor(repository.state))
+                                    }
                                     Text(repository.detail)
                                         .font(.caption)
                                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                                 }
                             }
+                            .padding(.vertical, 4)
                         }
-                        Text("Existing private repositories are reused. Only confirmed-missing repositories are created, and every new repository is private.")
+                        Text("\(plan.summary.existing) kept · \(plan.summary.missing) to create privately · \(plan.summary.blocked) needing review")
+                            .font(.callout.weight(.semibold))
+                        Text("Admin rechecks this inventory immediately before setup. Existing private repositories are reused, compatible content is completed additively, and every new repository is private.")
                             .font(.callout.weight(.medium))
                     }
                     if let message = model.repositorySetupMessage {
@@ -2288,6 +2300,31 @@ extension AdminRootView {
                     }
                 }
             }
+        }
+    }
+
+    private func repositoryInventoryAction(_ state: RepositoryState) -> String {
+        switch state {
+        case .existingPrivate: return "Keep"
+        case .missing: return "Create privately"
+        case .created: return "Created privately"
+        case .conflictPublic, .unknown: return "Review"
+        }
+    }
+
+    private func repositoryInventoryGlyph(_ state: RepositoryState) -> String {
+        switch state {
+        case .existingPrivate, .created: return "checkmark.circle.fill"
+        case .missing: return "plus.circle.fill"
+        case .conflictPublic, .unknown: return "hand.raised.circle.fill"
+        }
+    }
+
+    private func repositoryInventoryColor(_ state: RepositoryState) -> Color {
+        switch state {
+        case .existingPrivate, .created: return Color(nsColor: .systemGreen)
+        case .missing: return Color(nsColor: .controlAccentColor)
+        case .conflictPublic, .unknown: return Color(nsColor: .systemRed)
         }
     }
 

@@ -29,7 +29,7 @@ Every consumed verb grows a **versioned `--json`** mode. All schemas carry a top
 | `copilot publish --json` **(control-tower-originated proposal, not yet in upstream WS-A scope — must be added upstream at freeze)** | `{schema_version, tier, result, conflict?, resolutions[], parked_ref?, escalated_to?, leak_scan}` | Author-side push of a writable org/dept tier. **CLI computes the merge**; the app only renders the chooser and passes back the choice. Conflict states: `auto-merged` / `needs-choice` / `parked-escalated`. See the subsection below. |
 | `copilot layers --json` **(proposed contract addition, D7.1, not yet in upstream WS-A scope)** | `{schema_version, layers:[{tier(org\|department), id, name, repo, entitled(bool), joined(bool), reason?}]}` | Entitlement discovery. Lists every department/org layer visible for the account context, whether the user is **entitled** (has GitHub repo access to it, per D3, the entitlement spine) and whether it is already **joined** (synced onto this machine). Entitlement is computed **CLI-side**; the app only renders the list. |
 | `copilot layers join <id> --json` **(proposed contract addition, D7.1)** | `{result(joined\|already-joined\|not-entitled\|error), tier, id, synced_lock_sha}` | Join action. Takes the user's pick of an entitled, not-yet-joined layer from the app-rendered list and syncs it onto the machine (equivalent to what `update` materializes for an already-joined layer). `not-entitled` is a normal, renderable outcome, not a crash. |
-| `cc onboard --scope personal [--components knowledge,cli,claude,codex] [--apply] --json` **(Phase 6 repository stage implemented)** | `{schema_version,scope,owner,mode,result,repositories:[{component,role,owner,name,visibility,state,action,detail}],summary}` (see [`schemas/onboard.schema.json`](schemas/onboard.schema.json)) | Default plan mode is read-only. Apply repeats every probe, reuses existing private repositories, and creates only explicit-404 targets under the authenticated personal account with private visibility. Public collisions and unreadable responses block all creation. The later resolver/materializer stages remain Phase 6 work. |
+| `cc onboard --scope personal [--components knowledge,cli,claude,codex] [--apply] --json` / `cc onboard --org <org\|auto> --products claude,codex [--apply] --json` **(Phase 6 implemented)** | Repository report plus aggregate `{stages,layers,inventory:[{id,scope,title,state,action,detail,source_path,destination_path,reversible}],inventory_summary}` (see [`schemas/onboard.schema.json`](schemas/onboard.schema.json)) | Default plan mode is read-only. Aggregate Apply performs a complete preflight before any mutation, reuses existing private repositories, creates only explicit-404 targets, adopts supported predecessor manifests, preserves unrelated products, and writes a rollback copy before migration/repair. Unfamiliar or conflicting state returns `review` and blocks the complete Apply. |
 | `cc workspace (--all\|--project <path>) --json` / `cc workspace configure --project <path> [--share-with-project] [--apply] --json` | `{schema_version,mode,result,workspaces:[{path,name,project_id,state,detail,declared_components,installed_components,recommended_components,personal_profile}],summary,actions?}` (see [`schemas/workspaces.schema.json`](schemas/workspaces.schema.json)) | Status is bounded and read-only. Configure repeats an all-product collision preflight, activates only missing component setup, and never treats the portable declaration as installation proof. Personal association stores only an opaque project id and product names outside the shared repo. |
 | `cc workspace approve-root --path <folder> [--apply] --json` | `{schema_version,mode,result,root:{name,state,detail}}` (see [`schemas/workspace-root.schema.json`](schemas/workspace-root.schema.json)) | One-time User Setup approval for bounded discovery. Refuses symlinked/unavailable roots and returns only the display name to the app. |
 
@@ -78,11 +78,11 @@ The transaction has two explicit authority stages:
    individual's private repositories, establish on-device credentials, resolve
    the effective stack, materialize it, and run doctor evidence.
 
-The first shipped slice is the personal repository gate above. It deliberately
-separates `plan` from `--apply`, resolves the owner from `gh api user`, and
-treats only an explicit HTTP 404 as absence. It does not yet satisfy the whole
-aggregate transaction described below; product-aware resolution,
-materialization, and aggregate doctor evidence remain pending.
+The personal repository gate deliberately separates `plan` from `--apply`,
+resolves the owner from `gh api user`, and treats only an explicit HTTP 404 as
+absence. The aggregate transaction now coordinates that gate with device
+identity, manifest adoption, store provisioning, product-aware materialization,
+Codex registration, and doctor evidence.
 
 For ENAC, which has no departments, every requested product must report exactly
 `personal (10) -> organization (30) -> foundation (40)`. Resolution keys are
@@ -102,6 +102,15 @@ missing or stale managed artifacts. It preserves dirty/user-owned content,
 reports held work, and provides a recovery action for every blocked stage. A
 partially completed Admin stage can be resumed by User Setup without repeating
 already-passing mutations.
+
+**Adoption contract.** `inventory[].action` is one of `reuse`, `create`,
+`migrate`, `repair`, or `review`. A supported `component:` predecessor can be
+translated to `product:` and merged; products outside the requested
+Claude/Codex stacks are retained. Before `migrate` or `repair`, the original
+manifest bytes are stored in a content-addressed local rollback directory.
+`review` always stops the transaction before personal repository, SSH, store,
+or manifest mutation. Control Tower renders these actions and never computes
+compatibility itself.
 
 ## Concurrency (the double-write fix)
 

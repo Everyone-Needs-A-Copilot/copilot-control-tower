@@ -535,6 +535,25 @@ Every mutating stage repeats its read-only preflight, reports `planned`,
 `applied`, `reused`, `held`, or `blocked`, and is safe to resume after a partial
 failure. Already-passing stages remain intact.
 
+### C.1 Adopt existing ecosystems instead of requiring reset (`TASK-155`) — implemented
+
+1. Aggregate onboarding inventories personal repositories and the local layer
+   manifest before the first mutation and returns structured `reuse`, `create`,
+   `migrate`, `repair`, or `review` actions.
+2. The supported predecessor manifest (`component:`) is translated
+   deterministically to `product:`. Existing products outside Claude/Codex,
+   including the live CLI stack, are retained in the merged manifest.
+3. Repair and migration keep a content-addressed rollback copy. Unfamiliar or
+   conflicting manifests stop the complete Apply before personal repository,
+   SSH, store, or local-manifest mutation.
+4. Admin and User apps render the plan in plain language. Admin applies the
+   same adopt-in-place policy to organization/department repositories; User
+   Setup renders local/personal decisions and the recurring project flow keeps
+   existing per-project setup.
+5. Focused contract tests cover retained legacy layers, reversible migration,
+   and a zero-write unfamiliar-manifest hold. The remaining proof is the live
+   Admin-machine and laptop execution in section E.
+
 ### D. Produce the release candidate and close owner-controlled gates
 
 1. Supply the organization GitHub OAuth App client id with device flow enabled.

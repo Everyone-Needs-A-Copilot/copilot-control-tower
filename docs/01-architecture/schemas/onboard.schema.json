@@ -56,7 +56,7 @@
     "ecosystemReport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_version", "scope", "mode", "result", "org", "products", "stages", "layers"],
+      "required": ["schema_version", "scope", "mode", "result", "org", "products", "stages", "layers", "inventory", "inventory_summary"],
       "properties": {
         "schema_version": { "const": "1.0" },
         "scope": { "const": "ecosystem" },
@@ -76,6 +76,13 @@
         "layers": {
           "type": "array",
           "items": { "$ref": "#/$defs/ecosystemLayer" }
+        },
+        "inventory": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/inventoryItem" }
+        },
+        "inventory_summary": {
+          "$ref": "#/$defs/inventorySummary"
         }
       }
     },
@@ -87,7 +94,9 @@
         "stage": { "enum": ["organization-handoff", "personal-packages", "device-ssh", "layer-manifest", "secret-store", "codex-plugin", "materialize", "doctor"] },
         "result": { "type": "string", "minLength": 1 },
         "detail": { "type": "string", "minLength": 1 },
+        "action": { "enum": ["reuse", "create", "migrate", "repair", "review"] },
         "path": { "type": "string", "minLength": 1 },
+        "rollback_path": { "type": "string", "minLength": 1 },
         "layers": { "type": "integer", "minimum": 0 },
         "blocked": { "type": "integer", "minimum": 0 },
         "held": { "type": "integer", "minimum": 0 },
@@ -109,6 +118,32 @@
         "product": { "enum": ["claude", "codex"] },
         "role": { "enum": ["personal", "department", "organization", "foundation"] },
         "rank": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "inventoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scope", "title", "state", "action", "detail", "source_path", "destination_path", "reversible"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "scope": { "enum": ["personal", "machine", "project"] },
+        "title": { "type": "string", "minLength": 1 },
+        "state": { "type": "string", "minLength": 1 },
+        "action": { "enum": ["reuse", "create", "migrate", "repair", "review"] },
+        "detail": { "type": "string", "minLength": 1 },
+        "source_path": { "type": ["string", "null"] },
+        "destination_path": { "type": ["string", "null"] },
+        "reversible": { "type": "boolean" }
+      }
+    },
+    "inventorySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reused", "changes", "review"],
+      "properties": {
+        "reused": { "type": "integer", "minimum": 0 },
+        "changes": { "type": "integer", "minimum": 0 },
+        "review": { "type": "integer", "minimum": 0 }
       }
     }
   }

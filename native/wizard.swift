@@ -183,6 +183,9 @@ final class WizardModel: ObservableObject {
     @Published var deviceFlow = DeviceFlowState()
     @Published var authorizedLogin: String?
     @Published var detectLines: [String] = []
+    @Published var ecosystemInventory: [EcosystemInventoryItem] = []
+    @Published var ecosystemInventorySummary: EcosystemInventorySummary?
+    @Published var adoptionRollbackPaths: [String] = []
     @Published var includeCodex = true
     @Published var departments: [DepartmentRow] = []
     @Published var materialize = MaterializePhaseState()
@@ -376,6 +379,8 @@ final class WizardModel: ObservableObject {
                 }
                 return
             }
+            self.ecosystemInventory = onboard.inventory ?? []
+            self.ecosystemInventorySummary = onboard.inventorySummary
             guard onboard.result != .blocked else {
                 let detail = onboard.stages.last(where: { $0.result == "blocked" })?.detail
                     ?? "Your organization's setup could not be confirmed safely."
@@ -539,6 +544,9 @@ final class WizardModel: ObservableObject {
                     self.enterHolding(reason: "\(detail) You can retry after it is resolved.", origin: .materialize)
                     return
                 }
+                self.ecosystemInventory = report.inventory ?? self.ecosystemInventory
+                self.ecosystemInventorySummary = report.inventorySummary ?? self.ecosystemInventorySummary
+                self.adoptionRollbackPaths = report.stages.compactMap(\.rollbackPath)
             case .failure(let error):
                 self.materializeInFlight = false
                 self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .materialize)
@@ -1054,21 +1062,61 @@ struct WizardRootView: View {
         stepShell(
             eyebrow: "Step 3 of 9",
             title: "Checking what's already here",
-            intro: "Control Tower looks at what's already on this Mac before it asks you anything, and puts the basics in place."
+            intro: "Control Tower keeps the parts that are already right, safely moves or repairs recognized earlier setup, and leaves anything unfamiliar untouched."
         ) {
             if case .detecting = model.phase {
                 verifyingCard("Checking what's already here…")
             } else {
-                sectionCard("What's already here") {
-                    VStack(alignment: .leading, spacing: 11) {
-                        ForEach(model.detectLines, id: \.self) { line in
-                            HStack(alignment: .top, spacing: 9) {
-                                Text("•")
-                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                                Text(line)
-                                    .font(.callout)
-                                    .foregroundColor(Color(nsColor: .labelColor))
-                                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 16) {
+                    if !model.ecosystemInventory.isEmpty {
+                        sectionCard("What Control Tower found") {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(Array(model.ecosystemInventory.enumerated()), id: \.element.id) { index, item in
+                                    HStack(alignment: .top, spacing: 10) {
+                                        Image(systemName: inventoryGlyph(item.action))
+                                            .foregroundColor(inventoryColor(item.action))
+                                            .frame(width: 18)
+                                            .accessibilityHidden(true)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            HStack {
+                                                Text(item.title)
+                                                    .font(.callout.weight(.semibold))
+                                                Spacer()
+                                                Text(inventoryActionLabel(item.action))
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundColor(inventoryColor(item.action))
+                                            }
+                                            Text(item.detail)
+                                                .font(.caption)
+                                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                                .fixedSize(horizontal: false, vertical: true)
+                                            if item.reversible {
+                                                Text("A rollback copy is kept before anything moves or changes.")
+                                                    .font(.caption2)
+                                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                                            }
+                                        }
+                                    }
+                                    .padding(.vertical, 9)
+                                    .accessibilityElement(children: .combine)
+                                    if index < model.ecosystemInventory.count - 1 {
+                                        Divider()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    sectionCard("How everything connects") {
+                        VStack(alignment: .leading, spacing: 11) {
+                            ForEach(model.detectLines, id: \.self) { line in
+                                HStack(alignment: .top, spacing: 9) {
+                                    Text("•")
+                                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                                    Text(line)
+                                        .font(.callout)
+                                        .foregroundColor(Color(nsColor: .labelColor))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
                         }
                     }
@@ -1088,6 +1136,36 @@ struct WizardRootView: View {
     private var isDetecting: Bool {
         if case .detecting = model.phase { return true }
         return false
+    }
+
+    private func inventoryActionLabel(_ action: String) -> String {
+        switch action {
+        case "reuse": return "Keep"
+        case "create": return "Add"
+        case "migrate": return "Move safely"
+        case "repair": return "Complete"
+        case "review": return "Needs review"
+        default: return action.capitalized
+        }
+    }
+
+    private func inventoryGlyph(_ action: String) -> String {
+        switch action {
+        case "reuse": return "checkmark.circle.fill"
+        case "create": return "plus.circle.fill"
+        case "migrate": return "arrow.right.circle.fill"
+        case "repair": return "wrench.and.screwdriver.fill"
+        case "review": return "hand.raised.circle.fill"
+        default: return "circle.fill"
+        }
+    }
+
+    private func inventoryColor(_ action: String) -> Color {
+        switch action {
+        case "reuse": return Color(nsColor: .systemGreen)
+        case "review": return Color(nsColor: .systemRed)
+        default: return Color(nsColor: .controlAccentColor)
+        }
     }
 
     // MARK: 4. What you're getting (#w4)
@@ -1366,6 +1444,12 @@ struct WizardRootView: View {
                     Text("Everything checks out.")
                         .font(.callout.weight(.semibold))
                         .foregroundColor(Color(nsColor: .labelColor))
+                    if !model.adoptionRollbackPaths.isEmpty {
+                        Text("Your previous setup was preserved in a rollback copy.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .padding(.top, 5)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(22)
@@ -1403,8 +1487,8 @@ struct WizardRootView: View {
                     sectionCard("Your code projects") {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(model.workspaceFolderName == nil
-                                 ? "Choose the folder where you keep code. Control Tower will quietly set up new projects there when they need it."
-                                 : "Control Tower is watching \(model.workspaceFolderName ?? "your chosen folder") for projects.")
+                                 ? "Choose the folder where you keep code. Control Tower checks every project there, keeps any existing Claude or Codex setup, and offers to add only what's missing."
+                                 : "Control Tower is watching \(model.workspaceFolderName ?? "your chosen folder"). Existing project setup is kept; only missing pieces are offered.")
                                 .font(.callout)
                                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -1433,7 +1517,25 @@ struct WizardRootView: View {
             title: "I've paused setup for now.",
             intro: info.reason
         ) {
-            EmptyView()
+            let reviewItems = model.ecosystemInventory.filter { $0.action == "review" }
+            if reviewItems.isEmpty {
+                EmptyView()
+            } else {
+                sectionCard("Kept untouched for review") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(reviewItems) { item in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.title)
+                                    .font(.callout.weight(.semibold))
+                                Text(item.detail)
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+            }
         } leadingActions: {
             Button { onClose() } label: { Text("Continue in the menu bar") }
                 .buttonStyle(.plain)

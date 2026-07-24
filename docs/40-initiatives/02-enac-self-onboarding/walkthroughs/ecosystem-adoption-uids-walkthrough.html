@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ecosystem adoption — UI walkthrough</title>
+<style>
+:root{color-scheme:light dark;--canvas:#ecece8;--surface:#fff;--field:#f7f7f5;--text:#1f201e;--secondary:#686a65;--separator:#d9dad5;--accent:#3269d8;--green:#23734a;--red:#a43b32}
+@media(prefers-color-scheme:dark){:root{--canvas:#141513;--surface:#222320;--field:#2a2b28;--text:#f4f5f1;--secondary:#a6a8a1;--separator:#3d3f3a;--accent:#82a7ff;--green:#6cc894;--red:#ff9185}}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{max-width:1120px;margin:auto;padding:34px 24px 22px}h1{font-size:28px;margin:0 0 6px}p{margin:0;color:var(--secondary)}
+nav{max-width:1120px;margin:auto;padding:0 24px 20px;display:flex;gap:18px;flex-wrap:wrap}nav a{color:var(--accent);text-decoration:none}
+main{max-width:1120px;margin:auto;padding:0 24px 64px}.frame{display:grid;grid-template-columns:1fr 280px;gap:20px;margin:0 0 34px}.window{background:var(--surface);border:1px solid var(--separator);border-radius:16px;box-shadow:0 18px 50px #0002;overflow:hidden}.bar{height:38px;background:var(--field);border-bottom:1px solid var(--separator);display:flex;align-items:center;padding:0 14px;gap:7px}.dot{width:11px;height:11px;border-radius:50%;background:var(--separator)}
+.content{padding:24px}.eyebrow{font-size:11px;font-weight:750;letter-spacing:.09em;color:var(--secondary)}h2{font-size:23px;line-height:1.2;margin:5px 0 7px}.card{margin-top:18px;border:1px solid var(--separator);border-radius:11px;padding:0 15px}.card-title{font-size:13px;font-weight:700;padding:13px 0 7px}.row{display:grid;grid-template-columns:20px 1fr auto;gap:9px;padding:12px 0;border-top:1px solid var(--separator)}.name{font-weight:650}.desc{font-size:12px;color:var(--secondary);margin-top:2px}.pill{font-size:11px;font-weight:750}.good{color:var(--green)}.red{color:var(--red)}.blue{color:var(--accent)}.footer{display:flex;justify-content:flex-end;margin-top:20px}.button{background:var(--accent);color:white;border-radius:8px;padding:7px 14px;font-weight:650}
+.comment{background:var(--surface);border:1px solid var(--separator);border-radius:12px;padding:18px;align-self:start}.comment h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--secondary);margin:0 0 8px}.spec{margin-top:14px;padding-top:12px;border-top:1px solid var(--separator);font-size:12px;color:var(--secondary)}
+@media(max-width:760px){.frame{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header><h1>Native Calm adoption states</h1><p>UI direction: system surfaces, shape-plus-word status, restrained color, and no destructive drama.</p></header>
+<nav><a href="#user">User inventory</a><a href="#admin">Admin inventory</a><a href="#hold">Review hold</a></nav>
+<main>
+<section class="frame" id="user"><div class="window"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><div class="content"><div class="eyebrow">STEP 3 OF 9</div><h2>Checking what’s already here</h2><p>Keep what works. Complete only what is missing.</p><div class="card"><div class="card-title">What Control Tower found</div>
+<div class="row"><span class="good">●</span><span><span class="name">Claude personal space</span><div class="desc">Existing rank-10 package will be reused.</div></span><span class="pill good">Keep</span></div>
+<div class="row"><span class="blue">＋</span><span><span class="name">Codex personal space</span><div class="desc">A missing private space can be added.</div></span><span class="pill blue">Add</span></div>
+<div class="row"><span class="blue">→</span><span><span class="name">Copilot layers</span><div class="desc">Recognized earlier setup will be combined. A rollback copy is kept.</div></span><span class="pill blue">Move safely</span></div>
+</div><div class="footer"><span class="button">Continue</span></div></div></div><aside class="comment"><h3>Hierarchy</h3><p>The object name leads; the action is a compact trailing label. Detail is secondary but never hidden.</p><div class="spec">Rows: 12 px vertical padding · 9 px gap · 11 px radius · semantic system colors.</div></aside></section>
+<section class="frame" id="admin"><div class="window"><div class="bar"></div><div class="content"><div class="eyebrow">ONBOARDING</div><h2>Review organization setup</h2><p>Existing private repositories are kept. Only confirmed-missing repositories are created.</p><div class="card"><div class="card-title">What Admin found on GitHub</div>
+<div class="row"><span class="good">●</span><span><span class="name">Acme/claude-copilot-internal</span><div class="desc">Existing private repository will be reused.</div></span><span class="pill good">Keep</span></div>
+<div class="row"><span class="blue">＋</span><span><span class="name">Acme/codex-copilot-internal</span><div class="desc">Repository does not exist.</div></span><span class="pill blue">Create privately</span></div>
+</div><div class="footer"><span class="button">Set up organization</span></div></div></div><aside class="comment"><h3>Shared language</h3><p>Admin and User use the same visual grammar, while each app remains inside its authority boundary.</p></aside></section>
+<section class="frame" id="hold"><div class="window"><div class="bar"></div><div class="content"><div class="eyebrow red">SETUP IS HOLDING</div><h2>I’ve paused setup for now.</h2><p>Nothing existing was changed.</p><div class="card"><div class="card-title">Kept untouched for review</div><div class="row"><span class="red">!</span><span><span class="name">Copilot layers</span><div class="desc">Existing Claude or Codex layers do not match a managed stack.</div></span><span class="pill red">Needs review</span></div></div><div class="footer"><span class="button">Try again</span></div></div></div><aside class="comment"><h3>Accessible severity</h3><p>Red is supported by a hand/alert shape, “Needs review,” and explicit preservation copy. The screen avoids raw errors and forced choices.</p></aside></section>
+</main>
+</body></html>

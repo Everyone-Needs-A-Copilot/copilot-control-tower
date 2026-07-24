@@ -202,6 +202,8 @@ case .success(let report):
     check("ecosystem onboard plan carries the complete transaction", report.stages.contains(where: { $0.stage == "device-ssh" }) && report.stages.contains(where: { $0.stage == "codex-plugin" }))
     check("ecosystem onboard plan carries six content-free layers", report.layers.count == 6)
     check("ecosystem layer ranks preserve personal, organization, foundation precedence", Set(report.layers.map(\.rank)) == Set([10, 30, 40]))
+    check("ecosystem onboard plan carries adoption inventory", report.inventory?.count == 3)
+    check("ecosystem onboard plan identifies reversible manifest repair", report.inventory?.first(where: { $0.id == "layer-manifest" })?.reversible == true)
 case .failure(let error):
     check("ecosystem onboard plan decodes", false, "got \(error)")
 }
@@ -211,6 +213,7 @@ case .success(let report):
     check("ecosystem onboard apply decodes", report.result == .ready)
     check("ecosystem onboard apply finishes doctor", report.stages.last?.stage == "doctor")
     check("ecosystem onboard apply includes both products", Set(report.layers.map(\.product)) == Set(["claude", "codex"]))
+    check("ecosystem onboard apply carries rollback evidence", report.stages.first(where: { $0.stage == "layer-manifest" })?.rollbackPath != nil)
 case .failure(let error):
     check("ecosystem onboard apply decodes", false, "got \(error)")
 }
