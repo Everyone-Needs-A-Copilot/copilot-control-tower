@@ -324,6 +324,7 @@ struct SecretGuardedField: View {
     @Binding var value: String
     var placeholder: String = ""
     var helpText: String? = nil
+    var accessibilityName: String? = nil
     @State private var refused = false
 
     var body: some View {
@@ -345,7 +346,12 @@ struct SecretGuardedField: View {
                 }
             ))
             .textFieldStyle(.roundedBorder)
-            .accessibilityValue(refused ? "That looks like a secret. This setting never holds secrets." : "")
+            .accessibilityLabel(accessibilityName ?? label)
+            .accessibilityValue(
+                refused
+                    ? "That looks like a secret. This setting never holds secrets."
+                    : (value.isEmpty ? "Empty. Example: \(placeholder.replacingOccurrences(of: "e.g. ", with: ""))" : value)
+            )
 
             if refused {
                 secretRefusalLine
@@ -367,6 +373,26 @@ struct SecretGuardedField: View {
                 .foregroundColor(Color(nsColor: .systemRed))
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// Example copy for every editable Admin text field. The `e.g.` prefix keeps
+/// examples visibly distinct from saved values, especially on a later visit.
+enum AdminPlaceholder {
+    static let publisher = "e.g. Jordan Vale"
+    static let admin = "e.g. Earl Reyes"
+    static let pointOfContact = "e.g. Priya Shah"
+    static let organization = "e.g. acme-co"
+    static let oauthClientID = "e.g. Iv1.a1b2c3d4e5f6a7b8"
+    static let department = "e.g. Accounting"
+    static let storeAddress = "e.g. https://vault.acme-co.com"
+    static let workspaceID = "e.g. workspace-acme"
+    static let environment = "e.g. prod"
+    static let sharedSecretPath = "e.g. /shared"
+    static let githubUsername = "e.g. octocat"
+
+    static func departmentScope(_ slug: String) -> String {
+        "e.g. dept/\(slug.isEmpty ? "accounting" : slug)"
     }
 }
 
@@ -1522,9 +1548,9 @@ extension AdminRootView {
         ) {
             AdminCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    labeledField("Publisher", text: $model.contactPublisher)
-                    labeledField("Admin", text: $model.contactAdmin)
-                    labeledField("Point of contact", text: $model.contactPointOfContact)
+                    labeledField("Publisher", text: $model.contactPublisher, placeholder: AdminPlaceholder.publisher)
+                    labeledField("Admin", text: $model.contactAdmin, placeholder: AdminPlaceholder.admin)
+                    labeledField("Point of contact", text: $model.contactPointOfContact, placeholder: AdminPlaceholder.pointOfContact)
                 }
             }
         } leadingActions: {
@@ -1543,13 +1569,8 @@ extension AdminRootView {
     // quoted YAML strings), so they run the same secret-shape refusal as the
     // store fields (QA fix: every free-text field bound into the brief must
     // be guarded, not just the two store-collecting surfaces).
-    private func labeledField(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            SecretGuardedField(label: "", value: text)
-        }
+    private func labeledField(_ label: String, text: Binding<String>, placeholder: String) -> some View {
+        SecretGuardedField(label: label, value: text, placeholder: placeholder)
     }
 }
 
@@ -1564,10 +1585,11 @@ extension AdminRootView {
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Organization")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    SecretGuardedField(label: "", value: $model.orgNameInput, placeholder: "acme-co")
+                    SecretGuardedField(
+                        label: "Organization",
+                        value: $model.orgNameInput,
+                        placeholder: AdminPlaceholder.organization
+                    )
                         .frame(maxWidth: 320)
                         .onChange(of: model.orgNameInput) { _ in
                             model.orgSlugTouched = true
@@ -1589,7 +1611,7 @@ extension AdminRootView {
                     // This dedicated field validates the exact public shape;
                     // a client secret is longer and cannot pass that gate.
                     TextField(
-                        "Iv1.a1b2c3d4e5f6a7b8",
+                        AdminPlaceholder.oauthClientID,
                         text: Binding(
                             get: { model.githubOAuthClientIDInput },
                             set: { newValue in
@@ -1603,7 +1625,8 @@ extension AdminRootView {
                             }
                         )
                     )
-                        .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("GitHub OAuth App client ID")
                     .frame(maxWidth: 320)
                     Text("Paste the public Client ID from your organization's device-flow-enabled GitHub OAuth App. Never paste its client secret.")
                         .font(.caption)
@@ -1782,10 +1805,11 @@ extension AdminRootView {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Organization name")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    SecretGuardedField(label: "", value: $model.orgNameInput, placeholder: "acme-co")
+                    SecretGuardedField(
+                        label: "Organization name",
+                        value: $model.orgNameInput,
+                        placeholder: AdminPlaceholder.organization
+                    )
                         .frame(maxWidth: 320)
                         .onChange(of: model.orgNameInput) { model.orgSlugTouched = true }
                     if model.orgSlugTouched, !model.orgNameInput.isEmpty, !model.orgSlugIsValid {
@@ -1821,7 +1845,8 @@ extension AdminRootView {
                             get: { model.departments[idx].name },
                             set: { model.departments[idx].name = $0 }
                         ),
-                        placeholder: "e.g. Accounting"
+                        placeholder: AdminPlaceholder.department,
+                        accessibilityName: "Department name"
                     )
                     .frame(maxWidth: 260)
 
@@ -2004,7 +2029,7 @@ extension AdminRootView {
                         SecretGuardedField(
                             label: "Store address",
                             value: $model.storeAddress,
-                            placeholder: "https://vault.acme-co.com",
+                            placeholder: AdminPlaceholder.storeAddress,
                             helpText: "This is a web address, not a secret."
                         )
                         .frame(maxWidth: 360)
@@ -2020,20 +2045,20 @@ extension AdminRootView {
                             SecretGuardedField(
                                 label: "Workspace ID",
                                 value: $model.storeWorkspaceID,
-                                placeholder: "Infisical project ID",
+                                placeholder: AdminPlaceholder.workspaceID,
                                 helpText: "This identifies the workspace; it is not a secret."
                             )
                             .frame(maxWidth: 360)
                             SecretGuardedField(
                                 label: "Environment",
                                 value: $model.storeEnvironment,
-                                placeholder: "prod"
+                                placeholder: AdminPlaceholder.environment
                             )
                             .frame(maxWidth: 360)
                             SecretGuardedField(
                                 label: "Shared secret path",
                                 value: $model.storeSecretPath,
-                                placeholder: "/shared",
+                                placeholder: AdminPlaceholder.sharedSecretPath,
                                 helpText: "Each device receives read-only access to this exact path."
                             )
                             .frame(maxWidth: 360)
@@ -2059,7 +2084,8 @@ extension AdminRootView {
                                             SecretGuardedField(
                                                 label: "",
                                                 value: model.scopeBinding(for: dept),
-                                                placeholder: "dept/\(dept.slug)"
+                                                placeholder: AdminPlaceholder.departmentScope(dept.slug),
+                                                accessibilityName: "Shared secret path for \(dept.name)"
                                             )
                                             .frame(maxWidth: 220)
                                         }

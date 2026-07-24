@@ -592,9 +592,10 @@ extension AdminRootView {
                     Text("Who left")
                         .font(.caption.weight(.semibold))
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    TextField("octocat", text: $model.someoneLeftLookup)
+                    TextField(AdminPlaceholder.githubUsername, text: $model.someoneLeftLookup)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 240)
+                        .accessibilityLabel("GitHub username of the person who left")
                     Button("Look up") {
                         model.someoneLeftLookedUp = true
                     }
@@ -652,7 +653,7 @@ extension AdminRootView {
                         SecretGuardedField(
                             label: "Store address",
                             value: $model.storeAddress,
-                            placeholder: "https://vault.acme-co.com",
+                            placeholder: AdminPlaceholder.storeAddress,
                             helpText: "This is a web address, not a secret."
                         )
                         .frame(maxWidth: 360)
@@ -670,7 +671,8 @@ extension AdminRootView {
                                             SecretGuardedField(
                                                 label: "",
                                                 value: model.scopeBinding(for: dept),
-                                                placeholder: "dept/\(dept.slug)"
+                                                placeholder: AdminPlaceholder.departmentScope(dept.slug),
+                                                accessibilityName: "Shared secret path for \(dept.name)"
                                             )
                                             .frame(maxWidth: 220)
                                         }

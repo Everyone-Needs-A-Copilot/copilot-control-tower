@@ -28,6 +28,35 @@ for required in \
   fi
 done
 
+placeholder_reference_count="$(
+  rg -o 'AdminPlaceholder\.(publisher|admin|pointOfContact|organization|oauthClientID|department|storeAddress|workspaceID|environment|sharedSecretPath|githubUsername|departmentScope)' \
+    native/admin.swift native/admin-support.swift |
+    wc -l |
+    tr -d ' '
+)"
+if [[ "${placeholder_reference_count}" != "15" ]]; then
+  echo "expected all 15 Admin form placeholder references, found ${placeholder_reference_count}" >&2
+  exit 1
+fi
+
+for expected_copy in \
+  "e.g. Jordan Vale" \
+  "e.g. Earl Reyes" \
+  "e.g. Priya Shah" \
+  "e.g. acme-co" \
+  "e.g. Iv1.a1b2c3d4e5f6a7b8" \
+  "e.g. Accounting" \
+  "e.g. https://vault.acme-co.com" \
+  "e.g. workspace-acme" \
+  "e.g. prod" \
+  "e.g. /shared" \
+  "e.g. octocat"; do
+  if ! rg -Fq "${expected_copy}" native/admin.swift; then
+    echo "missing Admin placeholder copy: ${expected_copy}" >&2
+    exit 1
+  fi
+done
+
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${CONTENTS}/Info.plist")" == "com.everyoneneedsacopilot.controltower.admin" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${CONTENTS}/Info.plist")" == "Copilot Control Tower Admin" ]]
 codesign --verify --deep --strict "${APP}"
