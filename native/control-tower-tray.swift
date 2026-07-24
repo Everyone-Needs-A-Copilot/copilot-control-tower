@@ -1014,6 +1014,74 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             }
 
+            if env["CT_ADMIN_COMPLETION_DEPARTMENT_SELFTEST"] == "1" {
+                let model = AdminModel()
+                let savedState = """
+                {
+                  "schema_version": "1.0",
+                  "org": "acme-co",
+                  "harness": ["claude", "codex"],
+                  "github_app": {"client_id": "Iv1.a1b2c3d4e5f6a7b8"},
+                  "departments": ["accounting"],
+                  "store": {
+                    "status": "connected",
+                    "type": "infisical",
+                    "endpoint": "https://vault.acme-co.example",
+                    "workspace_id": "workspace-acme",
+                    "environment": "prod",
+                    "secret_path": "/shared",
+                    "team_scopes": [{"team": "accounting", "scope": "dept/accounting"}]
+                  },
+                  "contacts": {
+                    "publisher": "Jordan Vale",
+                    "admin": "Earl Reyes",
+                    "point_of_contact": "Priya Shah"
+                  }
+                }
+                """
+                let restorePass = model.applySavedState(savedState, savedCompletion: true)
+                    && model.orgSlug == "acme-co"
+                    && model.validDepartments.map(\.slug) == ["accounting"]
+                    && model.selectedHarnesses == Set(Harness.allCases)
+                    && model.onboardingIsComplete
+
+                model.pendingDepartmentName = "Accounting"
+                model.pendingDepartmentTouched = true
+                let duplicatePass = !model.canReviewPendingDepartment
+                    && model.pendingDepartmentValidationMessage?.contains("already set up") == true
+
+                model.pendingDepartmentName = "Sales"
+                let validPass = model.canReviewPendingDepartment
+                    && model.pendingDepartmentPreview?.contains("without changing Accounting") == true
+                model.beginPendingDepartmentAddition()
+                let routedPass = model.selection == .onboarding(.review)
+                    && model.validDepartments.map(\.slug) == ["accounting", "sales"]
+                    && !model.onboardingIsComplete
+
+                model.selection = .onboarding(.done)
+                model.finishOnboarding()
+                let completionPass = model.onboardingIsComplete
+                    && model.progressMark(for: .done) == .done
+                    && model.handoffStatusText == "Onboarding complete"
+
+                model.pendingDepartmentName = "Marketing"
+                model.beginPendingDepartmentAddition()
+                let reopenedPass = !model.onboardingIsComplete
+                    && model.selection == .onboarding(.review)
+
+                let passed = restorePass && duplicatePass && validPass && routedPass && completionPass && reopenedPass
+                print(
+                    "ADMIN_COMPLETION_DEPARTMENTS "
+                        + "restore=\(restorePass ? "pass" : "fail") "
+                        + "duplicate=\(duplicatePass ? "pass" : "fail") "
+                        + "valid=\(validPass ? "pass" : "fail") "
+                        + "routed=\(routedPass ? "pass" : "fail") "
+                        + "complete=\(completionPass ? "pass" : "fail") "
+                        + "reopened=\(reopenedPass ? "pass" : "fail")"
+                )
+                exit(passed ? 0 : 1)
+            }
+
             if env["CT_ADMIN_READINESS_SELFTEST"] == "1" {
                 let model = AdminModel()
                 model.orgNameInput = env["CT_ADMIN_ORG"] ?? "acme-co"

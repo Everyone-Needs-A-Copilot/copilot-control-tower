@@ -132,6 +132,14 @@ enum ShellRunner {
 /// Local, non-blocking-at-init file I/O. Every call here runs off the main
 /// thread; callers await the result from a user-triggered `Task`.
 enum AdminIO {
+    static func readFile(at path: String) async -> String? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: try? String(contentsOfFile: path, encoding: .utf8))
+            }
+        }
+    }
+
     static func writeFile(contents: String, to path: String) async -> Bool {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -662,9 +670,12 @@ enum WriteState: Equatable {
 
 @MainActor
 final class AdminModel: ObservableObject {
+    private static let completionDefaultsKey = "ct.adminOnboardingComplete"
+
     // Navigation
     @Published var selection: AdminSelection = .onboarding(.orientation)
     @Published var completedOnboarding: Set<AdminOnboardingStage> = []
+    private var didRestoreSavedState = false
 
     static let onboardingOrder: [AdminOnboardingStage] = AdminOnboardingStage.allCases
 
@@ -757,6 +768,12 @@ final class AdminModel: ObservableObject {
     @Published var someoneLeftLookup = ""
     @Published var someoneLeftLookedUp = false
 
+    // Governance: Add a department. This is intentionally separate from the
+    // onboarding editor so an additive change can be validated in place and
+    // routed straight to the existing Review -> Setup -> Verify transaction.
+    @Published var pendingDepartmentName = ""
+    @Published var pendingDepartmentTouched = false
+
     // MARK: Navigation helpers
 
     func markComplete(_ stage: AdminOnboardingStage) {
@@ -775,13 +792,46 @@ final class AdminModel: ObservableObject {
     }
 
     func progressMark(for stage: AdminOnboardingStage) -> AdminProgressMark {
-        if case .onboarding(let current) = selection, current == stage { return .current }
+        // A completed row stays checked while it is selected. This matters
+        // most for Done: selection highlight already shows location, while
+        // the trailing glyph answers the different question "is it finished?"
+        if completedOnboarding.contains(stage) { return .done }
         if stage == .connectGitHub {
             let passCount = readinessRows.filter { $0.status == .pass }.count
             if passCount == readinessRows.count { return .done }
             return .partial(done: passCount, total: readinessRows.count)
         }
-        return completedOnboarding.contains(stage) ? .done : .upcoming
+        if case .onboarding(let current) = selection, current == stage { return .current }
+        return .upcoming
+    }
+
+    var onboardingIsComplete: Bool {
+        completedOnboarding.contains(.done)
+    }
+
+    var handoffStatusText: String {
+        if onboardingIsComplete { return "Onboarding complete" }
+        if verifyState == .success, verifyDegradedLine == nil, verifyMustFix == 0, verifyUnknown == 0 {
+            return "Setup verified"
+        }
+        return completedOnboarding.isEmpty ? "Not started yet" : "Setup in progress"
+    }
+
+    func finishOnboarding() {
+        completedOnboarding = Set(Self.onboardingOrder)
+        LocalDefaults.set(true, forKey: Self.completionDefaultsKey)
+    }
+
+    private func reopenCompletionForGovernanceChange() {
+        for stage in [AdminOnboardingStage.review, .handedOff, .setupCheck, .done] {
+            completedOnboarding.remove(stage)
+        }
+        verifyState = .idle
+        verifyRows = []
+        verifyMustFix = 0
+        verifyUnknown = 0
+        verifyDegradedLine = nil
+        LocalDefaults.set(false, forKey: Self.completionDefaultsKey)
     }
 
     // MARK: Contacts
@@ -1036,6 +1086,80 @@ final class AdminModel: ObservableObject {
         storeScopeByDepartment.removeValue(forKey: id)
     }
 
+    func departmentIsDuplicate(_ id: UUID) -> Bool {
+        guard let candidate = departments.first(where: { $0.id == id }), !candidate.slug.isEmpty else {
+            return false
+        }
+        return departments.filter { $0.slug == candidate.slug }.count > 1
+    }
+
+    var departmentsAreValid: Bool {
+        let named = departments.filter {
+            !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard named.allSatisfy({ !$0.slug.isEmpty }) else { return false }
+        let slugs = named.map(\.slug)
+        return Set(slugs).count == slugs.count
+    }
+
+    var pendingDepartmentTrimmedName: String {
+        pendingDepartmentName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var pendingDepartmentSlug: String {
+        AdminSlug.derive(pendingDepartmentTrimmedName)
+    }
+
+    var pendingDepartmentDuplicate: DepartmentEntry? {
+        guard !pendingDepartmentSlug.isEmpty else { return nil }
+        return validDepartments.first { $0.slug == pendingDepartmentSlug }
+    }
+
+    var pendingDepartmentValidationMessage: String? {
+        guard pendingDepartmentTouched || !pendingDepartmentTrimmedName.isEmpty else { return nil }
+        if pendingDepartmentTrimmedName.isEmpty {
+            return "Enter the department name you want to add."
+        }
+        if pendingDepartmentSlug.isEmpty {
+            return "Use a name with at least one letter or number."
+        }
+        if let duplicate = pendingDepartmentDuplicate {
+            return "\(duplicate.name) is already set up. Choose a different department name."
+        }
+        return nil
+    }
+
+    var canReviewPendingDepartment: Bool {
+        !pendingDepartmentTrimmedName.isEmpty
+            && !pendingDepartmentSlug.isEmpty
+            && pendingDepartmentDuplicate == nil
+    }
+
+    var pendingDepartmentPreview: String? {
+        guard canReviewPendingDepartment else { return nil }
+        let existing = validDepartments.map(\.name)
+        if existing.isEmpty {
+            return "This will add \(pendingDepartmentSlug) as your first department."
+        }
+        return "This will add \(pendingDepartmentSlug) without changing \(existing.joined(separator: ", "))."
+    }
+
+    func beginPendingDepartmentAddition() {
+        guard canReviewPendingDepartment else {
+            pendingDepartmentTouched = true
+            return
+        }
+        departments.append(DepartmentEntry(name: pendingDepartmentTrimmedName))
+        pendingDepartmentName = ""
+        pendingDepartmentTouched = false
+        repositoryPlanState = .idle
+        repositoryPlan = nil
+        repositoryApplyState = .idle
+        repositorySetupMessage = nil
+        reopenCompletionForGovernanceChange()
+        selection = .onboarding(.review)
+    }
+
     var orgSlugIsValid: Bool { AdminSlug.isValidGitHubOrgName(orgSlug) }
 
     /// The live "What this will create" plan card content, derived (never
@@ -1121,6 +1245,92 @@ final class AdminModel: ObservableObject {
         departments.filter { !$0.slug.isEmpty }
     }
 
+    /// Restores display/edit state from Admin's own saved transaction input.
+    /// This is intentionally local and asynchronous: the Setup check remains
+    /// the authority for GitHub truth, while governance can still show the
+    /// last verified department inventory after an app relaunch.
+    func restoreSavedStateIfAvailable() async {
+        guard !didRestoreSavedState else { return }
+        didRestoreSavedState = true
+        guard orgNameInput.isEmpty, departments.isEmpty, completedOnboarding.isEmpty else { return }
+
+        async let savedContents = AdminIO.readFile(at: AdminPaths.briefJSONPath)
+        let completionKey = Self.completionDefaultsKey
+        let savedCompletion = await Task.detached {
+            LocalDefaults.bool(forKey: completionKey)
+        }.value
+        guard let contents = await savedContents else { return }
+        _ = applySavedState(contents, savedCompletion: savedCompletion)
+    }
+
+    /// Pure parsing/application seam used by the asynchronous file restore
+    /// and its deterministic selftest. Returns false without changing the
+    /// model when the saved JSON is unreadable.
+    @discardableResult
+    func applySavedState(_ contents: String, savedCompletion: Bool) -> Bool {
+        guard let data = contents.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let savedOrg = payload["org"] as? String
+        else { return false }
+
+        orgNameInput = savedOrg
+        if let githubApp = payload["github_app"] as? [String: Any],
+           let clientID = githubApp["client_id"] as? String {
+            githubOAuthClientIDInput = clientID
+        }
+        if let harnessNames = payload["harness"] as? [String] {
+            let restored = Set(harnessNames.compactMap(Harness.init(rawValue:)))
+            if !restored.isEmpty { selectedHarnesses = restored }
+        }
+        if let departmentSlugs = payload["departments"] as? [String] {
+            departments = departmentSlugs.map {
+                DepartmentEntry(name: Self.departmentDisplayName(from: $0))
+            }
+        }
+        if let contacts = payload["contacts"] as? [String: Any] {
+            contactPublisher = contacts["publisher"] as? String ?? ""
+            contactAdmin = contacts["admin"] as? String ?? ""
+            contactPointOfContact = contacts["point_of_contact"] as? String ?? ""
+            contactsSaved = true
+        }
+        if let store = payload["store"] as? [String: Any] {
+            let status = store["status"] as? String
+            storeStatus = status == "connected" ? .connected : .deferred
+            if let type = store["type"] as? String {
+                switch type {
+                case "1password": storeKind = .onePassword
+                case "vault", "openbao": storeKind = .vault
+                default: storeKind = .infisical
+                }
+            }
+            storeAddress = store["endpoint"] as? String ?? ""
+            storeWorkspaceID = store["workspace_id"] as? String ?? ""
+            storeEnvironment = store["environment"] as? String ?? "prod"
+            storeSecretPath = store["secret_path"] as? String ?? "/shared"
+            if let scopes = store["team_scopes"] as? [[String: Any]] {
+                for mapping in scopes {
+                    guard let team = mapping["team"] as? String,
+                          let scope = mapping["scope"] as? String,
+                          let department = departments.first(where: { $0.slug == team })
+                    else { continue }
+                    storeScopeByDepartment[department.id] = scope
+                }
+            }
+        }
+
+        lastWrittenBriefFingerprint = briefFingerprint
+        if savedCompletion {
+            completedOnboarding = Set(Self.onboardingOrder)
+        }
+        return true
+    }
+
+    private static func departmentDisplayName(from slug: String) -> String {
+        slug.split(separator: "-")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
     /// Stable ordering for UI copy, plans, fingerprints, and the standup
     /// brief. A Set gives the screen independent multi-selection semantics;
     /// this ordered projection keeps generated artifacts deterministic.
@@ -1200,12 +1410,18 @@ final class AdminModel: ObservableObject {
 /// renders the honest "can't read it" state rather than a fabricated one —
 /// exactly the degraded state the design itself specifies for this case.
 struct AdminHandoffHeader: View {
+    @ObservedObject var model: AdminModel
+
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "arrow.left.arrow.right")
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Image(systemName: model.onboardingIsComplete ? "checkmark.circle.fill" : "arrow.left.arrow.right")
+                .foregroundColor(
+                    model.onboardingIsComplete
+                        ? Color(nsColor: .systemGreen)
+                        : Color(nsColor: .secondaryLabelColor)
+                )
                 .accessibilityHidden(true)
-            Text("Not started yet")
+            Text(model.handoffStatusText)
                 .font(.callout)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
             Spacer()
@@ -1217,7 +1433,7 @@ struct AdminHandoffHeader: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Handoff status: not started yet")
+        .accessibilityLabel("Handoff status: \(model.handoffStatusText)")
     }
 }
 
@@ -1306,7 +1522,7 @@ struct AdminRootView: View {
         } detail: {
             VStack(spacing: 0) {
                 if isOnboardingSelected {
-                    AdminHandoffHeader()
+                    AdminHandoffHeader(model: model)
                 }
                 detail
             }
@@ -1315,6 +1531,9 @@ struct AdminRootView: View {
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 1000, idealWidth: 1080, minHeight: 680, idealHeight: 760)
         .background(Color(nsColor: .windowBackgroundColor))
+        .task {
+            await model.restoreSavedStateIfAvailable()
+        }
     }
 
     private var isOnboardingSelected: Bool {
@@ -1883,7 +2102,10 @@ extension AdminRootView {
         } leadingActions: {
             backButton { model.goBack(from: .describeOrg) }
         } primaryAction: {
-            primaryButton("Continue", enabled: model.orgSlugIsValid && model.selectedHarnessesAreValid) {
+            primaryButton(
+                "Continue",
+                enabled: model.orgSlugIsValid && model.selectedHarnessesAreValid && model.departmentsAreValid
+            ) {
                 model.advance(from: .describeOrg)
             }
         }
@@ -1910,6 +2132,10 @@ extension AdminRootView {
                     if !model.departments[idx].name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         && model.departments[idx].slug.isEmpty {
                         Text("Give this department a name using letters, numbers, and dashes.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemRed))
+                    } else if model.departmentIsDuplicate(model.departments[idx].id) {
+                        Text("\(model.departments[idx].name) is already listed. Keep each department only once.")
                             .font(.caption)
                             .foregroundColor(Color(nsColor: .systemRed))
                     }

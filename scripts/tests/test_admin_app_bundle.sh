@@ -43,8 +43,8 @@ placeholder_reference_count="$(
     wc -l |
     tr -d ' '
 )"
-if [[ "${placeholder_reference_count}" != "15" ]]; then
-  echo "expected all 15 Admin form placeholder references, found ${placeholder_reference_count}" >&2
+if [[ "${placeholder_reference_count}" != "16" ]]; then
+  echo "expected all 16 Admin form placeholder references, found ${placeholder_reference_count}" >&2
   exit 1
 fi
 
@@ -130,6 +130,16 @@ harness_output="$(
 )"
 if [[ "${harness_output}" != *"ADMIN_HARNESSES selected=claude,codex yaml=pass json=pass single=pass empty=pass"* ]]; then
   echo "Admin harness selftest did not preserve both default selections through the brief: ${harness_output}" >&2
+  exit 1
+fi
+
+completion_department_output="$(
+  HOME="${FIXTURE_ROOT}/home-completion" \
+  CT_ADMIN_COMPLETION_DEPARTMENT_SELFTEST=1 \
+  "${BIN}"
+)"
+if [[ "${completion_department_output}" != *"ADMIN_COMPLETION_DEPARTMENTS restore=pass duplicate=pass valid=pass routed=pass complete=pass reopened=pass"* ]]; then
+  echo "Admin completion/department selftest failed: ${completion_department_output}" >&2
   exit 1
 fi
 

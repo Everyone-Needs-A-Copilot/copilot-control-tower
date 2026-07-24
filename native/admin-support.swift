@@ -499,11 +499,32 @@ extension AdminRootView {
 extension AdminRootView {
     var doneView: some View {
         StepShell(
-            eyebrow: "ONBOARDING",
+            eyebrow: model.onboardingIsComplete ? "ONBOARDING COMPLETE" : "ONBOARDING",
             title: "Your organization is set up",
-            intro: "The spaces exist, the teams can reach them, and your setup file is in place. Two things to do next."
+            intro: model.onboardingIsComplete
+                ? "All onboarding steps are checked. Use Governance whenever the organization changes."
+                : "Everything is verified. Finish setup to check off onboarding and move into ongoing administration."
         ) {
             VStack(alignment: .leading, spacing: 16) {
+                AdminCard {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(Color(nsColor: .systemGreen))
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.onboardingIsComplete ? "Onboarding complete" : "Everything is verified")
+                                .font(.body.weight(.semibold))
+                            Text(
+                                model.onboardingIsComplete
+                                    ? "Control Tower is ready for your team. Adding a department later will reopen review and verification."
+                                    : "The spaces exist, teams can reach them, and the setup file matches GitHub."
+                            )
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
                 AdminCard(title: "Invite the team, on GitHub") {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(inviteTeamLine)
@@ -528,7 +549,15 @@ extension AdminRootView {
         } leadingActions: {
             backButton { model.goBack(from: .done) }
         } primaryAction: {
-            EmptyView()
+            if model.onboardingIsComplete {
+                primaryButton("Close Administration") {
+                    NSApp.keyWindow?.performClose(nil)
+                }
+            } else {
+                primaryButton("Finish setup") {
+                    model.finishOnboarding()
+                }
+            }
         }
     }
 
@@ -551,30 +580,100 @@ extension AdminRootView {
         StepShell(
             eyebrow: "GOVERNANCE",
             title: "Add a department",
-            intro: "Add a department here. Setting up again only adds what's new and never touches what's already there."
+            intro: "Review what is already set up, then add only what is new."
         ) {
-            AdminCard {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(existingStateLine)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("Describe the addition") {
-                        model.selection = .onboarding(.describeOrg)
+            VStack(alignment: .leading, spacing: 16) {
+                AdminCard(title: "Current departments") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if model.validDepartments.isEmpty {
+                            Text("No departments are set up yet.")
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            ForEach(Array(model.validDepartments.enumerated()), id: \.element.id) { index, department in
+                                HStack(alignment: .center, spacing: 10) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(Color(nsColor: .systemGreen))
+                                        .accessibilityHidden(true)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(department.name)
+                                            .font(.body.weight(.semibold))
+                                        Text(department.slug)
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    }
+                                    Spacer()
+                                    Text("\(model.selectedComponentRepoTokens.count) private spaces")
+                                        .font(.caption)
+                                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                }
+                                .padding(.vertical, 9)
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel(
+                                    "\(department.name), repository name \(department.slug), "
+                                        + "\(model.selectedComponentRepoTokens.count) private spaces"
+                                )
+                                if index < model.validDepartments.count - 1 {
+                                    Divider()
+                                }
+                            }
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
                 }
-                .foregroundColor(Color(nsColor: .labelColor))
+
+                AdminCard(title: "Add another department") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        SecretGuardedField(
+                            label: "Department name",
+                            value: Binding(
+                                get: { model.pendingDepartmentName },
+                                set: {
+                                    model.pendingDepartmentName = $0
+                                    model.pendingDepartmentTouched = true
+                                }
+                            ),
+                            placeholder: AdminPlaceholder.department,
+                            accessibilityName: "New department name"
+                        )
+                        .frame(maxWidth: 320)
+
+                        if let validation = model.pendingDepartmentValidationMessage {
+                            Text(validation)
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .systemRed))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityAddTraits(.isStaticText)
+                        } else if let preview = model.pendingDepartmentPreview {
+                            Text(preview)
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text("Nothing changes until you review the addition.")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        }
+
+                        Button("Review department setup") {
+                            model.beginPendingDepartmentAddition()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!model.canReviewPendingDepartment)
+                        .accessibilityHint(
+                            model.canReviewPendingDepartment
+                                ? "Adds this department to the setup plan and opens Review setup."
+                                : "Enter a new department name that is not already listed."
+                        )
+                    }
+                }
             }
+            .foregroundColor(Color(nsColor: .labelColor))
         } leadingActions: {
             EmptyView()
         } primaryAction: {
             EmptyView()
         }
-    }
-
-    private var existingStateLine: String {
-        let names = model.departments.filter { !$0.slug.isEmpty }.map { $0.name }
-        let deptText = names.isEmpty ? "no departments yet" : names.joined(separator: ", ")
-        return "Your organization already has \(deptText), using \(model.selectedHarnessDisplayNames). Add a department or another harness and setup only adds what's new; it leaves everything already there alone."
     }
 }
 
