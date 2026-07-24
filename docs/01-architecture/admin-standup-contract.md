@@ -516,6 +516,12 @@ POST/PATCH/PUT). The script, not the model, makes every decision.
 | 5 | **Write/update `ecosystem.yml`** | Additive merge (§4) into `<org>/<harness>-copilot-internal`: components, departments (`topology: separate` default), harness list, store pointer, **the company GitHub app's public `client_id`** (§1.6), product-specific foundation pins, and the non-secret personal handoff. Initial commit on an empty repo; PR once the repo carries content. | Re-run **adds** a new dept/harness/store entry or first-time public client id/handoff; **never rewrites** an existing organization identity, personal ownership rule, or foundation pin. |
 | 6 | **Fail-closed leak-scan** | Run the leak-scan over `ecosystem.yml` **before any push** (deny-list: key prefixes, `BEGIN PRIVATE KEY`, `.env` shapes, high entropy). | A secret-shaped value -> **refuse to push** (invariant #6). The file carries only the non-secret endpoint + `requires_secret`-free content. |
 
+Required-review protection applies to non-administrators. Organization administrators retain
+recovery access because GitHub forbids pull-request authors from approving their own changes; a
+review rule enforced against administrators therefore deadlocks a solo-admin organization. On a
+re-run, the engine removes only administrator enforcement from an existing deadlocked rule and
+preserves the required-review rule itself.
+
 **Explicitly NOT steps (killed):**
 - **No team-member provisioning.** GitHub is the only user-management surface; the script creates
   the team and the grant that *makes joining possible*, never adds/removes people (design

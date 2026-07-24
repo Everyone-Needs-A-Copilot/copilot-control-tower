@@ -28,6 +28,7 @@ fields=()
 jq_expr=""
 include_headers=false
 has_input=false
+input_body=""
 paginate=false
 
 while [[ $# -gt 0 ]]; do
@@ -45,9 +46,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 if $has_input; then
-  # Drain stdin (the caller piped a JSON body); the mock doesn't need its
-  # contents, only that the call happened.
-  cat >/dev/null
+  # Capture the JSON body so stateful endpoint fixtures can reproduce settings
+  # whose exact value matters to later idempotency and migration checks.
+  input_body="$(cat)"
 fi
 
 # gh's real default: GET normally, POST if any fields were added and no
@@ -357,6 +358,15 @@ if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/tags$ ]]; then
   exit 0
 fi
 
+# DELETE /repos/{org}/{repo}/branches/{branch}/protection/enforce_admins
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/branches/([^/]+)/protection/enforce_admins$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  if [[ "$method" != "DELETE" || ! -f "$repo_dir/protected" ]]; then not_found; fi
+  echo false > "$repo_dir/enforce_admins"
+  exit 0
+fi
+
 # GET/PUT /repos/{org}/{repo}/branches/{branch}/protection
 if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/branches/([^/]+)/protection$ ]]; then
   org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
@@ -365,11 +375,13 @@ if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/branches/([^/]+)/protection$ ]]; the
   if [[ "$method" == "PUT" ]]; then
     mkdir -p "$repo_dir"
     touch "$marker"
-    emit '{"required_pull_request_reviews": {"required_approving_review_count": 1}}'
+    echo "$(printf '%s' "$input_body" | jq -r '.enforce_admins // false')" > "$repo_dir/enforce_admins"
+    emit '{"required_pull_request_reviews":{"required_approving_review_count":1},"enforce_admins":{"enabled":false}}'
     exit 0
   fi
   if [[ ! -f "$marker" ]]; then not_found; fi
-  emit '{"required_pull_request_reviews": {"required_approving_review_count": 1}}'
+  enforce_admins="$(cat "$repo_dir/enforce_admins" 2>/dev/null || echo false)"
+  emit "{\"required_pull_request_reviews\":{\"required_approving_review_count\":1},\"enforce_admins\":{\"enabled\":$enforce_admins}}"
   exit 0
 fi
 

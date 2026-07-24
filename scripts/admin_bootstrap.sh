@@ -751,7 +751,7 @@ run_repository_plan() {
 }
 
 _ensure_branch_protection() {
-  local org="$1" reponame="$2" step="$3" default_branch existing
+  local org="$1" reponame="$2" step="$3" default_branch existing reviews_required admin_enforced
 
   # This repo was already created/confirmed earlier in this same run, so it
   # should always be readable here; any failure is a genuine error, never a
@@ -778,7 +778,8 @@ _ensure_branch_protection() {
   fi
 
   # No protection configured yet is also a legitimate, expected 404.
-  if _gh_read "repos/$org/$reponame/branches/$default_branch/protection" '.required_pull_request_reviews // empty'; then
+  if _gh_read "repos/$org/$reponame/branches/$default_branch/protection" \
+      '{required_reviews:(.required_pull_request_reviews.required_approving_review_count // 0),enforce_admins:(.enforce_admins.enabled // false)}'; then
     existing="$_GH_READ_VALUE"
   elif [[ "$_GH_READ_STATUS" == "not-found" ]]; then
     existing=""
@@ -786,16 +787,37 @@ _ensure_branch_protection() {
     fail_step "$step" "Could not check branch protection on $org/$reponame, so I won't guess. It's safe to run this again."
   fi
   if [[ -n "$existing" ]]; then
-    emit_step "$step" "already-present" "$org/$reponame already requires review before merge."
-    return
+    reviews_required="$(printf '%s' "$existing" | jq -r '.required_reviews // empty')"
+    admin_enforced="$(printf '%s' "$existing" | jq -r '.enforce_admins | if type == "boolean" then tostring else empty end')"
+    if ! [[ "$reviews_required" =~ ^[0-9]+$ ]] \
+      || [[ "$admin_enforced" != "true" && "$admin_enforced" != "false" ]]; then
+      fail_step "$step" "GitHub returned unreadable branch protection for $org/$reponame, so I won't guess. It's safe to run this again."
+      return
+    fi
+    if [[ "$reviews_required" -ge 1 ]]; then
+      if [[ "$admin_enforced" == "true" ]]; then
+        # A required review that also applies to administrators deadlocks a
+        # solo-admin organization: GitHub does not allow an author to approve
+        # their own pull request. Remove only administrator enforcement; the
+        # review rule remains intact for every non-administrator.
+        if gh api -X DELETE "repos/$org/$reponame/branches/$default_branch/protection/enforce_admins" >/dev/null 2>&1; then
+          emit_step "$step" "updated" "Kept required review on $org/$reponame and restored administrator recovery access."
+        else
+          fail_step "$step" "Could not restore administrator recovery access on $org/$reponame. The review rule is unchanged."
+        fi
+        return
+      fi
+      emit_step "$step" "already-present" "$org/$reponame requires review for non-administrators and preserves administrator recovery access."
+      return
+    fi
   fi
 
   local protect_err
   protect_err="$(mktemp)"
-  if echo '{"required_pull_request_reviews":{"required_approving_review_count":1},"enforce_admins":true,"required_status_checks":null,"restrictions":null}' \
+  if echo '{"required_pull_request_reviews":{"required_approving_review_count":1},"enforce_admins":false,"required_status_checks":null,"restrictions":null}' \
     | gh api -X PUT "repos/$org/$reponame/branches/$default_branch/protection" --input - >/dev/null 2>"$protect_err"; then
     rm -f "$protect_err"
-    emit_step "$step" "updated" "Set $org/$reponame to require review before merge."
+    emit_step "$step" "updated" "Set $org/$reponame to require review before merge for non-administrators."
     return
   fi
 

@@ -218,7 +218,7 @@ count_calls() {
 
 count_mutating_calls() {
   local log="$1"
-  awk -F'\t' '$1=="POST" || $1=="PATCH" || $1=="PUT" {c++} END{print c+0}' "$log"
+  awk -F'\t' '$1=="POST" || $1=="PATCH" || $1=="PUT" || $1=="DELETE" {c++} END{print c+0}' "$log"
 }
 
 no_em_dash() {
@@ -1570,6 +1570,37 @@ PYEOF
 }
 
 # ---------------------------------------------------------------------------
+# Test 33: existing protection that requires administrators to obtain a review
+# is repaired without removing the review rule itself. This is the solo-admin
+# deadlock that blocked the live Accounting ecosystem pull request.
+# ---------------------------------------------------------------------------
+
+test_branch_protection_preserves_admin_recovery() {
+  local st brief setup_log repair_log repo_dir delete_count step_result
+  st="$(new_org_state admin-recovery)"
+  brief="$WORKDIR/brief-admin-recovery.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  setup_log="$WORKDIR/admin-recovery-setup.log"
+  repair_log="$WORKDIR/admin-recovery-repair.log"
+
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test33: fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  repo_dir="$st/repos/acme-co/codex-copilot-internal"
+  echo true > "$repo_dir/enforce_admins"
+
+  run_engine "$st" "$repair_log" --brief "$brief"
+  assert_eq "test33: solo-admin protection repair exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  delete_count="$(count_calls "$repair_log" '^DELETE$' '^repos/acme-co/codex-copilot-internal/branches/main/protection/enforce_admins$')"
+  step_result="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot-internal") | .result')"
+  assert_eq "test33: removes administrator enforcement exactly once" "1" "$delete_count"
+  assert_eq "test33: reports the protection repair as updated" "updated" "$step_result"
+  assert_eq "test33: administrator recovery is restored" "false" "$(cat "$repo_dir/enforce_admins")"
+  assert_true "test33: required-review protection remains present" "$(test -f "$repo_dir/protected"; echo $?)"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1605,6 +1636,7 @@ test_existing_oauth_identity_conflict_refuses_before_mutation
 test_layer_package_conflicts_refuse_before_mutation
 test_json_brief_drives_read_only_plan
 test_store_reachability_uses_bounded_http_probe
+test_branch_protection_preserves_admin_recovery
 
 echo
 echo "-----------------------------------------"
