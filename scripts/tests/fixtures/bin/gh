@@ -408,14 +408,14 @@ if [[ "$endpoint" =~ ^orgs/([^/]+)/teams/([^/]+)/repos/([^/]+)/([^/]+)$ ]]; then
   if [[ "$method" == "PUT" ]]; then
     mkdir -p "$grant_dir"
     touch "$marker"
-    emit '{"permissions": {"push": true}}'
+    # GitHub returns HTTP 204 No Content for a successful team grant.
     exit 0
   fi
   if [[ ! -f "$marker" ]]; then
-    emit '{"permissions": {"push": false}}'
-    exit 0
+    not_found
   fi
-  emit '{"permissions": {"push": true}}'
+  # GitHub's "check team permissions for a repository" endpoint also returns
+  # HTTP 204 No Content when the team has permission.
   exit 0
 fi
 

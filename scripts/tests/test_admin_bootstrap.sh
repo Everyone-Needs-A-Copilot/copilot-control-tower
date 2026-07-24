@@ -465,11 +465,13 @@ test_verify_json_schema() {
   assert_true "test5: includes a deferred store row" "$has_deferred" "$verify_out"
   assert_true "test5: includes a present-undeclared row for the undeclared hr department" "$has_undeclared" "$verify_out"
 
-  local github_app_status personal_handoff_status
+  local github_app_status personal_handoff_status team_grant_status
   github_app_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "github-app") | .status')"
   personal_handoff_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "personal-handoff") | .status')"
+  team_grant_status="$(printf '%s' "$verify_out" | jq -r '[.checks[] | select(.check == "dept-team-grant") | .status] | unique | join(",")')"
   assert_eq "test5: verifies the public GitHub OAuth App client ID" "pass" "$github_app_status"
   assert_eq "test5: verifies the personal User Setup handoff" "pass" "$personal_handoff_status"
+  assert_eq "test5: treats GitHub's 204 No Content team-permission response as access" "pass" "$team_grant_status"
 
   local deferred_excluded=1
   if echo "$verify_out" | jq -e '.summary.must_fix == 0 and .summary.unknown >= 0' >/dev/null 2>&1; then

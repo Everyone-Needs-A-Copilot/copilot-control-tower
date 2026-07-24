@@ -831,13 +831,24 @@ _ensure_team() {
 _ensure_team_grant() {
   local org="$1" unit="$2" reponame="$3" step="$4" current
   # No grant yet is a legitimate, expected 404 (that's exactly what this
-  # check exists to detect); any other failure is a genuine error.
+  # check exists to detect); any other failure is a genuine error. GitHub's
+  # successful "check team permissions for a repository" response is normally
+  # HTTP 204 with no body, so an empty filtered value is positive proof here,
+  # not a missing permission.
   if _gh_read "orgs/$org/teams/$unit/repos/$org/$reponame" '.permissions.push // false'; then
-    current="$_GH_READ_VALUE"
+    case "$_GH_READ_VALUE" in
+      ""|true) current="true" ;;
+      false) current="false" ;;
+      *)
+        fail_step "$step" "GitHub returned an unreadable team permission for $org/$reponame, so I won't guess. It's safe to run this again."
+        return
+        ;;
+    esac
   elif [[ "$_GH_READ_STATUS" == "not-found" ]]; then
     current="false"
   else
     fail_step "$step" "Could not check whether the $unit team can already reach $org/$reponame, so I won't guess. It's safe to run this again."
+    return
   fi
   if [[ "$current" == "true" ]]; then
     emit_step "$step" "already-present" "The $unit team can already reach $org/$reponame."
@@ -875,9 +886,23 @@ _repo_exists_private() {
 _team_can_reach() {
   local org="$1" unit="$2" repo="$3"
   if _gh_read "orgs/$org/teams/$unit/repos/$org/$repo" '.permissions.push // false'; then
-    _TEAM_CHECK_STATUS="checked"
-    [[ "$_GH_READ_VALUE" == "true" ]]
-    return
+    case "$_GH_READ_VALUE" in
+      # GitHub normally answers this endpoint with HTTP 204 and no body when
+      # the team has access. The JSON true shape is retained for compatible
+      # GitHub deployments and test fixtures.
+      ""|true)
+        _TEAM_CHECK_STATUS="checked"
+        return 0
+        ;;
+      false)
+        _TEAM_CHECK_STATUS="checked"
+        return 1
+        ;;
+      *)
+        _TEAM_CHECK_STATUS="error"
+        return 1
+        ;;
+    esac
   fi
   if [[ "$_GH_READ_STATUS" == "not-found" ]]; then
     _TEAM_CHECK_STATUS="checked"
