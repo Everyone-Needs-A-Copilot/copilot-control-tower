@@ -6,7 +6,8 @@
 # model, makes every existence/idempotency decision. Every mutation is
 # check-then-act (GET before POST/PATCH/PUT); nothing is ever forced, skipped
 # past, or overwritten. Dependencies: gh and jq only, plus python3 (macOS
-# stock) used solely to parse the brief's YAML front matter.
+# stock) used solely to parse the brief's YAML front matter, and
+# /usr/bin/curl for the bounded shared-store reachability check.
 #
 # See --help for usage.
 
@@ -1872,20 +1873,26 @@ _check_layer_package() {
   fi
 }
 
-_tcp_reachable() {
-  local url="$1" scheme rest host port
-  scheme="${url%%://*}"
-  rest="${url#*://}"
-  host="${rest%%/*}"
-  if [[ "$host" == *:* ]]; then
-    port="${host##*:}"
-    host="${host%%:*}"
-  elif [[ "$scheme" == "https" ]]; then
-    port=443
-  else
-    port=80
-  fi
-  ( exec 3<>"/dev/tcp/$host/$port" ) 2>/dev/null
+_http_reachable() {
+  local url="$1"
+  case "$url" in
+    http://*|https://*) ;;
+    *) return 1 ;;
+  esac
+
+  # macOS ships Bash 3.2 without a portable /dev/tcp implementation. Use
+  # the system curl at an absolute path so LaunchServices PATH differences
+  # cannot turn a healthy store into a false failure (or select a shadowed
+  # binary). Any HTTP response proves the endpoint answered; curl still
+  # fails closed on DNS, connection, timeout, and TLS errors.
+  /usr/bin/curl \
+    --silent \
+    --show-error \
+    --output /dev/null \
+    --connect-timeout 5 \
+    --max-time 10 \
+    --proto '=http,https' \
+    "$url"
 }
 
 _check_store() {
@@ -1897,7 +1904,7 @@ _check_store() {
     _check_row "store" "unknown" "I couldn't read your store's address, so I won't guess." "IT infra" "connect-store"
     return
   fi
-  if _tcp_reachable "$STORE_ENDPOINT"; then
+  if _http_reachable "$STORE_ENDPOINT"; then
     _check_row "store" "pass" "Your shared secret store answered at $STORE_ENDPOINT." "" "none"
   else
     _check_row "store" "fail" "Your shared secret store at $STORE_ENDPOINT didn't answer." "IT infra" "connect-store"

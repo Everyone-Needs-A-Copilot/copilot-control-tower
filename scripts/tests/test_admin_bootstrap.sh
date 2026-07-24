@@ -21,7 +21,14 @@ if [[ ! -f "$ENGINE" ]]; then
 fi
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/admin-bootstrap-tests.XXXXXX")"
-cleanup() { rm -rf "$WORKDIR"; }
+HTTP_TEST_PID=""
+cleanup() {
+  if [[ -n "$HTTP_TEST_PID" ]]; then
+    kill "$HTTP_TEST_PID" 2>/dev/null || true
+    wait "$HTTP_TEST_PID" 2>/dev/null || true
+  fi
+  rm -rf "$WORKDIR"
+}
 trap cleanup EXIT
 
 export PATH="$MOCK_BIN:$PATH"
@@ -1501,6 +1508,66 @@ test_json_brief_drives_read_only_plan() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 32: macOS store verification uses the system HTTP client, not Bash's
+# unsupported /dev/tcp pseudo-device. A local HTTP endpoint passes while it
+# is listening and fails after it stops, without relying on external network.
+# ---------------------------------------------------------------------------
+
+test_store_reachability_uses_bounded_http_probe() {
+  local st brief setup_log verify_log port_file port endpoint store_block
+  local ready_status stopped_status
+  st="$(new_org_state store-http-probe)"
+  brief="$WORKDIR/brief-store-http-probe.md"
+  setup_log="$WORKDIR/store-http-probe-setup.log"
+  verify_log="$WORKDIR/store-http-probe-verify.log"
+  port_file="$WORKDIR/store-http-probe.port"
+
+  python3 - "$port_file" <<'PYEOF' &
+import http.server
+import sys
+
+class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), QuietHandler)
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    handle.write(str(server.server_address[1]))
+server.serve_forever()
+PYEOF
+  HTTP_TEST_PID=$!
+
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    [[ -s "$port_file" ]] && break
+    sleep 0.05
+  done
+  if [[ ! -s "$port_file" ]]; then
+    not_ok "test32: local HTTP fixture starts" "server did not publish a port"
+    return
+  fi
+
+  port="$(cat "$port_file")"
+  endpoint="http://127.0.0.1:$port"
+  store_block=$'store:\n  status: connected\n  type: infisical\n  endpoint: '"$endpoint"$'\n  workspace_id: "workspace-acme"\n  environment: prod\n  secret_path: "/shared"\n  team_scopes:\n    - { team: accounting, scope: dept/accounting }\n    - { team: sales, scope: dept/sales }'
+  write_brief "$brief" "$store_block"
+
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test32: connected-store fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  run_engine "$st" "$verify_log" --verify --brief "$brief" --json
+  ready_status="$(printf '%s' "$RUN_STDOUT" | jq -r '.checks[] | select(.check == "store") | .status')"
+  assert_eq "test32: listening HTTP store verifies ready" "pass" "$ready_status" "$RUN_STDOUT"
+
+  kill "$HTTP_TEST_PID" 2>/dev/null || true
+  wait "$HTTP_TEST_PID" 2>/dev/null || true
+  HTTP_TEST_PID=""
+
+  run_engine "$st" "$verify_log" --verify --brief "$brief" --json
+  stopped_status="$(printf '%s' "$RUN_STDOUT" | jq -r '.checks[] | select(.check == "store") | .status')"
+  assert_eq "test32: stopped HTTP store verifies unavailable" "fail" "$stopped_status" "$RUN_STDOUT"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1535,6 +1602,7 @@ test_missing_oauth_client_id_refuses_before_github
 test_existing_oauth_identity_conflict_refuses_before_mutation
 test_layer_package_conflicts_refuse_before_mutation
 test_json_brief_drives_read_only_plan
+test_store_reachability_uses_bounded_http_probe
 
 echo
 echo "-----------------------------------------"

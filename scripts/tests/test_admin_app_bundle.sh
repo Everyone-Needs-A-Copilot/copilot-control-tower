@@ -28,6 +28,15 @@ for required in \
   fi
 done
 
+if ! rg -Fq '/usr/bin/curl' "${RESOURCES}/scripts/admin_bootstrap.sh"; then
+  echo "packaged Admin engine does not carry the absolute macOS store probe" >&2
+  exit 1
+fi
+if rg -q 'exec .*\/dev\/tcp' "${RESOURCES}/scripts/admin_bootstrap.sh"; then
+  echo "packaged Admin engine still uses unsupported Bash /dev/tcp" >&2
+  exit 1
+fi
+
 placeholder_reference_count="$(
   rg -o 'AdminPlaceholder\.(publisher|admin|pointOfContact|organization|oauthClientID|department|storeAddress|workspaceID|environment|sharedSecretPath|githubUsername|departmentScope)' \
     native/admin.swift native/admin-support.swift |
