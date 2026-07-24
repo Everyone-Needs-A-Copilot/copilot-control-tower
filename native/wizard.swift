@@ -44,12 +44,18 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Wizard roadmap (9 rows, verbatim sidebar labels from #w1's
-// `.sb-list`: Welcome / Connect GitHub / Detect / What you're getting /
-// Departments / Integrations / Set up / Verify / Done)
+// MARK: - Wizard roadmap (10 rows, verbatim sidebar labels: Welcome / Connect
+// GitHub / Detect / What you're getting / Departments / Integrations / Your
+// projects / Set up / Verify / Done)
+//
+// `.projects` (adopt-and-project-setup spec, "Step 7 of 10: Your projects")
+// is a REAL step with a real sidebar row, positioned immediately before Set
+// up — never conditional on `includeCodex`, never skipped silently. Every
+// stage after it shifted by one; every "Step N of 9" eyebrow in this file
+// became "Step N of 10" in the same change.
 
 enum WizardStage: Int, CaseIterable, Identifiable {
-    case welcome, connectGitHub, detect, whatYoureGetting, departments, integrations, materialize, verify, done
+    case welcome, connectGitHub, detect, whatYoureGetting, departments, integrations, projects, materialize, verify, done
     var id: Int { rawValue }
 
     var title: String {
@@ -60,6 +66,7 @@ enum WizardStage: Int, CaseIterable, Identifiable {
         case .whatYoureGetting: return "What you're getting"
         case .departments: return "Departments"
         case .integrations: return "Integrations"
+        case .projects: return "Your projects"
         case .materialize: return "Set up"
         case .verify: return "Verify"
         case .done: return "Done"
@@ -133,7 +140,33 @@ struct SharedIntegrationRow: Identifiable {
     let statusCaption: String
 }
 
-// MARK: - Step 7, Set up: named-phase materialize progress
+// MARK: - Step 7, Your projects (adopt-and-project-setup spec)
+
+/// One row in the projects list (`cc workspace --all --json`'s
+/// `WorkspaceEntry`, grouped for display). The wizard step uses checkboxes
+/// (`canApplyNow` is always false here — the copilots a project's setup
+/// would copy from do not exist on this Mac yet at step 7, per the spec's
+/// own rejected-alternative note); the menu bar drill-in uses immediate
+/// `Add` instead, because by then `canApplyNow` is true.
+enum ProjectRowGroup: String {
+    case canBeSetUp
+    case needsFinishing
+    case alreadySetUp
+    case keptAsIs
+}
+
+/// Drives Done's projects card (#w9/Step 10) per the spec's four body
+/// variants: set up (with or without a failure), skipped, or declined
+/// (card absent). `.notReached` only ever describes a wizard session that
+/// never got as far as Set up at all.
+enum ProjectsStepOutcome: Equatable {
+    case notReached
+    case declined
+    case skipped
+    case setUp(succeeded: Int, total: Int)
+}
+
+// MARK: - Step 8, Set up: named-phase materialize progress
 
 /// Named-phase progress (`"Part N of M"` only, never an ETA or a percent —
 /// #w7's own frozen rule, matching the SOUL hard rule cited in that
@@ -158,10 +191,22 @@ enum WizardPhase {
     case welcome
     case connectGitHub
     case detecting
+    /// The re-plan after a "One question first" decision (`Include what I
+    /// have` / `Not now`) — same origin stage (`.detect`) as `.detecting`,
+    /// distinct only so the progress card can show the spec's own
+    /// "Checking what that means…" copy instead of Detect's first-visit
+    /// "Checking what's already here…".
+    case replanningAfterDecision
     case detected
+    /// Inline over Detect, per the spec's "Architecture decision": built
+    /// from the same `StepShell`/no-sidebar-row mechanism Holding already
+    /// uses, entered only when the CLI's plan carries at least one
+    /// adoptable ("ask") personal-space item.
+    case onboardQuestion
     case whatYoureGetting
     case departments
     case integrations
+    case projects
     case materializing
     case verifying
     case verified
@@ -191,6 +236,49 @@ final class WizardModel: ObservableObject {
     @Published var materialize = MaterializePhaseState()
     @Published var workspaceFolderName: String?
 
+    // MARK: One question first (adopt-and-project-setup spec)
+
+    /// Component names ("claude"/"codex"/"knowledge"/"cli") the person has
+    /// consented to adopt so far this session — sent back as
+    /// `--adopt-existing` on every subsequent plan/apply call, including
+    /// Set up's own apply. Never cleared once set (declining is per-run,
+    /// per the spec, but this app never re-asks after a decision — see
+    /// `onboardQuestionAnswered`).
+    @Published var adoptExisting: Set<String> = []
+    /// The CLI's own personal-scope "ask" rows — one checkbox per adoptable
+    /// component, in the CLI's order.
+    @Published var onboardQuestionItems: [EcosystemInventoryItem] = []
+    /// Personal-scope items the CLI marked for review instead of a
+    /// question (no checkbox, "Kept as is") — shown on the SAME screen.
+    @Published var onboardReviewItemsForQuestion: [EcosystemInventoryItem] = []
+    /// Row ids currently checked on the question screen. Pre-selected to
+    /// every question item's id the first time the screen is populated;
+    /// preserved across a Holding round trip ("Include what I already
+    /// have" returns "with the previous selections intact").
+    @Published var onboardSelections: Set<String> = []
+    private var onboardQuestionAnswered = false
+
+    // MARK: Step 7, Your projects (adopt-and-project-setup spec)
+
+    @Published var projectRoots: [WorkspaceRootListEntry] = []
+    @Published var projectRootCandidates: [WorkspaceRootCandidate] = []
+    @Published var projectWorkspaces: [WorkspaceEntry] = []
+    @Published var projectsSummary: WorkspaceSummary?
+    @Published var projectsLoading = false
+    @Published var projectsDeclined = false
+    /// Local, session-only confirmation line for "I don't keep projects on
+    /// this Mac" — cleared whenever the step is re-entered with a folder
+    /// already granted (the two states are mutually exclusive).
+    @Published var projectsDeclineConfirmed = false
+    @Published var selectedProjectPaths: Set<String> = []
+    @Published var projectsStepOutcome: ProjectsStepOutcome = .notReached
+    /// "An unusable folder shows the CLI's blocked sentence next to the
+    /// picker and keeps the step usable" (spec, Step 7's failure/recovery
+    /// row) — this step never routes to Holding on its own; a bad folder
+    /// choice is shown inline and the picker stays available to try again.
+    @Published var projectsFolderBlockedDetail: String?
+    private var hasLoadedProjectsStep = false
+
     private var pollTask: Task<Void, Never>?
     private var materializeInFlight = false
 
@@ -207,10 +295,13 @@ final class WizardModel: ObservableObject {
         switch phase {
         case .welcome: return .welcome
         case .connectGitHub: return .connectGitHub
-        case .detecting, .detected: return .detect
+        // `.onboardQuestion` renders inline over Detect, same mechanism as
+        // Holding: no sidebar row of its own, no step-number change.
+        case .detecting, .replanningAfterDecision, .detected, .onboardQuestion: return .detect
         case .whatYoureGetting: return .whatYoureGetting
         case .departments: return .departments
         case .integrations: return .integrations
+        case .projects: return .projects
         case .materializing: return .materialize
         case .verifying, .verified: return .verify
         case .done: return .done
@@ -352,11 +443,21 @@ final class WizardModel: ObservableObject {
     /// "I can't read what's already on this Mac right now, so I won't
     /// guess." line, per the task contract.
     func runDetect() {
-        phase = .detecting
+        performDetect(replanning: false)
+    }
+
+    /// Shared by the first-ever Detect pass and the re-plan that follows a
+    /// "One question first" decision (`includeOnboardSelections()` /
+    /// `declineOnboardQuestion()` below) — the ONLY difference is which
+    /// progress copy is shown while it runs (Detect's spec, "Ask" row:
+    /// "the feedback is the shared progress card with **Checking what that
+    /// means…**" for the post-decision case).
+    private func performDetect(replanning: Bool) {
+        phase = replanning ? .replanningAfterDecision : .detecting
         Task {
             async let authAsync = CliClient.shared.authStatus()
             async let doctorAsync = CliClient.shared.doctor()
-            async let onboardAsync = CliClient.shared.ecosystemOnboardPlan(products: self.copilotProducts)
+            async let onboardAsync = CliClient.shared.ecosystemOnboardPlan(products: self.copilotProducts, adoptExisting: Array(self.adoptExisting))
             let authResult = await authAsync
             let doctorResult = await doctorAsync
             let onboardResult = await onboardAsync
@@ -381,6 +482,26 @@ final class WizardModel: ObservableObject {
             }
             self.ecosystemInventory = onboard.inventory ?? []
             self.ecosystemInventorySummary = onboard.inventorySummary
+
+            // "One question first" (adopt-and-project-setup spec, "Ask" row):
+            // asked BEFORE the blocked-guard below, and only once per
+            // session — a plan that is "blocked" purely because an
+            // unrelated item needs review must still surface the question,
+            // never silently drop it behind Holding's own review-only card
+            // (the old dead end this replaces).
+            if !self.onboardQuestionAnswered {
+                let (ask, review) = Self.personalOnboardQuestion(from: onboard)
+                if !ask.isEmpty {
+                    self.onboardQuestionItems = ask
+                    self.onboardReviewItemsForQuestion = review
+                    if self.onboardSelections.isEmpty {
+                        self.onboardSelections = Set(ask.map(\.id))
+                    }
+                    self.phase = .onboardQuestion
+                    return
+                }
+            }
+
             guard onboard.result != .blocked else {
                 let detail = onboard.stages.last(where: { $0.result == "blocked" })?.detail
                     ?? "Your organization's setup could not be confirmed safely."
@@ -424,9 +545,71 @@ final class WizardModel: ObservableObject {
         }
     }
 
+    /// Pure: splits an ecosystem plan's personal-scope inventory into ask
+    /// rows (adoptable — the CLI's `reversible: true` is unique to
+    /// `package_state: "adoptable"`, see `onboard.py`'s `_personal_inventory`)
+    /// and review rows (`action == "review"`, i.e. `package_state: "held"`),
+    /// in the CLI's own order. A `static` function (no instance state) so
+    /// this exact derivation is shared between `performDetect` above and
+    /// the selftest below — never two slightly-different readings of the
+    /// same report.
+    static func personalOnboardQuestion(from report: EcosystemOnboardReport) -> (ask: [EcosystemInventoryItem], review: [EcosystemInventoryItem]) {
+        let personal = (report.inventory ?? []).filter { $0.scope == "personal" }
+        return (personal.filter { $0.reversible }, personal.filter { $0.action == "review" })
+    }
+
+    /// `EcosystemInventoryItem.id` for a personal-space row is always
+    /// `"personal-<component>"` (`onboard.py`'s `_personal_inventory`) — the
+    /// only place that format is depended on, kept as one small pure
+    /// function rather than repeated string surgery at each call site.
+    static func componentId(fromPersonalInventoryId id: String) -> String? {
+        let prefix = "personal-"
+        guard id.hasPrefix(prefix) else { return nil }
+        return String(id.dropFirst(prefix.count))
+    }
+
     func continueFromDetect() {
         guard case .detected = phase else { return }
         phase = .whatYoureGetting
+    }
+
+    // MARK: One question first (adopt-and-project-setup spec)
+
+    func toggleOnboardSelection(_ id: String) {
+        if onboardSelections.contains(id) {
+            onboardSelections.remove(id)
+        } else {
+            onboardSelections.insert(id)
+        }
+    }
+
+    var canIncludeOnboardSelections: Bool { !onboardSelections.isEmpty }
+
+    /// "Include what I have" — sends exactly the checked rows back as
+    /// `--adopt-existing`; every cleared row is declined for this run (the
+    /// spec's own rule: "no all-or-nothing choice"). Answered once; the
+    /// question never reappears this session unless Holding's "Include
+    /// what I already have" explicitly reopens it.
+    func includeOnboardSelections() {
+        onboardQuestionAnswered = true
+        let components = onboardSelections.compactMap(Self.componentId(fromPersonalInventoryId:))
+        adoptExisting.formUnion(components)
+        performDetect(replanning: true)
+    }
+
+    /// "Not now" — every question row is declined for this run; nothing is
+    /// added to `adoptExisting`.
+    func declineOnboardQuestion() {
+        onboardQuestionAnswered = true
+        performDetect(replanning: true)
+    }
+
+    /// Holding's "Include what I already have" — returns to the question
+    /// "with the previous selections intact" (the spec's own words):
+    /// `onboardSelections` is deliberately left untouched.
+    func returnToOnboardQuestion() {
+        onboardQuestionAnswered = false
+        phase = .onboardQuestion
     }
 
     // MARK: What you're getting (#w4)
@@ -503,14 +686,162 @@ final class WizardModel: ObservableObject {
     // MARK: Integrations (#w6)
 
     func skipIntegrations() {
-        beginMaterialize()
+        enterProjectsStep()
     }
 
     func continueFromIntegrations() {
+        enterProjectsStep()
+    }
+
+    // MARK: Step 7, Your projects (adopt-and-project-setup spec)
+
+    /// Loads folder-grant state (`workspace roots`) and, if at least one
+    /// folder is already granted, the discovered project list
+    /// (`workspace --all`) — same read-only calls the menu bar uses,
+    /// nothing written here. Runs once per wizard visit to this step
+    /// (`hasLoadedProjectsStep`); the sidebar's own "completed rows are
+    /// tappable, read-only" review affordance re-enters this phase without
+    /// re-fetching.
+    func enterProjectsStep() {
+        phase = .projects
+        guard !hasLoadedProjectsStep else { return }
+        hasLoadedProjectsStep = true
+        loadProjectsStep()
+    }
+
+    private func loadProjectsStep() {
+        projectsLoading = true
+        Task {
+            defer { self.projectsLoading = false }
+            guard case .success(let rootsReport) = await CliClient.shared.workspaceRoots() else { return }
+            self.projectRoots = rootsReport.roots ?? []
+            self.projectRootCandidates = rootsReport.candidates ?? []
+            guard !self.projectRoots.isEmpty else { return }
+            await self.loadProjectWorkspaces()
+        }
+    }
+
+    private func loadProjectWorkspaces() async {
+        guard case .success(let report) = await CliClient.shared.workspaces() else { return }
+        self.projectWorkspaces = report.workspaces
+        self.projectsSummary = report.summary
+        // Pre-selected where the CLI says a checkbox is the right grammar
+        // (`can_apply_now: false` at this step, per the spec — the writes
+        // this step collects happen in Set up, not here) AND the row is
+        // genuinely actionable (`setup-available`/`activation-required`).
+        self.selectedProjectPaths = Self.preselectedProjectPaths(from: report.workspaces)
+    }
+
+    /// Pure: which project rows start checked. Both currently-actionable
+    /// states (`setup-available`, `activation-required`) are pre-selected,
+    /// per the spec's own table ("Checkbox, selected" for both rows);
+    /// `ready`/`blocked` rows carry no control at all, so they are never in
+    /// this set.
+    static func preselectedProjectPaths(from workspaces: [WorkspaceEntry]) -> Set<String> {
+        Set(workspaces.filter { $0.state == .setupAvailable || $0.state == .activationRequired }.map(\.path))
+    }
+
+    func chooseProjectsFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        panel.message = "Choose the one folder where your projects live. Control Tower looks only inside that folder, and never anywhere else on this Mac."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        approveProjectsRoot(path: url.path)
+    }
+
+    func approveCandidateRoot(_ candidate: WorkspaceRootCandidate) {
+        approveProjectsRoot(path: candidate.path)
+    }
+
+    private func approveProjectsRoot(path: String) {
+        projectsLoading = true
+        projectsFolderBlockedDetail = nil
+        Task {
+            defer { self.projectsLoading = false }
+            switch await CliClient.shared.approveWorkspaceRoot(path: path) {
+            case .success(let report) where report.result == .blocked:
+                self.projectsFolderBlockedDetail = report.root.detail
+                return
+            case .failure:
+                return
+            default:
+                break
+            }
+            self.projectsDeclined = false
+            self.projectsDeclineConfirmed = false
+            guard case .success(let rootsReport) = await CliClient.shared.workspaceRoots() else { return }
+            self.projectRoots = rootsReport.roots ?? []
+            self.projectRootCandidates = rootsReport.candidates ?? []
+            await self.loadProjectWorkspaces()
+        }
+    }
+
+    func stopWatchingProjectsRoot(_ root: WorkspaceRootListEntry) {
+        projectsLoading = true
+        Task {
+            defer { self.projectsLoading = false }
+            guard case .success = await CliClient.shared.forgetWorkspaceRoot(path: root.path) else { return }
+            guard case .success(let rootsReport) = await CliClient.shared.workspaceRoots() else { return }
+            self.projectRoots = rootsReport.roots ?? []
+            self.projectRootCandidates = rootsReport.candidates ?? []
+            if self.projectRoots.isEmpty {
+                self.projectWorkspaces = []
+                self.projectsSummary = nil
+                self.selectedProjectPaths = []
+            } else {
+                await self.loadProjectWorkspaces()
+            }
+        }
+    }
+
+    /// "I don't keep projects on this Mac" — records the decline so the
+    /// menu bar never offers this again, and confirms inline (never
+    /// auto-advances; the person still chooses Continue).
+    func declineProjects() {
+        Task {
+            guard case .success = await CliClient.shared.declineWorkspaces() else { return }
+            self.projectsDeclined = true
+            self.projectsDeclineConfirmed = true
+        }
+    }
+
+    func toggleProjectSelection(_ path: String) {
+        if selectedProjectPaths.contains(path) {
+            selectedProjectPaths.remove(path)
+        } else {
+            selectedProjectPaths.insert(path)
+        }
+    }
+
+    func selectAllProjects() {
+        selectedProjectPaths = Self.preselectedProjectPaths(from: projectWorkspaces)
+    }
+
+    func selectNoProjects() {
+        selectedProjectPaths = []
+    }
+
+    func backFromProjects() {
+        phase = .integrations
+    }
+
+    /// "Skip for now" — leaves the offer available in the menu bar; behaves
+    /// exactly like Continue with nothing selected, since a folder that was
+    /// never granted has nothing to set up regardless.
+    func skipProjectsForNow() {
+        selectedProjectPaths = []
         beginMaterialize()
     }
 
-    // MARK: Set up (#w7) — named-phase materialize, no ETA
+    func continueFromProjects() {
+        beginMaterialize()
+    }
+
+    // MARK: Set up (#w7, renumbered Step 8 of 10) — named-phase materialize, no ETA
 
     /// Calls `update()` for real; also calls `updateFanout()` (fire-and-
     /// forget, non-gating) when at least one department was joined this
@@ -527,15 +858,31 @@ final class WizardModel: ObservableObject {
         materializeInFlight = true
         phase = .materializing
 
-        var labels = ["Confirming your private GitHub spaces…", "Setting up your copilots…"]
+        if projectsDeclined {
+            projectsStepOutcome = .declined
+        } else if selectedProjectPaths.isEmpty {
+            projectsStepOutcome = .skipped
+        }
+
+        var labels = [
+            // "Including what you already have…" per Step 8's own copy —
+            // only when there is something adopted this session to name;
+            // otherwise the original label still describes the same call.
+            adoptExisting.isEmpty ? "Confirming your private GitHub spaces…" : "Including what you already have…",
+            "Setting up your copilots…",
+        ]
         labels += joinedDepartments.map { "Bringing in your \($0.name) department…" }
+        let projectPathsToApply = selectedProjectPaths
+        if !projectPathsToApply.isEmpty {
+            labels.append("Setting up your copilots in \(projectPathsToApply.count) project\(projectPathsToApply.count == 1 ? "" : "s")…")
+        }
         labels.append("Finishing up…")
         materialize = MaterializePhaseState(label: labels[0], index: 1, total: labels.count)
 
         let shouldFanOut = !joinedDepartments.isEmpty
 
         Task {
-            switch await CliClient.shared.ecosystemOnboardApply(products: self.copilotProducts) {
+            switch await CliClient.shared.ecosystemOnboardApply(products: self.copilotProducts, adoptExisting: Array(self.adoptExisting)) {
             case .success(let report):
                 guard report.result == .ready else {
                     self.materializeInFlight = false
@@ -555,10 +902,35 @@ final class WizardModel: ObservableObject {
             if shouldFanOut {
                 Task { _ = await CliClient.shared.updateFanout() }
             }
+            if !projectPathsToApply.isEmpty {
+                await self.applySelectedProjects(projectPathsToApply)
+            }
             await self.cyclePhases(labels)
             self.materializeInFlight = false
             self.beginVerify()
         }
+    }
+
+    /// "Per-project failure is collected, never fatal, and never retried
+    /// silently" (Step 8's own rule): one project failing to configure never
+    /// stops the rest, and Done (below) never claims full success when it
+    /// was not. Runs the copilots this project's setup copies from already
+    /// exist on this Mac by this point (the ecosystem apply above just
+    /// finished), matching `can_apply_now`'s own contract.
+    private func applySelectedProjects(_ paths: Set<String>) async {
+        var succeeded = 0
+        for path in paths {
+            let components = self.projectWorkspaces.first(where: { $0.path == path })?.recommendedComponents ?? []
+            let result = await CliClient.shared.configureWorkspace(
+                path: path, components: components, shareWithProject: false, apply: true
+            )
+            if case .success(let report) = result,
+               let updated = report.workspaces.first(where: { $0.path == path }),
+               updated.state != .blocked {
+                succeeded += 1
+            }
+        }
+        self.projectsStepOutcome = .setUp(succeeded: succeeded, total: paths.count)
     }
 
     private var copilotProducts: [String] {
@@ -620,23 +992,6 @@ final class WizardModel: ObservableObject {
         onClose()
     }
 
-    func chooseWorkspaceFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Choose"
-        panel.message = "Choose the folder where you keep code projects. Control Tower will look only inside this folder."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        Task {
-            if case .success(let report) = await CliClient.shared.approveWorkspaceRoot(path: url.path),
-               report.result == .applied || report.result == .ready {
-                self.workspaceFolderName = report.root.name
-            }
-        }
-    }
-
     // MARK: Holding (#w10)
 
     func tryAgainAfterHolding() {
@@ -686,6 +1041,7 @@ final class WizardModel: ObservableObject {
         case .whatYoureGetting: phase = .whatYoureGetting
         case .departments: phase = .departments
         case .integrations: phase = .integrations
+        case .projects: phase = .projects
         case .materialize: phase = .materializing
         case .verify: phase = .verified
         case .done: phase = .done
@@ -895,10 +1251,12 @@ struct WizardRootView: View {
         switch model.phase {
         case .welcome: welcomeView
         case .connectGitHub: connectGitHubView
-        case .detecting, .detected: detectView
+        case .detecting, .replanningAfterDecision, .detected: detectView
+        case .onboardQuestion: onboardQuestionView
         case .whatYoureGetting: whatYoureGettingView
         case .departments: departmentsView
         case .integrations: integrationsView
+        case .projects: projectsView
         case .materializing: materializeView
         case .verifying, .verified: verifyView
         case .done: doneView
@@ -911,10 +1269,13 @@ struct WizardRootView: View {
         case .welcome: return "welcome"
         case .connectGitHub: return "connectGitHub-\(model.deviceFlow.status)"
         case .detecting: return "detecting"
+        case .replanningAfterDecision: return "replanningAfterDecision"
         case .detected: return "detected"
+        case .onboardQuestion: return "onboardQuestion"
         case .whatYoureGetting: return "whatYoureGetting"
         case .departments: return "departments"
         case .integrations: return "integrations"
+        case .projects: return "projects"
         case .materializing: return "materializing-\(model.materialize.index)"
         case .verifying: return "verifying"
         case .verified: return "verified"
@@ -940,7 +1301,7 @@ struct WizardRootView: View {
 
     private var welcomeView: some View {
         stepShell(
-            eyebrow: "Step 1 of 9",
+            eyebrow: "Step 1 of 10",
             title: "Welcome to your copilots.",
             intro: "Your company just gave you a set of AI copilots to help with your everyday work. This app, Copilot Control Tower, is how they land on your Mac and how they stay current."
         ) {
@@ -996,7 +1357,7 @@ struct WizardRootView: View {
 
     private var connectGitHubView: some View {
         stepShell(
-            eyebrow: "Step 2 of 9",
+            eyebrow: "Step 2 of 10",
             title: "Connect GitHub",
             intro: "GitHub comes first. It's how Control Tower knows what your team shares with you, and where your own space lives. Signing in happens in your browser, on GitHub's own page. Control Tower never asks for your password."
         ) {
@@ -1060,12 +1421,18 @@ struct WizardRootView: View {
 
     private var detectView: some View {
         stepShell(
-            eyebrow: "Step 3 of 9",
+            eyebrow: "Step 3 of 10",
             title: "Checking what's already here",
             intro: "Control Tower keeps the parts that are already right, safely moves or repairs recognized earlier setup, and leaves anything unfamiliar untouched."
         ) {
             if case .detecting = model.phase {
                 verifyingCard("Checking what's already here…")
+            } else if case .replanningAfterDecision = model.phase {
+                // "One question first", Detect's own spec section: "the
+                // feedback is the shared progress card with **Checking what
+                // that means…**" — distinct copy from the first Detect pass
+                // above, same shared progress card.
+                verifyingCard("Checking what that means…")
             } else {
                 VStack(alignment: .leading, spacing: 16) {
                     if !model.ecosystemInventory.isEmpty {
@@ -1134,8 +1501,10 @@ struct WizardRootView: View {
     }
 
     private var isDetecting: Bool {
-        if case .detecting = model.phase { return true }
-        return false
+        switch model.phase {
+        case .detecting, .replanningAfterDecision: return true
+        default: return false
+        }
     }
 
     private func inventoryActionLabel(_ action: String) -> String {
@@ -1168,11 +1537,151 @@ struct WizardRootView: View {
         }
     }
 
+    // MARK: One question first (adopt-and-project-setup spec, inline over
+    // Detect — same no-sidebar-row mechanism Holding uses below, accent
+    // blue, never Holding's orange: `stepShell`'s default `tint` already IS
+    // `.systemBlue`, so this view never calls `.headerTint(_:)` at all).
+
+    private enum OnboardCardRow: Identifiable {
+        case ask(EcosystemInventoryItem)
+        case review(EcosystemInventoryItem)
+        var id: String {
+            switch self {
+            case .ask(let item): return item.id
+            case .review(let item): return item.id
+            }
+        }
+    }
+
+    private var onboardQuestionView: some View {
+        // "One row per question item, in the CLI's order" THEN "one row per
+        // item the CLI marked for review instead of a question" — two
+        // sequential lists, per the spec's own reading order, not
+        // interleaved by the underlying inventory's mixed ordering.
+        let rows: [OnboardCardRow] = model.onboardQuestionItems.map(OnboardCardRow.ask)
+            + model.onboardReviewItemsForQuestion.map(OnboardCardRow.review)
+
+        return stepShell(
+            eyebrow: "ONE QUESTION FIRST",
+            title: "You already have some of this. Want me to include it?",
+            intro: "Your GitHub account already has private spaces of your own, with your own content in them. I can include them so your copilots use what you already have, or leave them alone. Either way, nothing in them is changed, moved, or removed."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                sectionCard("Already in your GitHub account") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                            onboardCardRow(row)
+                            if index < rows.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                // The spec's own reassurance line, pinned directly under the
+                // card, always present regardless of any selection.
+                Text("Nothing existing was changed.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+        } leadingActions: {
+            Button { model.declineOnboardQuestion() } label: { Text("Not now") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            VStack(alignment: .trailing, spacing: 4) {
+                Button { model.includeOnboardSelections() } label: { Text("Include what I have") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!model.canIncludeOnboardSelections)
+                    // Accessibility: "the disabled primary always carries
+                    // its hint as help text" — never a hint the person can
+                    // only discover by hovering.
+                    .help(model.canIncludeOnboardSelections ? "" : "Choose something to include, or select Not now.")
+                if !model.canIncludeOnboardSelections {
+                    Text("Choose something to include, or select Not now.")
+                        .font(.caption2)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func onboardCardRow(_ row: OnboardCardRow) -> some View {
+        switch row {
+        case .ask(let item): onboardQuestionRow(item)
+        case .review(let item): onboardReviewRow(item)
+        }
+    }
+
+    private func onboardQuestionRow(_ item: EcosystemInventoryItem) -> some View {
+        let isSelected = model.onboardSelections.contains(item.id)
+        return Toggle(isOn: Binding(
+            get: { isSelected },
+            set: { _ in model.toggleOnboardSelection(item.id) }
+        )) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                // Microinteraction: "a cleared row is declined; the feedback
+                // is the CLI's decline sentence appearing under that row".
+                // No `decline_detail` field exists on this report yet (the
+                // CLI's own personal-onboard rows carry only one `detail`
+                // per item) — per the spec's own failure/recovery row, "A
+                // missing decline sentence renders the row with no caption
+                // rather than invented copy", so a cleared row shows no
+                // caption at all instead of fabricating one.
+                if isSelected {
+                    Text(item.detail)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .toggleStyle(.checkbox)
+        .padding(.vertical, 9)
+        .animation(.easeOut(duration: 0.15), value: isSelected)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            isSelected
+                ? "\(item.title), will be included, \(item.detail)"
+                : "\(item.title), will be left alone"
+        )
+    }
+
+    private func onboardReviewRow(_ item: EcosystemInventoryItem) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "hand.raised.fill")
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .frame(width: 18)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(item.title)
+                        .font(.callout.weight(.semibold))
+                    Spacer()
+                    Text("Kept as is")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                }
+                Text(item.detail)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 9)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.title), kept as is, \(item.detail)")
+    }
+
     // MARK: 4. What you're getting (#w4)
 
     private var whatYoureGettingView: some View {
         stepShell(
-            eyebrow: "Step 4 of 9",
+            eyebrow: "Step 4 of 10",
             title: "Here's what you're getting",
             intro: "Everyone on your team gets all of this. There's nothing to pick. Control Tower sets it up and keeps it current for you."
         ) {
@@ -1216,7 +1725,7 @@ struct WizardRootView: View {
 
     private var departmentsView: some View {
         stepShell(
-            eyebrow: "Step 5 of 9",
+            eyebrow: "Step 5 of 10",
             title: "Departments you can join",
             intro: "Joining a department brings in everything your team shares there. You can join now, or come back to this later from Settings or the menu bar."
         ) {
@@ -1309,7 +1818,7 @@ struct WizardRootView: View {
 
     private var integrationsView: some View {
         stepShell(
-            eyebrow: "Step 6 of 9",
+            eyebrow: "Step 6 of 10",
             title: "Integrations",
             intro: "Some integrations are already set up for you because you're on the team. Others use your own accounts. Signing in always happens in your browser, on the provider's own page. Control Tower never asks for a password."
         ) {
@@ -1400,11 +1909,257 @@ struct WizardRootView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    // MARK: 7. Set up (#w7) — named phase, no ETA
+    // MARK: 7. Your projects (adopt-and-project-setup spec) — a real step,
+    // never conditional on Codex, positioned immediately before Set up so
+    // every write still happens there.
+
+    private var projectsView: some View {
+        stepShell(
+            eyebrow: "Step 7 of 10",
+            title: "Where do you keep your projects?",
+            intro: "If you build things on this Mac, Control Tower can set your copilots up inside each project too. Choose the one folder where your projects live. Control Tower looks only inside that folder, and never anywhere else on this Mac."
+        ) {
+            if model.projectsLoading && model.projectRoots.isEmpty && model.projectWorkspaces.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .frame(height: 40)
+                    }
+                }
+                .accessibilityHidden(true)
+            } else {
+                VStack(alignment: .leading, spacing: 20) {
+                    projectsFolderCard
+                    if !model.projectRoots.isEmpty {
+                        projectsListCard
+                    }
+                }
+            }
+        } leadingActions: {
+            Button { model.backFromProjects() } label: { Text("Back") }
+                .buttonStyle(.bordered)
+            Button { model.declineProjects() } label: { Text("I don't keep projects on this Mac") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Button { model.skipProjectsForNow() } label: { Text("Skip for now") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            Button { model.continueFromProjects() } label: { Text("Continue") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+        }
+    }
+
+    private var projectsFolderCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionCard("Your projects folder") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if model.projectRoots.isEmpty {
+                        Text("No folder chosen yet. Nothing is being watched.")
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        Button("Choose folder…") { model.chooseProjectsFolder() }
+                            .buttonStyle(.bordered)
+                        if let blocked = model.projectsFolderBlockedDetail {
+                            Text(blocked)
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .systemRed))
+                        }
+                        if !model.projectRootCandidates.isEmpty {
+                            Divider()
+                            Text("Control Tower found a folder on this Mac that looks like it already holds your projects:")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                            ForEach(model.projectRootCandidates) { candidate in
+                                HStack {
+                                    Text(candidate.label)
+                                        .font(.callout)
+                                        .foregroundColor(Color(nsColor: .labelColor))
+                                    Spacer()
+                                    Button("Use this folder") { model.approveCandidateRoot(candidate) }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                }
+                            }
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(model.projectRoots.enumerated()), id: \.element.id) { index, root in
+                                HStack {
+                                    Text(root.name)
+                                        .font(.callout)
+                                        .foregroundColor(Color(nsColor: .labelColor))
+                                    Spacer()
+                                    Button("Stop watching") { model.stopWatchingProjectsRoot(root) }
+                                        .buttonStyle(.plain)
+                                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                }
+                                .padding(.vertical, 6)
+                                if index < model.projectRoots.count - 1 {
+                                    Divider()
+                                }
+                            }
+                        }
+                        Button("Add another folder…") { model.chooseProjectsFolder() }
+                            .buttonStyle(.bordered)
+                        if let blocked = model.projectsFolderBlockedDetail {
+                            Text(blocked)
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .systemRed))
+                        }
+                    }
+                }
+            }
+            if !model.projectRoots.isEmpty {
+                Text("Control Tower looks only inside the folders listed here.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            }
+            if model.projectsDeclineConfirmed {
+                Text("Got it. I won't ask about projects again. You can turn this on any time from the menu bar.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+        }
+    }
+
+    private var projectsListCard: some View {
+        let canBeSetUp = model.projectWorkspaces.filter { $0.state == .setupAvailable }
+        let needsFinishing = model.projectWorkspaces.filter { $0.state == .activationRequired }
+        let alreadySetUp = model.projectWorkspaces.filter { $0.state == .ready }
+        let keptAsIs = model.projectWorkspaces.filter { $0.state == .blocked }
+        let actionable = canBeSetUp.count + needsFinishing.count
+
+        return sectionCard("Projects I found") {
+            VStack(alignment: .leading, spacing: 12) {
+                if model.projectWorkspaces.isEmpty {
+                    Text("No projects in that folder yet. Any new one you create will get your copilots automatically.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    HStack {
+                        Text("\(model.projectWorkspaces.count) projects found. \(actionable) can be set up.")
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .labelColor))
+                        Spacer()
+                        Button("Select all") { model.selectAllProjects() }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .linkColor))
+                        Button("Select none") { model.selectNoProjects() }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .linkColor))
+                    }
+                    Text("Your projects get set up in the next step.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(canBeSetUp) { workspace in
+                            projectRow(workspace, group: .canBeSetUp)
+                            Divider()
+                        }
+                        ForEach(needsFinishing) { workspace in
+                            projectRow(workspace, group: .needsFinishing)
+                            Divider()
+                        }
+                        ForEach(keptAsIs) { workspace in
+                            projectRow(workspace, group: .keptAsIs)
+                            if workspace.id != keptAsIs.last?.id { Divider() }
+                        }
+                    }
+
+                    if !alreadySetUp.isEmpty {
+                        DisclosureGroup("\(alreadySetUp.count) already set up ›") {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(alreadySetUp) { workspace in
+                                    projectRow(workspace, group: .alreadySetUp)
+                                    if workspace.id != alreadySetUp.last?.id { Divider() }
+                                }
+                            }
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                }
+            }
+        }
+    }
+
+    private func projectRowCaption(_ workspace: WorkspaceEntry, group: ProjectRowGroup) -> String {
+        switch group {
+        case .canBeSetUp: return "Copilot can be set up here."
+        case .needsFinishing: return "Set up here already, but not active on this Mac yet."
+        case .alreadySetUp: return "Already set up."
+        case .keptAsIs: return workspace.detail
+        }
+    }
+
+    @ViewBuilder
+    private func projectRow(_ workspace: WorkspaceEntry, group: ProjectRowGroup) -> some View {
+        let caption = projectRowCaption(workspace, group: group)
+        switch group {
+        case .canBeSetUp, .needsFinishing:
+            Toggle(isOn: Binding(
+                get: { model.selectedProjectPaths.contains(workspace.path) },
+                set: { _ in model.toggleProjectSelection(workspace.path) }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(workspace.name)
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .labelColor))
+                    Text(caption)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                }
+            }
+            .toggleStyle(.checkbox)
+            .padding(.vertical, 8)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(workspace.name), \(caption)")
+        case .alreadySetUp:
+            VStack(alignment: .leading, spacing: 2) {
+                Text(workspace.name)
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                Text(caption)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(workspace.name), \(caption)")
+        case .keptAsIs:
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(workspace.name)
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .labelColor))
+                    Text(caption)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Text("Kept as is")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+            .padding(.vertical, 8)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(workspace.name), kept as is, \(caption)")
+        }
+    }
+
+    // MARK: 8. Set up (#w7) — named phase, no ETA
 
     private var materializeView: some View {
         stepShell(
-            eyebrow: "Step 7 of 9",
+            eyebrow: "Step 8 of 10",
             title: model.materialize.label.isEmpty ? "Setting up" : model.materialize.label,
             intro: "This part runs on its own. Keep this window open, or close it and let Control Tower finish in the menu bar."
         ) {
@@ -1429,11 +2184,11 @@ struct WizardRootView: View {
         }
     }
 
-    // MARK: 8. Verify (#w8)
+    // MARK: 9. Verify (#w8)
 
     private var verifyView: some View {
         stepShell(
-            eyebrow: "Step 8 of 9",
+            eyebrow: "Step 9 of 10",
             title: "Making sure everything's current",
             intro: "The only success here is everything actually being up to date."
         ) {
@@ -1469,11 +2224,11 @@ struct WizardRootView: View {
         return false
     }
 
-    // MARK: 9. Done (#w9)
+    // MARK: 10. Done (#w9)
 
     private var doneView: some View {
         stepShell(
-            eyebrow: "Step 9 of 9",
+            eyebrow: "Step 10 of 10",
             title: "That's it. You're ready.",
             intro: "Control Tower now lives quietly in your menu bar. When the icon is quiet, everything's current. And when you're added to a new department later, it'll show up there, ready when you are."
         ) {
@@ -1483,20 +2238,12 @@ struct WizardRootView: View {
                     .foregroundColor(Color(nsColor: .labelColor))
                     .fixedSize(horizontal: false, vertical: true)
                 videoLinkRow("See what you can build with this")
-                if model.includeCodex {
-                    sectionCard("Your code projects") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(model.workspaceFolderName == nil
-                                 ? "Choose the folder where you keep code. Control Tower checks every project there, keeps any existing Claude or Codex setup, and offers to add only what's missing."
-                                 : "Control Tower is watching \(model.workspaceFolderName ?? "your chosen folder"). Existing project setup is kept; only missing pieces are offered.")
-                                .font(.callout)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .fixedSize(horizontal: false, vertical: true)
-                            Button(model.workspaceFolderName == nil ? "Choose projects folder" : "Change folder") {
-                                model.chooseWorkspaceFolder()
-                            }
-                            .buttonStyle(.bordered)
-                        }
+                if let body = doneProjectsCardBody {
+                    sectionCard("Your projects") {
+                        Text(body)
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -1506,6 +2253,27 @@ struct WizardRootView: View {
             Button { model.finish(onClose: onClose) } label: { Text("Let's go") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
+        }
+    }
+
+    /// Step 10's own four variants — the card is absent entirely for
+    /// `.declined`, per the spec's own table.
+    private var doneProjectsCardBody: String? {
+        switch model.projectsStepOutcome {
+        case .declined:
+            return nil
+        case .skipped:
+            return "You skipped projects for now. Point Control Tower at your projects folder any time from the menu bar."
+        case .setUp(let succeeded, let total) where succeeded == total && total > 0:
+            return "Your copilots are set up in \(total) of your \(total) project\(total == 1 ? "" : "s"). Any new project you create in that folder gets them automatically."
+        case .setUp(let succeeded, let total) where total > 0:
+            let failed = total - succeeded
+            let failedClause = failed == 1
+                ? "One needs another look, and it's waiting for you in the menu bar."
+                : "\(failed) need another look, and they're waiting for you in the menu bar."
+            return "Your copilots are set up in \(succeeded) of your \(total) project\(total == 1 ? "" : "s"). \(failedClause) Nothing existing was changed."
+        case .setUp, .notReached:
+            return nil
         }
     }
 
@@ -1537,6 +2305,17 @@ struct WizardRootView: View {
                 }
             }
         } leadingActions: {
+            // "Holding stops being reachable by refusal and becomes
+            // reachable only by the person's own choice or by a genuine
+            // outside failure" — this leading action only appears when
+            // there is an actual question to return to (cached from the
+            // last plan that carried one); it is never fabricated for a
+            // Holding reached some other way.
+            if !model.onboardQuestionItems.isEmpty {
+                Button { model.returnToOnboardQuestion() } label: { Text("Include what I already have") }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
             Button { onClose() } label: { Text("Continue in the menu bar") }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))

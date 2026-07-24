@@ -448,6 +448,20 @@ struct RepositoryPlanRow: Decodable {
     let state: RepositoryState
     let action: String
     let detail: String
+    /// Added 2026-07-24 (B1, adopt-existing-content): the CLI has always
+    /// emitted these four on every row (`onboard.py`'s `_row()`); this
+    /// struct silently DROPPED them until now (Swift's synthesized
+    /// `Decodable` ignores any JSON key with no matching property — see this
+    /// file's header). That silent drop is exactly why the app could not
+    /// render an "adopt my existing content" offer even after the CLI
+    /// started emitting one: `package_state: "adoptable"` never reached any
+    /// Swift value. `rank`/`package_state`/`package_action`/`package_detail`
+    /// are in the vendored schema's `required` list, so this is a plain
+    /// correctness fix, not new optional surface.
+    let rank: Int
+    let packageState: String
+    let packageAction: String
+    let packageDetail: String
 }
 
 struct RepositoryPlanSummary: Decodable {
@@ -455,6 +469,9 @@ struct RepositoryPlanSummary: Decodable {
     let missing: Int
     let created: Int
     let blocked: Int
+    /// Not in the schema's `required` list (older CLI builds omit it) —
+    /// optional, never defaulted to 0 when absent.
+    let adoptable: Int?
 }
 
 struct OnboardReport: Decodable {
@@ -545,6 +562,26 @@ struct WorkspacePersonalProfile: Decodable {
     let projectId: String?
 }
 
+/// Whether the app must ask before setting a project up (`ask`), whether it
+/// may apply silently (`automatic`, reserved — `workspace_status()`'s own
+/// module docstring: the CLI does not emit this yet, pending a "known
+/// projects as of grant time" ledger), or whether there is nothing to ask
+/// about at all (`excluded` — set by `revert`; `not-offered` — already
+/// `ready`, or genuinely `blocked`). The app never infers this itself; it
+/// only ever selects the checkbox-vs-immediate-`Add` grammar named by
+/// `canApplyNow` below and the caption named by this value.
+enum WorkspaceSetupPolicy: String, Decodable {
+    case ask
+    case automatic
+    case excluded
+    case notOffered = "not-offered"
+}
+
+struct WorkspaceUndo: Decodable {
+    let available: Bool
+    let detail: String
+}
+
 struct WorkspaceEntry: Decodable, Identifiable {
     var id: String { path }
     let path: String
@@ -556,6 +593,21 @@ struct WorkspaceEntry: Decodable, Identifiable {
     let installedComponents: [String]
     let recommendedComponents: [String]
     let personalProfile: WorkspacePersonalProfile
+    /// Added 2026-07-24 (adopt-and-project-setup spec) — all five are in
+    /// `workspaces.schema.json`'s `required` list per workspace row. Adding
+    /// them here is the same class of fix as `RepositoryPlanRow`'s
+    /// `rank`/`package_state`/... above: the wire payload always carried
+    /// them, Swift's synthesized `Decodable` just silently dropped them
+    /// because no property claimed the key.
+    let setupPolicy: WorkspaceSetupPolicy
+    let policyDetail: String
+    /// False before the copilots this project's setup would copy from exist
+    /// on this Mac (e.g. during first-run onboarding, before Set up has
+    /// run). Chooses the wizard's checkbox grammar vs. the menu bar's
+    /// immediate `Add` grammar — the app never decides that for itself.
+    let canApplyNow: Bool
+    let applyBlockedDetail: String?
+    let undo: WorkspaceUndo
 }
 
 struct WorkspaceSummary: Decodable {
@@ -586,6 +638,35 @@ struct WorkspaceAction: Decodable {
     let detail: String
 }
 
+enum WorkspaceDiscoveryState: String, Decodable {
+    case granted
+    case notGranted = "not-granted"
+    case declined
+}
+
+/// `name` is what the app renders; `path` is only ever passed back to the
+/// CLI (e.g. as `workspace forget-root --path`), never rendered — same
+/// discipline as `WorkspaceRootListEntry`/`WorkspaceRootCandidate` below.
+struct WorkspaceDiscoveryRoot: Decodable {
+    let name: String
+    let path: String
+}
+
+struct WorkspaceDiscovery: Decodable {
+    let state: WorkspaceDiscoveryState
+    let roots: [WorkspaceDiscoveryRoot]
+}
+
+/// `cc workspace revert --project <path> --json`'s own `revert` object —
+/// what was removed (only files the CLI recorded as its own, with matching
+/// checksums) and what was kept (everything else). Component lists mirror
+/// `WorkspaceEntry.declaredComponents`'s `[String]` shape (`claude`/`codex`).
+struct WorkspaceRevertResult: Decodable {
+    let removed: [String]
+    let kept: [String]
+    let detail: String
+}
+
 struct WorkspacesReport: Decodable {
     let schemaVersion: String
     let mode: String
@@ -593,6 +674,13 @@ struct WorkspacesReport: Decodable {
     let workspaces: [WorkspaceEntry]
     let summary: WorkspaceSummary
     let actions: [WorkspaceAction]?
+    /// `cc workspace --all --json` only — whether this Mac has a projects
+    /// folder granted at all, so the menu bar can offer the grant instead of
+    /// silently returning nothing (`workspaces.schema.json`'s own `discovery`
+    /// description). Not present on a single-`--project` status read.
+    let discovery: WorkspaceDiscovery?
+    /// `cc workspace revert --project <path> --json` only.
+    let revert: WorkspaceRevertResult?
 }
 
 struct WorkspaceRoot: Decodable {
@@ -601,9 +689,50 @@ struct WorkspaceRoot: Decodable {
     let detail: String
 }
 
+/// `cc workspace approve-root` / `forget-root --path ... --json` — one
+/// explicit folder grant/revocation result.
 struct WorkspaceRootReport: Decodable {
     let schemaVersion: String
     let mode: String
     let result: WorkspaceReportResult
     let root: WorkspaceRoot
+}
+
+/// `cc workspace roots --json` — every folder currently approved for
+/// project discovery, plus detected one-click candidates. A structurally
+/// distinct shape from `WorkspaceRootReport` above (`roots`+`candidates`
+/// arrays vs. a single `root`) — same "typed verb already knows which
+/// branch it called" discipline this file's header describes for `oneOf`
+/// shapes; `CliClient.workspaceRoots()` is the one call site that decodes
+/// this one.
+struct WorkspaceRootListEntry: Decodable, Identifiable {
+    var id: String { path }
+    let name: String
+    let path: String
+    let projectCount: Int
+}
+
+struct WorkspaceRootCandidate: Decodable, Identifiable {
+    var id: String { path }
+    let path: String
+    let label: String
+    let projectCount: Int
+}
+
+struct WorkspaceRootsListReport: Decodable {
+    let schemaVersion: String
+    let mode: String
+    let result: WorkspaceReportResult
+    let roots: [WorkspaceRootListEntry]?
+    let candidates: [WorkspaceRootCandidate]?
+}
+
+/// `cc workspace decline --apply --json` — the machine-wide "I don't keep
+/// projects on this Mac" opt-out. Same `discovery` shape `WorkspacesReport`
+/// carries, alone at the top level (no `workspaces`/`summary` on this call).
+struct WorkspaceDeclineReport: Decodable {
+    let schemaVersion: String
+    let mode: String
+    let result: WorkspaceReportResult
+    let discovery: WorkspaceDiscovery
 }

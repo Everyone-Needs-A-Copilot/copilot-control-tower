@@ -31,4 +31,25 @@ done
 
 codesign --verify --deep --strict "${APP}"
 
+# adopt-and-project-setup spec self-tests (in-binary, offline — see
+# native/control-tower-tray.swift's `AppDelegate.applicationDidFinishLaunching`
+# for the harness contract these three env vars trigger).
+onboard_question_output="$(CT_ONBOARD_QUESTION_SELFTEST=1 "${APP_BIN}")"
+if [[ "${onboard_question_output}" != *"SELFTEST onboardQuestion repoRowDecode=pass askCount=1 reviewCount=1 componentId=pass"* ]]; then
+  echo "One question first selftest failed: ${onboard_question_output}" >&2
+  exit 1
+fi
+
+projects_step_output="$(CT_PROJECTS_STEP_SELFTEST=1 "${APP_BIN}")"
+if [[ "${projects_step_output}" != *"SELFTEST projectsStep workspaceDecode=pass discovery=pass preselect=pass rootsDecode=pass stageOrder=pass"* ]]; then
+  echo "Your projects step selftest failed: ${projects_step_output}" >&2
+  exit 1
+fi
+
+tray_projects_output="$(CT_TRAY_PROJECTS_SELFTEST=1 "${APP_BIN}")"
+if [[ "${tray_projects_output}" != *"SELFTEST trayProjects notice=pass rows=pass"* ]]; then
+  echo "Tray projects drill-in selftest failed: ${tray_projects_output}" >&2
+  exit 1
+fi
+
 echo "user app bundle tests: PASS"

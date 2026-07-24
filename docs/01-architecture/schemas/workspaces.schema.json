@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/workspaces.schema.json",
   "title": "Workspace activation report",
-  "description": "Read-only status and explicit configure results for bounded Git workspace discovery. A shared declaration is never installation proof.",
+  "description": "Read-only status, explicit configure results (including bulk `--apply-all`), and undo (`revert`) for bounded Git workspace discovery. A shared declaration is never installation proof.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "mode", "result", "workspaces", "summary"],
@@ -15,7 +15,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "name", "project_id", "state", "detail", "declared_components", "installed_components", "recommended_components", "personal_profile"],
+        "required": [
+          "path", "name", "project_id", "state", "detail",
+          "declared_components", "installed_components", "recommended_components", "personal_profile",
+          "setup_policy", "policy_detail", "can_apply_now", "apply_blocked_detail", "undo"
+        ],
         "properties": {
           "path": { "type": "string" },
           "name": { "type": "string" },
@@ -32,6 +36,25 @@
             "properties": {
               "state": { "enum": ["associated", "available", "local-only"] },
               "project_id": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" }
+            }
+          },
+          "setup_policy": {
+            "enum": ["ask", "automatic", "excluded", "not-offered"],
+            "description": "Whether the app must ask before setting this project up. `automatic` (a project created since its root was approved, nothing of the person's to protect) is reserved -- the CLI does not emit it yet; see claude-copilot's core/ecosystem/workspaces.py module docstring for why. `excluded` is real: set by `revert`."
+          },
+          "policy_detail": { "type": "string" },
+          "can_apply_now": {
+            "type": "boolean",
+            "description": "False before the copilots this project's setup would copy from exist on this Mac (e.g. during first-run onboarding, before Set up has run). Chooses the wizard's checkbox grammar vs. the menu bar's immediate Add grammar."
+          },
+          "apply_blocked_detail": { "type": ["string", "null"], "description": "Required alongside `can_apply_now: false`; null otherwise." },
+          "undo": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["available", "detail"],
+            "properties": {
+              "available": { "type": "boolean" },
+              "detail": { "type": "string" }
             }
           }
         }
@@ -62,6 +85,18 @@
           "detail": { "type": "string" }
         }
       }
+    },
+    "discovery": { "$ref": "#/$defs/discovery" },
+    "revert": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["removed", "kept", "detail"],
+      "description": "`cc workspace revert --project <path> --json`: what was removed and what was kept.",
+      "properties": {
+        "removed": { "$ref": "#/$defs/components" },
+        "kept": { "$ref": "#/$defs/components" },
+        "detail": { "type": "string" }
+      }
     }
   },
   "$defs": {
@@ -69,6 +104,27 @@
       "type": "array",
       "uniqueItems": true,
       "items": { "enum": ["claude", "codex"] }
+    },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "roots"],
+      "description": "Whether this Mac has a projects folder granted, so the menu bar can offer the grant instead of silently returning nothing.",
+      "properties": {
+        "state": { "enum": ["granted", "not-granted", "declined"] },
+        "roots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "path"],
+            "properties": {
+              "name": { "type": "string", "description": "What the app renders." },
+              "path": { "type": "string", "description": "Only ever passed back to the CLI; never rendered." }
+            }
+          }
+        }
+      }
     }
   }
 }

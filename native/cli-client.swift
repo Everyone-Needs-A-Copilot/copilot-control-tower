@@ -262,12 +262,31 @@ actor CliClient {
         await decodeVerb(["onboard", "--scope", "personal", "--components", components.joined(separator: ","), "--apply", "--json"])
     }
 
-    func ecosystemOnboardPlan(products: [String]) async -> Result<EcosystemOnboardReport, CliError> {
-        await decodeVerb(["onboard", "--org", "auto", "--products", products.joined(separator: ","), "--json"])
+    /// `adoptExisting` is component-scoped consent (B1, adopt-existing
+    /// content): components the person selected on the "One question first"
+    /// screen. Empty by default — an unlisted adoptable component is a
+    /// no-op on the CLI side, never an implicit decline (`onboard.py`'s own
+    /// doc comment on `adopt_existing`). Appended only when non-empty so an
+    /// ordinary plan/apply call's argv is unchanged from before this flag
+    /// existed.
+    func ecosystemOnboardPlan(products: [String], adoptExisting: [String] = []) async -> Result<EcosystemOnboardReport, CliError> {
+        await decodeVerb(onboardArguments(org: "auto", products: products, apply: false, adoptExisting: adoptExisting))
     }
 
-    func ecosystemOnboardApply(products: [String]) async -> Result<EcosystemOnboardReport, CliError> {
-        await decodeVerb(["onboard", "--org", "auto", "--products", products.joined(separator: ","), "--apply", "--json"])
+    func ecosystemOnboardApply(products: [String], adoptExisting: [String] = []) async -> Result<EcosystemOnboardReport, CliError> {
+        await decodeVerb(onboardArguments(org: "auto", products: products, apply: true, adoptExisting: adoptExisting))
+    }
+
+    private func onboardArguments(org: String, products: [String], apply: Bool, adoptExisting: [String]) -> [String] {
+        var arguments = ["onboard", "--org", org, "--products", products.joined(separator: ",")]
+        if apply {
+            arguments.append("--apply")
+        }
+        if !adoptExisting.isEmpty {
+            arguments.append(contentsOf: ["--adopt-existing", adoptExisting.joined(separator: ",")])
+        }
+        arguments.append("--json")
+        return arguments
     }
 
     func workspaces() async -> Result<WorkspacesReport, CliError> {
@@ -294,8 +313,48 @@ actor CliClient {
         return await decodeVerb(arguments)
     }
 
+    /// **Set up** (wizard Step 8) applying every project the person selected
+    /// in **Your projects** in one call, rather than one `configureWorkspace`
+    /// round trip per project.
+    func configureAllWorkspaces(components: String = "auto", apply: Bool) async -> Result<WorkspacesReport, CliError> {
+        var arguments = ["workspace", "configure", "--apply-all", "--components", components]
+        if apply {
+            arguments.append("--apply")
+        }
+        arguments.append("--json")
+        return await decodeVerb(arguments)
+    }
+
     func approveWorkspaceRoot(path: String) async -> Result<WorkspaceRootReport, CliError> {
         await decodeVerb(["workspace", "approve-root", "--path", path, "--apply", "--json"])
+    }
+
+    func forgetWorkspaceRoot(path: String) async -> Result<WorkspaceRootReport, CliError> {
+        await decodeVerb(["workspace", "forget-root", "--path", path, "--apply", "--json"])
+    }
+
+    /// `cc workspace roots --json` — every approved folder plus detected
+    /// one-click candidates. Read-only; never approves anything itself.
+    func workspaceRoots() async -> Result<WorkspaceRootsListReport, CliError> {
+        await decodeVerb(["workspace", "roots", "--json"])
+    }
+
+    /// "I don't keep projects on this Mac" / "Not on this Mac" — the
+    /// machine-wide opt-out. Reversible by approving a folder later.
+    func declineWorkspaces() async -> Result<WorkspaceDeclineReport, CliError> {
+        await decodeVerb(["workspace", "decline", "--apply", "--json"])
+    }
+
+    /// **Undo** — removes only the files the CLI recorded as its own (and
+    /// whose recorded checksums still match), keeps everything else, and
+    /// records the project as excluded from automatic setup.
+    func revertWorkspace(path: String, apply: Bool) async -> Result<WorkspacesReport, CliError> {
+        var arguments = ["workspace", "revert", "--project", path]
+        if apply {
+            arguments.append("--apply")
+        }
+        arguments.append("--json")
+        return await decodeVerb(arguments)
     }
 
     // MARK: Shared decode pipeline

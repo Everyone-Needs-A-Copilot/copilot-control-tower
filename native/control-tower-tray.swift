@@ -64,6 +64,94 @@ enum JoinRowState: Equatable {
     case message(String, canRetry: Bool)
 }
 
+// MARK: - Region 6, projects notice + drill-in (adopt-and-project-setup spec)
+
+/// One project row's transient, session-local UI state while `TrayModel.
+/// addProject(_:)`/`addAllProjects()` is in flight — never persisted, never
+/// read back from the CLI (`nil` in `TrayModel.projectRowActions` means
+/// "render straight from the last `WorkspacesReport`", i.e. `ProjectRowRender`
+/// below).
+enum ProjectRowAction: Equatable {
+    case adding
+    case failed
+}
+
+/// Pure: the Region 6 notice's count and copy. A `static`, instance-free
+/// namespace (like `WizardModel.personalOnboardQuestion(from:)`) so this
+/// exact derivation is shared between `PopoverContentView` and the selftest
+/// below, and so the "declined" muting logic in `PopoverContentView` and the
+/// count math here can never quietly drift apart.
+enum ProjectsNoticeRender {
+    /// "Can be set up" for the notice's own purposes is anything the CLI
+    /// still lets the person add with one action — the two actionable
+    /// `WorkspaceSummary` buckets. `ready`/`blocked` rows are never counted:
+    /// a `ready` row has nothing left to offer, and a `blocked` row is not
+    /// an offer at all (see `ProjectRowRender.Kind.keptAsIs`).
+    static func actionableCount(_ report: WorkspacesReport) -> Int {
+        report.summary.setupAvailable + report.summary.activationRequired
+    }
+
+    static func noticeText(count: Int) -> String {
+        count == 1
+            ? "1 project can have your copilots. Nothing is added until you say so."
+            : "\(count) projects can have your copilots. Nothing is added until you say so."
+    }
+}
+
+/// Pure: one project row's caption + control label for the drill-in
+/// (`ProjectRowAction` above overrides the caption/control while an add is
+/// in flight or just failed; this covers every OTHER row state). Mirrors
+/// the spec's own state table exactly, one row per `WorkspaceActivationState`
+/// value, split further by `setupPolicy` only where the spec's own table
+/// requires it (`excluded` — "Undone", re-offering `Add`).
+enum ProjectRowRender {
+    enum Kind: Equatable {
+        case canBeSetUp
+        case needsFinishing
+        case alreadySetUp
+        /// A project `revert` (Undo) previously excluded — "Left alone at
+        /// your request.", re-offering `Add`. `setup_policy: "automatic"`
+        /// (the OTHER route to this row, per the spec) is reserved and not
+        /// yet emitted by the CLI (`workspaces.schema.json`'s own
+        /// description), so this `Kind` is reached only via `excluded`
+        /// today.
+        case excluded
+        /// A genuinely blocked project (not a project workspace, an
+        /// unreadable declaration, ...) — no control, the CLI's own
+        /// `detail` rendered verbatim, trailing "Kept as is".
+        case keptAsIs
+    }
+
+    static func kind(for workspace: WorkspaceEntry) -> Kind {
+        switch workspace.state {
+        case .ready: return .alreadySetUp
+        case .setupAvailable: return workspace.setupPolicy == .excluded ? .excluded : .canBeSetUp
+        case .activationRequired: return .needsFinishing
+        case .blocked: return .keptAsIs
+        }
+    }
+
+    static func caption(for workspace: WorkspaceEntry) -> String {
+        switch kind(for: workspace) {
+        case .canBeSetUp: return "Copilot can be set up here."
+        case .needsFinishing: return "Set up here already, but not active on this Mac yet."
+        case .alreadySetUp: return "Already set up."
+        case .excluded: return "Left alone at your request."
+        case .keptAsIs: return workspace.detail
+        }
+    }
+
+    /// `nil` means the row carries no control at all (`alreadySetUp`,
+    /// `keptAsIs`).
+    static func controlLabel(for workspace: WorkspaceEntry) -> String? {
+        switch kind(for: workspace) {
+        case .canBeSetUp, .excluded: return "Add"
+        case .needsFinishing: return "Finish setup"
+        case .alreadySetUp, .keptAsIs: return nil
+        }
+    }
+}
+
 // MARK: - View model
 
 /// The single source of truth for the tray/popover: owns every real
@@ -114,11 +202,16 @@ final class TrayModel: ObservableObject {
     /// visible in the per-project sweep.
     @Published private(set) var lastFreshness: AllProjectsFreshness?
     /// Bounded Git-workspace activation state computed by `cc`. Ready
-    /// workspaces stay invisible; only a missing/unfinished shared setup can
-    /// enter the Bob lane below.
+    /// workspaces stay invisible in the drill-in's primary list (they sit
+    /// behind the "N already set up ›" disclosure); the Region 6 notice
+    /// reads `discovery`/`summary` from this same report.
     @Published private(set) var lastWorkspaces: WorkspacesReport?
-    @Published private(set) var isConfiguringWorkspace = false
-    @Published private(set) var workspaceBlocker: WorkspaceEntry?
+    /// Per-row transient state for the drill-in's `Add`/`Finish setup`
+    /// grammar (adopt-and-project-setup spec, "Menu bar: Your projects").
+    /// Keyed by `WorkspaceEntry.path`, same convention `joinRowStates` above
+    /// uses for `LayerEntry.id` — a row with no entry here renders from
+    /// `lastWorkspaces` alone (`ProjectRowRender`).
+    @Published private(set) var projectRowActions: [String: ProjectRowAction] = [:]
 
     /// Concurrently calls `doctor()` + `layers()` (steady-state verdict +
     /// Region 3's join candidates) and `authStatus()` + `freshnessAllProjects()`
@@ -185,30 +278,88 @@ final class TrayModel: ObservableObject {
         }
     }
 
-    var workspaceNeedingSetup: WorkspaceEntry? {
-        workspaceBlocker ?? lastWorkspaces?.workspaces.first {
-            $0.state == .setupAvailable || $0.state == .activationRequired
-        }
-    }
+    /// True while ANY row is adding — the drill-in's own state-coverage
+    /// rule: "Disabled while another add is in flight, hint 'Finishing the
+    /// last one first.'"
+    var isAnyProjectAdding: Bool { projectRowActions.values.contains(.adding) }
 
-    func configureWorkspace(_ workspace: WorkspaceEntry) async {
-        guard !isConfiguringWorkspace else { return }
-        isConfiguringWorkspace = true
-        defer { isConfiguringWorkspace = false }
+    /// One row's **Add** / **Finish setup** (Region 6 drill-in). By this
+    /// point the copilots this project's setup copies from already exist on
+    /// this Mac, so `can_apply_now` is expected true and the add applies
+    /// immediately — the whole reason the drill-in uses per-row `Add`
+    /// instead of the wizard's checkboxes (spec, "Architecture decision").
+    func addProject(_ workspace: WorkspaceEntry) async {
+        guard !isAnyProjectAdding else { return }
+        projectRowActions[workspace.path] = .adding
         let shouldShare = workspace.declaredComponents.isEmpty
-        if case .success(let report) = await CliClient.shared.configureWorkspace(
+        let result = await CliClient.shared.configureWorkspace(
             path: workspace.path,
             components: workspace.recommendedComponents,
             shareWithProject: shouldShare,
             apply: true
-        ) {
+        )
+        if case .success(let report) = result,
+           let updated = report.workspaces.first(where: { $0.path == workspace.path }),
+           updated.state != .blocked {
             lastWorkspaces = report
-            if let blocked = report.workspaces.first(where: { $0.state == .blocked }) {
-                workspaceBlocker = blocked
-                return
-            }
-            workspaceBlocker = nil
+            projectRowActions[workspace.path] = nil
+        } else {
+            projectRowActions[workspace.path] = .failed
         }
+    }
+
+    /// **Add all** — `workspace configure --apply-all`, one call for every
+    /// project the CLI itself judges actionable, rather than one
+    /// `addProject` round trip per row.
+    func addAllProjects() async {
+        guard !isAnyProjectAdding else { return }
+        let addable = (lastWorkspaces?.workspaces ?? []).filter {
+            $0.state == .setupAvailable || $0.state == .activationRequired
+        }
+        guard !addable.isEmpty else { return }
+        for workspace in addable {
+            projectRowActions[workspace.path] = .adding
+        }
+        if case .success(let report) = await CliClient.shared.configureAllWorkspaces(apply: true) {
+            lastWorkspaces = report
+            for workspace in addable {
+                let stillBlocked = report.workspaces.first(where: { $0.path == workspace.path })?.state == .blocked
+                projectRowActions[workspace.path] = stillBlocked ? .failed : nil
+            }
+        } else {
+            for workspace in addable {
+                projectRowActions[workspace.path] = .failed
+            }
+        }
+    }
+
+    /// **Choose folder…** / **Add another folder…**, reachable from both the
+    /// not-granted-yet notice and the drill-in's footer.
+    func chooseProjectsFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        panel.message = "Choose the one folder where your projects live. Control Tower looks only inside that folder, and never anywhere else on this Mac."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            _ = await CliClient.shared.approveWorkspaceRoot(path: url.path)
+            await self.refresh()
+        }
+    }
+
+    /// **Not on this Mac** — the machine-wide opt-out; reversible from the
+    /// same notice by choosing a folder later.
+    func declineProjects() async {
+        _ = await CliClient.shared.declineWorkspaces()
+        await refresh()
+    }
+
+    /// **Stop watching this folder**.
+    func stopWatchingProjectsRoot(path: String) async {
+        _ = await CliClient.shared.forgetWorkspaceRoot(path: path)
         await refresh()
     }
 
@@ -431,6 +582,11 @@ struct PopoverContentView: View {
     @ObservedObject var model: TrayModel
     @State private var showingWhatChanged = false
     @State private var showingProjectDrillIn = false
+    /// The projects list (adopt-and-project-setup spec, "Menu bar: Your
+    /// projects (drill-in)") — a SEPARATE top-level panel from `showingWhatChanged`'s
+    /// own drill-in, reached only from the Region 6 notice's "Review
+    /// projects", using the exact same back-and-drill-in grammar.
+    @State private var showingProjectsPanel = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -439,6 +595,9 @@ struct PopoverContentView: View {
             if showingWhatChanged {
                 Divider()
                 whatChangedRegion
+            } else if showingProjectsPanel {
+                Divider()
+                projectsDrillInRegion
             } else if model.state.clientState != .cliUnreadable {
                 // Per `control-tower-copy-deck.md` §1.2, the bang state shows
                 // "no tree, no join row" — only the header sentence plus the
@@ -458,7 +617,14 @@ struct PopoverContentView: View {
             Divider()
             actionRow
 
-            bobLaneRegion
+            // Region 6: at most one PROMPT (unchanged), then, independently,
+            // the projects NOTICE — sequential rendering per the spec's own
+            // "Architecture decision": the unsaved-changes prompt can no
+            // longer make the projects notice invisible.
+            unsavedChangesPromptRegion
+            if !showingProjectsPanel {
+                projectsNoticeRegion
+            }
         }
         .padding(.vertical, 12)
         .frame(width: 360, alignment: .leading)
@@ -632,11 +798,15 @@ struct PopoverContentView: View {
         .padding(.horizontal, 12)
     }
 
-    // MARK: Region 6 — the Bob lane. Empty in Healthy; the ONE prompt this
-    // file renders is the dirty-WIP hold (`control-tower-copy-deck.md` §1.8),
-    // exactly one affordance, never a discard button (never-destroy).
+    // MARK: Region 6 — at most one PROMPT (the dirty-WIP hold,
+    // `control-tower-copy-deck.md` §1.8, exactly one affordance, never a
+    // discard button — never-destroy), then, independently, the projects
+    // NOTICE (adopt-and-project-setup spec). Sequential rendering, per that
+    // spec's own "Architecture decision": re-ordering the old `else if`
+    // chain would only change which state wins and still hide one behind
+    // the other — this fixes the class of bug, not one instance of it.
 
-    private var bobLaneRegion: some View {
+    private var unsavedChangesPromptRegion: some View {
         Group {
             if model.state.clientState != .cliUnreadable,
                let fanout = model.lastFanout, fanout.summary.held > 0 {
@@ -652,26 +822,202 @@ struct PopoverContentView: View {
                     .buttonStyle(.bordered)
                 }
                 .padding(.horizontal, 12)
-            } else if model.state.clientState != .cliUnreadable,
-                      let workspace = model.workspaceNeedingSetup {
-                Divider()
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(workspace.state == .blocked
-                         ? workspace.detail
-                         : (workspace.state == .setupAvailable
-                            ? "Copilot is available for \(workspace.name)."
-                            : "Finish Copilot setup for \(workspace.name) on this Mac."))
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .labelColor))
-                    Button(workspace.state == .blocked
-                           ? "Try again"
-                           : (workspace.state == .setupAvailable ? "Set up this project" : "Finish setup")) {
-                        Task { await model.configureWorkspace(workspace) }
+            }
+        }
+    }
+
+    /// No badge for projects — "a project waiting to be set up is an offer
+    /// and not a fault" (spec). `discovery.state == .declined` mutes this
+    /// whole region: "Not on this Mac" is meant to quiet every project
+    /// affordance in the tray, not just the not-granted offer it replaced.
+    private var projectsNoticeRegion: some View {
+        Group {
+            if model.state.clientState != .cliUnreadable,
+               let workspaces = model.lastWorkspaces,
+               workspaces.discovery?.state != .declined {
+                let actionable = ProjectsNoticeRender.actionableCount(workspaces)
+                if actionable > 0 {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(ProjectsNoticeRender.noticeText(count: actionable))
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .labelColor))
+                        Button("Review projects") {
+                            showingProjectsPanel = true
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(model.isConfiguringWorkspace)
+                    .padding(.horizontal, 12)
+                } else if workspaces.discovery?.state == .notGranted {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Building something on this Mac? I can set your copilots up in your projects too.")
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .labelColor))
+                        HStack(spacing: 10) {
+                            Button("Choose folder…") {
+                                model.chooseProjectsFolder()
+                            }
+                            .buttonStyle(.bordered)
+                            Button("Not on this Mac") {
+                                Task { await model.declineProjects() }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        }
+                    }
+                    .padding(.horizontal, 12)
                 }
-                .padding(.horizontal, 12)
+            }
+        }
+    }
+
+    // MARK: "Your projects" drill-in (adopt-and-project-setup spec) — same
+    // back-and-drill-in grammar `whatChangedRegion`/`projectDrillIn` below
+    // already use; not a new window, not a modal, not a sheet.
+
+    private var projectsDrillInRegion: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button("‹ Back") {
+                showingProjectsPanel = false
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+
+            Text("Your projects")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+
+            if let workspaces = model.lastWorkspaces {
+                let actionable = ProjectsNoticeRender.actionableCount(workspaces)
+                let ready = workspaces.workspaces.filter { $0.state == .ready }
+                let rest = workspaces.workspaces.filter { $0.state != .ready }
+
+                if workspaces.workspaces.isEmpty {
+                    if workspaces.discovery?.state == .granted {
+                        Text("No projects in that folder yet. Any new one you create will get your copilots automatically.")
+                            .font(.body)
+                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                    } else {
+                        Text("Control Tower isn't watching any folder yet. Choose the folder where you keep your projects and it will set your copilots up there.")
+                            .font(.body)
+                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Choose folder…") { model.chooseProjectsFolder() }
+                            .buttonStyle(.bordered)
+                    }
+                } else {
+                    Text("\(actionable) of \(workspaces.summary.total) can be set up.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+
+                    if rest.isEmpty {
+                        Text("All \(workspaces.summary.total) of your projects are set up.")
+                            .font(.body)
+                            .foregroundColor(Color(nsColor: .labelColor))
+                    } else {
+                        HStack {
+                            Spacer()
+                            Button("Add all") {
+                                Task { await model.addAllProjects() }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .linkColor))
+                            .disabled(model.isAnyProjectAdding)
+                        }
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(rest) { workspace in
+                                    projectDrillInRow(workspace)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 220)
+                    }
+
+                    if !ready.isEmpty {
+                        DisclosureGroup("\(ready.count) already set up ›") {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(ready) { workspace in
+                                    projectDrillInRow(workspace)
+                                }
+                            }
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+
+                    HStack(spacing: 12) {
+                        Button("Add another folder…") { model.chooseProjectsFolder() }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .linkColor))
+                        if let firstRoot = workspaces.discovery?.roots.first {
+                            Button("Stop watching this folder") {
+                                Task { await model.stopWatchingProjectsRoot(path: firstRoot.path) }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+
+    private func projectDrillInRow(_ workspace: WorkspaceEntry) -> some View {
+        let localAction = model.projectRowActions[workspace.path]
+        let caption: String
+        switch localAction {
+        case .adding: caption = "Adding…"
+        case .failed: caption = "Couldn't add it right now. Nothing existing was changed."
+        case nil: caption = ProjectRowRender.caption(for: workspace)
+        }
+
+        return HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(workspace.name)
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .labelColor))
+                Text(caption)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            projectDrillInRowControl(workspace, localAction: localAction)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(workspace.name), \(caption)")
+    }
+
+    @ViewBuilder
+    private func projectDrillInRowControl(_ workspace: WorkspaceEntry, localAction: ProjectRowAction?) -> some View {
+        switch localAction {
+        case .adding:
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 14, height: 14)
+        case .failed:
+            Button("Try again") {
+                Task { await model.addProject(workspace) }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        case nil:
+            if let label = ProjectRowRender.controlLabel(for: workspace) {
+                Button(label) {
+                    Task { await model.addProject(workspace) }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(model.isAnyProjectAdding)
+                .help(model.isAnyProjectAdding ? "Finishing the last one first." : "")
+            } else if ProjectRowRender.kind(for: workspace) == .keptAsIs {
+                Text("Kept as is")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
         }
     }
@@ -965,6 +1311,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let env = ProcessInfo.processInfo.environment
 
+        // SELFTEST HOOKS (harness contract, adopt-and-project-setup spec) —
+        // in-binary, offline, no `CliClient`/`Process` spawn: each decodes a
+        // hand-built fixture payload with the SAME `JSONDecoder` config
+        // `CliClient` uses, then exercises the pure model logic those
+        // decoded values feed, exactly the pattern
+        // `CT_ADMIN_COMPLETION_DEPARTMENT_SELFTEST` already establishes for
+        // Admin. Available in both the User and Admin builds (this file and
+        // `native/wizard.swift` compile into both), never gated by
+        // `CT_ADMIN_BUILD`.
+        if env["CT_ONBOARD_QUESTION_SELFTEST"] == "1" {
+            exit(Self.runOnboardQuestionSelftest() ? 0 : 1)
+        }
+        if env["CT_PROJECTS_STEP_SELFTEST"] == "1" {
+            exit(Self.runProjectsStepSelftest() ? 0 : 1)
+        }
+        if env["CT_TRAY_PROJECTS_SELFTEST"] == "1" {
+            exit(Self.runTrayProjectsSelftest() ? 0 : 1)
+        }
+
         #if CT_ADMIN_BUILD
         // The Admin distribution is a conventional double-clickable app, not
         // the User tray with a hidden Administration menu item. Keep the old
@@ -1181,6 +1546,241 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .bang: return "bang"
         default: return badge.rawValue
         }
+    }
+
+    /// The SAME decoder config `CliClient.decodeVerb` uses — every selftest
+    /// below decodes its fixture through this, never through a bespoke
+    /// decoder that could hide a real key-mapping bug.
+    private static func selftestDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }
+
+    // MARK: CT_ONBOARD_QUESTION_SELFTEST — "One question first"
+    //
+    // Proves, offline: (1) `RepositoryPlanRow` no longer silently drops
+    // `rank`/`package_state`/`package_action`/`package_detail` (the exact
+    // bug that made the app unable to render an adopt-existing-content
+    // offer even once the CLI started emitting one); (2) `WizardModel.
+    // personalOnboardQuestion(from:)` correctly splits an ecosystem plan's
+    // personal-scope inventory into ask rows (`reversible: true`) and
+    // review rows (`action: "review"`) and leaves an ordinary `reuse` row
+    // out of both; (3) the `personal-<component>` id round-trips through
+    // `componentId(fromPersonalInventoryId:)`.
+    private static func runOnboardQuestionSelftest() -> Bool {
+        let repositoryRowJSON = """
+        {
+          "schema_version": "1.0",
+          "scope": "personal",
+          "owner": "octocat",
+          "mode": "plan",
+          "result": "changes-required",
+          "repositories": [
+            {
+              "component": "claude",
+              "role": "personal",
+              "unit": null,
+              "owner": "octocat",
+              "name": "claude-copilot-private",
+              "visibility": "private",
+              "state": "existing-private",
+              "action": "none",
+              "detail": "Existing private repository will be reused.",
+              "rank": 10,
+              "package_state": "adoptable",
+              "package_action": "adopt",
+              "package_detail": "Your own content is already in here. I'll keep all of it and add a small note that says it belongs with your copilots."
+            }
+          ],
+          "summary": {"existing": 1, "missing": 0, "created": 0, "blocked": 0, "adoptable": 1}
+        }
+        """
+        guard let repositoryData = repositoryRowJSON.data(using: .utf8),
+              let onboardReport = try? selftestDecoder().decode(OnboardReport.self, from: repositoryData),
+              let row = onboardReport.repositories.first else {
+            print("SELFTEST onboardQuestion repoRowDecode=fail")
+            return false
+        }
+        let repoRowDecodePass = row.rank == 10
+            && row.packageState == "adoptable"
+            && row.packageAction == "adopt"
+            && !row.packageDetail.isEmpty
+            && onboardReport.summary.adoptable == 1
+
+        let inventoryJSON = """
+        {
+          "schema_version": "1.0",
+          "scope": "ecosystem",
+          "mode": "plan",
+          "result": "changes-required",
+          "org": "acme-co",
+          "products": ["claude", "codex"],
+          "stages": [],
+          "layers": [],
+          "inventory": [
+            {"id": "personal-claude", "scope": "personal", "title": "Your Claude Copilot space", "state": "adoptable", "action": "create", "detail": "Your own content is already in here. I'll keep all of it and add a small note that says it belongs with your copilots.", "source_path": null, "destination_path": null, "reversible": true},
+            {"id": "personal-codex", "scope": "personal", "title": "Your Codex Copilot space", "state": "held", "action": "review", "detail": "I don't recognize how this space is set up, so I'll leave it exactly as it is.", "source_path": null, "destination_path": null, "reversible": false},
+            {"id": "personal-knowledge", "scope": "personal", "title": "Your Knowledge Copilot space", "state": "ready", "action": "reuse", "detail": "Already set up. Everything in here will be kept.", "source_path": null, "destination_path": null, "reversible": false}
+          ],
+          "inventory_summary": {"reused": 1, "changes": 1, "review": 1}
+        }
+        """
+        guard let inventoryData = inventoryJSON.data(using: .utf8),
+              let ecosystemReport = try? selftestDecoder().decode(EcosystemOnboardReport.self, from: inventoryData) else {
+            print("SELFTEST onboardQuestion inventoryDecode=fail")
+            return false
+        }
+        let (ask, review) = WizardModel.personalOnboardQuestion(from: ecosystemReport)
+        let splitPass = ask.count == 1 && ask.first?.id == "personal-claude"
+            && review.count == 1 && review.first?.id == "personal-codex"
+        let componentIdPass = WizardModel.componentId(fromPersonalInventoryId: "personal-claude") == "claude"
+            && WizardModel.componentId(fromPersonalInventoryId: "not-personal") == nil
+
+        let passed = repoRowDecodePass && splitPass && componentIdPass
+        print(
+            "SELFTEST onboardQuestion repoRowDecode=\(repoRowDecodePass ? "pass" : "fail") "
+                + "askCount=\(ask.count) reviewCount=\(review.count) "
+                + "componentId=\(componentIdPass ? "pass" : "fail")"
+        )
+        return passed
+    }
+
+    // MARK: CT_PROJECTS_STEP_SELFTEST — wizard Step 7, "Your projects"
+    //
+    // Proves, offline: (1) `WorkspaceEntry`/`WorkspacesReport` decode the
+    // new required `setup_policy`/`policy_detail`/`can_apply_now`/
+    // `apply_blocked_detail`/`undo`/`discovery` fields instead of silently
+    // dropping them; (2) `WizardModel.preselectedProjectPaths(from:)`
+    // pre-selects exactly the setup-available and activation-required rows;
+    // (3) `WorkspaceRootsListReport` decodes `roots`+`candidates`; (4) the
+    // stage enum actually gained a real, correctly-positioned "Your
+    // projects" step (10 stages, `.projects` immediately before
+    // `.materialize`).
+    private static func runProjectsStepSelftest() -> Bool {
+        let workspacesJSON = """
+        {
+          "schema_version": "1.0",
+          "mode": "status",
+          "result": "action-required",
+          "workspaces": [
+            {"path": "/Users/x/Developer/convoco", "name": "convoco", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": false, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/Users/x/Developer/finished", "name": "finished", "project_id": null, "state": "activation-required", "detail": "Shared Copilot setup is present but is not active on this Mac.", "declared_components": ["claude"], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": false, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/Users/x/Developer/ready", "name": "ready", "project_id": null, "state": "ready", "detail": "Copilot is ready for this project.", "declared_components": ["claude"], "installed_components": ["claude"], "recommended_components": ["claude"], "personal_profile": {"state": "associated", "project_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "setup_policy": "not-offered", "policy_detail": "Copilot is already set up here, so there's nothing to ask.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": true, "detail": "Undo is available."}}
+          ],
+          "summary": {"ready": 1, "setup-available": 1, "activation-required": 1, "blocked": 0, "total": 3},
+          "discovery": {"state": "granted", "roots": [{"name": "Developer", "path": "/Users/x/Developer"}]}
+        }
+        """
+        guard let workspacesData = workspacesJSON.data(using: .utf8),
+              let report = try? selftestDecoder().decode(WorkspacesReport.self, from: workspacesData) else {
+            print("SELFTEST projectsStep workspaceDecode=fail")
+            return false
+        }
+        let workspaceDecodePass = report.workspaces[0].setupPolicy == .ask
+            && report.workspaces[0].canApplyNow == false
+            && report.workspaces[0].applyBlockedDetail == nil
+            && report.workspaces[2].undo.available == true
+        let discoveryPass = report.discovery?.state == .granted
+            && report.discovery?.roots.first?.name == "Developer"
+
+        let preselected = WizardModel.preselectedProjectPaths(from: report.workspaces)
+        let preselectPass = preselected == Set([report.workspaces[0].path, report.workspaces[1].path])
+
+        let rootsJSON = """
+        {"schema_version": "1.0", "mode": "status", "result": "action-required", "roots": [], "candidates": [{"path": "/Users/x/Developer", "label": "Developer", "project_count": 3}]}
+        """
+        guard let rootsData = rootsJSON.data(using: .utf8),
+              let rootsReport = try? selftestDecoder().decode(WorkspaceRootsListReport.self, from: rootsData) else {
+            print("SELFTEST projectsStep rootsDecode=fail")
+            return false
+        }
+        let rootsDecodePass = rootsReport.candidates?.first?.label == "Developer"
+            && rootsReport.candidates?.first?.projectCount == 3
+
+        let stageOrderPass = WizardStage.allCases.count == 10
+            && WizardStage.projects.rawValue == WizardStage.integrations.rawValue + 1
+            && WizardStage.materialize.rawValue == WizardStage.projects.rawValue + 1
+
+        let passed = workspaceDecodePass && discoveryPass && preselectPass && rootsDecodePass && stageOrderPass
+        print(
+            "SELFTEST projectsStep workspaceDecode=\(workspaceDecodePass ? "pass" : "fail") "
+                + "discovery=\(discoveryPass ? "pass" : "fail") "
+                + "preselect=\(preselectPass ? "pass" : "fail") "
+                + "rootsDecode=\(rootsDecodePass ? "pass" : "fail") "
+                + "stageOrder=\(stageOrderPass ? "pass" : "fail")"
+        )
+        return passed
+    }
+
+    // MARK: CT_TRAY_PROJECTS_SELFTEST — the menu bar projects notice + drill-in
+    //
+    // Proves, offline: (1) `ProjectsNoticeRender` pluralizes correctly and
+    // is computed straight from `WorkspaceSummary`, independent of any
+    // unsaved-changes state; (2) `ProjectRowRender` maps every
+    // `WorkspaceEntry` state (including the `excluded` `setup_policy`, i.e.
+    // a project `revert` previously undid) to the exact caption/control
+    // pair the drill-in's own spec table names.
+    private static func runTrayProjectsSelftest() -> Bool {
+        let singularJSON = """
+        {"schema_version": "1.0", "mode": "status", "result": "action-required", "workspaces": [], "summary": {"ready": 0, "setup-available": 1, "activation-required": 0, "blocked": 0, "total": 1}}
+        """
+        let pluralJSON = """
+        {"schema_version": "1.0", "mode": "status", "result": "action-required", "workspaces": [], "summary": {"ready": 3, "setup-available": 6, "activation-required": 3, "blocked": 0, "total": 12}}
+        """
+        guard let singularData = singularJSON.data(using: .utf8),
+              let singularReport = try? selftestDecoder().decode(WorkspacesReport.self, from: singularData),
+              let pluralData = pluralJSON.data(using: .utf8),
+              let pluralReport = try? selftestDecoder().decode(WorkspacesReport.self, from: pluralData) else {
+            print("SELFTEST trayProjects noticeDecode=fail")
+            return false
+        }
+        let singularCount = ProjectsNoticeRender.actionableCount(singularReport)
+        let pluralCount = ProjectsNoticeRender.actionableCount(pluralReport)
+        let noticePass = singularCount == 1
+            && ProjectsNoticeRender.noticeText(count: singularCount) == "1 project can have your copilots. Nothing is added until you say so."
+            && pluralCount == 9
+            && ProjectsNoticeRender.noticeText(count: pluralCount) == "9 projects can have your copilots. Nothing is added until you say so."
+
+        let rowsJSON = """
+        {
+          "schema_version": "1.0",
+          "mode": "status",
+          "result": "action-required",
+          "workspaces": [
+            {"path": "/p/a", "name": "a", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/p/b", "name": "b", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "excluded", "policy_detail": "You asked me not to set this project up again.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/p/c", "name": "c", "project_id": null, "state": "activation-required", "detail": "Shared Copilot setup is present but is not active on this Mac.", "declared_components": ["claude"], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/p/d", "name": "d", "project_id": null, "state": "ready", "detail": "Copilot is ready for this project.", "declared_components": ["claude"], "installed_components": ["claude"], "recommended_components": ["claude"], "personal_profile": {"state": "associated", "project_id": null}, "setup_policy": "not-offered", "policy_detail": "Copilot is already set up here, so there's nothing to ask.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/p/e", "name": "e", "project_id": null, "state": "blocked", "detail": "This folder is not a project workspace.", "declared_components": [], "installed_components": [], "recommended_components": [], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "not-offered", "policy_detail": "This can't be set up automatically right now.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}}
+          ],
+          "summary": {"ready": 1, "setup-available": 2, "activation-required": 1, "blocked": 1, "total": 5}
+        }
+        """
+        guard let rowsData = rowsJSON.data(using: .utf8),
+              let rowsReport = try? selftestDecoder().decode(WorkspacesReport.self, from: rowsData) else {
+            print("SELFTEST trayProjects rowsDecode=fail")
+            return false
+        }
+        let rows = rowsReport.workspaces
+        let rowsPass = ProjectRowRender.controlLabel(for: rows[0]) == "Add"
+            && ProjectRowRender.caption(for: rows[0]) == "Copilot can be set up here."
+            && ProjectRowRender.kind(for: rows[1]) == .excluded
+            && ProjectRowRender.controlLabel(for: rows[1]) == "Add"
+            && ProjectRowRender.caption(for: rows[1]) == "Left alone at your request."
+            && ProjectRowRender.controlLabel(for: rows[2]) == "Finish setup"
+            && ProjectRowRender.controlLabel(for: rows[3]) == nil
+            && ProjectRowRender.kind(for: rows[3]) == .alreadySetUp
+            && ProjectRowRender.controlLabel(for: rows[4]) == nil
+            && ProjectRowRender.kind(for: rows[4]) == .keptAsIs
+            && ProjectRowRender.caption(for: rows[4]) == "This folder is not a project workspace."
+
+        let passed = noticePass && rowsPass
+        print(
+            "SELFTEST trayProjects notice=\(noticePass ? "pass" : "fail") "
+                + "rows=\(rowsPass ? "pass" : "fail")"
+        )
+        return passed
     }
 }
 
