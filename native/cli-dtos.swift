@@ -503,6 +503,21 @@ struct EcosystemOnboardStage: Decodable {
     let blocked: Int?
     let held: Int?
     let score: Int?
+    /// `device-ssh`-only fields (verified live, `cc onboard --org auto
+    /// --products claude --json`: `{"key": "unknown", "registration":
+    /// "unknown", "config": "held", ...}`) — previously silently dropped,
+    /// same class of gap as `RepositoryPlanRow`'s `rank`/`package_state`
+    /// above (Swift's synthesized `Decodable` ignores any JSON key with no
+    /// matching property). `config == "held"` (or `key == "incomplete"`) is
+    /// the wizard's H4-vs-H3 discriminator for this stage (holding-copy-spec
+    /// §3: "This Mac already has a GitHub connection I didn't set up" is
+    /// invariant #3 working, never a fault) — see `WizardModel`'s Holding
+    /// classifier in `native/wizard.swift`. `registration` is decoded for
+    /// completeness (the CLI always emits it alongside the other two) but is
+    /// not currently read by any discriminator.
+    let key: String?
+    let registration: String?
+    let config: String?
 }
 
 /// Content-free topology proof returned by aggregate onboarding. Repository

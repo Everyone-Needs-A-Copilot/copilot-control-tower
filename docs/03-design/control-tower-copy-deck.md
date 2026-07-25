@@ -82,6 +82,7 @@ and no raw error text ever appears.
 | Reason (`CliUnreadableReason`) | Sentence |
 |---|---|
 | `parse_error` / `invalid_content` | `I can't read your setup right now, so I won't guess.` |
+| `not_installed` (**new**) | `The setup helper isn't installed on this Mac yet.` |
 | `schema_out_of_range` (**"versions don't match"**) | `Control Tower and your setup are on different versions right now, so I won't guess. An update should line them back up.` |
 | `io_error` | `I can't reach your setup right now, so I won't guess. I'll keep trying.` |
 | `missing_security_field` (**fails closed**) | `I can't confirm your setup is safe right now, so I'm holding off rather than guess.` |
@@ -348,18 +349,65 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
 
 ## 2.9 Holding (the honest terminal, never a dead end)
 
-- Eyebrow: `SETUP IS HOLDING`
-- Title: `I've paused setup for now.`
-- Reason line (rendered verbatim from the CLI; guaranteed plain; names the owner):
-  - network: `I can't reach the network right now, so I've paused. I'll pick this back
-    up as soon as you're online.`
-  - organization / IT: `Your organization still has a bit of setup to finish before
-    this can complete. Nothing you need to do.`
-  - entitlement: `This department isn't available to you anymore, so setup can't finish
-    it.`
-  - unreadable: `I can't read what's already on this Mac right now, so I won't guess.`
-- Secondary button: `Continue in the menu bar`
-- Primary button: `Try again`
+Holding is six variants, not one screen. The variant is chosen by **who owns the fix**, never by what went wrong. Two of the six are not failures at all: H4 is invariant #3 working correctly (setup found something the person already owns and refused to overwrite it), and H5/H6 are patience. Only H2 and H3 are faults.
+
+| # | Variant | Eyebrow | Title | Tint (visual-system §2.2) |
+|---|---|---|---|---|
+| H1 | Not installed | `ONE MORE PIECE TO INSTALL` | `The setup helper isn't installed yet` | `setup-needed` neutral |
+| H2 | Can't read your setup | `SETUP PAUSED` | `I can't read your setup, so I've paused` | `cli-unreadable` red |
+| H3 | Couldn't finish a part | `SETUP PAUSED` | `I couldn't finish one part of setup` | `needs-attention` orange |
+| H4 | Something is already yours | `ONE THING TO DECIDE` | `Something here is already yours` | `accent` blue, never orange |
+| H5 | Waiting | `WAITING FOR THE NETWORK` | `I'll pick this up when you're back online` / busy: `Something else is updating right now` | `waiting-for-network` neutral |
+| H6 | Waiting on your organization | `WAITING ON YOUR ORGANIZATION` | `Your organization has a bit left to set up` | `it-config-incomplete` neutral |
+
+**Intro lines, by cause** (the reason is never a token, never raw CLI text as a headline):
+
+| Cause | Variant | Intro |
+|---|---|---|
+| CLI not found on this Mac | H1 | `Control Tower works by reading a small helper on this Mac, and it isn't here yet. Installing it takes one step, and then I can pick up where I left off.` |
+| CLI wouldn't start | H2 | `The setup helper is on this Mac, but it wouldn't start just now, so I won't guess.` |
+| Unreadable response | H2 | `I can't read what's already on this Mac right now, so I won't guess.` |
+| Versions don't match | H2 | `Control Tower and your setup are on different versions right now, so I won't guess. An update should line them back up.` |
+| Can't confirm it's safe (fails closed) | H2 | `I can't confirm your setup is safe right now, so I'm holding off rather than guess.` |
+| Unmapped CLI stop | H2 | `Something stopped me from reading your setup, so I won't guess.` |
+| Your own space isn't recognized | H4 | `One of your own spaces on GitHub is set up in a way I don't recognize, so I left it exactly as it is.` |
+| This Mac already has its own key | H4 | `This Mac already has a GitHub connection I didn't set up, so I left it exactly as it is.` |
+| Settings here weren't set up by me | H4 | `I found settings on this Mac that I didn't set up, so I left them alone.` |
+| Your unsaved work is in the way | H4 | `Some of your own unsaved work is in the way of an update, so I left it alone.` |
+| A GitHub space couldn't be confirmed | H3 | `GitHub didn't confirm one of your own spaces, so I stopped before changing anything.` |
+| This Mac's key couldn't be set up | H3 | `I couldn't give this Mac its own key, so I stopped. Nothing that was already here was changed.` |
+| Codex Copilot didn't finish | H3 | `I couldn't finish adding Codex Copilot on this Mac.` (+ ` Everything else finished.` only when materialize did not block) |
+| Setting up didn't finish | H3 | `Setting things up on this Mac didn't finish. Nothing that was already here was changed.` |
+| Couldn't confirm everything is current | H3, title `I couldn't confirm everything's current` | the tray's own per-status sentence (§1.1), verbatim |
+| Offline | H5 | `I can't reach the network right now, so I've paused. Nothing was changed, and I'll carry on as soon as you're back.` |
+| Something else is updating | H5 | `Your setup is already being updated by something else, so I stepped back rather than get in the way.` |
+| Organization setup unreadable | H6 | `I couldn't read your organization's setup from GitHub, so I've paused. There's nothing for you to do.` |
+| Organization sign-in not set up | H6 | `Your organization hasn't finished setting up sign-in yet. There's nothing for you to do.` |
+| Shared store not ready | H6 | `Your organization's shared store isn't ready for this Mac yet. There's nothing for you to do.` |
+
+**H4 only:** the card `What I left alone` (one row per CLI review item, the CLI's own detail verbatim), the caption `Nothing was changed, moved, or removed.`, and the confirmation state after `Keep what I have`: title `Kept as it is`, intro `I left it exactly as it was. Control Tower keeps watch from the menu bar and picks this up if it ever changes.`
+
+**Actions.** `Try again` (primary: H2, H3, H5) · `Check again` (H1, H4, H6; nothing failed, so "try" would overstate it) · `Continue in the menu bar` (all six; never marks setup complete) · `Show me how to install it` (primary: H1) · `Keep what I have` (primary: H4) · `Let setup manage it` (H4, only when the CLI declares consent for that gate) · `Include what I already have` (H4, existing return path). On a repeat of the identical hold, add one caption: `Still the same. Nothing changed.`
+
+**A CLI-authored message is never a headline.** It appears under `What setup found:` (when the CLI wrote it for a person) or only inside the support details (when it names machinery). It is never concatenated into an app sentence.
+
+### 2.9.1 Details for support (collapsed, on H2 / H3 / H4 / H6)
+
+- Disclosure label: `Details for support` (collapsed by default, never self-expanding)
+- Expanded caption: `Send this to whoever looks after your Mac. It has nothing private in it.`
+- Copy affordance: `Copy details` / confirmed `Copied`
+- Block, one label per line, technical terms correct and expected here: `Copilot Control Tower <version> (<build>)` · `Setup helper: <path>` · `Report format: <schema_version>` · `Step: <stage id>` · `Result: <result>` · `Code: <error code>` · `Message: <verbatim>` · `Recorded: <yyyy-MM-dd HH:mm>`
+- Omit any line the app cannot fill. Never print `unknown`. `Recorded:` is the product's one sanctioned timestamp, because it is a past fact for IT, not a promise to the user.
+
+### 2.9.2 Installing the setup helper (the sheet behind H1's primary)
+
+- Title: `Installing the setup helper`
+- Intro: `This is one command for whoever set up this Mac. If that's you, paste it into Terminal. If it isn't, copy it and send it to them.`
+- Block label: `The steps` (the documented install commands, mono block, never wrapped into prose)
+- Copy affordance: `Copy these steps` / confirmed `Copied`
+- Secondary: `Open the install guide ›`
+- Primary: `Done` (closes the sheet and re-checks once, automatically)
+- The H1 body itself never contains a command, a path, or the CLI's name.
 
 ---
 

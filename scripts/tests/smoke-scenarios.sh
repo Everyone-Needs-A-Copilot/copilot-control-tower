@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S17b) for both
+# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S21) for both
 # native binaries, driven entirely by the mock CLI
 # (`src-tauri/fixtures/mock-cc`) and the SELFTEST contract:
 #
@@ -13,7 +13,13 @@
 #                                           auth=<authorized|denied|expired|
 #                                           pending> signedInAs=<login|none>`
 #                                           (+ `SELFTEST departments=<...>`
-#                                           when CT_SELFTEST_STEP=departments),
+#                                           when CT_SELFTEST_STEP=departments,
+#                                           or `SELFTEST holding=<variant>
+#                                           stage=<...> result=<...> code=<...>
+#                                           message=<...>` when
+#                                           CT_SELFTEST_STEP=holding — the
+#                                           Detect->Holding transition,
+#                                           `holding-copy-spec.md`),
 #                                           exit 0.
 #
 # Each scenario prints its own PASS/FAIL lines; the suite exits non-zero if
@@ -400,6 +406,99 @@ scenario_S16() {
 }
 
 # ==========================================================================
+# Scenarios S18..S21 — the wizard's Detect->Holding transition
+# (`holding-copy-spec.md`), CT_SELFTEST_STEP=holding
+# ==========================================================================
+#
+# Drives `CliClient.shared.ecosystemOnboardPlan(...)` directly (same as the
+# S11-S15 auth/departments scenarios above drive their own CLI seam) and
+# asserts on `WizardSelftest`'s `SELFTEST holding=...` line, built from the
+# SAME pure classifiers (`WizardModel.holdingInfo(forBlockedOnboard:origin:)`
+# / `holdingInfo(for:origin:)`) the real wizard uses. At minimum this
+# distinguishes H3 from H4 (the same `device-ssh` gate, discriminated only
+# by the CLI's own `config`/`key` tokens — never by prose) and proves an
+# `.exit2` failure's bound `code`/`message` actually reach the line (S20),
+# not the "unknown"/dropped fallback every OTHER exit-2 fixture in this
+# suite would produce. S21 additionally asserts on the `SELFTEST
+# supportLines=...` line — `HoldingInfo.supportLines(_:)`'s own real
+# output — proving a CLI-emitted EMPTY STRING (not omitted, not "unknown")
+# is dropped from the support block instead of rendering a dangling bare
+# label.
+
+holding_scenario() {
+    local id="$1" fixture="$2"; shift 2
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE="${fixture}" CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=holding
+    rm -rf "${home}"
+    assert_exit_zero "${id} (CT_FIXTURE=${fixture})"
+    local assertion
+    for assertion in "$@"; do
+        assert_contains "${id} (CT_FIXTURE=${fixture})" "${assertion}"
+    done
+}
+
+# S18 — H4: `device-ssh` blocked AND `config == "held"` (invariant #3
+# working, the live-verified defect case this whole change fixes: an
+# existing user-managed SSH alias is left alone, never overwritten).
+scenario_S18() {
+    holding_scenario S18 blocked-device-ssh-held \
+        "holding=yours" \
+        "stage=device-ssh" \
+        "message=An existing GitHub SSH alias is user-managed; setup did not replace it."
+}
+
+# S19 — H3: the SAME gate (`device-ssh`) blocked, but NOT classified as
+# held-for-you — the default fault variant, distinguished from S18 purely by
+# the CLI's own `config`/`key` tokens on an otherwise identically-shaped
+# report.
+scenario_S19() {
+    holding_scenario S19 blocked-device-ssh-fault \
+        "holding=fault" \
+        "stage=device-ssh"
+}
+
+# S20 — H6 via a genuine `.exit2(code:message:)`: proves the code/message
+# CliClient decodes from the CLI's own error envelope are bound and reach
+# the Holding support block, closing the exact defect named in the task
+# (`.exit2`'s associated values computed and thrown away).
+scenario_S20() {
+    holding_scenario S20 exit2-onboard-unavailable \
+        "holding=waitingOnOrg" \
+        "code=onboard-unavailable" \
+        "message=Could not reach GitHub to read the organization setup."
+}
+
+# S21 — the support block's empty-value guard (`holding-copy-spec.md` §5:
+# "Never print `unknown`, `nil`, `n/a`, or an empty value... A missing line
+# is honest; a fabricated one is not."). The CLI's exit-2 envelope here
+# carries `code`/`message` as PRESENT BUT EMPTY strings (not omitted, not
+# "unknown" — `CliClient`'s `ErrorEnvelope.code`/`.message` are plain
+# non-optional `String`s, so `""` decodes straight through). Uses
+# `assert_not_contains`, unlike S18-S20, and asserts against the
+# `SELFTEST supportLines=` line (`WizardSelftest.printHoldingSelftestLine`),
+# which is the ONLY SELFTEST line that actually calls
+# `HoldingInfo.supportLines(_:)` — the function the real "Details for
+# support" disclosure renders from, and the one this scenario is proving:
+# omit the line entirely rather than print a dangling bare label like
+# `Message: ` with nothing after it.
+scenario_S21() {
+    local id="S21" fixture="exit2-empty-fields"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE="${fixture}" CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=holding
+    rm -rf "${home}"
+    assert_exit_zero "${id} (CT_FIXTURE=${fixture})"
+    assert_contains "${id} (CT_FIXTURE=${fixture})" "holding=unreadable"
+    assert_contains "${id} (CT_FIXTURE=${fixture})" "SELFTEST supportLines="
+    assert_contains "${id} (CT_FIXTURE=${fixture})" "Recorded:"
+    assert_not_contains "${id} (CT_FIXTURE=${fixture})" "Code:"
+    assert_not_contains "${id} (CT_FIXTURE=${fixture})" "Message:"
+}
+
+# ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
 
@@ -487,6 +586,10 @@ scenario_S15
 scenario_S16
 scenario_S17a
 scenario_S17b
+scenario_S18
+scenario_S19
+scenario_S20
+scenario_S21
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

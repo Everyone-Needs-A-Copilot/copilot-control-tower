@@ -54,7 +54,7 @@ import SwiftUI
 // stage after it shifted by one; every "Step N of 9" eyebrow in this file
 // became "Step N of 10" in the same change.
 
-enum WizardStage: Int, CaseIterable, Identifiable {
+enum WizardStage: Int, CaseIterable, Identifiable, Equatable {
     case welcome, connectGitHub, detect, whatYoureGetting, departments, integrations, projects, materialize, verify, done
     var id: Int { rawValue }
 
@@ -284,10 +284,304 @@ struct SetupProgressState: Equatable {
 
 // MARK: - Holding (#w10) — first-class, never a dead end, never adds its own
 // sidebar row (`origin` is the stage it renders inline over).
+//
+// SIX variants (copy spec `holding-copy-spec.md`, replacing the old single
+// "SETUP IS HOLDING" screen), chosen by WHO OWNS THE FIX, never by what went
+// wrong (invariant #5):
+//   H1 notInstalled  — the CLI isn't on this Mac at all (whoever installs software)
+//   H2 unreadable    — a genuine CliError with no CLI-authored diagnosis (nobody; retry)
+//   H3 fault         — a CLI stage blocked and did NOT classify it as held-for-you (nobody; retry)
+//   H4 yours         — a CLI stage blocked AND classified it as held-for-you (the user; a decision)
+//   H5 waiting[Offline|Busy] — offline, or another `cc` run holds the lock (nobody; wait)
+//   H6 waitingOnOrg  — the org's own setup isn't finished (IT, via the user as courier)
+enum HoldingVariant: Hashable {
+    case notInstalled
+    case unreadable
+    case fault
+    case yours
+    case waitingOffline
+    case waitingBusy
+    case waitingOnOrg
+
+    /// `StepShell.headerTint` token per the taxonomy table (§1). H4 uses the
+    /// shell's own default (`.systemBlue`) rather than repeating it here, so
+    /// there is exactly one place ("no ramp color") that decides that value.
+    var tint: Color {
+        switch self {
+        case .notInstalled, .waitingOffline, .waitingBusy, .waitingOnOrg:
+            return Color(nsColor: .secondaryLabelColor)
+        case .unreadable: return Color(nsColor: .systemRed)
+        case .fault: return Color(nsColor: .systemOrange)
+        case .yours: return Color(nsColor: .systemBlue)
+        }
+    }
+
+    /// The taxonomy table's "Mark" column, reusing the SAME closed
+    /// `BadgeState` vocabulary the tray/popover already draw (`GlyphView`,
+    /// `native/control-tower-tray.swift`) — hollow ring / filled circle+! /
+    /// filled triangle / none / clock / wrench map exactly onto
+    /// `.hollow`/`.bang`/`.triangle`/`.none`/`.clock`/`.wrench`. Purely
+    /// decorative (§7 VoiceOver note: "the eyebrow carries the meaning in
+    /// text"), never the only signal.
+    var badge: BadgeState {
+        switch self {
+        case .notInstalled: return .hollow
+        case .unreadable: return .bang
+        case .fault: return .triangle
+        case .yours: return .none
+        case .waitingOffline, .waitingBusy: return .clock
+        case .waitingOnOrg: return .wrench
+        }
+    }
+}
+
+/// The "same variant and the same reason" identity a repeat hold is compared
+/// against (§4's `Try again`/`Check again` row: "If it holds again with the
+/// same variant and the same reason... Show that line only from the second
+/// consecutive identical hold onward"). Deliberately excludes `recordedAt`
+/// (`HoldingSupportInfo` below) and every render-only field — this is
+/// identity, not display.
+struct HoldingSignature: Hashable {
+    let variant: HoldingVariant
+    let origin: WizardStage
+    let stage: String?
+    let code: String?
+    let message: String?
+}
+
+/// "Details for support" (§5) — one optional Swift property per optional
+/// printed line, so a value this app never had (e.g. no `code` on a
+/// stage-driven hold, no `schemaVersion` on an exit-2 failure) is omitted
+/// from the block entirely rather than printed as a fabricated placeholder
+/// (§5's own rule: "Never print `unknown`... A missing line is honest").
+/// `nil` on `HoldingInfo.support` itself (not this type) means H1/H5, which
+/// get no disclosure at all (§5: "four surfaces (H2, H3, H4, H6)").
+struct HoldingSupportInfo: Equatable {
+    let schemaVersion: String?
+    let stage: String?
+    let result: String?
+    let code: String?
+    let message: String?
+    let recordedAt: Date
+
+    /// Ignores `recordedAt` on purpose — see `HoldingSignature`'s doc.
+    static func == (lhs: HoldingSupportInfo, rhs: HoldingSupportInfo) -> Bool {
+        lhs.schemaVersion == rhs.schemaVersion && lhs.stage == rhs.stage && lhs.result == rhs.result
+            && lhs.code == rhs.code && lhs.message == rhs.message
+    }
+}
 
 struct HoldingInfo {
-    let reason: String
+    let variant: HoldingVariant
     let origin: WizardStage
+    let eyebrow: String
+    let title: String
+    let intro: String
+    /// The CLI's own stage `detail`, shown inline under "What setup found:"
+    /// — set ONLY for the §3 gates the spec marks "frame" (`personal-packages`,
+    /// `layer-manifest`'s review case) AND only once it passes §2.2 rule 3's
+    /// presentability test (`HoldingInfo.isPresentable`). Every other gate's
+    /// detail reaches the screen only via `support.message` (§3.1 "replace"),
+    /// never here — see §2.2 rule 4, "never interpolated, never a headline".
+    let framedDetail: String?
+    /// H4's "What I left alone" card rows — captured at hold-entry time from
+    /// the SAME report that triggered this hold, never re-read from
+    /// `model.ecosystemInventory` later, so a subsequent mutation of that
+    /// published property can never change what this card already showed.
+    let reviewItems: [EcosystemInventoryItem]
+    let support: HoldingSupportInfo?
+    var isRepeat = false
+
+    var signature: HoldingSignature {
+        HoldingSignature(variant: variant, origin: origin, stage: support?.stage, code: support?.code, message: support?.message)
+    }
+}
+
+// MARK: - HoldingInfo construction (copy spec §1/§2/§5) — one pure factory
+// per variant, all app-authored copy, EVERY string below shipped verbatim
+// from `holding-copy-spec.md`. No fragment assembly (§7): the two
+// conditional appends the spec allows (codex-plugin's trailing clause,
+// materialize's held-count sentence) are built as their own complete
+// strings by their call sites, never concatenated here.
+extension HoldingInfo {
+    /// §2.2 rule 3's presentability test — the CLI's own string is shown
+    /// inline ONLY if it passes every one of these; otherwise it still
+    /// reaches the support block (rule 5), just never the screen body.
+    static func isPresentable(_ text: String) -> Bool {
+        guard text.count <= 200, !text.contains("\n") else { return false }
+        let forbiddenCharacters: Set<Character> = ["{", "}", "<", ">"]
+        guard !text.contains(where: forbiddenCharacters.contains) else { return false }
+        let forbiddenSubstrings = ["Traceback", "Error:", "Exception", "/Users/", ".py:"]
+        return !forbiddenSubstrings.contains { text.contains($0) }
+    }
+
+    /// "Copilot Control Tower <version> (<build>)" — §5's first line, from
+    /// this app's own `Info.plist`. `nil` (never a fabricated placeholder)
+    /// when either key is missing, e.g. an unbundled dev/selftest binary.
+    private static var appIdentityLine: String? {
+        let info = Bundle.main.infoDictionary
+        guard let name = (info?["CFBundleDisplayName"] as? String) ?? (info?["CFBundleName"] as? String),
+              let version = info?["CFBundleShortVersionString"] as? String,
+              let build = info?["CFBundleVersion"] as? String
+        else { return nil }
+        return "\(name) \(version) (\(build))"
+    }
+
+    private static func formattedTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        return formatter.string(from: date)
+    }
+
+    /// §5's exact block shape, one label per line, omitting any line this
+    /// app cannot fill (never `unknown`/`nil`/`n/a`) — and never a bare
+    /// label with nothing after it (never a dangling `Message: `), so a
+    /// field the CLI sends as `""` (or all whitespace) is treated the same
+    /// as a field it omitted. Matches the `!engineDetail.isEmpty` discipline
+    /// already used by `couldNotFinishStageText` above, plus a trim so a
+    /// whitespace-only value doesn't slip past a bare `isEmpty` check.
+    static func supportLines(_ support: HoldingSupportInfo) -> [String] {
+        // Presence test only — trims to catch whitespace-only values, but the
+        // ORIGINAL (untrimmed) value is what's printed, so `Message:` stays
+        // verbatim per §5 (`<CLI message, verbatim, uncapped>`).
+        func hasContent(_ value: String?) -> Bool {
+            guard let value else { return false }
+            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        var lines: [String] = []
+        if let appIdentityLine { lines.append(appIdentityLine) }
+        if let cliPath = CliLocator.locate()?.path { lines.append("Setup helper: \(cliPath)") }
+        if let schemaVersion = support.schemaVersion, hasContent(schemaVersion) { lines.append("Report format: \(schemaVersion)") }
+        if let stage = support.stage, hasContent(stage) { lines.append("Step: \(stage)") }
+        if let result = support.result, hasContent(result) { lines.append("Result: \(result)") }
+        if let code = support.code, hasContent(code) { lines.append("Code: \(code)") }
+        if let message = support.message, hasContent(message) { lines.append("Message: \(message)") }
+        lines.append("Recorded: \(formattedTimestamp(support.recordedAt))")
+        return lines
+    }
+
+    // MARK: H1 — not installed
+
+    static func h1(origin: WizardStage) -> HoldingInfo {
+        HoldingInfo(
+            variant: .notInstalled,
+            origin: origin,
+            eyebrow: "ONE MORE PIECE TO INSTALL",
+            title: "The setup helper isn't installed yet",
+            intro: "Control Tower works by reading a small helper on this Mac, and it isn't here yet. Installing it takes one step, and then I can pick up where I left off.",
+            framedDetail: nil,
+            reviewItems: [],
+            support: nil
+        )
+    }
+
+    // MARK: H2 — can't read your setup
+
+    static func h2(origin: WizardStage, intro: String, code: String? = nil, message: String? = nil) -> HoldingInfo {
+        HoldingInfo(
+            variant: .unreadable,
+            origin: origin,
+            eyebrow: "SETUP PAUSED",
+            title: "I can't read your setup, so I've paused",
+            intro: intro,
+            framedDetail: nil,
+            reviewItems: [],
+            support: HoldingSupportInfo(schemaVersion: nil, stage: nil, result: nil, code: code, message: message, recordedAt: Date())
+        )
+    }
+
+    // MARK: H3 — couldn't finish a part of setup
+
+    static func h3(
+        origin: WizardStage,
+        title: String = "I couldn't finish one part of setup",
+        intro: String,
+        framedDetail: String? = nil,
+        schemaVersion: String? = nil,
+        stage: String? = nil,
+        result: String? = nil,
+        message: String? = nil
+    ) -> HoldingInfo {
+        HoldingInfo(
+            variant: .fault,
+            origin: origin,
+            eyebrow: "SETUP PAUSED",
+            title: title,
+            intro: intro,
+            framedDetail: framedDetail,
+            reviewItems: [],
+            support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date())
+        )
+    }
+
+    // MARK: H4 — something here is already yours
+
+    static func h4(
+        origin: WizardStage,
+        intro: String,
+        framedDetail: String? = nil,
+        reviewItems: [EcosystemInventoryItem],
+        schemaVersion: String? = nil,
+        stage: String? = nil,
+        result: String? = nil,
+        message: String? = nil
+    ) -> HoldingInfo {
+        HoldingInfo(
+            variant: .yours,
+            origin: origin,
+            eyebrow: "ONE THING TO DECIDE",
+            title: "Something here is already yours",
+            intro: intro,
+            framedDetail: framedDetail,
+            reviewItems: reviewItems,
+            support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date())
+        )
+    }
+
+    // MARK: H5 — waiting (offline / busy)
+
+    static func h5Offline(origin: WizardStage) -> HoldingInfo {
+        HoldingInfo(
+            variant: .waitingOffline,
+            origin: origin,
+            eyebrow: "WAITING FOR THE NETWORK",
+            title: "I'll pick this up when you're back online",
+            intro: "I can't reach the network right now, so I've paused. Nothing was changed, and I'll carry on as soon as you're back.",
+            framedDetail: nil,
+            reviewItems: [],
+            support: nil
+        )
+    }
+
+    static func h5Busy(origin: WizardStage) -> HoldingInfo {
+        HoldingInfo(
+            variant: .waitingBusy,
+            origin: origin,
+            eyebrow: "WAITING FOR THE NETWORK",
+            title: "Something else is updating right now",
+            intro: "Your setup is already being updated by something else, so I stepped back rather than get in the way.",
+            framedDetail: nil,
+            reviewItems: [],
+            support: nil
+        )
+    }
+
+    // MARK: H6 — waiting on your organization
+
+    static func h6(origin: WizardStage, intro: String, code: String? = nil, stage: String? = nil, result: String? = nil, message: String? = nil) -> HoldingInfo {
+        HoldingInfo(
+            variant: .waitingOnOrg,
+            origin: origin,
+            eyebrow: "WAITING ON YOUR ORGANIZATION",
+            title: "Your organization has a bit left to set up",
+            intro: intro,
+            framedDetail: nil,
+            reviewItems: [],
+            support: HoldingSupportInfo(schemaVersion: nil, stage: stage, result: result, code: code, message: message, recordedAt: Date())
+        )
+    }
 }
 
 // MARK: - The wizard's own phase state machine
@@ -340,6 +634,24 @@ final class WizardModel: ObservableObject {
     @Published var departments: [DepartmentRow] = []
     @Published var setupProgress = SetupProgressState()
     @Published var workspaceFolderName: String?
+
+    // MARK: Holding (#w10)
+
+    /// H4 only: whether the CURRENT hold has already been answered with
+    /// `Keep what I have` — swaps the H4 body for the "Kept as it is"
+    /// confirmation on the SAME screen (§4's own words: "no new window").
+    /// Reset to `false` every time a fresh hold is entered
+    /// (`WizardModel.enterHolding`), then possibly re-set to `true`
+    /// immediately if this exact hold is already in `acknowledgedHoldingSignatures`.
+    @Published var holdingConfirmed = false
+    /// Every H4 hold this session's `Keep what I have` has already answered
+    /// ("the same question is not asked again this session", §4) — a
+    /// session-only memory, never written to disk, never sent to the CLI:
+    /// the CLI still reports the same gate as blocked every time it's asked,
+    /// this only stops the app from re-interrupting with a question the
+    /// person already answered.
+    private var acknowledgedHoldingSignatures: Set<HoldingSignature> = []
+    private var lastHoldingSignature: HoldingSignature?
 
     // MARK: One question first (adopt-and-project-setup spec)
 
@@ -447,7 +759,7 @@ final class WizardModel: ObservableObject {
                 self.deviceFlow.interval = code.interval
                 self.startPolling(deviceCode: code.deviceCode, interval: code.interval, expiresIn: code.expiresIn)
             case .failure(let error):
-                self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .connectGitHub)
+                self.routeCliError(error, origin: .connectGitHub)
             }
         }
     }
@@ -500,24 +812,24 @@ final class WizardModel: ObservableObject {
     }
 
     /// Terminal, non-error outcomes — routed to Holding with "Try again"
-    /// (restarts `beginDeviceFlow()`), per the task contract. These are not
-    /// one of the walkthrough's four named Holding reasons (network/org-IT/
-    /// entitlement/unreadable — those are #w3/#w8's cases); the walkthrough
-    /// does not give verbatim copy for a device-flow expiry/denial, so this
-    /// is honest, in-voice copy for a case the spec names behaviorally but
-    /// not verbatim.
+    /// (restarts `beginDeviceFlow()`), per the task contract. Neither is one
+    /// of the copy spec's six named variants (`holding-copy-spec.md` covers
+    /// `CliError`/blocked-stage cases only); the spec gives no verbatim copy
+    /// for a device-flow expiry/denial, so these keep their existing,
+    /// unchanged intro strings under H3's shell (same eyebrow/title/tint/
+    /// disclosure every other "nobody's fault, retry" case gets).
     private func handleDeviceFlowExpired() {
         deviceFlow.status = .expired
-        enterHolding(reason: "That code expired before you finished. You can try again whenever you're ready.", origin: .connectGitHub)
+        enterHolding(HoldingInfo.h3(origin: .connectGitHub, intro: "That code expired before you finished. You can try again whenever you're ready."))
     }
 
     private func handleDeviceFlowDenied() {
         deviceFlow.status = .denied
-        enterHolding(reason: "That sign-in was declined. You can try again whenever you're ready.", origin: .connectGitHub)
+        enterHolding(HoldingInfo.h3(origin: .connectGitHub, intro: "That sign-in was declined. You can try again whenever you're ready."))
     }
 
     private func handleDeviceFlowError(_ error: CliError) {
-        enterHolding(reason: genericHoldingReason(for: error), origin: .connectGitHub)
+        routeCliError(error, origin: .connectGitHub)
     }
 
     func openGitHubSignIn() {
@@ -569,19 +881,19 @@ final class WizardModel: ObservableObject {
 
             guard case .success(let status) = authResult else {
                 if case .failure(let error) = authResult {
-                    self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .detect)
+                    self.routeCliError(error, origin: .detect)
                 }
                 return
             }
             guard case .success(let doctor) = doctorResult else {
                 if case .failure(let error) = doctorResult {
-                    self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .detect)
+                    self.routeCliError(error, origin: .detect)
                 }
                 return
             }
             guard case .success(let onboard) = onboardResult else {
                 if case .failure(let error) = onboardResult {
-                    self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .detect)
+                    self.routeCliError(error, origin: .detect)
                 }
                 return
             }
@@ -608,9 +920,7 @@ final class WizardModel: ObservableObject {
             }
 
             guard onboard.result != .blocked else {
-                let detail = onboard.stages.last(where: { $0.result == "blocked" })?.detail
-                    ?? "Your organization's setup could not be confirmed safely."
-                self.enterHolding(reason: "\(detail) Nothing existing was changed.", origin: .detect)
+                self.enterHolding(Self.holdingInfo(forBlockedOnboard: onboard, origin: .detect))
                 return
             }
 
@@ -703,6 +1013,143 @@ final class WizardModel: ObservableObject {
         let base = "Couldn't finish this one. Everything before it is still in place."
         guard let engineDetail, !engineDetail.isEmpty else { return base }
         return "\(base) \(engineDetail)"
+    }
+
+    /// The copy spec's §3 gate table: given a report whose `result` is
+    /// already known to be `.blocked`, picks the ONE Holding variant/copy
+    /// for it. Pure — no `CliClient` call, no I/O, same discipline as every
+    /// other parser above; shared between `performDetect` (plan time) and
+    /// `beginMaterialize` (apply time), the two call sites that can receive
+    /// a blocked aggregate-onboard report.
+    ///
+    /// DEFAULTS TO H3 (the fault variant) whenever nothing positively proves
+    /// the hold is user-owned — the spec's own rule ("claiming 'this is
+    /// yours' without proof is worse than the current screen"). Every
+    /// branch that DOES reach H4 does so by reading a CLI-emitted enum
+    /// token or count (`action == "review"`, `config == "held"`, `held >
+    /// 0`), never by inferring anything from a prose string.
+    nonisolated static func holdingInfo(forBlockedOnboard report: EcosystemOnboardReport, origin: WizardStage) -> HoldingInfo {
+        guard let stage = report.stages.last(where: { $0.result == "blocked" }) else {
+            // Defensive only — `performDetect`/`beginMaterialize` already
+            // checked `report.result == .blocked` before calling this, so a
+            // report with no individually-blocked stage is unexpected. Still
+            // an honest H3, never a fabricated H4.
+            return HoldingInfo.h3(
+                origin: origin,
+                intro: "Your organization's setup could not be confirmed safely.",
+                schemaVersion: report.schemaVersion
+            )
+        }
+
+        // §3.1's "frame" gates render the CLI's own `detail` inline (under
+        // "What setup found:") ONLY once it also passes §2.2 rule 3's
+        // presentability test; every gate keeps `stage.detail` in the
+        // support block's `Message:` line regardless (rule 5), via the
+        // `message:` argument every branch below passes separately.
+        func framedIfPresentable(_ detail: String?) -> String? {
+            guard let detail, HoldingInfo.isPresentable(detail) else { return nil }
+            return detail
+        }
+        let reviewItems = (report.inventory ?? []).filter { $0.action == "review" }
+
+        switch stage.stage {
+        case "personal-packages":
+            let hasReviewItem = (report.inventory ?? []).contains { $0.scope == "personal" && $0.action == "review" }
+            if hasReviewItem {
+                return HoldingInfo.h4(
+                    origin: origin,
+                    intro: "One of your own spaces on GitHub is set up in a way I don't recognize, so I left it exactly as it is.",
+                    framedDetail: framedIfPresentable(stage.detail),
+                    reviewItems: reviewItems,
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                )
+            }
+            return HoldingInfo.h3(
+                origin: origin,
+                intro: "GitHub didn't confirm one of your own spaces, so I stopped before changing anything.",
+                framedDetail: framedIfPresentable(stage.detail),
+                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            )
+
+        case "device-ssh":
+            if stage.config == "held" || stage.key == "incomplete" {
+                return HoldingInfo.h4(
+                    origin: origin,
+                    intro: "This Mac already has a GitHub connection I didn't set up, so I left it exactly as it is.",
+                    reviewItems: reviewItems,
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                )
+            }
+            return HoldingInfo.h3(
+                origin: origin,
+                intro: "I couldn't give this Mac its own key, so I stopped. Nothing that was already here was changed.",
+                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            )
+
+        case "layer-manifest":
+            if stage.action == "review" {
+                return HoldingInfo.h4(
+                    origin: origin,
+                    intro: "I found settings on this Mac that I didn't set up, so I left them alone.",
+                    framedDetail: framedIfPresentable(stage.detail),
+                    reviewItems: reviewItems,
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                )
+            }
+            // Not named in the spec's own gate table (only the `review`
+            // case is) — defaults to the fault variant per the rule above.
+            // NOT VERBATIM SPEC COPY (flagged in the implementation report):
+            // no line was given for "layer-manifest blocked, not a review".
+            return HoldingInfo.h3(
+                origin: origin,
+                intro: "I couldn't confirm this part of setup, so I stopped before changing anything.",
+                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            )
+
+        case "secret-store":
+            return HoldingInfo.h6(
+                origin: origin,
+                intro: "Your organization's shared store isn't ready for this Mac yet. There's nothing for you to do.",
+                stage: stage.stage, result: stage.result, message: stage.detail
+            )
+
+        case "codex-plugin":
+            let materializeNotBlocked = report.stages.first(where: { $0.stage == "materialize" }).map { $0.result != "blocked" } ?? false
+            let intro = "I couldn't finish adding Codex Copilot on this Mac." + (materializeNotBlocked ? " Everything else finished." : "")
+            return HoldingInfo.h3(
+                origin: origin,
+                intro: intro,
+                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            )
+
+        case "materialize":
+            let held = stage.held ?? 0
+            if held > 0 {
+                let countSentence = held == 1 ? "I left one thing of yours untouched." : "I left \(held) things of yours untouched."
+                return HoldingInfo.h4(
+                    origin: origin,
+                    intro: "Some of your own unsaved work is in the way of an update, so I left it alone. \(countSentence)",
+                    reviewItems: reviewItems,
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                )
+            }
+            return HoldingInfo.h3(
+                origin: origin,
+                intro: "Setting things up on this Mac didn't finish. Nothing that was already here was changed.",
+                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            )
+
+        default:
+            // `organization-handoff` never blocks (a handoff failure
+            // arrives as exit-2 `onboard-unavailable`, handled separately,
+            // per the spec's own note) — a genuinely unrecognized stage id
+            // still defaults to the fault variant, never a fabricated H4.
+            return HoldingInfo.h3(
+                origin: origin,
+                intro: "I couldn't confirm this part of setup, so I stopped before changing anything.",
+                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            )
+        }
     }
 
     func continueFromDetect() {
@@ -1019,9 +1466,7 @@ final class WizardModel: ObservableObject {
             case .success(let report):
                 guard report.result == .ready else {
                     self.materializeInFlight = false
-                    let detail = report.stages.last(where: { $0.result == "blocked" })?.detail
-                        ?? "Setup stopped at a safety check."
-                    self.enterHolding(reason: "\(detail) You can retry after it is resolved.", origin: .materialize)
+                    self.enterHolding(Self.holdingInfo(forBlockedOnboard: report, origin: .materialize))
                     return
                 }
                 self.ecosystemInventory = report.inventory ?? self.ecosystemInventory
@@ -1031,7 +1476,7 @@ final class WizardModel: ObservableObject {
                 self.setupProgress.stageRows = Self.resolveStageRows(from: report.stages)
             case .failure(let error):
                 self.materializeInFlight = false
-                self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .materialize)
+                self.routeCliError(error, origin: .materialize)
                 return
             }
             if shouldFanOut {
@@ -1092,22 +1537,32 @@ final class WizardModel: ObservableObject {
                 if doctor.status == .healthy {
                     self.phase = .verified
                 } else {
-                    self.enterHolding(reason: self.holdingReason(forNonHealthy: doctor), origin: .verify)
+                    self.enterHolding(Self.holdingInfo(forNonHealthy: doctor, origin: .verify))
                 }
             case .failure(let error):
-                self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .verify)
+                self.routeCliError(error, origin: .verify)
             }
         }
     }
 
-    private func holdingReason(forNonHealthy doctor: DoctorReport) -> String {
+    /// H5 (offline) or H3 (any other non-healthy status) — never fakes a
+    /// pass. `doctor` is not one of `EcosystemOnboardStage`'s stages; this
+    /// reads `DoctorReport.status`/`.offline` directly, per the copy spec's
+    /// own `doctor` gate row (§3).
+    nonisolated static func holdingInfo(forNonHealthy doctor: DoctorReport, origin: WizardStage) -> HoldingInfo {
         if doctor.offline {
-            return "I can't reach the network right now, so I've paused. I'll pick this back up as soon as you're online."
+            return HoldingInfo.h5Offline(origin: origin)
         }
         // Same reasoning as Detect's currency line above: reuse the
         // already-computed, per-status sentence rather than a second
         // derivation.
-        return RenderState.from(doctor, joinable: nil).header.sentence
+        let sentence = RenderState.from(doctor, joinable: nil).header.sentence
+        return HoldingInfo.h3(
+            origin: origin,
+            title: "I couldn't confirm everything's current",
+            intro: sentence,
+            schemaVersion: doctor.schemaVersion
+        )
     }
 
     func continueFromVerify() {
@@ -1145,24 +1600,95 @@ final class WizardModel: ObservableObject {
         }
     }
 
-    private func enterHolding(reason: String, origin: WizardStage) {
-        pollTask?.cancel()
-        phase = .holding(HoldingInfo(reason: reason, origin: origin))
+    /// H4's `Keep what I have` (§4): session-only, no CLI call, no write.
+    /// Swaps the CURRENT hold's body for the "Kept as it is" confirmation on
+    /// this SAME screen (no new window), and remembers this exact hold so it
+    /// is not asked again this session (`acknowledgedHoldingSignatures`).
+    func keepWhatIHave() {
+        guard case .holding(let info) = phase, info.variant == .yours else { return }
+        acknowledgedHoldingSignatures.insert(info.signature)
+        holdingConfirmed = true
     }
 
-    /// The shared CliError -> Holding-reason mapping used by every step:
-    /// most decode/launch failures ("I can't read...") are genuinely the
-    /// spec's verbatim "unreadable" reason (#w3/#w10's own line); `exit2`
-    /// (the CLI's own "no trustworthy body" env/credential signal) reads
-    /// closer to the spec's "org/IT" reason, since that failure mode is
-    /// typically something the person's organization needs to fix, not the
-    /// person themselves.
-    private func genericHoldingReason(for error: CliError) -> String {
+    private func enterHolding(_ info: HoldingInfo) {
+        pollTask?.cancel()
+        var info = info
+        info.isRepeat = (lastHoldingSignature == info.signature)
+        lastHoldingSignature = info.signature
+        holdingConfirmed = acknowledgedHoldingSignatures.contains(info.signature)
+        phase = .holding(info)
+    }
+
+    /// Every `CliError` call site routes through here. Builds the matching
+    /// Holding variant and enters it, EXCEPT exit-2 `signed-out`
+    /// (`holdingInfo(for:origin:)` returns `nil`) — that one code is not a
+    /// hold at all (§2.1: "Do not enter Holding"); this returns to Connect
+    /// GitHub's own existing device-flow screen instead.
+    private func routeCliError(_ error: CliError, origin: WizardStage) {
+        guard let info = Self.holdingInfo(for: error, origin: origin) else {
+            pollTask?.cancel()
+            phase = .connectGitHub
+            beginDeviceFlow()
+            return
+        }
+        enterHolding(info)
+    }
+
+    /// The shared `CliError` -> Holding routing used by every call site
+    /// (copy spec §2): most decode/launch failures are H1/H2 (nobody's
+    /// fault, retry); `exit2`'s CODE selects among H2/H5/H6 (§2.1), or
+    /// signals "not a hold" (`nil`, `signed-out`).
+    nonisolated static func holdingInfo(for error: CliError, origin: WizardStage) -> HoldingInfo? {
         switch error {
-        case .notFound, .launchFailed, .parse, .schemaOutOfRange, .missingSecurityField:
-            return "I can't read what's already on this Mac right now, so I won't guess."
-        case .exit2:
-            return "Your organization still has a bit of setup to finish before this can complete. Nothing you need to do."
+        case .notFound:
+            return HoldingInfo.h1(origin: origin)
+        case .launchFailed:
+            return HoldingInfo.h2(origin: origin, intro: "The setup helper is on this Mac, but it wouldn't start just now, so I won't guess.")
+        case .parse:
+            return HoldingInfo.h2(origin: origin, intro: "I can't read what's already on this Mac right now, so I won't guess.")
+        case .schemaOutOfRange:
+            return HoldingInfo.h2(origin: origin, intro: "Control Tower and your setup are on different versions right now, so I won't guess. An update should line them back up.")
+        case .missingSecurityField:
+            // Never offers a way past itself (invariant #4) — same H2
+            // shell, no consent-style action is ever added to this one.
+            return HoldingInfo.h2(origin: origin, intro: "I can't confirm your setup is safe right now, so I'm holding off rather than guess.")
+        case .exit2(let code, let message):
+            return holdingInfo(forExit2Code: code, message: message, origin: origin)
+        }
+    }
+
+    /// §2.1's routing table. The code string itself never appears outside
+    /// the support block (never in the title, body, or a caption).
+    private nonisolated static func holdingInfo(forExit2Code code: String, message: String, origin: WizardStage) -> HoldingInfo? {
+        switch code {
+        case "signed-out":
+            return nil
+        case "lock-contention":
+            return HoldingInfo.h5Busy(origin: origin)
+        case "onboard-unavailable":
+            return HoldingInfo.h6(
+                origin: origin,
+                intro: "I couldn't read your organization's setup from GitHub, so I've paused. There's nothing for you to do.",
+                code: code, message: message
+            )
+        case "no-company-app":
+            return HoldingInfo.h6(
+                origin: origin,
+                intro: "Your organization hasn't finished setting up sign-in yet. There's nothing for you to do.",
+                code: code, message: message
+            )
+        case "invalid-manifest":
+            return HoldingInfo.h2(origin: origin, intro: "The list of what you get can't be read right now, so I won't guess.", code: code, message: message)
+        case "environment-error":
+            return HoldingInfo.h2(origin: origin, intro: "Something on this Mac stopped the setup helper, so I've paused.", code: code, message: message)
+        case "not-implemented", "unsupported-scope", "invalid-argument":
+            return HoldingInfo.h2(
+                origin: origin,
+                intro: "Control Tower asked your setup for something it doesn't offer. An update should line them back up.",
+                code: code, message: message
+            )
+        default:
+            return HoldingInfo.h2(origin: origin, intro: "Something stopped me from reading your setup, so I won't guess.", code: code, message: message)
         }
     }
 
@@ -1184,13 +1710,34 @@ final class WizardModel: ObservableObject {
     }
 }
 
+/// Applies a VoiceOver focus binding to its content when one is supplied,
+/// and a no-op otherwise — lets `StepShell` take an OPTIONAL
+/// `AccessibilityFocusState<Bool>.Binding` (only the Holding views pass one,
+/// per `holding-copy-spec.md` §7) without every other step having to opt in
+/// or out explicitly.
+private struct TitleAccessibilityFocus: ViewModifier {
+    let binding: AccessibilityFocusState<Bool>.Binding?
+
+    func body(content: Content) -> some View {
+        if let binding {
+            content
+                .accessibilityFocused(binding)
+                .onAppear { binding.wrappedValue = true }
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Shared step shell (reused grammar from scripts/publisher_setup.swift's
 // StepShell: eyebrow -> title -> intro -> content -> pinned footer action bar)
 //
 // UNCHANGED PUBLIC SHAPE: `native/admin.swift`/`native/admin-support.swift`
 // are heavy consumers of this exact `StepShell(eyebrow:title:intro:content:
 // leadingActions:primaryAction:)` init and `.headerTint(_:)` — do not alter
-// its signature.
+// its signature. The new `focusTitle` param (Holding-only, `holding-copy-spec.md`
+// §7) is appended with a default of `nil`, so every existing call site in
+// those two files is unaffected.
 
 struct StepShell<Content: View, Leading: View, Trailing: View>: View {
     let eyebrow: String
@@ -1200,11 +1747,18 @@ struct StepShell<Content: View, Leading: View, Trailing: View>: View {
     @ViewBuilder let leadingActions: Leading
     @ViewBuilder let primaryAction: Trailing
     var tint: Color = Color(nsColor: .systemBlue)
+    /// VoiceOver focus binding for the title (`holding-copy-spec.md` §7:
+    /// "focus moves to the title on entering Holding"). `nil` for every
+    /// caller except the Holding views — the other nine steps have no
+    /// focus-follows-phase pattern and deliberately keep that (pre-existing,
+    /// out-of-scope) behavior unchanged.
+    var focusTitle: AccessibilityFocusState<Bool>.Binding?
 
     init(
         eyebrow: String,
         title: String,
         intro: String?,
+        focusTitle: AccessibilityFocusState<Bool>.Binding? = nil,
         @ViewBuilder content: () -> Content,
         @ViewBuilder leadingActions: () -> Leading,
         @ViewBuilder primaryAction: () -> Trailing
@@ -1212,6 +1766,7 @@ struct StepShell<Content: View, Leading: View, Trailing: View>: View {
         self.eyebrow = eyebrow
         self.title = title
         self.intro = intro
+        self.focusTitle = focusTitle
         self.content = content()
         self.leadingActions = leadingActions()
         self.primaryAction = primaryAction()
@@ -1237,6 +1792,7 @@ struct StepShell<Content: View, Leading: View, Trailing: View>: View {
                         .font(.title.weight(.semibold))
                         .foregroundColor(Color(nsColor: .labelColor))
                         .fixedSize(horizontal: false, vertical: true)
+                        .modifier(TitleAccessibilityFocus(binding: focusTitle))
 
                     if let intro {
                         Text(intro)
@@ -1362,6 +1918,16 @@ struct WizardRootView: View {
     @ObservedObject var model: WizardModel
     let onClose: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// H1's forward step (§4.1) — a sheet over the wizard, not a new window.
+    /// Lives here (not on `WizardModel`) because it is purely a presentation
+    /// detail with no CLI-facing state of its own.
+    @State private var showsInstallSheet = false
+    /// Copy spec §7: "focus moves to the title on entering Holding." Scoped
+    /// to the Holding phase only (`h1View`...`h6View`, `holdingConfirmationView`
+    /// — see `StepShell.focusTitle`) — the wizard's other nine steps have no
+    /// focus-follows-phase pattern and this deliberately does not fan out
+    /// into them.
+    @AccessibilityFocusState private var holdingTitleFocused: Bool
 
     var body: some View {
         NavigationSplitView {
@@ -1379,6 +1945,12 @@ struct WizardRootView: View {
         .frame(minWidth: 820, idealWidth: 960, minHeight: 620, idealHeight: 720)
         .background(Color(nsColor: .windowBackgroundColor))
         .task { model.start() }
+        .sheet(isPresented: $showsInstallSheet) {
+            InstallHelperSheet {
+                showsInstallSheet = false
+                model.tryAgainAfterHolding()
+            }
+        }
     }
 
     @ViewBuilder
@@ -1397,6 +1969,10 @@ struct WizardRootView: View {
         case .done: doneView
         case .holding(let info): holdingView(info)
         }
+    }
+
+    private func showInstallSheet() {
+        showsInstallSheet = true
     }
 
     private var phaseIdentity: String {
@@ -2545,31 +3121,137 @@ struct WizardRootView: View {
         }
     }
 
-    // MARK: Holding (#w10, first-class, never a dead end)
+    // MARK: Holding (#w10) — six variants (`holding-copy-spec.md`), chosen
+    // by WHO OWNS THE FIX (invariant #5), never by what went wrong. Every
+    // variant reuses the SAME `StepShell` anatomy; only eyebrow/title/intro/
+    // content/actions/tint differ per `HoldingInfo` (built in
+    // `WizardModel`'s Holding section above — this is render-only, no
+    // decision-making).
 
+    @ViewBuilder
     private func holdingView(_ info: HoldingInfo) -> some View {
-        stepShell(
-            eyebrow: "SETUP IS HOLDING",
-            title: "I've paused setup for now.",
-            intro: info.reason
-        ) {
-            let reviewItems = model.ecosystemInventory.filter { $0.action == "review" }
-            if reviewItems.isEmpty {
-                EmptyView()
-            } else {
-                sectionCard("Kept untouched for review") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(reviewItems) { item in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(item.title)
-                                    .font(.callout.weight(.semibold))
-                                Text(item.detail)
-                                    .font(.caption)
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                    .fixedSize(horizontal: false, vertical: true)
+        if info.variant == .yours && model.holdingConfirmed {
+            holdingConfirmationView(info)
+        } else {
+            switch info.variant {
+            case .notInstalled: h1View(info)
+            case .unreadable: h2View(info)
+            case .fault: h3View(info)
+            case .yours: h4View(info)
+            case .waitingOffline, .waitingBusy: h5View(info)
+            case .waitingOnOrg: h6View(info)
+            }
+        }
+    }
+
+    /// H1 — not installed. Deliberately not red (§1): neutral tint, no
+    /// "Details for support" disclosure at all (there is nothing on this
+    /// Mac yet to report on), no command/path in the body (`showInstallSheet()`
+    /// is the one deliberate tap that reveals it, §4.1).
+    private func h1View(_ info: HoldingInfo) -> some View {
+        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+            if info.isRepeat {
+                stillTheSameCaption
+            }
+        } leadingActions: {
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Button { model.tryAgainAfterHolding() } label: { Text("Check again") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            Button { showInstallSheet() } label: { Text("Show me how to install it") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+        }
+        .headerTint(info.variant.tint)
+    }
+
+    /// H2 — can't read your setup. Content is the support disclosure and
+    /// nothing else (§1: no framed CLI line for a call-level failure).
+    private func h2View(_ info: HoldingInfo) -> some View {
+        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+            VStack(alignment: .leading, spacing: 16) {
+                if info.isRepeat {
+                    stillTheSameCaption
+                }
+                if let support = info.support {
+                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                }
+            }
+        } leadingActions: {
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            Button { model.tryAgainAfterHolding() } label: { Text("Try again") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+        }
+        .headerTint(info.variant.tint)
+    }
+
+    /// H3 — couldn't finish a part of setup. The framed CLI line appears
+    /// only for the one gate (`personal-packages`, no review item) the spec
+    /// marks "frame"; every other H3 gate's `framedDetail` is `nil`.
+    private func h3View(_ info: HoldingInfo) -> some View {
+        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+            VStack(alignment: .leading, spacing: 16) {
+                if info.isRepeat {
+                    stillTheSameCaption
+                }
+                if let framedDetail = info.framedDetail {
+                    FramedCliDetailView(detail: framedDetail)
+                }
+                if let support = info.support {
+                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                }
+            }
+        } leadingActions: {
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            Button { model.tryAgainAfterHolding() } label: { Text("Try again") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+        }
+        .headerTint(info.variant.tint)
+    }
+
+    /// H4 — something here is already yours: the "ask" body, before `Keep
+    /// what I have`. `holdingConfirmationView` below is the body after.
+    private func h4View(_ info: HoldingInfo) -> some View {
+        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+            VStack(alignment: .leading, spacing: 16) {
+                if info.isRepeat {
+                    stillTheSameCaption
+                }
+                if let framedDetail = info.framedDetail {
+                    FramedCliDetailView(detail: framedDetail)
+                }
+                if !info.reviewItems.isEmpty {
+                    sectionCard("What I left alone") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(info.reviewItems) { item in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(item.title)
+                                        .font(.callout.weight(.semibold))
+                                    Text(item.detail)
+                                        .font(.caption)
+                                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
                         }
                     }
+                }
+                Text("Nothing was changed, moved, or removed.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                if let support = info.support {
+                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
                 }
             }
         } leadingActions: {
@@ -2587,12 +3269,98 @@ struct WizardRootView: View {
             Button { onClose() } label: { Text("Continue in the menu bar") }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            // `Let setup manage it` renders NOWHERE today (§4: "today
+            // exactly one consent path exists ... consumed before the
+            // block, by the existing 'One question first' screen") — this
+            // slot always shows `Check again` instead. Never wire a
+            // speculative consent button here; offering a permission the
+            // CLI will not honor is the same lie this change removes.
+            Button { model.tryAgainAfterHolding() } label: { Text("Check again") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            Button { model.keepWhatIHave() } label: { Text("Keep what I have") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+        }
+        .headerTint(info.variant.tint)
+    }
+
+    /// H4 confirmation — same screen, body replaced, no new window (§1).
+    private func holdingConfirmationView(_ info: HoldingInfo) -> some View {
+        stepShell(
+            eyebrow: info.eyebrow,
+            title: "Kept as it is",
+            intro: "I left it exactly as it was. Control Tower keeps watch from the menu bar and picks this up if it ever changes.",
+            focusTitle: $holdingTitleFocused
+        ) {
+            EmptyView()
+        } leadingActions: {
+            Button { model.tryAgainAfterHolding() } label: { Text("Check again") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+        }
+        .headerTint(info.variant.tint)
+    }
+
+    /// H5 — waiting (offline / busy). No content besides the repeat
+    /// caption, no disclosure (§1: "there is nothing for IT to act on").
+    private func h5View(_ info: HoldingInfo) -> some View {
+        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+            if info.isRepeat {
+                stillTheSameCaption
+            }
+        } leadingActions: {
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
         } primaryAction: {
             Button { model.tryAgainAfterHolding() } label: { Text("Try again") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
         }
-        .headerTint(Color(nsColor: .systemOrange))
+        .headerTint(info.variant.tint)
+    }
+
+    /// H6 — waiting on your organization. The one variant whose primary is
+    /// not a retry (§1: "retrying cannot change the outcome").
+    private func h6View(_ info: HoldingInfo) -> some View {
+        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+            VStack(alignment: .leading, spacing: 16) {
+                if info.isRepeat {
+                    stillTheSameCaption
+                }
+                if let support = info.support {
+                    HoldingSupportDisclosureView(
+                        lines: HoldingInfo.supportLines(support),
+                        expandedCaption: "Send this to whoever looks after your Mac."
+                    )
+                }
+            }
+        } leadingActions: {
+            Button { model.tryAgainAfterHolding() } label: { Text("Check again") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+        }
+        .headerTint(info.variant.tint)
+    }
+
+    /// §4's own words: "On a repeat of the identical hold, add one
+    /// caption" — shown only from the second consecutive identical hold
+    /// onward (`HoldingInfo.isRepeat`), under the intro, above everything
+    /// else in `content`.
+    private var stillTheSameCaption: some View {
+        Text("Still the same. Nothing changed.")
+            .font(.caption)
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
     }
 
     // MARK: Shared shell + components (same anatomy as publisher_setup.swift)
@@ -2601,11 +3369,12 @@ struct WizardRootView: View {
         eyebrow: String,
         title: String,
         intro: String? = nil,
+        focusTitle: AccessibilityFocusState<Bool>.Binding? = nil,
         @ViewBuilder content: () -> Content,
         @ViewBuilder leadingActions: () -> Leading,
         @ViewBuilder primaryAction: () -> Trailing
     ) -> StepShell<Content, Leading, Trailing> {
-        StepShell(eyebrow: eyebrow, title: title, intro: intro, content: content, leadingActions: leadingActions, primaryAction: primaryAction)
+        StepShell(eyebrow: eyebrow, title: title, intro: intro, focusTitle: focusTitle, content: content, leadingActions: leadingActions, primaryAction: primaryAction)
     }
 
     private func sectionCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -2685,6 +3454,191 @@ struct WizardRootView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(caption), placeholder link, opens YouTube")
+    }
+}
+
+// MARK: - Holding support views (`holding-copy-spec.md` §2.2, §5, §4.1)
+//
+// Four small, self-contained views used only by `WizardRootView`'s Holding
+// section above. Kept top-level (not nested) so their bodies stay flat and
+// each is independently previewable/testable, same convention as
+// `CTNamedWaitSpinner`/`StepShell` elsewhere in this file.
+
+/// §2.2 rule 2: the CLI's own (already-presentable, non-technical) stage
+/// `detail`, framed under its own label, capped at three lines with a
+/// `Show more` toggle, never interpolated into an app sentence (rule 4).
+private struct FramedCliDetailView: View {
+    let detail: String
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("What setup found:")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .textCase(.uppercase)
+            Text(detail)
+                .font(.body)
+                .foregroundColor(Color(nsColor: .labelColor))
+                .textSelection(.enabled)
+                .lineLimit(expanded ? nil : 3)
+                .fixedSize(horizontal: false, vertical: true)
+            if !expanded {
+                Button("Show more") { expanded = true }
+                    .buttonStyle(.plain)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .linkColor))
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+/// §5's "Details for support" — one component, collapsed by default,
+/// never self-expanding, on H2/H3/H4/H6. `expandedCaption` defaults to §5's
+/// own line; H6 overrides it with its own shorter one (§1: "expanded label
+/// caption reads `Send this to whoever looks after your Mac.`").
+private struct HoldingSupportDisclosureView: View {
+    let lines: [String]
+    var expandedCaption = "Send this to whoever looks after your Mac. It has nothing private in it."
+    @State private var copied = false
+
+    var body: some View {
+        DisclosureGroup("Details for support") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(expandedCaption)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                Text(lines.joined(separator: "\n"))
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        copied = false
+                    }
+                } label: {
+                    Text(copied ? "Copied" : "Copy details")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel(copied ? "Copied" : "Copy details")
+            }
+            .padding(.top, 8)
+        }
+        .font(.callout.weight(.semibold))
+        .accessibilityLabel("Details for support")
+    }
+}
+
+/// The mono code-block-plus-copy-affordance pattern (visual-system §2.1),
+/// scoped to the User build's Holding surface. `native/admin.swift` defines
+/// its OWN `CopyableCodeBlock` for the SAME pattern, but that file is
+/// Admin-only (`scripts/build-admin.command`) while this one — Holding's H1
+/// install sheet — must also link into the User build
+/// (`scripts/build-user.command`, which never includes `admin.swift`); a
+/// shared name would collide when both files ARE compiled together for the
+/// Admin binary, so this is deliberately its own, differently-named type
+/// rather than a cross-target reference.
+private struct WizardCopyableCodeBlock: View {
+    let text: String
+    var copyLabel = "Copy these steps"
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(text)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+                .foregroundColor(Color(nsColor: .labelColor))
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            Button {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(text, forType: .string)
+                copied = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    copied = false
+                }
+            } label: {
+                Text(copied ? "Copied" : copyLabel)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityLabel(copied ? "Copied" : copyLabel)
+        }
+    }
+}
+
+/// H1's forward step (§4.1) — a sheet over the wizard, not a new window.
+/// The install steps are the four lines from
+/// `docs/06-deployment/ground-up-claude-codex-installation.md:48-53`, in a
+/// mono block, never wrapped into prose; the body of H1 itself (`h1View`
+/// above) never contains a command, a path, or the word `cc` — the command
+/// lives behind this one deliberate tap.
+private struct InstallHelperSheet: View {
+    /// Fires once, automatically, when `Done` closes the sheet ("the user
+    /// should not have to find the button that proves the thing they just
+    /// did") — the caller both dismisses the sheet and fires `Check again`.
+    let onDone: () -> Void
+
+    private static let steps = """
+    mkdir -p "$HOME/.claude"
+    git clone https://github.com/Everyone-Needs-A-Copilot/claude-copilot.git "$HOME/.claude/copilot"
+    bash "$HOME/.claude/copilot/tools/cc/install.sh"
+    "$HOME/.local/bin/cc" --version
+    """
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Installing the setup helper")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+
+            Text("This is one command for whoever set up this Mac. If that's you, paste it into Terminal. If it isn't, copy it and send it to them.")
+                .font(.body)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("The steps")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .textCase(.uppercase)
+                WizardCopyableCodeBlock(text: Self.steps)
+            }
+
+            Link("Open the install guide ›", destination: URL(string: "https://github.com/Everyone-Needs-A-Copilot/claude-copilot")!)
+                .font(.callout.weight(.semibold))
+
+            Spacer()
+
+            HStack {
+                Spacer()
+                Button {
+                    onDone()
+                } label: {
+                    Text("Done")
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(28)
+        .frame(width: 520, height: 420)
     }
 }
 
@@ -2814,6 +3768,73 @@ enum WizardSelftest {
             }
         }
 
+        // CT_SELFTEST_STEP=holding — the Detect->Holding transition
+        // (`holding-copy-spec.md`), independent of `WizardModel`'s own
+        // Detect flow for the SAME reason the auth/departments steps above
+        // are: this drives `CliClient` directly so a headless run can prove
+        // the classifier end to end without clicking through the wizard UI.
+        // Calls the SAME `ecosystemOnboardPlan` verb `performDetect` calls,
+        // then feeds its result through the SAME pure classifiers
+        // (`WizardModel.holdingInfo(forBlockedOnboard:origin:)` /
+        // `WizardModel.holdingInfo(for:origin:)`) the real wizard uses —
+        // never a bespoke, potentially-drifted second reading of the same
+        // report.
+        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "holding" {
+            switch await CliClient.shared.ecosystemOnboardPlan(products: ["claude"]) {
+            case .success(let report):
+                if report.result == .blocked {
+                    printHoldingSelftestLine(WizardModel.holdingInfo(forBlockedOnboard: report, origin: .detect))
+                } else {
+                    print("SELFTEST holding=none result=\(report.result.rawValue)")
+                }
+            case .failure(let error):
+                if let info = WizardModel.holdingInfo(for: error, origin: .detect) {
+                    printHoldingSelftestLine(info)
+                } else {
+                    print("SELFTEST holding=not-a-hold")
+                }
+            }
+        }
+
         exit(0)
+    }
+
+    /// `SELFTEST holding=` must print one of the seven stable variant
+    /// tokens below (`HoldingVariant`'s own case names), plus every field
+    /// `holding-copy-spec.md` §2/§3 says must reach the support block —
+    /// this is exactly what `scripts/tests/smoke-scenarios.sh`'s holding
+    /// scenarios assert against (H3-vs-H4 distinction, and that `.exit2`'s
+    /// bound `code`/`message` actually arrive here, never "unknown"/dropped).
+    ///
+    /// This first line prints `HoldingInfo.support`'s raw fields directly
+    /// (`?? "none"` only distinguishes "field absent" for THIS diagnostic
+    /// line, not the app's own rendering) — it does NOT exercise
+    /// `HoldingInfo.supportLines(_:)`, the function the actual support
+    /// disclosure view renders from. The second `SELFTEST supportLines=`
+    /// line below prints THAT function's real output (§5's own guard
+    /// against a dangling bare label, e.g. `Message: ` with nothing after
+    /// it, for a field the CLI sent as `""` rather than omitting) — S21 in
+    /// `smoke-scenarios.sh` asserts against this second line.
+    private static func printHoldingSelftestLine(_ info: HoldingInfo) {
+        let token: String
+        switch info.variant {
+        case .notInstalled: token = "notInstalled"
+        case .unreadable: token = "unreadable"
+        case .fault: token = "fault"
+        case .yours: token = "yours"
+        case .waitingOffline: token = "waitingOffline"
+        case .waitingBusy: token = "waitingBusy"
+        case .waitingOnOrg: token = "waitingOnOrg"
+        }
+        print(
+            "SELFTEST holding=\(token) stage=\(info.support?.stage ?? "none")"
+                + " result=\(info.support?.result ?? "none") code=\(info.support?.code ?? "none")"
+                + " message=\(info.support?.message ?? "none")"
+        )
+        if let support = info.support {
+            print("SELFTEST supportLines=\(HoldingInfo.supportLines(support).joined(separator: "|"))")
+        } else {
+            print("SELFTEST supportLines=none")
+        }
     }
 }

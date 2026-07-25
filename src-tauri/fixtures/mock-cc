@@ -39,6 +39,22 @@
 #                                     #   `layers --json` (available|joined|not-entitled|
 #                                     #   offline map to joined|already-joined|
 #                                     #   not-entitled|offline respectively).
+#   mock-cc onboard --org <o> --products <p> --json
+#                                     # the aggregate ecosystem PLAN call (`WizardModel.
+#                                     #   performDetect`/`WizardSelftest`'s CT_SELFTEST_STEP=
+#                                     #   holding). `$CT_FIXTURE`/`$CC_FIXTURE`/`--fixture`
+#                                     #   is otherwise IGNORED by this verb (a fixed canned
+#                                     #   body is always returned), EXCEPT four named
+#                                     #   fixtures carved out for `holding-copy-spec.md`
+#                                     #   coverage: blocked-device-ssh-held (H4, invariant
+#                                     #   #3 working), blocked-device-ssh-fault (H3, the
+#                                     #   default fault variant), exit2-onboard-unavailable
+#                                     #   (H6 via a REAL, differentiated exit-2 error
+#                                     #   envelope, unlike every other exit-2 fixture in
+#                                     #   this script, which prints an empty body),
+#                                     #   exit2-empty-fields (§5's empty-value guard: a
+#                                     #   real exit-2 envelope whose code/message are
+#                                     #   present but `""`, not omitted).
 #
 # Fixture selection for `doctor` (checked in this order):
 #   1. --fixture=<name> or --fixture <name> on the command line
@@ -404,6 +420,52 @@ printf '%s\n' '{"schema_version":"1.0","mode":"status","result":"action-required
     ;;
 
   onboard)
+    # holding-copy-spec.md test fixtures (Control Tower's Holding H3/H4/H6
+    # coverage, `scripts/tests/smoke-scenarios.sh` S18-S20): the aggregate
+    # ecosystem PLAN call is the only one these three fixtures touch (never
+    # `--apply`) — `$fixture` is otherwise IGNORED by this verb entirely
+    # (see the unconditional canned bodies below), so these three names are
+    # carved out first and everything else falls through unchanged.
+    if [ "$ecosystem_onboard" -eq 1 ] && [ "$onboard_apply" -eq 0 ]; then
+      case "$fixture" in
+        blocked-device-ssh-held)
+          # H4: `config == "held"` — invariant #3 working, the wizard's
+          # "This Mac already has a GitHub connection I didn't set up".
+          printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"unknown","registration":"unknown","config":"held","detail":"An existing GitHub SSH alias is user-managed; setup did not replace it."}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0}}'
+          exit 0
+          ;;
+        blocked-device-ssh-fault)
+          # H3: blocked, but NOT classified as held-for-you — the default,
+          # nobody's-fault-retry fault variant.
+          printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"missing","registration":"missing","config":"missing","detail":"Could not reach GitHub to register this device key."}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0}}'
+          exit 0
+          ;;
+        exit2-onboard-unavailable)
+          # H6 via exit-2: the shared `{schema_version, error:{code,message}}`
+          # envelope (`auth.schema.json`'s `errorEnvelope`) with a REAL,
+          # differentiated code/message — every other exit-2 fixture in this
+          # script prints nothing on stdout (empty body, `CliClient` falls
+          # back to code="unknown"), which cannot prove the wizard actually
+          # binds and forwards a genuine `.exit2(code:message:)` pair.
+          printf '%s\n' '{"schema_version":"1.0","error":{"code":"onboard-unavailable","message":"Could not reach GitHub to read the organization setup."}}'
+          exit 2
+          ;;
+        exit2-empty-fields)
+          # `scripts/tests/smoke-scenarios.sh` S21 (`holding-copy-spec.md`
+          # §5's own rule: "Never print `unknown`, `nil`, `n/a`, or an empty
+          # value"): a genuine exit-2 envelope whose `code`/`message` are
+          # present but EMPTY STRINGS, not omitted and not "unknown" — the
+          # one shape `CliClient` decodes straight through (`ErrorEnvelope`'s
+          # `code`/`message` are plain, non-optional `String`s, so `""`
+          # decodes successfully instead of failing/falling back). Proves
+          # `HoldingInfo.supportLines(_:)` omits the `Code:`/`Message:`
+          # lines entirely rather than printing a dangling bare label.
+          printf '%s\n' '{"schema_version":"1.0","error":{"code":"","message":""}}'
+          exit 2
+          ;;
+      esac
+    fi
+
     if [ "$ecosystem_onboard" -eq 1 ] && [ "$onboard_apply" -eq 1 ]; then
       printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"apply","result":"ready","org":"acme-co","products":["claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"applied"},{"stage":"device-ssh","result":"applied"},{"stage":"layer-manifest","result":"applied","action":"repair","path":"/tmp/copilot.layers.yml","rollback_path":"/tmp/.copilot-control-tower-backups/abc/copilot.layers.yml","layers":8},{"stage":"secret-store","result":"deferred"},{"stage":"codex-plugin","result":"ready"},{"stage":"materialize","result":"up-to-date","blocked":0,"held":0},{"stage":"doctor","result":"healthy","score":100}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40},{"id":"codex-personal","product":"codex","role":"personal","rank":10},{"id":"codex-organization","product":"codex","role":"organization","rank":30},{"id":"codex-foundation","product":"codex","role":"foundation","rank":40}],"inventory":[{"id":"personal-claude","scope":"personal","title":"Claude personal space","state":"ready","action":"reuse","detail":"Existing rank-10 package will be reused.","source_path":null,"destination_path":null,"reversible":false},{"id":"personal-codex","scope":"personal","title":"Codex personal space","state":"missing","action":"create","detail":"Rank-10 package will be initialized after creation.","source_path":null,"destination_path":null,"reversible":false},{"id":"layer-manifest","scope":"machine","title":"Copilot layers","state":"partial","action":"repair","detail":"Existing supported layers will be kept and missing layers added.","source_path":"/tmp/copilot.layers.yml","destination_path":"/tmp/copilot.layers.yml","reversible":true}],"inventory_summary":{"reused":1,"changes":2,"review":0}}'
     elif [ "$ecosystem_onboard" -eq 1 ]; then
