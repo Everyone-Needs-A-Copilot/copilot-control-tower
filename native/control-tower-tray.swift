@@ -290,6 +290,17 @@ final class TrayModel: ObservableObject {
     /// behind the "N already set up ›" disclosure); the Region 6 notice
     /// reads `discovery`/`summary` from this same report.
     @Published private(set) var lastWorkspaces: WorkspacesReport?
+    /// Region 6's `connection-offer` notice (`control-tower-copy-deck.md`
+    /// §1.8): true when a read-only `ecosystemOnboardPlan` still finds the
+    /// device's connection to GitHub `config: "adoptable"` — i.e. the
+    /// wizard's "One question first" screen offered to add it and the
+    /// person hasn't yet, whether that was a same-session `Not now` or the
+    /// wizard was never reopened at all. This is what keeps the CLI's own
+    /// decline sentence ("I'll offer this again from the menu bar whenever
+    /// you're ready") true: the offer is re-derived fresh from the CLI on
+    /// every poll, never remembered/suppressed by this app (invariant #1 —
+    /// no app-side "already declined" flag to fall out of sync with).
+    @Published private(set) var connectionOfferPending = false
     /// Per-row transient state for the drill-in's `Add`/`Finish setup`
     /// grammar (adopt-and-project-setup spec, "Menu bar: Your projects").
     /// Keyed by `WorkspaceEntry.path`, same convention `joinRowStates` above
@@ -318,12 +329,31 @@ final class TrayModel: ObservableObject {
         async let authResult = CliClient.shared.authStatus()
         async let freshnessResult = CliClient.shared.freshnessAllProjects()
         async let workspacesResult = CliClient.shared.workspaces()
+        // Read-only (`mode: plan`, never `--apply`), the SAME verb the
+        // wizard's Detect step calls — this is what lets `connectionOfferPending`
+        // above stay honest without any app-side memory of a past decline.
+        // `products: ["claude"]` matches every other read-only call site in
+        // this app that doesn't yet know the person's actual product
+        // selection (`WizardSelftest`'s own holding step does the same) —
+        // this call only reads the `device-ssh` stage, which does not vary
+        // by product.
+        async let onboardResult = CliClient.shared.ecosystemOnboardPlan(products: ["claude"])
 
         let doctor = await doctorResult
         let layers = await layersResult
         let auth = await authResult
         let freshness = await freshnessResult
         let workspaces = await workspacesResult
+        let onboard = await onboardResult
+
+        if case .success(let report) = onboard {
+            connectionOfferPending = report.stages.first(where: { $0.stage == "device-ssh" })?.config == "adoptable"
+        } else {
+            // A failed read never claims the offer is pending — same
+            // "degrades gracefully, never guesses" rule every other
+            // secondary call in this function follows.
+            connectionOfferPending = false
+        }
 
         switch doctor {
         case .success(let report):
@@ -848,12 +878,14 @@ struct PopoverContentView: View {
             actionRow
 
             // Region 6: at most one PROMPT (unchanged), then, independently,
-            // the projects NOTICE — sequential rendering per the spec's own
-            // "Architecture decision": the unsaved-changes prompt can no
-            // longer make the projects notice invisible.
+            // any number of NOTICES — sequential rendering per the spec's
+            // own "Architecture decision": the unsaved-changes prompt can no
+            // longer make a notice invisible, and notices stack (unlike the
+            // "at most one" prompt rule).
             unsavedChangesPromptRegion
             if !showingProjectsPanel {
                 projectsNoticeRegion
+                connectionOfferNoticeRegion
             }
         }
         .padding(.vertical, 12)
@@ -1118,6 +1150,30 @@ struct PopoverContentView: View {
                     }
                     .padding(.horizontal, 12)
                 }
+            }
+        }
+    }
+
+    /// The `connection-offer` notice (`control-tower-copy-deck.md` §1.8) —
+    /// the ONE net-new menu-bar element in the copy spec that introduced it.
+    /// A NOTICE, not a prompt: an offer the person already declined (or
+    /// hasn't seen yet) is not a fault, so this stacks alongside
+    /// `projectsNoticeRegion` rather than competing with the "at most one"
+    /// prompt lane, and carries no badge on the menu-bar glyph.
+    private var connectionOfferNoticeRegion: some View {
+        Group {
+            if model.state.clientState != .cliUnreadable, model.connectionOfferPending {
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("This Mac is missing one of the two GitHub connections setup uses. Nothing is added until you say so.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .labelColor))
+                    Button("Add the connection") {
+                        WizardWindowController.shared.reopenForConnectionOffer()
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.horizontal, 12)
             }
         }
     }

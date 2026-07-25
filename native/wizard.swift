@@ -91,6 +91,28 @@ struct DeviceFlowState {
     var interval: Int = 5
 }
 
+// MARK: - Holding H7, granting a missing GitHub permission: device-flow
+// state (copy spec §2.9.3) — same shape as `DeviceFlowState` above, plus
+// `.unavailable` and `.timedOut`, which `auth login`'s flow has no
+// equivalent of: `.unavailable` is the real, distinguishable "the CLI
+// cannot drive this" state (Appendix D.2), and `.timedOut` exists because
+// `auth grant` reports no `expires_in` the way `AuthDeviceCode` does, so
+// this app imposes its OWN bound rather than waiting forever.
+
+enum GrantFlowStatus: Equatable {
+    case idle, pending, granted, denied, expired, timedOut, unavailable
+}
+
+/// RENDER data only, same discipline as `DeviceFlowState` — no field here a
+/// real credential could ever occupy.
+struct GrantFlowState {
+    var status: GrantFlowStatus = .idle
+    var userCode: String?
+    var verificationUri: String?
+    var deviceCode: String?
+    var interval: Int = 5
+}
+
 // MARK: - Step 5, Departments: per-row join state
 
 enum DepartmentJoinState: Equatable {
@@ -285,15 +307,17 @@ struct SetupProgressState: Equatable {
 // MARK: - Holding (#w10) — first-class, never a dead end, never adds its own
 // sidebar row (`origin` is the stage it renders inline over).
 //
-// SIX variants (copy spec `holding-copy-spec.md`, replacing the old single
-// "SETUP IS HOLDING" screen), chosen by WHO OWNS THE FIX, never by what went
-// wrong (invariant #5):
+// SEVEN variants (copy spec `control-tower-copy-deck.md` §2.9, replacing the
+// old single "SETUP IS HOLDING" screen), chosen by WHO OWNS THE FIX, never by
+// what went wrong (invariant #5):
 //   H1 notInstalled  — the CLI isn't on this Mac at all (whoever installs software)
 //   H2 unreadable    — a genuine CliError with no CLI-authored diagnosis (nobody; retry)
 //   H3 fault         — a CLI stage blocked and did NOT classify it as held-for-you (nobody; retry)
 //   H4 yours         — a CLI stage blocked AND classified it as held-for-you (the user; a decision)
 //   H5 waiting[Offline|Busy] — offline, or another `cc` run holds the lock (nobody; wait)
 //   H6 waitingOnOrg  — the org's own setup isn't finished (IT, via the user as courier)
+//   H7 needsPermission — a GitHub permission only the user can grant is missing
+//                        (the user; a real fix, not a decision — copy spec Appendix D.2/§3.2)
 enum HoldingVariant: Hashable {
     case notInstalled
     case unreadable
@@ -302,17 +326,21 @@ enum HoldingVariant: Hashable {
     case waitingOffline
     case waitingBusy
     case waitingOnOrg
+    case needsPermission
 
     /// `StepShell.headerTint` token per the taxonomy table (§1). H4 uses the
     /// shell's own default (`.systemBlue`) rather than repeating it here, so
     /// there is exactly one place ("no ramp color") that decides that value.
+    /// H7 is `signed-out` blue (copy spec §3.2: "Actionable-by-you,
+    /// informational blue, not alarm" — the same non-alarm blue as H4,
+    /// reusing the shell's default rather than a new token).
     var tint: Color {
         switch self {
         case .notInstalled, .waitingOffline, .waitingBusy, .waitingOnOrg:
             return Color(nsColor: .secondaryLabelColor)
         case .unreadable: return Color(nsColor: .systemRed)
         case .fault: return Color(nsColor: .systemOrange)
-        case .yours: return Color(nsColor: .systemBlue)
+        case .yours, .needsPermission: return Color(nsColor: .systemBlue)
         }
     }
 
@@ -322,7 +350,9 @@ enum HoldingVariant: Hashable {
     /// filled triangle / none / clock / wrench map exactly onto
     /// `.hollow`/`.bang`/`.triangle`/`.none`/`.clock`/`.wrench`. Purely
     /// decorative (§7 VoiceOver note: "the eyebrow carries the meaning in
-    /// text"), never the only signal.
+    /// text"), never the only signal. H7 is `.key` — the SAME token the
+    /// tray already uses for "signed-out" (S5's badge=key), and literally
+    /// the subject of this screen (copy spec §3.2).
     var badge: BadgeState {
         switch self {
         case .notInstalled: return .hollow
@@ -331,6 +361,7 @@ enum HoldingVariant: Hashable {
         case .yours: return .none
         case .waitingOffline, .waitingBusy: return .clock
         case .waitingOnOrg: return .wrench
+        case .needsPermission: return .key
         }
     }
 }
@@ -390,6 +421,13 @@ struct HoldingInfo {
     /// published property can never change what this card already showed.
     let reviewItems: [EcosystemInventoryItem]
     let support: HoldingSupportInfo?
+    /// The full `stages` array from the SAME report that triggered this
+    /// hold — captured the same way `reviewItems` above is, at hold-entry
+    /// time, never re-read later. Populated ONLY by H4 (`holdingInfo(forBlockedOnboard:)`'s
+    /// H4 branches), the one variant whose `Keep what I have` confirmation
+    /// swap (§2.10) needs it, for the two honest-incompletion capability
+    /// cards; empty for every other variant, which never reach that swap.
+    var stages: [EcosystemOnboardStage] = []
     var isRepeat = false
 
     var signature: HoldingSignature {
@@ -523,6 +561,7 @@ extension HoldingInfo {
         intro: String,
         framedDetail: String? = nil,
         reviewItems: [EcosystemInventoryItem],
+        stages: [EcosystemOnboardStage] = [],
         schemaVersion: String? = nil,
         stage: String? = nil,
         result: String? = nil,
@@ -536,7 +575,8 @@ extension HoldingInfo {
             intro: intro,
             framedDetail: framedDetail,
             reviewItems: reviewItems,
-            support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date())
+            support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date()),
+            stages: stages
         )
     }
 
@@ -580,6 +620,21 @@ extension HoldingInfo {
             framedDetail: nil,
             reviewItems: [],
             support: HoldingSupportInfo(schemaVersion: nil, stage: stage, result: result, code: code, message: message, recordedAt: Date())
+        )
+    }
+
+    // MARK: H7 — something only you can do (a missing GitHub permission)
+
+    static func h7(origin: WizardStage, schemaVersion: String? = nil, stage: String? = nil, result: String? = nil, message: String? = nil) -> HoldingInfo {
+        HoldingInfo(
+            variant: .needsPermission,
+            origin: origin,
+            eyebrow: "ONE THING ONLY YOU CAN DO",
+            title: "Setup needs one permission from you",
+            intro: "Setup gives this Mac its own key so it can reach GitHub safely. Adding that key needs a permission GitHub hasn't been asked for yet, and you're the only one who can give it.",
+            framedDetail: nil,
+            reviewItems: [],
+            support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date())
         )
     }
 }
@@ -634,13 +689,21 @@ final class WizardModel: ObservableObject {
     @Published var departments: [DepartmentRow] = []
     @Published var setupProgress = SetupProgressState()
     @Published var workspaceFolderName: String?
+    /// The last successful ecosystem `--apply` report's own `result`/`stages`
+    /// — copy spec §2.10's completion rule reads these at Verify time
+    /// (conditions 1-3), never a second/re-derived reading. Set ONLY by
+    /// `beginMaterialize()`'s success branch; `nil`/empty means Verify was
+    /// somehow reached without a prior successful apply, which the
+    /// completion rule treats as failing (never assumed passing).
+    @Published var lastOnboardResult: OnboardResult?
+    @Published var lastOnboardStages: [EcosystemOnboardStage] = []
 
     // MARK: Holding (#w10)
 
     /// H4 only: whether the CURRENT hold has already been answered with
-    /// `Keep what I have` — swaps the H4 body for the "Kept as it is"
-    /// confirmation on the SAME screen (§4's own words: "no new window").
-    /// Reset to `false` every time a fresh hold is entered
+    /// `Keep what I have` — swaps the H4 body for the §2.10 "Here's where
+    /// that leaves you" confirmation on the SAME screen (§2.9's own words:
+    /// "no new window"). Reset to `false` every time a fresh hold is entered
     /// (`WizardModel.enterHolding`), then possibly re-set to `true`
     /// immediately if this exact hold is already in `acknowledgedHoldingSignatures`.
     @Published var holdingConfirmed = false
@@ -698,6 +761,19 @@ final class WizardModel: ObservableObject {
 
     private var pollTask: Task<Void, Never>?
     private var materializeInFlight = false
+
+    // MARK: H7 — granting a missing GitHub permission (§2.9.3)
+
+    @Published var grantFlow = GrantFlowState()
+    /// Set true the first time `cc auth grant` is discovered NOT to be able
+    /// to drive the flow this session — either the verb itself is absent on
+    /// this Mac's installed CLI (indistinguishable, from here, from a
+    /// graceful `unavailable` answer) or it explicitly reports
+    /// `result: "unavailable"`. The ONLY thing that reveals H7's `Show me
+    /// how to grant it` leading action (copy spec §3.4: "that state is the
+    /// only thing that reveals the fallback") — never shown speculatively.
+    @Published var grantUnavailableKnown = false
+    private var grantPollTask: Task<Void, Never>?
 
     /// The "Shared with your team" register (#w6) is static, verbatim,
     /// honest placeholder content — see `SharedIntegrationRow`'s own doc.
@@ -813,8 +889,8 @@ final class WizardModel: ObservableObject {
 
     /// Terminal, non-error outcomes — routed to Holding with "Try again"
     /// (restarts `beginDeviceFlow()`), per the task contract. Neither is one
-    /// of the copy spec's six named variants (`holding-copy-spec.md` covers
-    /// `CliError`/blocked-stage cases only); the spec gives no verbatim copy
+    /// of the copy spec's seven named variants (`control-tower-copy-deck.md`
+    /// §2.9 covers `CliError`/blocked-stage cases only); the spec gives no verbatim copy
     /// for a device-flow expiry/denial, so these keep their existing,
     /// unchanged intro strings under H3's shell (same eyebrow/title/tint/
     /// disclosure every other "nobody's fault, retry" case gets).
@@ -960,27 +1036,119 @@ final class WizardModel: ObservableObject {
         }
     }
 
-    /// Pure: splits an ecosystem plan's personal-scope inventory into ask
-    /// rows (adoptable — the CLI's `reversible: true` is unique to
-    /// `package_state: "adoptable"`, see `onboard.py`'s `_personal_inventory`)
-    /// and review rows (`action == "review"`, i.e. `package_state: "held"`),
-    /// in the CLI's own order. A `static` function (no instance state) so
-    /// this exact derivation is shared between `performDetect` above and
-    /// the selftest below — never two slightly-different readings of the
-    /// same report.
-    static func personalOnboardQuestion(from report: EcosystemOnboardReport) -> (ask: [EcosystemInventoryItem], review: [EcosystemInventoryItem]) {
-        let personal = (report.inventory ?? []).filter { $0.scope == "personal" }
-        return (personal.filter { $0.reversible }, personal.filter { $0.action == "review" })
+    /// Pure: splits an ecosystem plan's ENTIRE inventory (every scope, not
+    /// just `"personal"`) into ask rows (adoptable — the CLI's
+    /// `reversible: true` is unique to an adoptable/creatable row, see
+    /// `onboard.py`'s `_personal_inventory`/`_ssh_inventory`) and review
+    /// rows (`action == "review"`), in the CLI's own order. A `static`
+    /// function (no instance state) so this exact derivation is shared
+    /// between `performDetect` above and the selftest below — never two
+    /// slightly-different readings of the same report.
+    ///
+    /// Previously filtered to `scope == "personal"` only — the CLI's own
+    /// SSH offer row is `scope: "machine"` (`_ssh_inventory`'s docstring:
+    /// "the same shape as an adoptable personal package"), so that filter
+    /// silently dropped it and the offer never rendered at all (copy spec
+    /// Appendix D.3, "Bug 1"). The scope word itself never reaches the
+    /// screen either way — `onboardQuestionView` groups by scope into two
+    /// cards, it does not render it as text.
+    nonisolated static func personalOnboardQuestion(from report: EcosystemOnboardReport) -> (ask: [EcosystemInventoryItem], review: [EcosystemInventoryItem]) {
+        let inventory = report.inventory ?? []
+        return (inventory.filter { $0.reversible }, inventory.filter { $0.action == "review" })
     }
 
-    /// `EcosystemInventoryItem.id` for a personal-space row is always
-    /// `"personal-<component>"` (`onboard.py`'s `_personal_inventory`) — the
-    /// only place that format is depended on, kept as one small pure
-    /// function rather than repeated string surgery at each call site.
-    static func componentId(fromPersonalInventoryId id: String) -> String? {
+    /// `EcosystemInventoryItem.id` -> the consent token `ensure_machine_ssh_identity`/
+    /// `_personal_inventory` actually check for in `--adopt-existing`.
+    /// Personal-space rows are always `"personal-<component>"` (`onboard.py`'s
+    /// `_personal_inventory`) and map straight to `<component>`. The device
+    /// connection row is the single fixed id `"device-ssh"` (`_ssh_inventory`)
+    /// and maps to the fixed token `"ssh"` — `ensure_machine_ssh_identity`'s
+    /// own consent check: `"ssh" in {value.strip().lower() for value in
+    /// adopt_existing ...}`. Previously returned `nil` for `"device-ssh"`
+    /// (no `"personal-"` prefix), which silently dropped the consent token,
+    /// made the apply write nothing, and repeated the offer forever (copy
+    /// spec Appendix D.3, "Bug 2" — "the single highest-risk line in the
+    /// whole change, because it fails silently and looks like the CLI's
+    /// fault"). `scripts/tests/smoke-scenarios.sh`'s completion-rule
+    /// scenario asserts this mapping directly so a regression here fails
+    /// loudly instead of silently.
+    nonisolated static func componentId(fromPersonalInventoryId id: String) -> String? {
+        if id == "device-ssh" { return "ssh" }
         let prefix = "personal-"
         guard id.hasPrefix(prefix) else { return nil }
         return String(id.dropFirst(prefix.count))
+    }
+
+    // MARK: §2.10's completion rule — "I stopped, and here's what that
+    // means for you". A single shared predicate every terminal confirmation
+    // in the wizard is routed through (H4's `Keep what I have` confirmation
+    // unconditionally, per that call site's own comment; Verify's
+    // `Everything checks out.` conditionally, via `verifyCompletionPasses`
+    // below). Resolved language (kept/done/set up/ready/checks out/
+    // everything/all) is permitted ONLY when this returns true.
+
+    /// `onboard.schema.json`'s full `ecosystemStage.stage` enum, in its own
+    /// declared order, each paired with its §2.3 capability-row copy. Wider
+    /// than `SetupProgressState.namedStages` (which deliberately excludes
+    /// `materialize`/`doctor` — "Verify's own concern") because the
+    /// completion rule's condition 3 is explicit that EVERY schema stage
+    /// counts, not just the six Set Up shows a live checklist row for.
+    nonisolated static let allReportStages: [(id: String, worksNow: String, notYet: String)] = [
+        ("organization-handoff", "Your organization's shared setup came through.", "Your organization's shared setup hasn't come through."),
+        ("personal-packages", "Your own spaces on GitHub are ready.", "Your own spaces on GitHub aren't ready yet."),
+        ("device-ssh", "This Mac can reach GitHub on its own.", "This Mac can't reach GitHub on its own yet."),
+        ("layer-manifest", "Your copilots are connected together.", "Your copilots aren't connected together yet."),
+        ("secret-store", "The integrations your team shares are ready.", "The integrations your team shares aren't ready yet."),
+        ("codex-plugin", "Codex Copilot is set up on this Mac.", "Codex Copilot isn't set up on this Mac yet."),
+        ("materialize", "Your copilots are in place on this Mac.", "Your copilots aren't in place on this Mac yet."),
+        ("doctor", "Everything checked out as current.", "I couldn't confirm your copilots are current."),
+    ]
+
+    /// The stage ids condition 3 actually holds the report to: every schema
+    /// stage EXCEPT `codex-plugin` when the person never asked for Codex
+    /// Copilot. `onboard.py` never even attempts that stage in that case
+    /// (`if "codex" in normalized`), so "never mentioned" there is not
+    /// evidence anything was left undone — it simply doesn't apply. Reading
+    /// condition 3 with no exception here would mean a fully successful
+    /// claude-only run could NEVER pass the completion rule (`codex-plugin`
+    /// would read `.neverReported` forever), which would be a NEW dishonesty
+    /// bug in the opposite direction from the one this whole change fixes —
+    /// flagged in the implementation report as an extension of the copy
+    /// spec's literal condition 3, not a literal reading of it.
+    nonisolated static func expectedStageIds(includeCodex: Bool) -> [String] {
+        allReportStages.map(\.id).filter { includeCodex || $0 != "codex-plugin" }
+    }
+
+    /// Conditions 1-3 of the completion rule. Condition 4 ("the sentence
+    /// describes only what the report proves") is not a boolean this
+    /// function can check — it is enforced by CONSTRUCTION, by routing
+    /// every terminal confirmation through the §2.10 pattern whenever
+    /// conditions 1-3 fail, and never inventing a softer wording in between.
+    nonisolated static func completionRulePasses(result: OnboardResult, stages: [EcosystemOnboardStage], includeCodex: Bool) -> Bool {
+        guard result == .applied || result == .ready else { return false }
+        guard !stages.contains(where: { $0.result == "blocked" }) else { return false }
+        let mentioned = Set(stages.map(\.stage))
+        return expectedStageIds(includeCodex: includeCodex).allSatisfy(mentioned.contains)
+    }
+
+    /// §2.10's two capability lists — "works now" rows first, "doesn't work
+    /// yet" rows second, in the schema's own stage order, skipping
+    /// `codex-plugin` on the same not-applicable basis as
+    /// `expectedStageIds(includeCodex:)` above. A stage that never ran and a
+    /// stage that ran and blocked read identically (copy spec §2.3): both
+    /// land in "doesn't work yet", never distinguished on screen.
+    nonisolated static func honestCapabilityRows(stages: [EcosystemOnboardStage], includeCodex: Bool) -> (worksNow: [String], notYet: [String]) {
+        let byId = Dictionary(stages.map { ($0.stage, $0) }, uniquingKeysWith: { _, latest in latest })
+        var worksNow: [String] = []
+        var notYet: [String] = []
+        for entry in allReportStages where includeCodex || entry.id != "codex-plugin" {
+            if let stage = byId[entry.id], stage.result != "blocked" {
+                worksNow.append(entry.worksNow)
+            } else {
+                notYet.append(entry.notYet)
+            }
+        }
+        return (worksNow, notYet)
     }
 
     /// Pure: maps the aggregate onboarding call's real `stages` onto
@@ -1061,6 +1229,7 @@ final class WizardModel: ObservableObject {
                     intro: "One of your own spaces on GitHub is set up in a way I don't recognize, so I left it exactly as it is.",
                     framedDetail: framedIfPresentable(stage.detail),
                     reviewItems: reviewItems,
+                    stages: report.stages,
                     schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
                 )
             }
@@ -1072,11 +1241,23 @@ final class WizardModel: ObservableObject {
             )
 
         case "device-ssh":
+            // §3.1/Appendix D.2's gate table, checked in this order: a
+            // missing GitHub permission is the person's own real fix (H7),
+            // checked BEFORE the held-for-you case (H4) — both can present
+            // as `result: "blocked"` on this same stage, and only the CLI's
+            // own `registration` token tells them apart, never prose.
+            if stage.registration == "not-permitted" {
+                return HoldingInfo.h7(
+                    origin: origin,
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                )
+            }
             if stage.config == "held" || stage.key == "incomplete" {
                 return HoldingInfo.h4(
                     origin: origin,
-                    intro: "This Mac already has a GitHub connection I didn't set up, so I left it exactly as it is.",
+                    intro: "This Mac already has a GitHub connection I didn't set up. I checked it, couldn't confirm it's safe to build on, and left it exactly as it is.",
                     reviewItems: reviewItems,
+                    stages: report.stages,
                     schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
                 )
             }
@@ -1093,6 +1274,7 @@ final class WizardModel: ObservableObject {
                     intro: "I found settings on this Mac that I didn't set up, so I left them alone.",
                     framedDetail: framedIfPresentable(stage.detail),
                     reviewItems: reviewItems,
+                    stages: report.stages,
                     schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
                 )
             }
@@ -1130,6 +1312,7 @@ final class WizardModel: ObservableObject {
                     origin: origin,
                     intro: "Some of your own unsaved work is in the way of an update, so I left it alone. \(countSentence)",
                     reviewItems: reviewItems,
+                    stages: report.stages,
                     schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
                 )
             }
@@ -1474,6 +1657,8 @@ final class WizardModel: ObservableObject {
                 self.adoptionRollbackPaths = report.stages.compactMap(\.rollbackPath)
                 self.setupProgress.callRow.state = .done(detail: "Done.")
                 self.setupProgress.stageRows = Self.resolveStageRows(from: report.stages)
+                self.lastOnboardResult = report.result
+                self.lastOnboardStages = report.stages
             case .failure(let error):
                 self.materializeInFlight = false
                 self.routeCliError(error, origin: .materialize)
@@ -1600,10 +1785,11 @@ final class WizardModel: ObservableObject {
         }
     }
 
-    /// H4's `Keep what I have` (§4): session-only, no CLI call, no write.
-    /// Swaps the CURRENT hold's body for the "Kept as it is" confirmation on
-    /// this SAME screen (no new window), and remembers this exact hold so it
-    /// is not asked again this session (`acknowledgedHoldingSignatures`).
+    /// H4's `Keep what I have` (§2.9): session-only, no CLI call, no write.
+    /// Swaps the CURRENT hold's body for the §2.10 "Here's where that
+    /// leaves you" confirmation on this SAME screen (no new window), and
+    /// remembers this exact hold so it is not asked again this session
+    /// (`acknowledgedHoldingSignatures`).
     func keepWhatIHave() {
         guard case .holding(let info) = phase, info.variant == .yours else { return }
         acknowledgedHoldingSignatures.insert(info.signature)
@@ -1617,6 +1803,119 @@ final class WizardModel: ObservableObject {
         lastHoldingSignature = info.signature
         holdingConfirmed = acknowledgedHoldingSignatures.contains(info.signature)
         phase = .holding(info)
+    }
+
+    // MARK: H7 — granting a missing GitHub permission (§2.9.3)
+
+    /// `Grant this on GitHub` (H7's primary): starts the SAME device-flow
+    /// ceremony Connect GitHub already uses, against `cc auth grant --json`.
+    /// A response this app can't use for real — launch/decode failure
+    /// (including the verb not existing at all on this Mac's installed CLI)
+    /// or an explicit `result: "unavailable"` — resolves to `.unavailable`
+    /// rather than ever leaving the sheet spinning or showing a broken code
+    /// (holding-copy-spec H7: "must not render a button that does
+    /// nothing"). Called with the sheet ALREADY about to open (`h7View`'s
+    /// primary sets `showsGrantSheet = true` in the same action), so
+    /// `.pending`'s brief empty state is honest, real "waiting on the CLI"
+    /// time, not a fabricated delay.
+    func beginGrantFlow() {
+        grantPollTask?.cancel()
+        grantFlow = GrantFlowState(status: .pending)
+        Task {
+            switch await CliClient.shared.authGrantInitiate() {
+            case .success(let start):
+                guard start.result != "unavailable",
+                      let userCode = start.userCode,
+                      let verificationUri = start.verificationUri,
+                      let deviceCode = start.deviceCode
+                else {
+                    self.handleGrantUnavailable()
+                    return
+                }
+                self.grantFlow.userCode = userCode
+                self.grantFlow.verificationUri = verificationUri
+                self.grantFlow.deviceCode = deviceCode
+                self.grantFlow.interval = start.interval ?? 5
+                self.startGrantPolling(deviceCode: deviceCode, interval: start.interval ?? 5)
+            case .failure:
+                self.handleGrantUnavailable()
+            }
+        }
+    }
+
+    private func handleGrantUnavailable() {
+        grantFlow.status = .unavailable
+        grantUnavailableKnown = true
+    }
+
+    /// `auth grant` reports no `expires_in` the way `auth login`'s device
+    /// code does (Appendix D.2's own described shape has no such field), so
+    /// this app imposes its own bound — GitHub's own OAuth device-flow
+    /// default (900s) — rather than polling forever. Reaching it renders
+    /// `.timedOut`, distinct from a CLI-reported `.expired`.
+    private static let grantPollTimeout: TimeInterval = 900
+
+    private func startGrantPolling(deviceCode: String, interval: Int) {
+        let deadline = Date().addingTimeInterval(Self.grantPollTimeout)
+        let waitSeconds = UInt64(max(interval, 1))
+        grantPollTask = Task { [weak self] in
+            while true {
+                if Task.isCancelled { return }
+                guard let self else { return }
+                if Date() >= deadline {
+                    self.grantFlow.status = .timedOut
+                    return
+                }
+                try? await Task.sleep(nanoseconds: waitSeconds * 1_000_000_000)
+                if Task.isCancelled { return }
+                switch await CliClient.shared.authGrantPoll(deviceCode: deviceCode) {
+                case .success(let poll):
+                    if poll.result == "unavailable" {
+                        self.handleGrantUnavailable()
+                        return
+                    }
+                    switch poll.status {
+                    case "granted":
+                        self.grantFlow.status = .granted
+                        return
+                    case "denied":
+                        self.grantFlow.status = .denied
+                        return
+                    case "expired":
+                        self.grantFlow.status = .expired
+                        return
+                    default:
+                        continue // "pending", or an unrecognized value — keep waiting
+                    }
+                case .failure:
+                    self.handleGrantUnavailable()
+                    return
+                }
+            }
+        }
+    }
+
+    func openGrantGitHubPage() {
+        guard let raw = grantFlow.verificationUri, let url = URL(string: raw) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func copyGrantCode() {
+        guard let code = grantFlow.userCode else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(code, forType: .string)
+    }
+
+    /// `Try again` (denied) / `Get a new code` (expired/timed out) — same
+    /// action, different label per the copy spec's own table.
+    func retryGrantFlow() {
+        beginGrantFlow()
+    }
+
+    func cancelGrantFlow() {
+        grantPollTask?.cancel()
+        grantFlow = GrantFlowState()
     }
 
     /// Every `CliError` call site routes through here. Builds the matching
@@ -1922,8 +2221,16 @@ struct WizardRootView: View {
     /// Lives here (not on `WizardModel`) because it is purely a presentation
     /// detail with no CLI-facing state of its own.
     @State private var showsInstallSheet = false
+    /// H7's forward steps (§2.9.3) — same presentation-only pattern as
+    /// `showsInstallSheet` above. `showsGrantSheet` opens BEFORE the CLI
+    /// call resolves (`model.beginGrantFlow()` sets `.pending` synchronously)
+    /// so the sheet can show its own "waiting" state honestly; it closes
+    /// itself (never left open) the moment `model.grantFlow.status` becomes
+    /// `.unavailable` — see `GrantPermissionSheet`'s own doc comment.
+    @State private var showsGrantSheet = false
+    @State private var showsGrantFallbackSheet = false
     /// Copy spec §7: "focus moves to the title on entering Holding." Scoped
-    /// to the Holding phase only (`h1View`...`h6View`, `holdingConfirmationView`
+    /// to the Holding phase only (`h1View`...`h7View`, `honestIncompleteView`
     /// — see `StepShell.focusTitle`) — the wizard's other nine steps have no
     /// focus-follows-phase pattern and this deliberately does not fan out
     /// into them.
@@ -1948,6 +2255,20 @@ struct WizardRootView: View {
         .sheet(isPresented: $showsInstallSheet) {
             InstallHelperSheet {
                 showsInstallSheet = false
+                model.tryAgainAfterHolding()
+            }
+        }
+        .sheet(isPresented: $showsGrantSheet) {
+            GrantPermissionSheet(model: model) {
+                showsGrantSheet = false
+            } onGranted: {
+                showsGrantSheet = false
+                model.tryAgainAfterHolding()
+            }
+        }
+        .sheet(isPresented: $showsGrantFallbackSheet) {
+            GrantFallbackSheet {
+                showsGrantFallbackSheet = false
                 model.tryAgainAfterHolding()
             }
         }
@@ -2285,35 +2606,81 @@ struct WizardRootView: View {
             case .review(let item): return item.id
             }
         }
+        var scope: String {
+            switch self {
+            case .ask(let item): return item.scope
+            case .review(let item): return item.scope
+            }
+        }
+    }
+
+    /// Groups a list of ask/review items into the two scope cards, in the
+    /// CLI's own order, `scope: "personal"` first (adopt-and-project-setup
+    /// spec's existing card) then `scope: "machine"` (new). Every other
+    /// scope (`"project"`) is never asked here at all — this screen is
+    /// Detect-time only, before any project has even been discovered.
+    private func onboardCardRows<T>(_ items: [T], scope: (T) -> String) -> (personal: [T], machine: [T]) {
+        (items.filter { scope($0) == "personal" }, items.filter { scope($0) == "machine" })
     }
 
     private var onboardQuestionView: some View {
         // "One row per question item, in the CLI's order" THEN "one row per
         // item the CLI marked for review instead of a question" — two
         // sequential lists, per the spec's own reading order, not
-        // interleaved by the underlying inventory's mixed ordering.
-        let rows: [OnboardCardRow] = model.onboardQuestionItems.map(OnboardCardRow.ask)
+        // interleaved by the underlying inventory's mixed ordering. THEN
+        // split by scope into the two cards — the scope word itself never
+        // reaches the screen, only which card a row lands in.
+        let allRows: [OnboardCardRow] = model.onboardQuestionItems.map(OnboardCardRow.ask)
             + model.onboardReviewItemsForQuestion.map(OnboardCardRow.review)
+        let (personalRows, machineRows) = onboardCardRows(allRows) { $0.scope }
+
+        let hasPersonal = !personalRows.isEmpty
+        let hasMachine = !machineRows.isEmpty
+        let intro: String
+        if hasPersonal && hasMachine {
+            intro = "You already have some of this: spaces of your own on GitHub, and a working connection on this Mac. I can build on what's here, or leave it alone and set up the rest around it."
+        } else if hasMachine {
+            intro = "This Mac is already set up to reach GitHub, and I checked that what's here works. I can build on it, or leave it alone and set the rest up around it."
+        } else {
+            intro = "Your GitHub account already has private spaces of your own, with your own content in them. I can include them so your copilots use what you already have, or leave them alone."
+        }
 
         return stepShell(
             eyebrow: "ONE QUESTION FIRST",
-            title: "You already have some of this. Want me to include it?",
-            intro: "Your GitHub account already has private spaces of your own, with your own content in them. I can include them so your copilots use what you already have, or leave them alone. Either way, nothing in them is changed, moved, or removed."
+            title: "Want me to include what you already have?",
+            intro: intro
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                sectionCard("Already in your GitHub account") {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                            onboardCardRow(row)
-                            if index < rows.count - 1 {
-                                Divider()
+                if hasPersonal {
+                    sectionCard("Already in your GitHub account") {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(personalRows.enumerated()), id: \.element.id) { index, row in
+                                onboardCardRow(row)
+                                if index < personalRows.count - 1 {
+                                    Divider()
+                                }
                             }
                         }
                     }
                 }
-                // The spec's own reassurance line, pinned directly under the
-                // card, always present regardless of any selection.
-                Text("Nothing existing was changed.")
+                if hasMachine {
+                    sectionCard("Already on this Mac") {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(machineRows.enumerated()), id: \.element.id) { index, row in
+                                onboardCardRow(row)
+                                if index < machineRows.count - 1 {
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                }
+                // The app-authored general guarantee (copy spec §1.4):
+                // structurally true for every `action: "create"` +
+                // `reversible: true` row, so it can never drift from what
+                // the CLI actually does — held apart, on purpose, from each
+                // row's own CLI-authored specific found fact above it.
+                Text("Nothing you already have is changed. Setup only adds what's missing.")
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
@@ -3030,15 +3397,63 @@ struct WizardRootView: View {
 
     // MARK: 9. Verify (#w8)
 
+    /// §2.10's gate on Verify's own result (copy spec §2.6: "permitted only
+    /// when the completion rule passes. If it does not, Verify renders this
+    /// pattern instead. There is no hedged middle wording."). By
+    /// construction, EVERY earlier stage failure already routed to Holding
+    /// before Verify could ever be reached (`beginMaterialize`'s own
+    /// `guard report.result == .ready`), so this is a safety net, not the
+    /// common case — the one real path where it can still fail is the
+    /// `codex-plugin`-excluded-when-declined edge `expectedStageIds(includeCodex:)`
+    /// exists for (see that function's own doc comment).
+    private var verifyCompletionPasses: Bool {
+        guard let result = model.lastOnboardResult else { return false }
+        return WizardModel.completionRulePasses(result: result, stages: model.lastOnboardStages, includeCodex: model.includeCodex)
+    }
+
+    /// A real (never `nil`) support block for Verify's own §2.10 fallback —
+    /// unlike Holding, Verify has no single "the blocked stage that
+    /// triggered this", so this picks the last stage that DID block (if
+    /// any) for `stage`/`message`, and always carries app identity + CLI
+    /// path + `Recorded:` regardless (`HoldingInfo.supportLines` never
+    /// renders those as empty). §2.5's action table always shows `Copy
+    /// details for support` somewhere on this screen, so this is never
+    /// optional the way it is for H1/H5 (which show no disclosure at all).
+    private var verifySupportInfo: HoldingSupportInfo {
+        let blocked = model.lastOnboardStages.last(where: { $0.result == "blocked" })
+        return HoldingSupportInfo(
+            schemaVersion: nil,
+            stage: blocked?.stage,
+            result: model.lastOnboardResult?.rawValue,
+            code: nil,
+            message: blocked?.detail,
+            recordedAt: Date()
+        )
+    }
+
+    @ViewBuilder
     private var verifyView: some View {
-        stepShell(
-            eyebrow: "Step 9 of 10",
-            title: "Making sure everything's current",
-            intro: "The only success here is everything actually being up to date."
-        ) {
-            if case .verifying = model.phase {
+        if case .verifying = model.phase {
+            stepShell(
+                eyebrow: "Step 9 of 10",
+                title: "Making sure everything's current",
+                intro: "The only success here is everything actually being up to date."
+            ) {
                 verifyingCard("Checking your setup…")
-            } else {
+            } leadingActions: {
+                EmptyView()
+            } primaryAction: {
+                Button { model.continueFromVerify() } label: { Text("Continue") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(true)
+            }
+        } else if verifyCompletionPasses {
+            stepShell(
+                eyebrow: "Step 9 of 10",
+                title: "Making sure everything's current",
+                intro: "The only success here is everything actually being up to date."
+            ) {
                 VStack {
                     Text("Everything checks out.")
                         .font(.callout.weight(.semibold))
@@ -3052,21 +3467,33 @@ struct WizardRootView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(22)
+            } leadingActions: {
+                EmptyView()
+            } primaryAction: {
+                Button { model.continueFromVerify() } label: { Text("Continue") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
             }
-        } leadingActions: {
-            EmptyView()
-        } primaryAction: {
-            Button { model.continueFromVerify() } label: { Text("Continue") }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(isVerifying)
+        } else {
+            // The completion rule failed on a HEALTHY doctor result (the
+            // only way to reach `.verified` at all) — §2.10, never a
+            // resolved-sounding "Everything checks out." `Done` (step 10)
+            // is unreachable from here on purpose: this screen's own action
+            // set (§2.5) replaces `Continue` entirely, so a person can never
+            // click through to "You have the tools, go change the world"
+            // on the strength of a report that does not prove it.
+            honestIncompleteView(
+                reachedFromDecision: false,
+                stages: model.lastOnboardStages,
+                includeCodex: model.includeCodex,
+                support: verifySupportInfo,
+                isRepeat: false,
+                hasAskRows: !model.onboardQuestionItems.isEmpty,
+                onTryAgain: { model.beginVerify() }
+            )
         }
     }
 
-    private var isVerifying: Bool {
-        if case .verifying = model.phase { return true }
-        return false
-    }
 
     // MARK: 10. Done (#w9)
 
@@ -3121,17 +3548,31 @@ struct WizardRootView: View {
         }
     }
 
-    // MARK: Holding (#w10) — six variants (`holding-copy-spec.md`), chosen
-    // by WHO OWNS THE FIX (invariant #5), never by what went wrong. Every
-    // variant reuses the SAME `StepShell` anatomy; only eyebrow/title/intro/
-    // content/actions/tint differ per `HoldingInfo` (built in
-    // `WizardModel`'s Holding section above — this is render-only, no
-    // decision-making).
+    // MARK: Holding (#w10) — seven variants (`control-tower-copy-deck.md`
+    // §2.9), chosen by WHO OWNS THE FIX (invariant #5), never by what went
+    // wrong. Every variant reuses the SAME `StepShell` anatomy; only
+    // eyebrow/title/intro/content/actions/tint differ per `HoldingInfo`
+    // (built in `WizardModel`'s Holding section above — this is render-only,
+    // no decision-making).
 
     @ViewBuilder
     private func holdingView(_ info: HoldingInfo) -> some View {
         if info.variant == .yours && model.holdingConfirmed {
-            holdingConfirmationView(info)
+            // H4's confirmation is ALWAYS §2.10, never a resolved-sounding
+            // screen: H4 is reachable only from `result: "blocked"`, so the
+            // completion rule can never pass at this moment — there is no
+            // boolean left to check, and conditioning one would imply a
+            // passing case exists (copy spec §2.1/§2.6). The withdrawn
+            // `Kept as it is` confirmation used to render here instead.
+            honestIncompleteView(
+                reachedFromDecision: true,
+                stages: info.stages,
+                includeCodex: model.includeCodex,
+                support: info.support,
+                isRepeat: info.isRepeat,
+                hasAskRows: !model.onboardQuestionItems.isEmpty,
+                onTryAgain: { model.tryAgainAfterHolding() }
+            )
         } else {
             switch info.variant {
             case .notInstalled: h1View(info)
@@ -3140,6 +3581,7 @@ struct WizardRootView: View {
             case .yours: h4View(info)
             case .waitingOffline, .waitingBusy: h5View(info)
             case .waitingOnOrg: h6View(info)
+            case .needsPermission: h7View(info)
             }
         }
     }
@@ -3221,7 +3663,8 @@ struct WizardRootView: View {
     }
 
     /// H4 — something here is already yours: the "ask" body, before `Keep
-    /// what I have`. `holdingConfirmationView` below is the body after.
+    /// what I have`. `honestIncompleteView` (§2.10) is the body after,
+    /// rendered by `holdingView`'s own `model.holdingConfirmed` branch.
     private func h4View(_ info: HoldingInfo) -> some View {
         stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
             VStack(alignment: .leading, spacing: 16) {
@@ -3286,25 +3729,91 @@ struct WizardRootView: View {
         .headerTint(info.variant.tint)
     }
 
-    /// H4 confirmation — same screen, body replaced, no new window (§1).
-    private func holdingConfirmationView(_ info: HoldingInfo) -> some View {
-        stepShell(
-            eyebrow: info.eyebrow,
-            title: "Kept as it is",
-            intro: "I left it exactly as it was. Control Tower keeps watch from the menu bar and picks this up if it ever changes.",
+    /// §2.10, "I stopped, and here's what that means for you" — the pattern
+    /// EVERY terminal confirmation in the wizard falls back to whenever
+    /// `WizardModel.completionRulePasses` fails (H4's confirmation renders
+    /// this UNCONDITIONALLY — see that call site's own comment for why no
+    /// check is needed there). Replaces the withdrawn `Kept as it is`
+    /// confirmation, which was true about the decision and false about
+    /// setup, and printed only the true half.
+    ///
+    /// Never reached with an empty "doesn't work yet" card in practice —
+    /// every call site above only renders this when the completion rule has
+    /// already failed, which by construction means at least one capability
+    /// row landed in `notYet` (copy spec: "If this card would be empty, the
+    /// rule passed and this screen must not render at all" is therefore the
+    /// CALLER's gate, not a check repeated here).
+    private func honestIncompleteView(
+        reachedFromDecision: Bool,
+        stages: [EcosystemOnboardStage],
+        includeCodex: Bool,
+        support: HoldingSupportInfo?,
+        isRepeat: Bool,
+        hasAskRows: Bool,
+        onTryAgain: @escaping () -> Void
+    ) -> some View {
+        let rows = WizardModel.honestCapabilityRows(stages: stages, includeCodex: includeCodex)
+        return stepShell(
+            eyebrow: "SETUP ISN'T FINISHED",
+            title: "Here's where that leaves you",
+            intro: reachedFromDecision
+                ? "I left your own things exactly as they were. Setup stopped there, though, so some of this isn't set up yet."
+                : "Setup stopped partway, so some of this isn't set up yet. Nothing that was already on this Mac was changed.",
             focusTitle: $holdingTitleFocused
         ) {
-            EmptyView()
+            VStack(alignment: .leading, spacing: 16) {
+                if isRepeat {
+                    stillTheSameCaption
+                }
+                sectionCard("What works now") {
+                    if rows.worksNow.isEmpty {
+                        Text("Nothing yet. Setup stopped before anything was put in place.")
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(rows.worksNow, id: \.self) { bulletRow($0) }
+                        }
+                    }
+                }
+                sectionCard("What doesn't work yet") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(rows.notYet, id: \.self) { bulletRow($0) }
+                    }
+                }
+                Text("Nothing you already had was changed, moved, or removed.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                if let support {
+                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                }
+            }
         } leadingActions: {
-            Button { model.tryAgainAfterHolding() } label: { Text("Check again") }
+            // §2.5's "one branch": an ask row still on the table always
+            // outranks a handoff, so `Include what I already have` takes
+            // the primary slot and `Copy details for support` moves here.
+            if hasAskRows {
+                Button { model.returnToOnboardQuestion() } label: { Text("Include what I already have") }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            } else if let support {
+                CopyDetailsForSupportButton(lines: HoldingInfo.supportLines(support))
+            }
+            Button { onTryAgain() } label: { Text("Try again") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Button { onClose() } label: { Text("Continue in the menu bar") }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
         } primaryAction: {
-            Button { onClose() } label: { Text("Continue in the menu bar") }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+            if hasAskRows {
+                Button { model.returnToOnboardQuestion() } label: { Text("Include what I already have") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            } else if let support {
+                CopyDetailsForSupportButton(lines: HoldingInfo.supportLines(support), prominent: true)
+            }
         }
-        .headerTint(info.variant.tint)
     }
 
     /// H5 — waiting (offline / busy). No content besides the repeat
@@ -3349,6 +3858,53 @@ struct WizardRootView: View {
             Button { onClose() } label: { Text("Continue in the menu bar") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
+        }
+        .headerTint(info.variant.tint)
+    }
+
+    /// H7 — something only you can do (copy spec §3, Appendix D.2). The
+    /// owner of this fix is the person and can be nobody else — it is a
+    /// permission on his own GitHub sign-in, so `Grant this on GitHub` is a
+    /// PRIMARY that actually drives the flow (`model.beginGrantFlow()`),
+    /// never a copyable command. `Show me how to grant it` renders ONLY
+    /// once `model.grantUnavailableKnown` is true — a real state the CLI (or
+    /// its own absence on this Mac) reported this session, never a
+    /// speculative "just in case" fallback shown up front (§3.4: "that
+    /// state is the only thing that reveals the fallback").
+    private func h7View(_ info: HoldingInfo) -> some View {
+        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+            VStack(alignment: .leading, spacing: 16) {
+                if info.isRepeat {
+                    stillTheSameCaption
+                }
+                if let support = info.support {
+                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                }
+                // §3.3's quiet caption, "above the footer" — the last thing
+                // in `content`, which sits immediately above `StepShell`'s
+                // footer divider.
+                Text("I'll take you to GitHub to grant it. Nothing on this Mac changes.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+        } leadingActions: {
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            if model.grantUnavailableKnown {
+                Button { showsGrantFallbackSheet = true } label: { Text("Show me how to grant it") }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+        } primaryAction: {
+            Button {
+                model.beginGrantFlow()
+                showsGrantSheet = true
+            } label: {
+                Text("Grant this on GitHub")
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
         }
         .headerTint(info.variant.tint)
     }
@@ -3497,10 +4053,11 @@ private struct FramedCliDetailView: View {
     }
 }
 
-/// §5's "Details for support" — one component, collapsed by default,
-/// never self-expanding, on H2/H3/H4/H6. `expandedCaption` defaults to §5's
-/// own line; H6 overrides it with its own shorter one (§1: "expanded label
-/// caption reads `Send this to whoever looks after your Mac.`").
+/// §2.9.1's "Details for support" — one component, collapsed by default,
+/// never self-expanding, on H2/H3/H4/H6/H7/§2.10. `expandedCaption` defaults
+/// to §2.9.1's own line; H6 overrides it with its own shorter one (§1:
+/// "expanded label caption reads `Send this to whoever looks after your
+/// Mac.`").
 private struct HoldingSupportDisclosureView: View {
     let lines: [String]
     var expandedCaption = "Send this to whoever looks after your Mac. It has nothing private in it."
@@ -3538,6 +4095,43 @@ private struct HoldingSupportDisclosureView: View {
         }
         .font(.callout.weight(.semibold))
         .accessibilityLabel("Details for support")
+    }
+}
+
+/// §2.10's own prominent "Copy details for support" button (§2.5: "Prominence
+/// comes from the button, not from forcing the block open") — the SAME
+/// clipboard write `HoldingSupportDisclosureView`'s inner "Copy details"
+/// button does, just directly reachable without expanding the disclosure
+/// first, so whoever needs to hand it over copies it in one click.
+private struct CopyDetailsForSupportButton: View {
+    let lines: [String]
+    var prominent = false
+    @State private var copied = false
+
+    private var label: String { copied ? "Copied" : "Copy details for support" }
+
+    private func copy() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            copied = false
+        }
+    }
+
+    var body: some View {
+        if prominent {
+            Button { copy() } label: { Text(label) }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .accessibilityLabel(label)
+        } else {
+            Button { copy() } label: { Text(label) }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .accessibilityLabel(label)
+        }
     }
 }
 
@@ -3642,6 +4236,173 @@ private struct InstallHelperSheet: View {
     }
 }
 
+/// H7's forward step (§2.9.3) — verbatim reuse of §2.5.1's device-flow
+/// grammar (the same shape `connectGitHubView` already renders), just a
+/// sheet instead of a wizard step, since the person is already mid-Holding.
+/// Opens the instant `Grant this on GitHub` is tapped, while
+/// `model.grantFlow.status` is still `.pending` — so `.idle`/`.pending`
+/// render the same "waiting for a code" shape `connectGitHubView` does
+/// rather than a blank sheet. The `.unavailable` case renders NOTHING and
+/// dismisses itself on appearance: no code was ever issued for that state,
+/// and closing immediately is what reveals H7's `Show me how to grant it`
+/// leading action (`model.grantUnavailableKnown` — copy spec §3.4, "that
+/// state is the only thing that reveals the fallback").
+private struct GrantPermissionSheet: View {
+    @ObservedObject var model: WizardModel
+    let onDismiss: () -> Void
+    let onGranted: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            switch model.grantFlow.status {
+            case .idle, .pending:
+                pendingBody
+            case .granted:
+                grantedBody
+            case .denied:
+                terminalBody(message: "That was declined.", actionLabel: "Try again")
+            case .expired:
+                terminalBody(message: "That code expired.", actionLabel: "Get a new code")
+            case .timedOut:
+                terminalBody(message: "That took too long.", actionLabel: "Get a new code")
+            case .unavailable:
+                Color.clear
+                    .onAppear { onDismiss() }
+            }
+        }
+        .padding(28)
+        .frame(width: 460, height: 360)
+    }
+
+    private var pendingBody: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Grant the permission")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+            Text("GitHub will ask you to confirm this. Copy the code below, open the page, and paste it in.")
+                .font(.body)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Your code")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .textCase(.uppercase)
+                HStack {
+                    Text(model.grantFlow.userCode ?? "")
+                        .font(.title3.monospaced())
+                        .textSelection(.enabled)
+                        .foregroundColor(Color(nsColor: .labelColor))
+                    Spacer()
+                    Button { model.copyGrantCode() } label: { Text("Copy code") }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(model.grantFlow.userCode == nil)
+                }
+            }
+
+            Button { model.openGrantGitHubPage() } label: { Text("Open the GitHub page") }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(model.grantFlow.verificationUri == nil)
+
+            Text("Waiting for you to finish in your browser…")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+
+            Spacer()
+
+            HStack {
+                Spacer()
+                Button { model.cancelGrantFlow(); onDismiss() } label: { Text("Cancel") }
+                    .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private var grantedBody: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(Color(nsColor: .systemGreen))
+                Text("Granted. Picking up where I left off.")
+                    .font(.body)
+                    .foregroundColor(Color(nsColor: .labelColor))
+            }
+            Spacer()
+            HStack {
+                Spacer()
+                Button { onGranted() } label: { Text("Done") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    private func terminalBody(message: String, actionLabel: String) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(message)
+                .font(.body)
+                .foregroundColor(Color(nsColor: .labelColor))
+            Spacer()
+            HStack {
+                Button { onDismiss() } label: { Text("Cancel") }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button { model.retryGrantFlow() } label: { Text(actionLabel) }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+}
+
+/// The fallback sheet behind H7's `Show me how to grant it` (§2.9.3,
+/// shaped after §2.9.2's install sheet) — shown only when the CLI reports
+/// (or its own absence on this Mac implies) it cannot drive the grant flow
+/// itself. Never contains a path or the phrase "permission scope".
+private struct GrantFallbackSheet: View {
+    /// Closes the sheet AND re-checks once, automatically ("the user should
+    /// not have to find the button that proves the thing they just did") —
+    /// same contract as `InstallHelperSheet.onDone` above.
+    let onDone: () -> Void
+
+    private static let step = "gh auth refresh -h github.com -s admin:public_key"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Granting the permission by hand")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+
+            Text("This is one command. If you're comfortable in Terminal, paste it there. If you're not, copy it and send it to whoever looks after your Mac.")
+                .font(.body)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("The step")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .textCase(.uppercase)
+                WizardCopyableCodeBlock(text: Self.step, copyLabel: "Copy this step")
+            }
+
+            Spacer()
+
+            HStack {
+                Spacer()
+                Button { onDone() } label: { Text("Done") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(28)
+        .frame(width: 520, height: 320)
+    }
+}
+
 // MARK: - Wizard window controller
 
 /// Owns the wizard's single `NSWindow` + its `WizardModel` for the lifetime of
@@ -3682,6 +4443,27 @@ final class WizardWindowController: NSWindowController {
         // work when `CT_SELFTEST=1` is ALSO set, so a normal launch (or a
         // dev "Open Wizard" click) is unaffected.
         WizardSelftest.runIfRequested()
+    }
+
+    /// Region 6's `connection-offer` notice (`native/control-tower-tray.swift`):
+    /// reopens this SAME wizard singleton positioned at the onboarding
+    /// question. If this session already answered it once (`Not now` from
+    /// an earlier visit this launch), `onboardQuestionItems` still holds the
+    /// cached ask row, and `returnToOnboardQuestion()` — the exact same
+    /// return path H4's `Include what I already have` already uses — lands
+    /// on it directly with no re-fetch. Otherwise (a fresh launch, or the
+    /// offer was never seen this session at all), there is nothing cached
+    /// to return to, so this re-runs Detect fresh; D.4's own ordering note
+    /// ("the question is asked BEFORE the blocked-guard") is what
+    /// guarantees THAT path also lands on the identical screen rather than
+    /// skipping past it.
+    func reopenForConnectionOffer() {
+        if !model.onboardQuestionItems.isEmpty {
+            model.returnToOnboardQuestion()
+        } else {
+            model.runDetect()
+        }
+        show()
     }
 }
 
@@ -3782,6 +4564,14 @@ enum WizardSelftest {
         if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "holding" {
             switch await CliClient.shared.ecosystemOnboardPlan(products: ["claude"]) {
             case .success(let report):
+                // "One question first" (D.4's own ordering note: asked
+                // BEFORE the blocked-guard) — printed for EVERY plan, blocked
+                // or not, through the SAME pure classifier
+                // `personalOnboardQuestion(from:)` the real wizard uses, so a
+                // regression there (Bug 1: the dropped `scope == "machine"`
+                // filter) fails this line, not just the eventual UI.
+                let (ask, review) = WizardModel.personalOnboardQuestion(from: report)
+                printOnboardQuestionSelftestLine(ask: ask, review: review)
                 if report.result == .blocked {
                     printHoldingSelftestLine(WizardModel.holdingInfo(forBlockedOnboard: report, origin: .detect))
                 } else {
@@ -3796,22 +4586,35 @@ enum WizardSelftest {
             }
         }
 
+        // CT_SELFTEST_STEP=completion-rule — copy spec §2.10's completion
+        // rule, exercised directly as a pure function against a handful of
+        // constructed reports (`EcosystemOnboardStage` decoded from small
+        // literal JSON, same discipline every other DTO in this app uses,
+        // rather than a bespoke test-only initializer). No CLI call: this
+        // proves the BOOLEAN the real screens key off, which is the
+        // load-bearing thing to test — neither this suite nor any other
+        // mechanism in this codebase asserts on a rendered SwiftUI tree.
+        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "completion-rule" {
+            printCompletionRuleSelftestLine()
+        }
+
         exit(0)
     }
 
-    /// `SELFTEST holding=` must print one of the seven stable variant
+    /// `SELFTEST holding=` must print one of the eight stable variant
     /// tokens below (`HoldingVariant`'s own case names), plus every field
-    /// `holding-copy-spec.md` §2/§3 says must reach the support block —
+    /// `control-tower-copy-deck.md` §2.9 says must reach the support block —
     /// this is exactly what `scripts/tests/smoke-scenarios.sh`'s holding
-    /// scenarios assert against (H3-vs-H4 distinction, and that `.exit2`'s
-    /// bound `code`/`message` actually arrive here, never "unknown"/dropped).
+    /// scenarios assert against (H3-vs-H4-vs-H7 distinction, and that
+    /// `.exit2`'s bound `code`/`message` actually arrive here, never
+    /// "unknown"/dropped).
     ///
     /// This first line prints `HoldingInfo.support`'s raw fields directly
     /// (`?? "none"` only distinguishes "field absent" for THIS diagnostic
     /// line, not the app's own rendering) — it does NOT exercise
     /// `HoldingInfo.supportLines(_:)`, the function the actual support
     /// disclosure view renders from. The second `SELFTEST supportLines=`
-    /// line below prints THAT function's real output (§5's own guard
+    /// line below prints THAT function's real output (§2.9.1's own guard
     /// against a dangling bare label, e.g. `Message: ` with nothing after
     /// it, for a field the CLI sent as `""` rather than omitting) — S21 in
     /// `smoke-scenarios.sh` asserts against this second line.
@@ -3825,6 +4628,7 @@ enum WizardSelftest {
         case .waitingOffline: token = "waitingOffline"
         case .waitingBusy: token = "waitingBusy"
         case .waitingOnOrg: token = "waitingOnOrg"
+        case .needsPermission: token = "needsPermission"
         }
         print(
             "SELFTEST holding=\(token) stage=\(info.support?.stage ?? "none")"
@@ -3836,5 +4640,52 @@ enum WizardSelftest {
         } else {
             print("SELFTEST supportLines=none")
         }
+    }
+
+    /// Bug 1 (Appendix D.3) and the `device-ssh` -> `ssh` consent token
+    /// (Bug 2) in one line: `id:scope` for every ask/review row, in order,
+    /// PLUS the exact `componentId(fromPersonalInventoryId:)` mapping for a
+    /// fixed probe set including `device-ssh` — a regression in either
+    /// silently-failing bug changes this printed line, so
+    /// `scripts/tests/smoke-scenarios.sh` can assert on it directly.
+    private static func printOnboardQuestionSelftestLine(ask: [EcosystemInventoryItem], review: [EcosystemInventoryItem]) {
+        func describe(_ items: [EcosystemInventoryItem]) -> String {
+            items.isEmpty ? "none" : items.map { "\($0.id):\($0.scope)" }.joined(separator: ",")
+        }
+        print("SELFTEST askItems=\(describe(ask)) reviewItems=\(describe(review))")
+        let mapped = ["device-ssh", "personal-claude", "personal-codex", "not-a-known-id"]
+            .map { WizardModel.componentId(fromPersonalInventoryId: $0) ?? "nil" }
+        print("SELFTEST componentIds=\(mapped.joined(separator: ","))")
+    }
+
+    /// See `CT_SELFTEST_STEP == "completion-rule"` above. Five constructed
+    /// cases, each isolating exactly one of the completion rule's three
+    /// checkable conditions.
+    private static func printCompletionRuleSelftestLine() {
+        func stage(_ id: String, _ result: String) -> EcosystemOnboardStage {
+            let json = Data(#"{"stage":"\#(id)","result":"\#(result)"}"#.utf8)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            // Force-unwrap is deliberate here: `json` is a hardcoded,
+            // always-valid literal, so a decode failure could only mean a
+            // bug in THIS test helper, not in anything under test.
+            return try! decoder.decode(EcosystemOnboardStage.self, from: json)
+        }
+        let eightIds = WizardModel.allReportStages.map(\.id)
+        let allApplied = eightIds.map { stage($0, "applied") }
+        let sevenNoDoctor = allApplied.filter { $0.stage != "doctor" }
+        let oneBlocked = allApplied.map { $0.stage == "device-ssh" ? stage("device-ssh", "blocked") : $0 }
+        let claudeOnlySeven = allApplied.filter { $0.stage != "codex-plugin" }
+
+        let full = WizardModel.completionRulePasses(result: .ready, stages: allApplied, includeCodex: true)
+        let missingStage = WizardModel.completionRulePasses(result: .ready, stages: sevenNoDoctor, includeCodex: true)
+        let blockedStage = WizardModel.completionRulePasses(result: .ready, stages: oneBlocked, includeCodex: true)
+        let blockedResult = WizardModel.completionRulePasses(result: .blocked, stages: allApplied, includeCodex: true)
+        let claudeOnlyNoCodex = WizardModel.completionRulePasses(result: .ready, stages: claudeOnlySeven, includeCodex: false)
+
+        print(
+            "SELFTEST completionRule full=\(full) missingStage=\(missingStage)"
+                + " blockedStage=\(blockedStage) blockedResult=\(blockedResult) claudeOnlyNoCodex=\(claudeOnlyNoCodex)"
+        )
     }
 }

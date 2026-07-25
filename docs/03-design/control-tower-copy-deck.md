@@ -178,6 +178,7 @@ themselves).
 |---|---|---|
 | `sign-in` | `Slack needs you to sign in again.` | `Sign in to Slack` |
 | `dirty-wip` | `You have unsaved changes in the way of an update. Nothing was touched.` | `Review your changes` |
+| `permission-needed` | `GitHub needs one more permission before this Mac can finish setting up.` | `Grant this on GitHub` |
 
 The dirty-work prompt never offers a "discard" button (never-destroy). It has exactly
 one affordance.
@@ -189,6 +190,12 @@ one affordance.
 | `kept-you-safe` | `A setting was weakening your security, so I switched it off and told your IT team.` |
 | `kept-your-working-version` | `An update didn't work out, so I kept your working version. Nothing to do.` |
 | `waiting-on-it` | `Waiting on your organization to finish a bit of setup.` |
+
+**One notice carries an action** (an offer is not a fault, so it is a notice and not a prompt, the same call the projects offer made):
+
+| Kind | Message | Action label |
+|---|---|---|
+| `connection-offer` | `This Mac is missing one of the two GitHub connections setup uses. Nothing is added until you say so.` | `Add the connection` |
 
 **Security banner (pinned, un-dismissable, the most persistent element):**
 - Message: `A setting on this Mac was weakening your security, so I switched it off and
@@ -219,15 +226,14 @@ re-asks the system.)
 
 # SURFACE 2: The first-run wizard (S2)
 
-One guided window, eight steps in the built flow (welcome, detect, choose components,
-departments, integrations, set up, verify, done), plus the first-class **holding**
-terminal. No time estimates anywhere. Step position reads as "Step N of 8", never a clock.
+One guided window, **ten** steps in the built flow, plus two first-class inline terminals that add no sidebar row and change no step number: the **holding** screen (§2.9) and the **one question first** screen (§2.2.1). No time estimates anywhere. Step position reads as `Step N of 10`, sentence case, never a clock.
+
+**Two steps have no section of their own below.** `Connect GitHub` (step 2) is the device-flow sign-in, whose strings live in §2.5.1. `Your projects` (step 7) is specified in full in `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/adopt-and-project-setup-spec.md`. The eyebrows in §2.2 through §2.8 below carry their correct built positions.
 
 Window title: `Set Up Copilot Control Tower`
 Sidebar header: `Set Up Copilot Control Tower`
 Sidebar section label: `SETUP`
-Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` ·
-`Integrations` · `Set up` · `Verify` · `Done`
+Roadmap row titles: `Welcome` · `Connect GitHub` · `Detect` · `What you're getting` · `Departments` · `Integrations` · `Your projects` · `Set up` · `Verify` · `Done`
 
 ## 2.1 Welcome
 
@@ -241,7 +247,7 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
 
 ## 2.2 Detect
 
-- Eyebrow: `STEP 2 OF 8`
+- Eyebrow: `Step 3 of 10`
 - Title: `Checking what's already here`
 - Intro: `Control Tower looks at what's already on this Mac before it asks you
   anything.`
@@ -253,9 +259,35 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
   - `No personal setup on this Mac yet.`
 - Buttons: `Back` / `Continue`
 
+### 2.2.1 One question first (inline over Detect)
+
+Rendered the way Holding is rendered: a `StepShell` over the Detect stage, no sidebar row, no step-number change, `accent` blue and never orange, because this is an offer and not a pause. Entered when the CLI's plan carries at least one ask row. Never a Holding variant: an adoptable plan comes back `changes-required` or `applied`, never `blocked`, so it is structurally unreachable from Holding.
+
+An **ask row** is any inventory item with `reversible == true`, in the CLI's order, checkbox pre-selected. A **review row** is any item with `action == "review"`, no checkbox, trailing `Kept as is`. Rows are grouped into two cards by `scope`; neither the scope word nor the item id ever appears on screen.
+
+- Eyebrow: `ONE QUESTION FIRST`
+- Title: `Want me to include what you already have?`
+- Intro, chosen by which scopes are present:
+  - GitHub-account rows only: `Your GitHub account already has private spaces of your own, with your own content in them. I can include them so your copilots use what you already have, or leave them alone.`
+  - This-Mac rows only: `This Mac is already set up to reach GitHub, and I checked that what's here works. I can build on it, or leave it alone and set the rest up around it.`
+  - Both: `You already have some of this: spaces of your own on GitHub, and a working connection on this Mac. I can build on what's here, or leave it alone and set up the rest around it.`
+- Card 1 label (`scope: "personal"`): `Already in your GitHub account`
+- Card 2 label (`scope: "machine"`): `Already on this Mac`
+- Row title and row caption: the CLI's `title` and `detail`, verbatim (Appendix D holds the required strings)
+- Cleared-row caption, revealed under the row: the CLI's `decline_detail`, verbatim. A missing one renders no caption rather than invented copy.
+- Quiet line under the cards, always present: `Nothing you already have is changed. Setup only adds what's missing.`
+- Leading action: `Not now`
+- Primary action: `Include what I have`
+- Primary disabled hint, every row cleared: `Choose something to include, or select Not now.`
+- Re-plan progress card, after either action: `Checking what that means…`
+
+**The two ideas are held apart on purpose.** The row caption is the CLI's specific found fact ("I checked this, it works, I'm leaving it alone, one thing gets added"). The quiet line is the app's general guarantee, structurally true for every `action: "create"` + `reversible: true` row. Never merge them: the never-destroy promise must not depend on the CLI getting a sentence right.
+
+**Declining is never terminal.** `Not now` re-plans without those tokens and setup carries on to Detect. The offer survives in the menu bar as the `connection-offer` notice (§1.8). Without that row the CLI's decline sentence is a lie.
+
 ## 2.3 Choose copilots
 
-- Eyebrow: `STEP 3 OF 8`
+- Eyebrow: `Step 4 of 10`
 - Title: `Which copilots do you want?`
 - Intro: `Pick the copilots you'd like Control Tower to set up and keep current.
   Anything your team hasn't made available to you is shown, but greyed out.`
@@ -266,7 +298,7 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
 
 ## 2.4 Departments
 
-- Eyebrow: `STEP 4 OF 8`
+- Eyebrow: `Step 5 of 10`
 - Title: `Departments you can join`
 - Intro: `Joining a department brings in everything your team shares there. You can
   join now, or come back to this later from Settings or the menu bar.`
@@ -282,7 +314,7 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
 
 ## 2.5 Integrations
 
-- Eyebrow: `STEP 5 OF 8`
+- Eyebrow: `Step 6 of 10`
 - Title: `Integrations`
 - Intro: `Some integrations are already set up for you because you're on the team.
   Others use your own accounts, so they need your sign-in.`
@@ -316,7 +348,7 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
 
 ## 2.6 Set up (materialize)
 
-- Eyebrow: `STEP 6 OF 8`
+- Eyebrow: `Step 8 of 10`
 - Title: uses the current phase label, verbatim:
   - `Setting up Claude Copilot...`
   - `Bringing in your Sales department...`
@@ -330,16 +362,16 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
 
 ## 2.7 Verify
 
-- Eyebrow: `STEP 7 OF 8`
+- Eyebrow: `Step 9 of 10`
 - Title: `Making sure everything's current`
 - Intro: `The only success here is everything actually being up to date.`
 - Loading: `Checking your setup...`
-- Result (calm, not celebratory): `Everything checks out.`
+- Result (calm, not celebratory): `Everything checks out.` Permitted **only** when the completion rule in §2.10 passes. If it does not, Verify renders §2.10 instead. There is no hedged middle wording.
 - Buttons: `Continue`
 
 ## 2.8 Done
 
-- Eyebrow: `STEP 8 OF 8`
+- Eyebrow: `Step 10 of 10`
 - Title: `You're set up.`
 - Intro: `Control Tower now lives quietly in your menu bar. When it has nothing to say,
   it says nothing. That quiet icon means everything's current.`
@@ -349,7 +381,7 @@ Roadmap row titles: `Welcome` · `Detect` · `Choose copilots` · `Departments` 
 
 ## 2.9 Holding (the honest terminal, never a dead end)
 
-Holding is six variants, not one screen. The variant is chosen by **who owns the fix**, never by what went wrong. Two of the six are not failures at all: H4 is invariant #3 working correctly (setup found something the person already owns and refused to overwrite it), and H5/H6 are patience. Only H2 and H3 are faults.
+Holding is seven variants, not one screen. The variant is chosen by **who owns the fix**, never by what went wrong. Three of the seven are not failures at all: H4 is invariant #3 working correctly (setup found something the person already owns and refused to overwrite it), H5/H6 are patience, and H7 is a request only the person can answer. Only H2 and H3 are faults.
 
 | # | Variant | Eyebrow | Title | Tint (visual-system §2.2) |
 |---|---|---|---|---|
@@ -359,6 +391,9 @@ Holding is six variants, not one screen. The variant is chosen by **who owns the
 | H4 | Something is already yours | `ONE THING TO DECIDE` | `Something here is already yours` | `accent` blue, never orange |
 | H5 | Waiting | `WAITING FOR THE NETWORK` | `I'll pick this up when you're back online` / busy: `Something else is updating right now` | `waiting-for-network` neutral |
 | H6 | Waiting on your organization | `WAITING ON YOUR ORGANIZATION` | `Your organization has a bit left to set up` | `it-config-incomplete` neutral |
+| H7 | Something only you can do | `ONE THING ONLY YOU CAN DO` | `Setup needs one permission from you` | `signed-out` blue, glyph `key` |
+
+**Why H7 is its own variant.** Run the owner test on the other six: H1's owner may not be the person and its fix is outside the app; H2 and H3 name no owner and end in support details; H4's owner is the person but its frame is "nothing is wrong, decide about your own content"; H5 is time and H6 is the organization. None of them carries *the fix is yours, it is a real fix and not a decision, and you can do it right here*. That is H7, and it is the tone SOUL §7 already names: direct, singular, the one thing only he can do.
 
 **Intro lines, by cause** (the reason is never a token, never raw CLI text as a headline):
 
@@ -371,7 +406,7 @@ Holding is six variants, not one screen. The variant is chosen by **who owns the
 | Can't confirm it's safe (fails closed) | H2 | `I can't confirm your setup is safe right now, so I'm holding off rather than guess.` |
 | Unmapped CLI stop | H2 | `Something stopped me from reading your setup, so I won't guess.` |
 | Your own space isn't recognized | H4 | `One of your own spaces on GitHub is set up in a way I don't recognize, so I left it exactly as it is.` |
-| This Mac already has its own key | H4 | `This Mac already has a GitHub connection I didn't set up, so I left it exactly as it is.` |
+| This Mac's connection couldn't be confirmed | H4 | `This Mac already has a GitHub connection I didn't set up. I checked it, couldn't confirm it's safe to build on, and left it exactly as it is.` |
 | Settings here weren't set up by me | H4 | `I found settings on this Mac that I didn't set up, so I left them alone.` |
 | Your unsaved work is in the way | H4 | `Some of your own unsaved work is in the way of an update, so I left it alone.` |
 | A GitHub space couldn't be confirmed | H3 | `GitHub didn't confirm one of your own spaces, so I stopped before changing anything.` |
@@ -384,14 +419,15 @@ Holding is six variants, not one screen. The variant is chosen by **who owns the
 | Organization setup unreadable | H6 | `I couldn't read your organization's setup from GitHub, so I've paused. There's nothing for you to do.` |
 | Organization sign-in not set up | H6 | `Your organization hasn't finished setting up sign-in yet. There's nothing for you to do.` |
 | Shared store not ready | H6 | `Your organization's shared store isn't ready for this Mac yet. There's nothing for you to do.` |
+| GitHub hasn't been asked for a permission | H7 | `Setup gives this Mac its own key so it can reach GitHub safely. Adding that key needs a permission GitHub hasn't been asked for yet, and you're the only one who can give it.` |
 
-**H4 only:** the card `What I left alone` (one row per CLI review item, the CLI's own detail verbatim), the caption `Nothing was changed, moved, or removed.`, and the confirmation state after `Keep what I have`: title `Kept as it is`, intro `I left it exactly as it was. Control Tower keeps watch from the menu bar and picks this up if it ever changes.`
+**H4 only:** the card `What I left alone` (one row per CLI review item, the CLI's own detail verbatim) and the caption `Nothing was changed, moved, or removed.`. The confirmation after `Keep what I have` is **always §2.10**, never a resolved-sounding screen: H4 is reachable only from `result: "blocked"`, so the completion rule can never pass at that moment. The old `Kept as it is` confirmation is withdrawn.
 
-**Actions.** `Try again` (primary: H2, H3, H5) · `Check again` (H1, H4, H6; nothing failed, so "try" would overstate it) · `Continue in the menu bar` (all six; never marks setup complete) · `Show me how to install it` (primary: H1) · `Keep what I have` (primary: H4) · `Let setup manage it` (H4, only when the CLI declares consent for that gate) · `Include what I already have` (H4, existing return path). On a repeat of the identical hold, add one caption: `Still the same. Nothing changed.`
+**Actions.** `Try again` (primary: H2, H3, H5) · `Check again` (H1, H4, H6; nothing failed, so "try" would overstate it) · `Continue in the menu bar` (all seven; never marks setup complete) · `Show me how to install it` (primary: H1) · `Keep what I have` (primary: H4) · `Let setup manage it` (H4, only when the CLI declares consent for that gate) · `Include what I already have` (H4, existing return path) · `Grant this on GitHub` (primary: H7) · `Show me how to grant it` (H7, **only** when the CLI reports it cannot drive the grant itself). On a repeat of the identical hold, add one caption: `Still the same. Nothing changed.`
 
 **A CLI-authored message is never a headline.** It appears under `What setup found:` (when the CLI wrote it for a person) or only inside the support details (when it names machinery). It is never concatenated into an app sentence.
 
-### 2.9.1 Details for support (collapsed, on H2 / H3 / H4 / H6)
+### 2.9.1 Details for support (collapsed, on H2 / H3 / H4 / H6 / H7 / §2.10)
 
 - Disclosure label: `Details for support` (collapsed by default, never self-expanding)
 - Expanded caption: `Send this to whoever looks after your Mac. It has nothing private in it.`
@@ -408,6 +444,82 @@ Holding is six variants, not one screen. The variant is chosen by **who owns the
 - Secondary: `Open the install guide ›`
 - Primary: `Done` (closes the sheet and re-checks once, automatically)
 - The H1 body itself never contains a command, a path, or the CLI's name.
+
+### 2.9.3 Granting the permission (the sheet behind H7's primary)
+
+Verbatim reuse of §2.5.1's device-flow grammar, which the person completed two steps earlier at Connect GitHub. Only the title and the success line differ.
+
+- Title: `Grant the permission`
+- Intro: `GitHub will ask you to confirm this. Copy the code below, open the page, and paste it in.`
+- Code label: `Your code`
+- Copy affordance: `Copy code` / confirmed `Copied`
+- Primary: `Open the GitHub page`
+- Waiting line (no countdown, no timer): `Waiting for you to finish in your browser...`
+- Granted: `Granted. Picking up where I left off.`
+- Denied: `That was declined.` + `Try again`
+- Expired: `That code expired.` + `Get a new code`
+- Timeout: `That took too long.` + `Get a new code`
+- Dismiss buttons: `Cancel` (while pending) / `Done` (once granted)
+- Quiet caption on H7 itself, above the footer: `I'll take you to GitHub to grant it. Nothing on this Mac changes.`
+
+**The fallback sheet**, behind `Show me how to grant it`, shown only when the CLI reports it cannot drive the grant:
+
+- Title: `Granting the permission by hand`
+- Intro: `This is one command. If you're comfortable in Terminal, paste it there. If you're not, copy it and send it to whoever looks after your Mac.`
+- Block label: `The step` (mono block, never wrapped into prose): `gh auth refresh -h github.com -s admin:public_key`
+- Copy affordance: `Copy this step` / confirmed `Copied`
+- Primary: `Done` (closes the sheet and re-checks once, automatically)
+- The H7 body itself never contains a command, a path, or the phrase `permission scope`.
+
+**Why a button and not a copyable command.** The owner of this fix is the person and can be nobody else: it is a permission on his own GitHub sign-in, which IT cannot grant without sitting at his Mac signed in as him. §2.9.2 exists for the opposite case and says so in its own intro; reusing it here would route the work to an actor who cannot perform it (invariant #5). The action is additive and reversible, since permissions can be withdrawn on GitHub at any time. The app implements no auth: it calls a CLI verb, renders the code and the page, and hands the device code back, exactly as the Connect GitHub step already does (invariant #1).
+
+## 2.10 I stopped, and here's what that means for you
+
+The pattern every terminal confirmation in the wizard falls back to. It exists because a calm screen over an unfinished setup is worse than an obviously broken one: the person walks away believing they are done.
+
+**The completion rule.** A screen may use resolved language, meaning *kept*, *done*, *set up*, *ready*, *checks out*, *everything*, or *all*, only when all four of these hold of the report it is rendering:
+
+1. `result` is `applied` or `ready`. Never `changes-required`, never `blocked`.
+2. No entry in `stages` has `result: "blocked"`.
+3. Every stage in `onboard.schema.json`'s `ecosystemStage.stage` enum appears in `stages`. A stage the report never mentions counts as not done; `SetupProgressState.resolveStageRows` already computes exactly this and calls it `.neverReported`.
+4. The sentence describes only what the report proves. A confirmation may resolve **the decision the person just made**; it may never resolve **setup** on the strength of that decision.
+
+If any one of the four fails, the screen renders this section instead. The app never softens a failing condition with a gentler adjective; it switches patterns. Rule 4 is the one that catches the class of bug rather than the instance: the withdrawn `Kept as it is` was true about the decision and false about setup, and it printed only the true half.
+
+- Eyebrow: `SETUP ISN'T FINISHED`
+- Title: `Here's where that leaves you`
+- Intro, after a decision the person just made: `I left your own things exactly as they were. Setup stopped there, though, so some of this isn't set up yet.`
+- Intro, reached any other way: `Setup stopped partway, so some of this isn't set up yet. Nothing that was already on this Mac was changed.`
+- Card 1 label: `What works now`. Empty body: `Nothing yet. Setup stopped before anything was put in place.`
+- Card 2 label: `What doesn't work yet`. If this card would be empty, the rule passed and this screen must not render at all.
+- Quiet line under both cards: `Nothing you already had was changed, moved, or removed.`
+- Repeat caption: `Still the same. Nothing changed.`
+
+**Row copy, keyed on the CLI's `stage` enum.** A closed app-authored set selected by a CLI token, the same discipline §1.2's reason table uses. Never the stage's `detail`, never the stage id, never a gerund.
+
+| `stage` | `What works now` | `What doesn't work yet` |
+|---|---|---|
+| `organization-handoff` | `Your organization's shared setup came through.` | `Your organization's shared setup hasn't come through.` |
+| `personal-packages` | `Your own spaces on GitHub are ready.` | `Your own spaces on GitHub aren't ready yet.` |
+| `device-ssh` | `This Mac can reach GitHub on its own.` | `This Mac can't reach GitHub on its own yet.` |
+| `layer-manifest` | `Your copilots are connected together.` | `Your copilots aren't connected together yet.` |
+| `secret-store` | `The integrations your team shares are ready.` | `The integrations your team shares aren't ready yet.` |
+| `codex-plugin` | `Codex Copilot is set up on this Mac.` | `Codex Copilot isn't set up on this Mac yet.` |
+| `materialize` | `Your copilots are in place on this Mac.` | `Your copilots aren't in place on this Mac yet.` |
+| `doctor` | `Everything checked out as current.` | `I couldn't confirm your copilots are current.` |
+
+A stage that never ran and a stage that ran and failed take the same line. The difference is invisible to the reader and belongs in the support block.
+
+**No fraction, ever.** No "3 of 8 done", no bar, no ring, no percentage. A fraction answers a question the person did not ask: five trivial stages done and three load-bearing ones missing scores the same as the reverse, so it cannot tell them whether they can use their copilots. Hard rule 7 already bans percentage-as-a-promise, §2.6 permits `Part N of M` only as in-flight phase position and never as an outcome, and §3.12 settled that even Earl gets a plain count and no score. Worst of all, a fraction invites them to judge severity, which is the judgement this product refuses to hand them. The two named capability lists carry everything a fraction would, in words they own.
+
+**Actions.**
+
+- Caption above the footer: `Whoever looks after your Mac can pick this up from here.`
+- Primary: `Copy details for support` / confirmed `Copied` (the clipboard carries exactly §2.9.1's block, unchanged)
+- Leading: `Try again`, then `Continue in the menu bar`
+- **One branch:** when the current plan still carries ask rows (any inventory item with `reversible == true`), the primary becomes `Include what I already have` and `Copy details for support` moves to the leading row. A user-owned way forward always outranks a handoff.
+
+`Details for support` (§2.9.1) stays collapsed and never self-expands. Prominence comes from the button, not from forcing the block open: whoever needs to hand it over copies it in one click without reading a line of it, and whoever wants to inspect it still can. `Continue in the menu bar` never marks setup complete, and the tray keeps rendering what the CLI reports, which by construction is not `Everything is set up.` That was the original failure: a calm surface over an unfinished machine.
 
 ---
 
@@ -994,14 +1106,21 @@ voice stays consistent end to end.
 | `Your unsaved work was kept.` | `Some files were removed.` |
 | `Available to join` | `New department unlocked!` |
 | `Your team hasn't made this available to you.` | `You are not entitled to this component.` |
+| `Here's where that leaves you.` | `Kept as it is.` (while five stages never ran) |
+| `This Mac can't reach GitHub on its own yet.` | `3 of 8 done` |
+| `Setup needs one permission from you.` | `Your token is missing the admin:public_key scope.` |
 
 # Appendix B: Words banned from every user surface
 
 `MDM`, `entitled` / `entitlement` (as a bare word to Bob), `repo` / `repository` (on a
 Bob surface; "your team's shared space" or "address" instead), `product` (meaning a
 copilot), `component` (as a section label; fine in prose), `YAML`, `daemon`, `parse`,
-`schema`, `token`, raw `git` / `serde` / signature / watchdog strings, `Aviator` (the
-dead codename). And no em-dashes, anywhere.
+`schema`, `token`, `scope` (as a permission), `OAuth`, `SSH`, `alias`, `device` (say
+"this Mac"), `rank`, `manifest`, `package`, `tier`, raw `git` / `serde` / signature /
+watchdog strings, `Aviator` (the dead codename). And no em-dashes, anywhere.
+
+One explicit permission: **`key` is allowed**, and is the settled word for what this Mac
+is given (§2.6 `Giving this Mac its own key`, H7, §2.10's `device-ssh` rows).
 
 # Appendix C: Copy decisions worth the owner's eye
 
@@ -1024,6 +1143,56 @@ dead codename). And no em-dashes, anywhere.
 5. **The materialize phase count.** Named phases carry progress; a `Part N of M` count
    is offered only when the CLI emits discrete completed-phase counts. If it doesn't,
    show the phase title alone. No percentage, ever.
+
+# Appendix D: CLI strings and contract additions the adopt-and-honesty change requires
+
+Detect rows, ask rows, and framed Holding details are printed straight from the CLI, so those strings are user-facing copy and must obey the same closed vocabulary as the app's own. `cc/core/ecosystem/ssh_identity.py` and `cc/commands/onboard.py` currently emit `SSH`, `alias`, `device`, and raw GitHub logins on surfaces Bob reads. These are the required replacements.
+
+## D.1 Required string replacements
+
+| Today | Required |
+|---|---|
+| item title `This device's GitHub SSH access` | `Your Mac's connection to GitHub` |
+| adoption `detail`: `Your existing {alias} alias already works and signs in as {login}. I'll leave it exactly as it is.` | `This Mac already connects to GitHub, and I checked that it works and that it's signed in as you. I'll leave that exactly as it is and add the one connection it's still missing.` |
+| `decline_detail`: `Without this, the {alias} alias won't be set up, and this device won't have everything it needs. Your existing {alias} alias is never touched either way.` | `Without this, this Mac keeps one of the two GitHub connections setup uses. Setup carries on, and I'll offer this again from the menu bar whenever you're ready.` |
+| `The existing {alias} SSH alias could not confirm a GitHub login, so it was left exactly as it is.` | `This Mac's existing GitHub connection didn't confirm who it signs in as, so I left it exactly as it is.` |
+| `GitHub could not confirm the signed-in account, so the existing {alias} SSH alias was left exactly as it is.` | `GitHub didn't confirm who you're signed in as, so I left this Mac's existing connection exactly as it is.` |
+| `The existing {alias} SSH alias signs in as a different GitHub account ({login}), so it was left exactly as it is.` | `This Mac's existing GitHub connection signs in as a different account ({login}), so I left it exactly as it is.` |
+| `The existing {alias} SSH alias does not resolve to {host}, so it was left exactly as it is.` | `This Mac's existing GitHub connection points somewhere other than GitHub, so I left it exactly as it is.` |
+| `The existing {alias} SSH alias could not confirm real repository access, so it was left exactly as it is.` | `This Mac's existing GitHub connection couldn't reach your spaces on GitHub, so I left it exactly as it is.` |
+| `Malformed Copilot-managed SSH config block.` | `I don't recognize how this Mac's GitHub connection is written down, so I left it exactly as it is.` |
+| `Only one half of the device SSH keypair exists; setup did not replace it.` | `Part of this Mac's own GitHub key is missing, and I won't replace what's there.` |
+| `Every alias this device needs already works. Nothing was changed.` | `This Mac's connections to GitHub already work. Nothing was changed.` |
+| `The device SSH identity is ready.` | `This Mac has its own key for GitHub.` |
+| `The device SSH identity can be completed without copying a private key.` | `This Mac can be given its own key for GitHub, without copying anything from another Mac.` |
+| `GitHub could not list SSH keys for the authenticated account.` **(403 or 404)** | `Your GitHub sign-in doesn't include permission to add this Mac's key.` |
+| `GitHub could not list SSH keys for the authenticated account.` **(any other failure)** | `GitHub didn't answer when I asked about this Mac's keys.` |
+| `GitHub returned an unreadable SSH key response.` | `GitHub's answer about this Mac's keys wasn't something I could read.` |
+
+The third row deliberately keeps `({login})`. It is the one fact that lets the person recognize the situation, it is their own data, and a second forgotten account is the most common real cause.
+
+Every replacement above is under 200 characters, single-line, and free of `{`, `}`, `<`, `>`, `Traceback`, `Error:`, `Exception`, `/Users/`, and `.py:`, so all of them pass `HoldingInfo.isPresentable` and can be framed under `What setup found:` without being suppressed.
+
+## D.2 Contract additions
+
+| Verb | Addition | Values | Why the app needs it |
+|---|---|---|---|
+| `onboard --json` | on the `device-ssh` stage, `registration: "not-permitted"` together with `result: "blocked"` and `config: "planned"` | new value alongside `registered` / `missing` / `not-checked` | Splits a missing GitHub permission (H7, the person's own fix) from a generic key-listing failure (H3, nobody's). `registration` is already `{"type": "string", "minLength": 1}` in `onboard.schema.json`, so this needs **no schema change and no version bump**. The app reads an enum token, never prose. |
+| `auth grant --json` | starts the permission grant and returns `{user_code, verification_uri, device_code, interval}`; `--poll --device-code <code>` polls it; reports `unavailable` when it cannot drive the flow | (none) | H7's primary action, and the only thing that reveals `Show me how to grant it`. Same open seam as decision D-3-M3 (the wizard's sign-in device-flow verb); close both in one change. |
+
+The app's gate table in `holdingInfo(forBlockedOnboard:)` gains exactly one branch, read from a CLI-emitted enum token and never sniffed from a prose string, exactly as every existing H4 branch already is: for `case "device-ssh"`, test `registration == "not-permitted"` (H7) before the existing `config == "held" || key == "incomplete"` test (H4), falling through to H3.
+
+## D.3 The two app-side bugs this copy depends on
+
+Both are in `native/wizard.swift`. Without both fixes, §2.2.1's machine-scope row renders nothing and the dead end persists in a new form.
+
+**Bug 1: `personalOnboardQuestion` drops the machine-scope row.** It filters `scope == "personal"`, and the CLI's SSH row is `scope: "machine"`, so the row is silently dropped and the offer never appears. The scope filter must go. Ask rows are every inventory item with `reversible == true`, in the CLI's order. Review rows are every item with `action == "review"`, in the CLI's order. Both are then grouped into §2.2.1's two cards by `scope`, and the scope word itself never reaches the screen.
+
+**Bug 2: `componentId(fromPersonalInventoryId:)` returns `nil` for `device-ssh`.** It strips a `personal-` prefix, which the SSH item's id (`device-ssh`) does not have, so the consent is dropped, the apply writes nothing, and the offer repeats forever. The token map is `personal-<component>` to `<component>`, and **`device-ssh` to `ssh`**. `ssh` is the exact token `ensure_machine_ssh_identity` checks for, and `build_ecosystem_onboard_report` already forwards `adopt_existing` to `ssh_fn` at both plan and apply, so no CLI plumbing is missing; only the app's token is. This is the highest-risk line in the change, because it fails silently and looks like the CLI's fault.
+
+## D.4 Ordering note, already correct
+
+`performDetect` asks the question **before** the blocked-guard, which is right and must stay that way. A plan that is blocked purely because an unrelated item needs review must still surface the question rather than dropping it behind Holding's review-only card. That is the old dead end, and the ordering is what prevents it.
 
 ---
 

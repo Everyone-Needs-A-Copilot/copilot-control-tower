@@ -44,15 +44,26 @@
 #                                     #   performDetect`/`WizardSelftest`'s CT_SELFTEST_STEP=
 #                                     #   holding). `$CT_FIXTURE`/`$CC_FIXTURE`/`--fixture`
 #                                     #   is otherwise IGNORED by this verb (a fixed canned
-#                                     #   body is always returned), EXCEPT four named
-#                                     #   fixtures carved out for `holding-copy-spec.md`
-#                                     #   coverage: blocked-device-ssh-held (H4, invariant
-#                                     #   #3 working), blocked-device-ssh-fault (H3, the
-#                                     #   default fault variant), exit2-onboard-unavailable
+#                                     #   body is always returned), EXCEPT the named
+#                                     #   fixtures carved out for `control-tower-copy-deck.md`
+#                                     #   §2.9/§2.2.1 coverage: blocked-device-ssh-held (H4,
+#                                     #   invariant #3 working — a genuinely-held case, e.g.
+#                                     #   a different GitHub login on the existing
+#                                     #   connection; every other held cause, wrong host, no
+#                                     #   repo access, malformed config, maps through the
+#                                     #   SAME `config == "held"` classifier and is the
+#                                     #   CLI's own tested surface, not re-fixtured here),
+#                                     #   blocked-device-ssh-fault (H3, the default fault
+#                                     #   variant), device-ssh-adoptable (the State 1 offer —
+#                                     #   `config: "adoptable"`, a `scope: "machine"`
+#                                     #   inventory row, `result: "changes-required"`, never
+#                                     #   `"blocked"` — the dead end this whole change
+#                                     #   replaces), device-ssh-not-permitted (H7 —
+#                                     #   `registration: "not-permitted"`), exit2-onboard-unavailable
 #                                     #   (H6 via a REAL, differentiated exit-2 error
 #                                     #   envelope, unlike every other exit-2 fixture in
 #                                     #   this script, which prints an empty body),
-#                                     #   exit2-empty-fields (§5's empty-value guard: a
+#                                     #   exit2-empty-fields (§2.9.1's empty-value guard: a
 #                                     #   real exit-2 envelope whose code/message are
 #                                     #   present but `""`, not omitted).
 #
@@ -420,24 +431,47 @@ printf '%s\n' '{"schema_version":"1.0","mode":"status","result":"action-required
     ;;
 
   onboard)
-    # holding-copy-spec.md test fixtures (Control Tower's Holding H3/H4/H6
-    # coverage, `scripts/tests/smoke-scenarios.sh` S18-S20): the aggregate
-    # ecosystem PLAN call is the only one these three fixtures touch (never
-    # `--apply`) — `$fixture` is otherwise IGNORED by this verb entirely
-    # (see the unconditional canned bodies below), so these three names are
-    # carved out first and everything else falls through unchanged.
+    # copy-deck §2.9/§2.2.1 test fixtures (Control Tower's Holding
+    # H3/H4/H6/H7 + "One question first" coverage, `scripts/tests/smoke-scenarios.sh`
+    # S18-S23): the aggregate ecosystem PLAN call is the only one these
+    # fixtures touch (never `--apply`) — `$fixture` is otherwise IGNORED by
+    # this verb entirely (see the unconditional canned bodies below), so
+    # these names are carved out first and everything else falls through
+    # unchanged.
     if [ "$ecosystem_onboard" -eq 1 ] && [ "$onboard_apply" -eq 0 ]; then
       case "$fixture" in
         blocked-device-ssh-held)
-          # H4: `config == "held"` — invariant #3 working, the wizard's
-          # "This Mac already has a GitHub connection I didn't set up".
-          printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"unknown","registration":"unknown","config":"held","detail":"An existing GitHub SSH alias is user-managed; setup did not replace it."}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0}}'
+          # H4: `config == "held"` — invariant #3 working. A genuinely-held
+          # case (verified.md D.1's "different GitHub login" replacement
+          # string, the one D.1 itself calls out as "the most common real
+          # cause" — deliberately keeps `(login)`, the one fact that lets
+          # the person recognize the situation).
+          printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"unknown","registration":"unknown","config":"held","detail":"This Mac'\''s existing GitHub connection signs in as a different account (other-account), so I left it exactly as it is."}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0}}'
           exit 0
           ;;
         blocked-device-ssh-fault)
           # H3: blocked, but NOT classified as held-for-you — the default,
           # nobody's-fault-retry fault variant.
           printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"missing","registration":"missing","config":"missing","detail":"Could not reach GitHub to register this device key."}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0}}'
+          exit 0
+          ;;
+        device-ssh-adoptable)
+          # State 1, the adopt offer that replaces the dead end: `config:
+          # "adoptable"` on the `device-ssh` stage, `result: "changes-required"`
+          # (NEVER "blocked" on this path — the whole point), plus the
+          # matching `scope: "machine"` inventory row `_ssh_inventory`
+          # emits (`onboard.py`), same shape as an adoptable personal
+          # package. Exercises Bug 1 (the dropped `scope == "machine"`
+          # filter) and, once its consent is sent back, Bug 2 (the
+          # `device-ssh` -> `ssh` token mapping).
+          printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"plan","result":"changes-required","org":"acme-co","products":["claude"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"ready"},{"stage":"device-ssh","result":"changes-required","key":"existing","registration":"missing","config":"adoptable","detail":"This Mac already connects to GitHub, and I checked that it works and that it'\''s signed in as you. I'\''ll leave that exactly as it is and add the one connection it'\''s still missing."}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40}],"inventory":[{"id":"personal-claude","scope":"personal","title":"Claude personal space","state":"ready","action":"reuse","detail":"Existing rank-10 package will be reused.","source_path":null,"destination_path":null,"reversible":false},{"id":"device-ssh","scope":"machine","title":"Your Mac'\''s connection to GitHub","state":"adoptable","action":"create","detail":"This Mac already connects to GitHub, and I checked that it works and that it'\''s signed in as you. I'\''ll leave that exactly as it is and add the one connection it'\''s still missing.","source_path":null,"destination_path":null,"reversible":true,"decline_detail":"Without this, this Mac keeps one of the two GitHub connections setup uses. Setup carries on, and I'\''ll offer this again from the menu bar whenever you'\''re ready."}],"inventory_summary":{"reused":1,"changes":1,"review":0}}'
+          exit 0
+          ;;
+        device-ssh-not-permitted)
+          # H7: `registration == "not-permitted"` — a missing GitHub
+          # permission, the person's own real fix, checked BEFORE the
+          # held-for-you case on this same stage.
+          printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"missing","registration":"not-permitted","config":"planned","detail":"Your GitHub sign-in doesn'\''t include permission to add this Mac'\''s key."}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0}}'
           exit 0
           ;;
         exit2-onboard-unavailable)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S21) for both
+# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S23) for both
 # native binaries, driven entirely by the mock CLI
 # (`src-tauri/fixtures/mock-cc`) and the SELFTEST contract:
 #
@@ -14,12 +14,25 @@
 #                                           pending> signedInAs=<login|none>`
 #                                           (+ `SELFTEST departments=<...>`
 #                                           when CT_SELFTEST_STEP=departments,
-#                                           or `SELFTEST holding=<variant>
-#                                           stage=<...> result=<...> code=<...>
-#                                           message=<...>` when
-#                                           CT_SELFTEST_STEP=holding — the
-#                                           Detect->Holding transition,
-#                                           `holding-copy-spec.md`),
+#                                           or, when CT_SELFTEST_STEP=holding
+#                                           (the Detect->Holding transition
+#                                           AND the "One question first"
+#                                           offer, `control-tower-copy-deck.md`
+#                                           §2.9/§2.2.1): `SELFTEST
+#                                           askItems=<id>:<scope>,...
+#                                           reviewItems=<...>`, `SELFTEST
+#                                           componentIds=<...>`, then either
+#                                           `SELFTEST holding=none
+#                                           result=<...>` or `SELFTEST
+#                                           holding=<variant> stage=<...>
+#                                           result=<...> code=<...>
+#                                           message=<...>`; or, when
+#                                           CT_SELFTEST_STEP=completion-rule,
+#                                           `SELFTEST completionRule
+#                                           full=<bool> missingStage=<bool>
+#                                           blockedStage=<bool>
+#                                           blockedResult=<bool>
+#                                           claudeOnlyNoCodex=<bool>`),
 #                                           exit 0.
 #
 # Each scenario prints its own PASS/FAIL lines; the suite exits non-zero if
@@ -406,24 +419,27 @@ scenario_S16() {
 }
 
 # ==========================================================================
-# Scenarios S18..S21 — the wizard's Detect->Holding transition
-# (`holding-copy-spec.md`), CT_SELFTEST_STEP=holding
+# Scenarios S18..S23 — the wizard's Detect->Holding transition and "One
+# question first" offer (`control-tower-copy-deck.md` §2.9/§2.2.1),
+# CT_SELFTEST_STEP=holding / CT_SELFTEST_STEP=completion-rule
 # ==========================================================================
 #
 # Drives `CliClient.shared.ecosystemOnboardPlan(...)` directly (same as the
 # S11-S15 auth/departments scenarios above drive their own CLI seam) and
-# asserts on `WizardSelftest`'s `SELFTEST holding=...` line, built from the
-# SAME pure classifiers (`WizardModel.holdingInfo(forBlockedOnboard:origin:)`
-# / `holdingInfo(for:origin:)`) the real wizard uses. At minimum this
-# distinguishes H3 from H4 (the same `device-ssh` gate, discriminated only
-# by the CLI's own `config`/`key` tokens — never by prose) and proves an
-# `.exit2` failure's bound `code`/`message` actually reach the line (S20),
-# not the "unknown"/dropped fallback every OTHER exit-2 fixture in this
-# suite would produce. S21 additionally asserts on the `SELFTEST
-# supportLines=...` line — `HoldingInfo.supportLines(_:)`'s own real
-# output — proving a CLI-emitted EMPTY STRING (not omitted, not "unknown")
-# is dropped from the support block instead of rendering a dangling bare
-# label.
+# asserts on `WizardSelftest`'s printed lines, built from the SAME pure
+# classifiers (`WizardModel.personalOnboardQuestion(from:)`,
+# `WizardModel.componentId(fromPersonalInventoryId:)`,
+# `WizardModel.holdingInfo(forBlockedOnboard:origin:)` /
+# `holdingInfo(for:origin:)`) the real wizard uses. At minimum this
+# distinguishes H3 from H4 from H7 (the same `device-ssh` gate,
+# discriminated only by the CLI's own `config`/`key`/`registration`
+# tokens — never by prose) and proves an `.exit2` failure's bound
+# `code`/`message` actually reach the line (S20), not the "unknown"/dropped
+# fallback every OTHER exit-2 fixture in this suite would produce. S21
+# additionally asserts on the `SELFTEST supportLines=...` line —
+# `HoldingInfo.supportLines(_:)`'s own real output — proving a CLI-emitted
+# EMPTY STRING (not omitted, not "unknown") is dropped from the support
+# block instead of rendering a dangling bare label.
 
 holding_scenario() {
     local id="$1" fixture="$2"; shift 2
@@ -439,24 +455,49 @@ holding_scenario() {
     done
 }
 
-# S18 — H4: `device-ssh` blocked AND `config == "held"` (invariant #3
-# working, the live-verified defect case this whole change fixes: an
-# existing user-managed SSH alias is left alone, never overwritten).
+# S18 — REWRITTEN. This used to assert that a `device-ssh` block was
+# H4-and-correct for EVERY held cause, including the exact case this whole
+# change fixes: an existing, WORKING, same-account SSH connection dead-ended
+# setup instead of being offered as something to build on. That assertion
+# was itself the bug, wearing a green checkmark ("invariant #3 working" was
+# the wrong reading — see the task's own note). It now asserts the adopt
+# OFFER renders instead: `device-ssh-adoptable` comes back
+# `result: "changes-required"` (NEVER `"blocked"`), so `holding=none` is the
+# right answer here, and the load-bearing assertions are on the ask-row
+# line: a `device-ssh:machine` row must be present (Bug 1 — the dropped
+# `scope == "machine"` filter used to drop this row silently) AND the
+# consent-token mapping must round-trip `device-ssh` -> `ssh` (Bug 2 — the
+# single highest-risk line in the whole change, because it fails silently).
 scenario_S18() {
-    holding_scenario S18 blocked-device-ssh-held \
-        "holding=yours" \
-        "stage=device-ssh" \
-        "message=An existing GitHub SSH alias is user-managed; setup did not replace it."
+    holding_scenario S18 device-ssh-adoptable \
+        "holding=none result=changes-required" \
+        "SELFTEST askItems=device-ssh:machine reviewItems=none" \
+        "SELFTEST componentIds=ssh,claude,codex,nil"
 }
 
 # S19 — H3: the SAME gate (`device-ssh`) blocked, but NOT classified as
-# held-for-you — the default fault variant, distinguished from S18 purely by
-# the CLI's own `config`/`key` tokens on an otherwise identically-shaped
-# report.
+# held-for-you — the default fault variant, distinguished from S18b below
+# purely by the CLI's own `config`/`key` tokens on an otherwise
+# identically-shaped report.
 scenario_S19() {
     holding_scenario S19 blocked-device-ssh-fault \
         "holding=fault" \
         "stage=device-ssh"
+}
+
+# S18b — the genuinely-held case `Not now`/S18's dead end used to conflate
+# with S19's fault: `config == "held"` (a real difference the CLI positively
+# verified, e.g. a different GitHub login on the existing connection — one
+# of the four causes the copy spec names: different login, wrong host, no
+# repo access, malformed config; every one of those maps through this SAME
+# `config == "held"` classifier, so this one fixture stands in for all
+# four). This is the case that MUST still block — `held` stays the default
+# whenever adoption isn't positively proven.
+scenario_S18b() {
+    holding_scenario S18b blocked-device-ssh-held \
+        "holding=yours" \
+        "stage=device-ssh" \
+        "message=This Mac's existing GitHub connection signs in as a different account (other-account), so I left it exactly as it is."
 }
 
 # S20 — H6 via a genuine `.exit2(code:message:)`: proves the code/message
@@ -470,10 +511,10 @@ scenario_S20() {
         "message=Could not reach GitHub to read the organization setup."
 }
 
-# S21 — the support block's empty-value guard (`holding-copy-spec.md` §5:
-# "Never print `unknown`, `nil`, `n/a`, or an empty value... A missing line
-# is honest; a fabricated one is not."). The CLI's exit-2 envelope here
-# carries `code`/`message` as PRESENT BUT EMPTY strings (not omitted, not
+# S21 — the support block's empty-value guard (§2.9.1: "Never print
+# `unknown`, `nil`, `n/a`, or an empty value... A missing line is honest;
+# a fabricated one is not."). The CLI's exit-2 envelope here carries
+# `code`/`message` as PRESENT BUT EMPTY strings (not omitted, not
 # "unknown" — `CliClient`'s `ErrorEnvelope.code`/`.message` are plain
 # non-optional `String`s, so `""` decodes straight through). Uses
 # `assert_not_contains`, unlike S18-S20, and asserts against the
@@ -496,6 +537,37 @@ scenario_S21() {
     assert_contains "${id} (CT_FIXTURE=${fixture})" "Recorded:"
     assert_not_contains "${id} (CT_FIXTURE=${fixture})" "Code:"
     assert_not_contains "${id} (CT_FIXTURE=${fixture})" "Message:"
+}
+
+# S22 — H7: `registration == "not-permitted"` on the SAME `device-ssh` gate
+# S18b/S19 exercise, discriminated purely by that one CLI-emitted token,
+# checked BEFORE the `config == "held"` branch (Appendix D.2's own gate
+# table order).
+scenario_S22() {
+    holding_scenario S22 device-ssh-not-permitted \
+        "holding=needsPermission" \
+        "stage=device-ssh" \
+        "message=Your GitHub sign-in doesn't include permission to add this Mac's key."
+}
+
+# S23 — the completion rule (copy spec §2.10) as a pure predicate: five
+# constructed cases, one per condition it must catch, PLUS the
+# `codex-plugin`-excluded-when-declined case this implementation report
+# flags as an extension beyond the spec's literal condition 3 (a fully
+# successful claude-only run must still pass). This is the boolean every
+# terminal confirmation (`Everything checks out.` / H4's `Keep what I have`)
+# is gated on — proving it directly is the load-bearing test for "§2.10
+# renders instead of a resolved-sounding confirmation", since no mechanism
+# in this suite asserts against a rendered SwiftUI tree.
+scenario_S23() {
+    local id="S23"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=completion-rule
+    rm -rf "${home}"
+    assert_exit_zero "${id} (CT_SELFTEST_STEP=completion-rule)"
+    assert_contains "${id}" "SELFTEST completionRule full=true missingStage=false blockedStage=false blockedResult=false claudeOnlyNoCodex=true"
 }
 
 # ==========================================================================
@@ -587,9 +659,12 @@ scenario_S16
 scenario_S17a
 scenario_S17b
 scenario_S18
+scenario_S18b
 scenario_S19
 scenario_S20
 scenario_S21
+scenario_S22
+scenario_S23
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

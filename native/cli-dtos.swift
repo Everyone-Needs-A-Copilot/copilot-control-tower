@@ -85,6 +85,39 @@ struct AuthPoll: Decodable {
     let status: AuthPollStatus
 }
 
+// MARK: - auth grant --json (H7's primary — NOT YET a frozen schema entry)
+//
+// `docs/03-design/control-tower-copy-deck.md` §2.9.3 / Appendix D.2 ("the
+// same open seam as decision D-3-M3") describes this verb's shape, but
+// `docs/01-architecture/schemas/auth.schema.json` has no `grant`/`unavailable`
+// `$def` as of this change, and the installed `cc` this app was built
+// against (`cc auth --help`) does not implement the subcommand at all yet.
+// Every property below is therefore OPTIONAL and decoded leniently —
+// `native/cli-client.swift`'s `authGrantInitiate`/`authGrantPoll`
+// deliberately bypass `decodeVerb`'s `SchemaGate` (which would reject a
+// response with no `schema_version`) and decode straight into these instead.
+// A response this app cannot make sense of — decode failure, a missing
+// device-flow field, or an explicit `result: "unavailable"` — is folded by
+// `WizardModel.beginGrantFlow` into `GrantFlowStatus.unavailable`, never
+// surfaced as a raw error and never left spinning with no way forward
+// (holding-copy-spec H7: "must not render a button that does nothing").
+struct AuthGrantStart: Decodable {
+    let result: String?
+    let userCode: String?
+    let verificationUri: String?
+    let deviceCode: String?
+    let interval: Int?
+}
+
+struct AuthGrantPoll: Decodable {
+    let result: String?
+    /// Expected values once the verb is real: `pending` | `granted` |
+    /// `denied` | `expired` — read as a plain `String`, not an enum, since
+    /// this contract isn't frozen yet and an unrecognized value should be
+    /// treated as still-pending rather than fail the decode outright.
+    let status: String?
+}
+
 enum AuthState: String, Decodable {
     case authorized
     case signedOut = "signed-out"
