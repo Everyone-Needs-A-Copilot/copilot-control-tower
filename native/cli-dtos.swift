@@ -546,8 +546,13 @@ struct EcosystemOnboardStage: Decodable {
     /// §3: "This Mac already has a GitHub connection I didn't set up" is
     /// invariant #3 working, never a fault) — see `WizardModel`'s Holding
     /// classifier in `native/wizard.swift`. `registration` is decoded for
-    /// completeness (the CLI always emits it alongside the other two) but is
-    /// not currently read by any discriminator.
+    /// completeness (the CLI always emits it alongside the other two) and IS
+    /// read: `registration == "not-permitted"` is Holding's H7 discriminator
+    /// (`WizardModel.holdingInfo(forBlockedOnboard:)`'s `device-ssh` branch,
+    /// checked BEFORE the `config == "held"` H4 branch, per copy spec
+    /// Appendix D.2's gate table) and drives `TrayModel.permissionNeededPending`
+    /// (`native/control-tower-tray.swift`), Region 6's `permission-needed`
+    /// prompt.
     let key: String?
     let registration: String?
     let config: String?

@@ -1052,9 +1052,26 @@ final class WizardModel: ObservableObject {
     /// Appendix D.3, "Bug 1"). The scope word itself never reaches the
     /// screen either way — `onboardQuestionView` groups by scope into two
     /// cards, it does not render it as text.
+    ///
+    /// DEFENSIVE (forward-looking, no known live case today): a
+    /// `reversible: true` row is only ever offered as a real checkbox if
+    /// `componentId(fromPersonalInventoryId:)` can translate its `id` into a
+    /// real `--adopt-existing` token. If a future CLI change adds a THIRD
+    /// ask-row id shape (neither `personal-<component>` nor the fixed
+    /// `device-ssh`) before this app's token map is updated to match, that
+    /// row is folded into `review` instead of `ask` — never rendered as a
+    /// checkbox. This is the exact class of bug `componentId`'s own doc
+    /// comment names ("Bug 2"), closed for ANY future id, not just
+    /// `device-ssh`: a checkbox whose consent silently never reaches the CLI
+    /// is a false choice, and the review-row rendering ("Kept as is") stays
+    /// TRUE either way, since this app never attempts to adopt what it
+    /// cannot map. `CT_ONBOARD_QUESTION_SELFTEST`'s `unmappedId=` assertion
+    /// (`control-tower-tray.swift`) proves this with a synthetic id.
     nonisolated static func personalOnboardQuestion(from report: EcosystemOnboardReport) -> (ask: [EcosystemInventoryItem], review: [EcosystemInventoryItem]) {
         let inventory = report.inventory ?? []
-        return (inventory.filter { $0.reversible }, inventory.filter { $0.action == "review" })
+        let ask = inventory.filter { $0.reversible && componentId(fromPersonalInventoryId: $0.id) != nil }
+        let review = inventory.filter { $0.action == "review" || ($0.reversible && componentId(fromPersonalInventoryId: $0.id) == nil) }
+        return (ask, review)
     }
 
     /// `EcosystemInventoryItem.id` -> the consent token `ensure_machine_ssh_identity`/
@@ -1360,6 +1377,17 @@ final class WizardModel: ObservableObject {
     func includeOnboardSelections() {
         onboardQuestionAnswered = true
         let components = onboardSelections.compactMap(Self.componentId(fromPersonalInventoryId:))
+        // Defense in depth, not the primary fix: `personalOnboardQuestion(from:)`
+        // already excludes any row `componentId` can't map from `ask`, so
+        // `onboardSelections` (built only from `onboardQuestionItems`, i.e.
+        // `ask`) should never contain an unmappable id by construction. If
+        // this ever fires, some OTHER code path put an id here the token map
+        // doesn't cover — loud in dev/test builds rather than a silently
+        // dropped consent (copy spec Appendix D.3's "Bug 2", for a future id).
+        assert(
+            components.count == onboardSelections.count,
+            "componentId(fromPersonalInventoryId:) returned nil for a selected ask-row id — personalOnboardQuestion(from:) should have kept it out of the ask list entirely"
+        )
         adoptExisting.formUnion(components)
         performDetect(replanning: true)
     }
@@ -4460,6 +4488,35 @@ final class WizardWindowController: NSWindowController {
     func reopenForConnectionOffer() {
         if !model.onboardQuestionItems.isEmpty {
             model.returnToOnboardQuestion()
+        } else {
+            model.runDetect()
+        }
+        show()
+    }
+
+    /// Region 6's `permission-needed` PROMPT (`native/control-tower-tray.swift`,
+    /// `control-tower-copy-deck.md` §1.8): reopens this SAME wizard singleton
+    /// positioned at Holding's H7 variant (a missing GitHub permission, copy
+    /// spec §3). `Continue in the menu bar` only ever closes the window
+    /// (every Holding view's `onClose`) — it never resets `model.phase` — so
+    /// if this session already reached H7 once, the model is STILL sitting
+    /// on that exact `HoldingInfo`, and this reopens directly onto it with no
+    /// re-fetch: the same "return to what's already there" shape
+    /// `reopenForConnectionOffer()` above uses for its own cached ask-row
+    /// case. Otherwise (a fresh launch, or the wizard was never opened this
+    /// session at all), there is nothing cached to return to, so this
+    /// re-runs Detect fresh — `holdingInfo(forBlockedOnboard:)`'s own
+    /// `registration == "not-permitted"` branch (Appendix D.2's gate table,
+    /// checked BEFORE the held-for-you H4 case on the same `device-ssh`
+    /// stage) is what re-derives H7 from the live CLI, never guessed here.
+    /// H7's own screen already degrades honestly to the manual fallback
+    /// sheet when `cc auth grant` is absent/`unavailable` (`beginGrantFlow`/
+    /// `grantUnavailableKnown`) — this method only ever navigates to that
+    /// screen, so the tray action inherits that same honesty for free
+    /// rather than needing its own copy of it.
+    func reopenForPermissionNeeded() {
+        if case .holding(let info) = model.phase, info.variant == .needsPermission {
+            // Already there — nothing to re-fetch.
         } else {
             model.runDetect()
         }

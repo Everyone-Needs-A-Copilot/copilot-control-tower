@@ -301,6 +301,18 @@ final class TrayModel: ObservableObject {
     /// every poll, never remembered/suppressed by this app (invariant #1 —
     /// no app-side "already declined" flag to fall out of sync with).
     @Published private(set) var connectionOfferPending = false
+    /// Region 6's `permission-needed` PROMPT (`control-tower-copy-deck.md`
+    /// §1.8): true when the SAME read-only `ecosystemOnboardPlan` refresh
+    /// finds the `device-ssh` stage reporting `registration: "not-permitted"`
+    /// — the CLI-emitted enum token Holding's H7 gate itself discriminates
+    /// on (`WizardModel.holdingInfo(forBlockedOnboard:)`, `native/wizard.swift`),
+    /// never sniffed from `detail` prose. Unlike `connectionOfferPending`
+    /// above (an offer, rendered as a NOTICE), this is a real fix only the
+    /// person can make, so it renders as a PROMPT (§1.8's Bob lane,
+    /// `permission-needed` row) — re-derived fresh on every poll, exactly
+    /// like `connectionOfferPending`, so this app never needs its own
+    /// "already saw this" memory that could fall out of sync with the CLI.
+    @Published private(set) var permissionNeededPending = false
     /// Per-row transient state for the drill-in's `Add`/`Finish setup`
     /// grammar (adopt-and-project-setup spec, "Menu bar: Your projects").
     /// Keyed by `WorkspaceEntry.path`, same convention `joinRowStates` above
@@ -347,12 +359,15 @@ final class TrayModel: ObservableObject {
         let onboard = await onboardResult
 
         if case .success(let report) = onboard {
-            connectionOfferPending = report.stages.first(where: { $0.stage == "device-ssh" })?.config == "adoptable"
+            let deviceSsh = report.stages.first(where: { $0.stage == "device-ssh" })
+            connectionOfferPending = deviceSsh?.config == "adoptable"
+            permissionNeededPending = deviceSsh?.registration == "not-permitted"
         } else {
-            // A failed read never claims the offer is pending — same
+            // A failed read never claims the offer/prompt is pending — same
             // "degrades gracefully, never guesses" rule every other
             // secondary call in this function follows.
             connectionOfferPending = false
+            permissionNeededPending = false
         }
 
         switch doctor {
@@ -877,12 +892,13 @@ struct PopoverContentView: View {
             Divider()
             actionRow
 
-            // Region 6: at most one PROMPT (unchanged), then, independently,
-            // any number of NOTICES — sequential rendering per the spec's
-            // own "Architecture decision": the unsaved-changes prompt can no
-            // longer make a notice invisible, and notices stack (unlike the
-            // "at most one" prompt rule).
-            unsavedChangesPromptRegion
+            // Region 6: at most one PROMPT (the dirty-WIP hold, then, only if
+            // that isn't showing, the `permission-needed` prompt), then,
+            // independently, any number of NOTICES — sequential rendering
+            // per the spec's own "Architecture decision": the unsaved-changes
+            // prompt can no longer make a notice invisible, and notices stack
+            // (unlike the "at most one" prompt rule).
+            bobLanePromptRegion
             if !showingProjectsPanel {
                 projectsNoticeRegion
                 connectionOfferNoticeRegion
@@ -1060,15 +1076,21 @@ struct PopoverContentView: View {
         .padding(.horizontal, 12)
     }
 
-    // MARK: Region 6 — at most one PROMPT (the dirty-WIP hold,
-    // `control-tower-copy-deck.md` §1.8, exactly one affordance, never a
-    // discard button — never-destroy), then, independently, the projects
-    // NOTICE (adopt-and-project-setup spec). Sequential rendering, per that
-    // spec's own "Architecture decision": re-ordering the old `else if`
-    // chain would only change which state wins and still hide one behind
-    // the other — this fixes the class of bug, not one instance of it.
+    // MARK: Region 6 — at most one PROMPT (`control-tower-copy-deck.md`
+    // §1.8's Bob lane, exactly one affordance each, never a discard button —
+    // never-destroy), then, independently, the projects NOTICE
+    // (adopt-and-project-setup spec). Sequential rendering, per that spec's
+    // own "Architecture decision": re-ordering the old `else if` chain would
+    // only change which state wins and still hide one behind the other —
+    // this fixes the class of bug, not one instance of it.
+    //
+    // Two prompt kinds share this ONE lane, checked in order (the dirty-WIP
+    // hold first — it is about an update already in flight, the more urgent
+    // of the two — then `permission-needed`, a real fix the person owns but
+    // is never blocking anything mid-flight): "at most one" means exactly
+    // that, never both stacked.
 
-    private var unsavedChangesPromptRegion: some View {
+    private var bobLanePromptRegion: some View {
         Group {
             if model.state.clientState != .cliUnreadable,
                let fanout = model.lastFanout, fanout.summary.held > 0 {
@@ -1080,6 +1102,29 @@ struct PopoverContentView: View {
                     Button("Review your changes") {
                         showingWhatChanged = true
                         showingProjectDrillIn = true
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.horizontal, 12)
+            } else if model.state.clientState != .cliUnreadable, model.permissionNeededPending {
+                // `permission-needed` (`control-tower-copy-deck.md` §1.8):
+                // the sibling of `connectionOfferNoticeRegion` below, on the
+                // SAME `device-ssh` stage, but a PROMPT rather than a
+                // NOTICE — this is a real fix only the person can make, not
+                // an offer they can shrug off. `Grant this on GitHub`
+                // reopens the wizard directly onto Holding's H7 screen,
+                // which already degrades honestly to the manual fallback
+                // sheet when `cc auth grant` is absent/`unavailable` — this
+                // button never dead-ends because it never re-implements
+                // that logic, it only navigates to the screen that already
+                // has it.
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("GitHub needs one more permission before this Mac can finish setting up.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .labelColor))
+                    Button("Grant this on GitHub") {
+                        WizardWindowController.shared.reopenForPermissionNeeded()
                     }
                     .buttonStyle(.bordered)
                 }
@@ -1155,8 +1200,11 @@ struct PopoverContentView: View {
     }
 
     /// The `connection-offer` notice (`control-tower-copy-deck.md` §1.8) —
-    /// the ONE net-new menu-bar element in the copy spec that introduced it.
-    /// A NOTICE, not a prompt: an offer the person already declined (or
+    /// the one net-new menu-bar element the spec that introduced STATE 1 (the
+    /// adopt offer) added. `bobLanePromptRegion`'s `permission-needed`
+    /// prompt above is the sibling element the LATER STATE 3 half of that
+    /// same body of copy work added on the SAME `device-ssh` stage. A
+    /// NOTICE, not a prompt: an offer the person already declined (or
     /// hasn't seen yet) is not a fault, so this stacks alongside
     /// `projectsNoticeRegion` rather than competing with the "at most one"
     /// prompt lane, and carries no badge on the menu-bar glyph.
@@ -2152,6 +2200,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
 
+                // Region 6's `permission-needed` prompt / `connection-offer`
+                // notice (`control-tower-copy-deck.md` §1.8) — both derived,
+                // live, from the SAME read-only `ecosystemOnboardPlan` the
+                // `refresh()` call just ran above, never from a cached/offline
+                // decode. `scripts/tests/smoke-scenarios.sh`'s S24-S26 assert
+                // directly on this line.
+                print("SELFTEST permissionNeeded=\(controller.model.permissionNeededPending) connectionOffer=\(controller.model.connectionOfferPending)")
+
                 print("SELFTEST firstRun=\(isFirstRun)")
                 exit(0)
             }
@@ -2274,12 +2330,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             == "Without this, Claude Copilot can't be set up on this Mac. You can include it later."
             && ask.first(where: { $0.id == "personal-cli" })?.declineDetail == nil
 
-        let passed = repoRowDecodePass && splitPass && componentIdPass && declineDetailPass
+        // DEFENSIVE, forward-looking (no known live CLI case today): a
+        // synthetic id matching NEITHER known consent-token shape
+        // (`personal-<component>` nor the fixed `device-ssh`) — stands in
+        // for whatever a future third ask-row shape might carry, not a
+        // prediction of its real name. Proves `personalOnboardQuestion(from:)`
+        // never offers a checkbox this app cannot translate into a real
+        // `--adopt-existing` token: the row must land in `review` (no
+        // checkbox — "Kept as is" stays true, since this app never attempts
+        // to adopt what it cannot map), never in `ask`. Closes the class of
+        // bug `componentId(fromPersonalInventoryId:)`'s own doc comment
+        // names ("Bug 2" — a nil token silently drops consent) for any
+        // FUTURE id, not just the `device-ssh` case already fixed.
+        let unmappedJSON = """
+        {
+          "schema_version": "1.0",
+          "scope": "ecosystem",
+          "mode": "plan",
+          "result": "changes-required",
+          "org": "acme-co",
+          "products": ["claude"],
+          "stages": [],
+          "layers": [],
+          "inventory": [
+            {"id": "unmapped-example-row", "scope": "machine", "title": "Something this app doesn't recognize yet", "state": "adoptable", "action": "create", "detail": "Placeholder detail for a hypothetical future ask row.", "source_path": null, "destination_path": null, "reversible": true}
+          ],
+          "inventory_summary": {"reused": 0, "changes": 1, "review": 0}
+        }
+        """
+        guard let unmappedData = unmappedJSON.data(using: .utf8),
+              let unmappedReport = try? selftestDecoder().decode(EcosystemOnboardReport.self, from: unmappedData) else {
+            print("SELFTEST onboardQuestion unmappedDecode=fail")
+            return false
+        }
+        let (unmappedAsk, unmappedReview) = WizardModel.personalOnboardQuestion(from: unmappedReport)
+        let unmappedIdPass = unmappedAsk.isEmpty
+            && unmappedReview.count == 1
+            && unmappedReview.first?.id == "unmapped-example-row"
+            && WizardModel.componentId(fromPersonalInventoryId: "unmapped-example-row") == nil
+
+        let passed = repoRowDecodePass && splitPass && componentIdPass && declineDetailPass && unmappedIdPass
         print(
             "SELFTEST onboardQuestion repoRowDecode=\(repoRowDecodePass ? "pass" : "fail") "
                 + "askCount=\(ask.count) reviewCount=\(review.count) "
                 + "componentId=\(componentIdPass ? "pass" : "fail") "
-                + "declineDetail=\(declineDetailPass ? "pass" : "fail")"
+                + "declineDetail=\(declineDetailPass ? "pass" : "fail") "
+                + "unmappedId=\(unmappedIdPass ? "pass" : "fail")"
         )
         return passed
     }

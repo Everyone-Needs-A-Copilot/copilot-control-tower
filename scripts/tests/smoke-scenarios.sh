@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
-# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S23) for both
+# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S26) for both
 # native binaries, driven entirely by the mock CLI
 # (`src-tauri/fixtures/mock-cc`) and the SELFTEST contract:
 #
 #   CT_SELFTEST=1                       -> prints `SELFTEST badge=<...>
 #                                           sentence=<...>`, optionally
 #                                           `SELFTEST recently=<...>` (when
-#                                           CT_FIXTURE is a projects fixture)
-#                                           and `SELFTEST firstRun=<bool>`,
-#                                           then exits 0.
+#                                           CT_FIXTURE is a projects fixture),
+#                                           always `SELFTEST
+#                                           permissionNeeded=<bool>
+#                                           connectionOffer=<bool>` (Region
+#                                           6's `permission-needed` prompt /
+#                                           `connection-offer` notice,
+#                                           `control-tower-copy-deck.md`
+#                                           §1.8 — both derived live from the
+#                                           SAME read-only `ecosystemOnboardPlan`
+#                                           this hook's own `refresh()` call
+#                                           makes), and `SELFTEST
+#                                           firstRun=<bool>`, then exits 0.
 #   CT_SELFTEST=1 CT_OPEN_WIZARD=1       -> prints `SELFTEST
 #                                           auth=<authorized|denied|expired|
 #                                           pending> signedInAs=<login|none>`
@@ -571,6 +580,48 @@ scenario_S23() {
 }
 
 # ==========================================================================
+# Scenarios S24..S26 — Region 6's `permission-needed` prompt
+# (`TrayModel.permissionNeededPending`, `control-tower-tray.swift`), driven
+# through the SAME live, end-to-end `refresh()` path `badge_scenario` above
+# already exercises (never an offline decode-only stub): the plain
+# (non-wizard) CT_SELFTEST=1 hook calls `controller.model.refresh()` for
+# real against the mock CLI, which now also prints the tray's own
+# `permissionNeeded=`/`connectionOffer=` state, both derived from the SAME
+# `device-ssh` stage the wizard's H7 gate (S22 above) and `connection-offer`
+# notice already read — discriminated purely by the CLI's own
+# `registration`/`config` enum tokens, never by prose.
+# ==========================================================================
+
+connection_prompt_scenario() {
+    local id="$1" fixture="$2" expected_permission_needed="$3" expected_connection_offer="$4"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE="${fixture}" CT_SELFTEST=1
+    rm -rf "${home}"
+    assert_exit_zero "${id} (CT_FIXTURE=${fixture})"
+    assert_contains "${id} (CT_FIXTURE=${fixture})" \
+        "SELFTEST permissionNeeded=${expected_permission_needed} connectionOffer=${expected_connection_offer}"
+}
+
+# S24 — the prompt appears exactly when the CLI's own `registration` token
+# reads `not-permitted` on the `device-ssh` stage (the SAME `device-ssh-not-permitted`
+# fixture S22 uses for the wizard's own H7 screen).
+scenario_S24() { connection_prompt_scenario S24 device-ssh-not-permitted true false; }
+
+# S25 — the sibling case (`connection-offer`, already live): proves the two
+# are mutually exclusive on this same stage, never both true at once, using
+# the SAME `device-ssh-adoptable` fixture S18 uses for the wizard's own
+# question screen.
+scenario_S25() { connection_prompt_scenario S25 device-ssh-adoptable false true; }
+
+# S26 — neither renders on a plan whose `device-ssh` stage carries neither
+# carved-out token at all (`mock-cc`'s un-fixtured default `onboard` body,
+# returned for any OTHER $CT_FIXTURE) — the "does not appear otherwise"
+# half of the task this closes.
+scenario_S26() { connection_prompt_scenario S26 healthy-clean-fleet false false; }
+
+# ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
 
@@ -665,6 +716,9 @@ scenario_S20
 scenario_S21
 scenario_S22
 scenario_S23
+scenario_S24
+scenario_S25
+scenario_S26
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="
