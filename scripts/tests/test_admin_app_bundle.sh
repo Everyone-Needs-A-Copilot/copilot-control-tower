@@ -143,6 +143,67 @@ if [[ "${completion_department_output}" != *"ADMIN_COMPLETION_DEPARTMENTS restor
   exit 1
 fi
 
+# Regression test for "Review's two spinners never resolve": a saved brief
+# pre-planted on disk (as if restored from a prior launch), then the real
+# `admin_bootstrap.sh --plan` engine runs against it. Only `gh` is faked, in
+# its OWN tools directory — deliberately NOT the shared
+# `${FIXTURE_ROOT}/tools` above, whose `jq` is a bare tool-presence stub
+# (`--version` only) for the readiness selftest. `admin_bootstrap.sh` needs a
+# REAL, working `jq` to build its plan JSON; shadowing it with that stub
+# makes the real engine fail closed (exit 2, no output) before ever reaching
+# the bug this test exists to catch. The real system `jq` resolves from the
+# rest of PATH, inherited unchanged, since this fixture directory never
+# contains one.
+mkdir -p "${FIXTURE_ROOT}/plan-tools"
+cat > "${FIXTURE_ROOT}/plan-tools/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "api" && "${2:-}" == repos/* ]]; then
+  # `admin_bootstrap.sh --plan`'s `_probe_repo` (`gh api repos/<org>/<repo>
+  # --jq .private`) — every probed repository reads back as an existing
+  # private repo, so a plan built against this fixture always decodes to a
+  # non-empty, all-"existing-private" `AdminRepositoryPlan`.
+  echo "true"
+  exit 0
+fi
+echo "unexpected fixture gh invocation: $*" >&2
+exit 2
+EOF
+chmod 755 "${FIXTURE_ROOT}/plan-tools/gh"
+
+mkdir -p "${FIXTURE_ROOT}/home-review-restore/Library/Application Support/CopilotControlTower"
+cat > "${FIXTURE_ROOT}/home-review-restore/Library/Application Support/CopilotControlTower/standup-brief.json" <<'EOF'
+{
+  "schema_version": "1.0",
+  "org": "acme-co",
+  "harness": ["claude", "codex"],
+  "github_app": {"client_id": "Iv1.a1b2c3d4e5f6a7b8"},
+  "departments": [],
+  "store": {"status": "deferred"},
+  "contacts": {"publisher": "", "admin": "", "point_of_contact": ""}
+}
+EOF
+
+review_restore_output="$(
+  HOME="${FIXTURE_ROOT}/home-review-restore" \
+  CT_ADMIN_TOOLS_DIR="${FIXTURE_ROOT}/plan-tools" \
+  CT_ADMIN_REVIEW_RESTORE_SELFTEST=1 \
+  "${BIN}"
+)"
+if [[ "${review_restore_output}" != *"ADMIN_REVIEW_RESTORE precondition=pass triggered=pass planLoaded=pass neverIdleAgain=pass"* ]]; then
+  echo "Admin review-restore selftest failed: ${review_restore_output}" >&2
+  exit 1
+fi
+
+process_stream_output="$(
+  CT_ADMIN_PROCESS_STREAM_SELFTEST=1 \
+  "${BIN}"
+)"
+if [[ "${process_stream_output}" != *"ADMIN_PROCESS_STREAM lineFraming=pass largeOutputNoDeadlock=pass streamingCallback=pass timeout=pass"* ]]; then
+  echo "Admin process-stream selftest failed: ${process_stream_output}" >&2
+  exit 1
+fi
+
 if rg -Fq 'Picker("", selection: $model.harness)' native/admin.swift; then
   echo "Admin still uses an exclusive harness picker" >&2
   exit 1

@@ -1659,6 +1659,124 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 exit(passed ? 0 : 1)
             }
 
+            // Regression test for the "Review step's two spinners never
+            // resolve" bug: `restoreSavedStateIfAvailable()`
+            // (`native/admin.swift`) sets `lastWrittenBriefFingerprint`
+            // directly when restoring a saved brief at launch, WITHOUT ever
+            // calling `writeBrief()`/`loadRepositoryPlan()`. The old
+            // fingerprint-only guard on Review's `.task` then saw a
+            // "matching" fingerprint and skipped all work forever, leaving
+            // both `briefWriteState`/`repositoryPlanState` at `.idle` (a
+            // permanent spinner — see `WriteState`'s render code in
+            // `native/admin.swift`'s `briefCard`/`repositoryInventoryCard`).
+            // Proves, against the REAL `admin_bootstrap.sh --plan` engine
+            // (only `gh` is faked, by the test harness's `CT_ADMIN_TOOLS_DIR`
+            // fixture — never a hand-built fixture payload, unlike this
+            // file's other selftests, because the whole point is exercising
+            // the actual shell-out): (1) the precondition that used to hide
+            // the bug (fingerprint already matches, nothing ever attempted)
+            // is real after a genuine disk restore; (2)
+            // `refreshReviewIfNeeded()` (`native/admin-support.swift`) does
+            // NOT skip it regardless; (3) the plan that comes back actually
+            // decodes into `AdminRepositoryPlan` (the dedicated type this
+            // fix also introduces — reusing `cc onboard`'s `OnboardReport`
+            // here used to fail every real decode independently of the
+            // fingerprint bug, since admin's engine has never emitted that
+            // schema's required `rank`/`package_state` fields).
+            if env["CT_ADMIN_REVIEW_RESTORE_SELFTEST"] == "1" {
+                let model = AdminModel()
+                Task { @MainActor in
+                    await model.restoreSavedStateIfAvailable()
+                    let preconditionPass = model.lastWrittenBriefFingerprint == model.briefFingerprint
+                        && model.briefWriteState == .idle
+                        && model.repositoryPlanState == .idle
+                        && model.repositoryPlan == nil
+
+                    await model.refreshReviewIfNeeded()
+
+                    let triggeredPass = model.briefWriteState == .success
+                    let planLoadedPass = model.repositoryPlanState == .success
+                        && model.repositoryPlan != nil
+                        && !(model.repositoryPlan?.repositories.isEmpty ?? true)
+                    let neverIdleAgainPass = model.repositoryPlanState != .idle
+
+                    let passed = preconditionPass && triggeredPass && planLoadedPass && neverIdleAgainPass
+                    print(
+                        "ADMIN_REVIEW_RESTORE "
+                            + "precondition=\(preconditionPass ? "pass" : "fail") "
+                            + "triggered=\(triggeredPass ? "pass" : "fail") "
+                            + "planLoaded=\(planLoadedPass ? "pass" : "fail") "
+                            + "neverIdleAgain=\(neverIdleAgainPass ? "pass" : "fail")"
+                    )
+                    exit(passed ? 0 : 1)
+                }
+                return
+            }
+
+            // Offline coverage for `ShellRunner`'s process-pipe plumbing
+            // (`native/admin.swift`/`native/cli-client.swift`'s shared
+            // `LineFramer`/`ProcessDrain`): line framing (including a line
+            // split across two reads and a final line with no trailing
+            // newline), a streaming callback alongside the unchanged full
+            // accumulated output, real large output that would deadlock the
+            // OLD `waitUntilExit()`-before-drain ordering, and the new
+            // timeout capability firing promptly instead of hanging or
+            // silently retrying.
+            if env["CT_ADMIN_PROCESS_STREAM_SELFTEST"] == "1" {
+                Task { @MainActor in
+                    var framedLines: [String] = []
+                    let framer = LineFramer { framedLines.append($0) }
+                    framer.feed(Data("hel".utf8))
+                    let midFeedPass = framedLines.isEmpty
+                    framer.feed(Data("lo\nworld\npartial".utf8))
+                    let splitLinePass = framedLines == ["hello", "world"]
+                    framer.flush()
+                    let finalLineNoNewlinePass = framedLines == ["hello", "world", "partial"]
+                    framer.flush()
+                    let idempotentFlushPass = framedLines == ["hello", "world", "partial"]
+                    let lineFramingPass = midFeedPass && splitLinePass && finalLineNoNewlinePass && idempotentFlushPass
+
+                    // Both pipes fill well past one pipe buffer (64KB)
+                    // CONCURRENTLY — exactly the shape that deadlocks a
+                    // sequential-drain or drain-after-`waitUntilExit()`
+                    // implementation.
+                    let largeOutputStart = Date()
+                    let largeOutputResult = await ShellRunner.run(
+                        "(yes | head -c 500000 >&2) & (yes | head -c 500000 >&1) & wait"
+                    )
+                    let largeOutputElapsed = Date().timeIntervalSince(largeOutputStart)
+                    let largeOutputPass = largeOutputResult.exitCode == 0
+                        && largeOutputResult.stdout.count == 500_000
+                        && largeOutputResult.stderr.count == 500_000
+                        && largeOutputElapsed < 30
+                        && !largeOutputResult.timedOut
+
+                    var streamedLines: [String] = []
+                    let streamResult = await ShellRunner.run(
+                        "printf 'one\\ntwo\\nthree\\n'",
+                        onStdoutLine: { line in streamedLines.append(line) }
+                    )
+                    let streamingPass = streamResult.stdout == "one\ntwo\nthree\n"
+                        && streamedLines == ["one", "two", "three"]
+
+                    let timeoutStart = Date()
+                    let timeoutResult = await ShellRunner.run("sleep 5", timeout: 1)
+                    let timeoutElapsed = Date().timeIntervalSince(timeoutStart)
+                    let timeoutPass = timeoutResult.timedOut && timeoutElapsed < 4
+
+                    let passed = lineFramingPass && largeOutputPass && streamingPass && timeoutPass
+                    print(
+                        "ADMIN_PROCESS_STREAM "
+                            + "lineFraming=\(lineFramingPass ? "pass" : "fail") "
+                            + "largeOutputNoDeadlock=\(largeOutputPass ? "pass" : "fail") "
+                            + "streamingCallback=\(streamingPass ? "pass" : "fail") "
+                            + "timeout=\(timeoutPass ? "pass" : "fail")"
+                    )
+                    exit(passed ? 0 : 1)
+                }
+                return
+            }
+
             if env["CT_ADMIN_READINESS_SELFTEST"] == "1" {
                 let model = AdminModel()
                 model.orgNameInput = env["CT_ADMIN_ORG"] ?? "acme-co"

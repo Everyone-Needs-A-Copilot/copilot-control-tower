@@ -183,12 +183,18 @@ extension AdminModel {
         }
         let result = await ShellRunner.run(
             executable: "/bin/bash",
-            arguments: [AdminPaths.enginePath, "--plan", "--brief", AdminPaths.briefJSONPath, "--json"]
+            arguments: [AdminPaths.enginePath, "--plan", "--brief", AdminPaths.briefJSONPath, "--json"],
+            timeout: AdminPaths.engineTimeout
         )
+        guard !result.timedOut else {
+            repositoryPlanState = .failure
+            repositorySetupMessage = "GitHub didn't respond in time, so I stopped checking the repository inventory. Nothing was created. Check your connection and try again."
+            return
+        }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         guard let data = result.stdout.data(using: .utf8),
-              let plan = try? decoder.decode(OnboardReport.self, from: data),
+              let plan = try? decoder.decode(AdminRepositoryPlan.self, from: data),
               Self.isSchemaVersionSupported(plan.schemaVersion)
         else {
             repositoryPlanState = .failure
@@ -210,8 +216,14 @@ extension AdminModel {
         // before any mutation; this is the explicit application confirmation.
         let result = await ShellRunner.run(
             executable: "/bin/bash",
-            arguments: [AdminPaths.enginePath, "--brief", AdminPaths.briefJSONPath]
+            arguments: [AdminPaths.enginePath, "--brief", AdminPaths.briefJSONPath],
+            timeout: AdminPaths.engineTimeout
         )
+        guard !result.timedOut else {
+            repositoryApplyState = .failure
+            repositorySetupMessage = "GitHub didn't respond in time, so setup stopped safely. Existing repositories were not overwritten. Check your connection and try again."
+            return
+        }
         guard result.exitCode == 0 else {
             repositoryApplyState = .failure
             await loadRepositoryPlan()
@@ -222,6 +234,79 @@ extension AdminModel {
         repositorySetupMessage = "Organization repositories are in place. Existing private repositories were reused and confirmed-missing repositories were created private."
         await loadRepositoryPlan()
     }
+
+    /// Rewrites the brief and reloads the repository plan only when
+    /// something that feeds the brief actually changed since the last
+    /// successful write (`briefFingerprint`) AND a plan has already been
+    /// attempted for that unchanged brief. Both conditions must hold to
+    /// skip — either one alone is not enough:
+    ///   - Fingerprint changed (Back + edit + return): always redo, so
+    ///     Review never shows a stale plan/command (QA fix, predates this
+    ///     comment).
+    ///   - Fingerprint unchanged but no plan attempted yet: this is
+    ///     `restoreSavedStateIfAvailable()`'s case (`native/admin.swift`) —
+    ///     restoring a saved brief at launch sets `lastWrittenBriefFingerprint`
+    ///     directly, without ever calling `writeBrief()`/`loadRepositoryPlan()`.
+    ///     Without this second condition, Review's fingerprint guard "matched"
+    ///     a plan that was never actually loaded, leaving `repositoryPlanState`
+    ///     permanently `.idle` — the real bug this comment fixes (see
+    ///     `CT_ADMIN_REVIEW_RESTORE_SELFTEST`). The plan reflects live GitHub
+    ///     state and staleness matters, so the honest fix is to actually load
+    ///     it here rather than persist a stale one just to dodge the guard.
+    func refreshReviewIfNeeded() async {
+        let briefUpToDate = lastWrittenBriefFingerprint == briefFingerprint
+        let planAttempted = repositoryPlanState != .idle
+        guard !(briefUpToDate && planAttempted) else { return }
+        await refreshReview()
+    }
+
+    func refreshReview() async {
+        let fingerprint = briefFingerprint
+        await writeBrief()
+        if briefWriteState == .success {
+            lastWrittenBriefFingerprint = fingerprint
+            await loadRepositoryPlan()
+        }
+    }
+}
+
+// MARK: - Admin's own repository-plan shape (`admin_bootstrap.sh --plan
+// --json`) — deliberately NOT `OnboardReport`/`RepositoryPlanRow`
+// (`native/cli-dtos.swift`), even though both describe
+// "component/role/owner/name/state/action/detail" rows. Those types are
+// `cc onboard --scope personal --json`'s contract: its rows additionally
+// carry `rank`/`package_state`/`package_action`/`package_detail`, fields
+// required (non-optional) on `RepositoryPlanRow` by design (see that type's
+// own doc comment and `CT_ONBOARD_QUESTION_SELFTEST`). `admin_bootstrap.sh`'s
+// `run_repository_plan()` has never emitted those — it is a different
+// producer with a different, simpler schema. Reusing `OnboardReport` here
+// used to make Swift's synthesized `Decodable` throw on every real plan load
+// (a missing required key), independent of and in addition to the
+// fingerprint-guard bug above; this dedicated type matches
+// `admin_bootstrap.sh`'s actual output, no more and no less.
+struct AdminRepositoryPlanRow: Decodable {
+    let component: String
+    let role: String
+    let unit: String?
+    let owner: String
+    let name: String
+    let visibility: String?
+    let state: RepositoryState
+    let action: String
+    let detail: String
+}
+
+struct AdminRepositoryPlan: Decodable {
+    let schemaVersion: String
+    let scope: String
+    let owner: String
+    let mode: String
+    let result: OnboardResult
+    let repositories: [AdminRepositoryPlanRow]
+    // `admin_bootstrap.sh` never emits `summary.adoptable` (that is `cc
+    // onboard`-only); `RepositoryPlanSummary.adoptable` is already optional,
+    // so reusing that summary shape here is a real, not coincidental, fit.
+    let summary: RepositoryPlanSummary
 }
 
 // MARK: - AdminModel: the verify verb (admin-standup-contract.md §3) — REAL
@@ -256,8 +341,16 @@ extension AdminModel {
 
         let result = await ShellRunner.run(
             executable: "/bin/bash",
-            arguments: [AdminPaths.enginePath, "--verify", "--brief", AdminPaths.briefJSONPath, "--json"]
+            arguments: [AdminPaths.enginePath, "--verify", "--brief", AdminPaths.briefJSONPath, "--json"],
+            timeout: AdminPaths.engineTimeout
         )
+
+        guard !result.timedOut else {
+            verifyDegradedLine = "GitHub didn't respond in time, so I couldn't finish the setup check. Check your connection and try again."
+            verifyUnknown = 1
+            verifyState = .success
+            return
+        }
 
         guard let payload = Self.parseVerifyPayload(result.stdout), Self.isSchemaVersionSupported(payload.schemaVersion) else {
             let honest = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)

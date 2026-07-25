@@ -39,6 +39,154 @@
 
 import Foundation
 
+// MARK: - Shared process-pipe plumbing
+//
+// `LineFramer`/`ProcessDrain` live here (not in `native/admin.swift`, where
+// `ShellRunner` also uses them) because this is the one process-utility file
+// compiled into BOTH the User build (`scripts/build-user.command`) and the
+// Admin build (`scripts/build-admin.command`); `native/admin.swift` is
+// Admin-only.
+
+/// Frames arbitrary incremental byte chunks into complete lines, splitting on
+/// `\n` (a trailing `\r` is trimmed so CRLF output frames the same as LF).
+/// A partial line is held until either a later chunk completes it or
+/// `flush()` delivers it as-is (e.g. at end-of-stream), so a final line with
+/// no trailing newline is still delivered exactly once, never dropped.
+/// Callers feed it from a single serial source (one pipe's readability
+/// handler, invoked serially by construction) — this is not safe to `feed`
+/// from more than one thread at a time.
+final class LineFramer {
+    private var buffer = Data()
+    private let onLine: (String) -> Void
+
+    init(onLine: @escaping (String) -> Void) {
+        self.onLine = onLine
+    }
+
+    func feed(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        buffer.append(chunk)
+        while let newlineIndex = buffer.firstIndex(of: 0x0A) {
+            emit(buffer[buffer.startIndex..<newlineIndex])
+            buffer.removeSubrange(buffer.startIndex...newlineIndex)
+        }
+    }
+
+    /// Delivers any held partial line (no trailing newline) exactly once —
+    /// call this once, at end-of-stream. A no-op when nothing is held.
+    func flush() {
+        guard !buffer.isEmpty else { return }
+        emit(buffer[buffer.startIndex...])
+        buffer.removeAll()
+    }
+
+    private func emit(_ lineData: Data.SubSequence) {
+        var trimmed = lineData
+        if trimmed.last == 0x0D { trimmed = trimmed.dropLast() }
+        onLine(String(decoding: trimmed, as: UTF8.self))
+    }
+}
+
+/// Shared pipe-draining core for every child process this app spawns
+/// (`CliClient.runRaw` below and `native/admin.swift`'s `ShellRunner`). Both
+/// runners used to either call `waitUntilExit()` before reading their pipes
+/// at all, or drain stdout and stderr strictly one after the other — either
+/// way, a child that writes more than one pipe buffer's worth (64KB) to
+/// BOTH streams can deadlock: it blocks on a full pipe write while nothing
+/// is reading that pipe. Draining both pipes concurrently via
+/// `readabilityHandler`, independent of when `waitUntilExit()` is called,
+/// makes that deadlock structurally impossible here, not just unlikely.
+enum ProcessDrain {
+    struct Result {
+        let stdout: Data
+        let stderr: Data
+        /// True when `timeout` elapsed and the process was killed rather
+        /// than exiting on its own. The caller's `terminationStatus` in
+        /// that case reflects the kill, not a real program outcome.
+        let timedOut: Bool
+    }
+
+    /// `process` must already be running (`try process.run()` already
+    /// called) with `stdoutPipe`/`stderrPipe` set as its `standardOutput`/
+    /// `standardError`. `onStdoutLine`, when non-nil, is fed every stdout
+    /// chunk through a `LineFramer` as it arrives — purely additive, the
+    /// returned `stdout` still carries the complete accumulated output
+    /// either way, so an existing non-streaming caller is unaffected.
+    /// `timeout`, when non-nil and positive, terminates the process and
+    /// sets `timedOut` if it has not exited within that many seconds,
+    /// instead of waiting forever.
+    static func run(
+        process: Process,
+        stdoutPipe: Pipe,
+        stderrPipe: Pipe,
+        timeout: TimeInterval?,
+        onStdoutLine: ((String) -> Void)?
+    ) -> Result {
+        var outData = Data()
+        var errData = Data()
+        let outHandle = stdoutPipe.fileHandleForReading
+        let errHandle = stderrPipe.fileHandleForReading
+        let outDrained = DispatchSemaphore(value: 0)
+        let errDrained = DispatchSemaphore(value: 0)
+        let lineFramer = onStdoutLine.map(LineFramer.init(onLine:))
+
+        // Each handle's `readabilityHandler` is invoked serially (never
+        // concurrently with itself), and only this closure ever touches
+        // `outData`/the framer, so no external lock is needed here.
+        outHandle.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+                lineFramer?.flush()
+                outDrained.signal()
+            } else {
+                outData.append(chunk)
+                lineFramer?.feed(chunk)
+            }
+        }
+        errHandle.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+                errDrained.signal()
+            } else {
+                errData.append(chunk)
+            }
+        }
+
+        // `waitUntilExit()` blocks its caller until the process exits; on
+        // its own dedicated task, this call can race against `timeout`
+        // below instead of hanging this whole function with it.
+        let exited = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            process.waitUntilExit()
+            exited.signal()
+        }
+
+        var timedOut = false
+        if let timeout, timeout > 0 {
+            if exited.wait(timeout: .now() + timeout) == .timedOut {
+                timedOut = true
+                process.terminate()
+                _ = exited.wait(timeout: .now() + 5)
+            }
+        } else {
+            exited.wait()
+        }
+
+        // The readability handlers deliver their final (empty-data) EOF
+        // callback once the process's pipes close, which happens at/after
+        // exit — bounded so this can never hang even if that somehow never
+        // fires.
+        _ = outDrained.wait(timeout: .now() + 5)
+        _ = errDrained.wait(timeout: .now() + 5)
+        outHandle.readabilityHandler = nil
+        errHandle.readabilityHandler = nil
+
+        return Result(stdout: outData, stderr: errData, timedOut: timedOut)
+    }
+}
+
 // MARK: - Locating the CLI binary
 
 /// Resolves the absolute path to the `cc` CLI binary this app supervises.
@@ -172,7 +320,18 @@ actor CliClient {
     /// argument array. NEVER a shell, NEVER `-lc` — every argument is passed
     /// as its own `Process.arguments` element, so nothing is ever
     /// interpolated into a shell command line.
-    func runRaw(_ args: [String]) async -> Result<(stdout: Data, exit: Int32), CliError> {
+    ///
+    /// `onStdoutLine`, when non-nil, is invoked once per complete line of
+    /// stdout as it arrives (newline-framed; see `LineFramer` above) IN
+    /// ADDITION to the full accumulated `stdout` this method always
+    /// returns — an opt-in streaming callback, additive to every existing
+    /// call site, none of which pass one. It fires off the main
+    /// thread/actor; a caller that touches `@MainActor` state from it must
+    /// hop there itself.
+    func runRaw(
+        _ args: [String],
+        onStdoutLine: ((String) -> Void)? = nil
+    ) async -> Result<(stdout: Data, exit: Int32), CliError> {
         guard let executableURL = CliLocator.locate() else {
             return .failure(.notFound)
         }
@@ -195,15 +354,27 @@ actor CliClient {
                     return
                 }
 
-                let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                // Drained but not surfaced: per the copy deck, this app never
-                // shows raw CLI/stderr text to the user (`control-tower-copy-deck.md`
-                // hard rule "never shows a raw error"); stderr is read purely to
-                // avoid the child process blocking on a full pipe buffer.
-                _ = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
+                // `ProcessDrain` (native/admin.swift) drains both pipes
+                // CONCURRENTLY, independent of when/whether
+                // `waitUntilExit()` runs — this used to read stdout fully,
+                // then stderr fully, then wait, which can still deadlock a
+                // chatty child: if it fills the stderr pipe buffer while
+                // this call is only draining stdout, the child blocks on
+                // its stderr write and never produces the rest of stdout
+                // either. stderr is drained (never surfaced) purely so the
+                // child never blocks on it — per the copy deck, this app
+                // never shows raw CLI/stderr text to the user
+                // (`control-tower-copy-deck.md` hard rule "never shows a
+                // raw error").
+                let drained = ProcessDrain.run(
+                    process: process,
+                    stdoutPipe: stdoutPipe,
+                    stderrPipe: stderrPipe,
+                    timeout: nil,
+                    onStdoutLine: onStdoutLine
+                )
 
-                continuation.resume(returning: .success((stdout: stdoutData, exit: process.terminationStatus)))
+                continuation.resume(returning: .success((stdout: drained.stdout, exit: process.terminationStatus)))
             }
         }
     }

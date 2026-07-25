@@ -58,6 +58,14 @@ import AppKit
 import SwiftUI
 
 // MARK: - Process runner (real process calls, always off the main thread)
+//
+// `LineFramer`/`ProcessDrain` (the shared pipe-draining core this runner's
+// `ShellRunner` and `native/cli-client.swift`'s `CliClient` both use) live in
+// `native/cli-client.swift` instead of here, even though this is Admin's own
+// file: `cli-client.swift` is the one process-utility file compiled into
+// BOTH the User build (`scripts/build-user.command`) and the Admin build
+// (`scripts/build-admin.command`), while this file is Admin-only. Defining
+// them here would break the User build the moment `CliClient` needed them.
 
 /// Runs commands off the main thread. Admin's packaged tools are prepended to
 /// PATH for every child process, so the product never depends on Homebrew or
@@ -67,45 +75,70 @@ enum ShellRunner {
         let exitCode: Int32
         let stdout: String
         let stderr: String
+        /// True when `timeout` elapsed and the process was killed instead
+        /// of exiting on its own — check this BEFORE trusting `exitCode`,
+        /// which reflects the kill in that case, not a real program
+        /// outcome. Defaulted so every existing call site (none of which
+        /// passed a timeout before this capability existed) is unaffected.
+        let timedOut: Bool
+
+        init(exitCode: Int32, stdout: String, stderr: String, timedOut: Bool = false) {
+            self.exitCode = exitCode
+            self.stdout = stdout
+            self.stderr = stderr
+            self.timedOut = timedOut
+        }
     }
 
-    static func run(_ command: String) async -> Output {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-                process.executableURL = URL(fileURLWithPath: shell)
-                process.arguments = ["-lc", command]
-                process.environment = AdminPaths.childProcessEnvironment
-                let outPipe = Pipe()
-                let errPipe = Pipe()
-                process.standardOutput = outPipe
-                process.standardError = errPipe
-                do {
-                    try process.run()
-                } catch {
-                    continuation.resume(returning: Output(exitCode: -1, stdout: "", stderr: error.localizedDescription))
-                    return
-                }
-                process.waitUntilExit()
-                let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-                let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-                continuation.resume(returning: Output(
-                    exitCode: process.terminationStatus,
-                    stdout: String(data: outData, encoding: .utf8) ?? "",
-                    stderr: String(data: errData, encoding: .utf8) ?? ""
-                ))
-            }
-        }
+    /// `timeout`, in seconds, bounds the WHOLE invocation — opt-in (`nil` by
+    /// default) so this stays additive for every existing call site.
+    /// `onStdoutLine`, when non-nil, is invoked once per complete line of
+    /// stdout as it arrives (newline-framed; see `LineFramer`), in addition
+    /// to the full accumulated `Output.stdout` — an opt-in streaming
+    /// callback, additive to every existing non-streaming call site. It
+    /// fires off the main thread; a caller that updates UI state from it
+    /// must hop to `@MainActor` itself.
+    static func run(
+        _ command: String,
+        timeout: TimeInterval? = nil,
+        onStdoutLine: ((String) -> Void)? = nil
+    ) async -> Output {
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        return await runProcess(
+            executableURL: URL(fileURLWithPath: shell),
+            arguments: ["-lc", command],
+            timeout: timeout,
+            onStdoutLine: onStdoutLine
+        )
     }
 
     /// Executes a fixed binary with an argument array. Mutating setup uses
     /// this path so organization names and file paths never enter a shell.
-    static func run(executable: String, arguments: [String]) async -> Output {
+    /// See `run(_:timeout:onStdoutLine:)` above for `timeout`/`onStdoutLine`.
+    static func run(
+        executable: String,
+        arguments: [String],
+        timeout: TimeInterval? = nil,
+        onStdoutLine: ((String) -> Void)? = nil
+    ) async -> Output {
+        await runProcess(
+            executableURL: URL(fileURLWithPath: executable),
+            arguments: arguments,
+            timeout: timeout,
+            onStdoutLine: onStdoutLine
+        )
+    }
+
+    private static func runProcess(
+        executableURL: URL,
+        arguments: [String],
+        timeout: TimeInterval?,
+        onStdoutLine: ((String) -> Void)?
+    ) async -> Output {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
-                process.executableURL = URL(fileURLWithPath: executable)
+                process.executableURL = executableURL
                 process.arguments = arguments
                 process.environment = AdminPaths.childProcessEnvironment
                 let outPipe = Pipe()
@@ -118,11 +151,18 @@ enum ShellRunner {
                     continuation.resume(returning: Output(exitCode: -1, stdout: "", stderr: error.localizedDescription))
                     return
                 }
-                process.waitUntilExit()
+                let drained = ProcessDrain.run(
+                    process: process,
+                    stdoutPipe: outPipe,
+                    stderrPipe: errPipe,
+                    timeout: timeout,
+                    onStdoutLine: onStdoutLine
+                )
                 continuation.resume(returning: Output(
                     exitCode: process.terminationStatus,
-                    stdout: String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "",
-                    stderr: String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                    stdout: String(data: drained.stdout, encoding: .utf8) ?? "",
+                    stderr: String(data: drained.stderr, encoding: .utf8) ?? "",
+                    timedOut: drained.timedOut
                 ))
             }
         }
@@ -230,6 +270,15 @@ enum AdminPaths {
         let cwd = FileManager.default.currentDirectoryPath
         return URL(fileURLWithPath: "scripts/admin_bootstrap.sh", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL.path
     }
+
+    /// Bounds every engine shell-out (`--plan`, the mutating apply, and
+    /// `--verify`) so a single stalled `gh api` call inside
+    /// `admin_bootstrap.sh` can no longer hang the app forever. Generous on
+    /// purpose: a real multi-department apply makes many sequential GitHub
+    /// calls (one repository/team/branch-protection/PR step per component
+    /// per department) and can legitimately take a while, so this is a
+    /// "something is clearly stuck" bound, not a "run fast" one.
+    static let engineTimeout: TimeInterval = 300
 
     /// Display-only, abbreviated the same way the copy deck shows it
     /// (`~/…/CopilotControlTower/standup-brief.md`).
@@ -749,7 +798,7 @@ final class AdminModel: ObservableObject {
     @Published var briefWriteState: WriteState = .idle
     @Published var lastWrittenBriefFingerprint: String? = nil
     @Published var repositoryPlanState: WriteState = .idle
-    @Published var repositoryPlan: OnboardReport? = nil
+    @Published var repositoryPlan: AdminRepositoryPlan? = nil
     @Published var repositoryApplyState: WriteState = .idle
     @Published var repositorySetupMessage: String? = nil
 
@@ -2481,7 +2530,7 @@ extension AdminRootView {
             }
         }
         .task {
-            await performReviewWriteIfNeeded()
+            await model.refreshReviewIfNeeded()
         }
     }
 
@@ -2489,7 +2538,16 @@ extension AdminRootView {
         AdminCard(title: "The file setup wrote for you") {
             VStack(alignment: .leading, spacing: 8) {
                 switch model.briefWriteState {
-                case .idle, .working:
+                case .idle:
+                    // Never-started is not "in flight": no spinner here.
+                    // Reachable only for a frame at most, since `.task`
+                    // above calls `refreshReviewIfNeeded()` immediately on
+                    // appearance, which drives this to `.working` right
+                    // away whenever real work is needed.
+                    Text("Setup hasn't written your file yet.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                case .working:
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
                         Text("Writing your setup file...")
@@ -2502,7 +2560,7 @@ extension AdminRootView {
                             .foregroundColor(Color(nsColor: .systemRed))
                             .fixedSize(horizontal: false, vertical: true)
                         Button("Try again") {
-                            Task { await performReviewWrite() }
+                            Task { await model.refreshReview() }
                         }
                         .buttonStyle(.bordered)
                     }
@@ -2538,7 +2596,13 @@ extension AdminRootView {
         AdminCard(title: "What Admin found on GitHub") {
             VStack(alignment: .leading, spacing: 8) {
                 switch model.repositoryPlanState {
-                case .idle, .working:
+                case .idle:
+                    // Never-started is not "in flight": no spinner here.
+                    // Same transient-only reachability as `briefCard` above.
+                    Text("Setup hasn't checked your repositories yet.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                case .working:
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
                         Text("Checking every organization and department repository…")
@@ -2614,25 +2678,5 @@ extension AdminRootView {
     private func openTerminalAndAdvance() {
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
         model.advance(from: .review)
-    }
-
-    /// Rewrites the brief only when something that feeds it actually
-    /// changed since the last write (`AdminModel.briefFingerprint`), so
-    /// re-visiting Review unchanged never spuriously rewrites, but Back +
-    /// edit + return always does (QA fix: this used to be a one-shot
-    /// `reviewCommandGenerated` flag that left a stale brief/command in
-    /// place after an edit).
-    private func performReviewWriteIfNeeded() async {
-        guard model.lastWrittenBriefFingerprint != model.briefFingerprint else { return }
-        await performReviewWrite()
-    }
-
-    private func performReviewWrite() async {
-        let fingerprint = model.briefFingerprint
-        await model.writeBrief()
-        if model.briefWriteState == .success {
-            model.lastWrittenBriefFingerprint = fingerprint
-            await model.loadRepositoryPlan()
-        }
     }
 }
