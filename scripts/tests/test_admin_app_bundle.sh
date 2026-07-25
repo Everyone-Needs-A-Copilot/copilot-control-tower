@@ -204,6 +204,21 @@ if [[ "${process_stream_output}" != *"ADMIN_PROCESS_STREAM lineFraming=pass larg
   exit 1
 fi
 
+# progress-and-waiting-spec.md §4's row model: step lines arriving out of
+# the plan's own order, a worse result winning over an earlier better one
+# on the same row (rendered right where it is, never moved), a row the
+# engine never reports reconciling honestly once the run ends, the count
+# never exceeding the denominator even after a line grows it, and the
+# silence watchdog firing on real elapsed time rather than a sleep.
+apply_progress_output="$(
+  CT_ADMIN_APPLY_PROGRESS_SELFTEST=1 \
+  "${BIN}"
+)"
+if [[ "${apply_progress_output}" != *"ADMIN_APPLY_PROGRESS rowCount=pass rowOrder=pass outOfOrder=pass failedBesideDone=pass extraRow=pass countBounded=pass neverReported=pass watchdogFires=pass watchdogHoldsWhileFresh=pass"* ]]; then
+  echo "Admin apply-progress selftest failed: ${apply_progress_output}" >&2
+  exit 1
+fi
+
 if rg -Fq 'Picker("", selection: $model.harness)' native/admin.swift; then
   echo "Admin still uses an exclusive harness picker" >&2
   exit 1
