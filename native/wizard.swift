@@ -166,15 +166,120 @@ enum ProjectsStepOutcome: Equatable {
     case setUp(succeeded: Int, total: Int)
 }
 
-// MARK: - Step 8, Set up: named-phase materialize progress
+// MARK: - The one named-subject spinner construction site (wizard + tray)
+//
+// Per the progress-and-waiting spec's own architecture rule
+// (`docs/40-initiatives/02-enac-self-onboarding/walkthroughs/progress-and-waiting-spec.md`
+// §2, "The animated indicator is only reachable from `alive`"): every
+// spinner in this app's user-facing surfaces goes through here, and every
+// one of them REQUIRES the name of the thing it is working on — an
+// indicator with no named subject can never be built, and a `notStarted`
+// row has no branch that reaches this initialiser at all. `native/admin.swift`
+// keeps its own equivalent for the organization run (that file is owned by
+// a different task); this one is scoped to `wizard.swift`/
+// `control-tower-tray.swift`, the two files this task owns.
+struct CTNamedWaitSpinner: View {
+    let subject: String
+    var controlSize: ControlSize = .small
 
-/// Named-phase progress (`"Part N of M"` only, never an ETA or a percent —
-/// #w7's own frozen rule, matching the SOUL hard rule cited in that
-/// section's annotation).
-struct MaterializePhaseState {
-    var label: String = ""
-    var index: Int = 0
-    var total: Int = 0
+    var body: some View {
+        ProgressView()
+            .controlSize(controlSize)
+            .accessibilityLabel(subject)
+    }
+}
+
+// MARK: - Step 8, Set up: honest progress from real CLI results, never a timer
+//
+// REPLACES the old `MaterializePhaseState`'s fabricated `label`/`index`/
+// `total`, which was paced by `cyclePhases`' own `Task.sleep` AFTER the real
+// call had already returned (the exact defect the progress-and-waiting spec
+// was written to close — see that doc's §1 table row "Wizard: setting up
+// your copilots"). Nothing below is ever set by a timer; every field is set
+// only from a real `EcosystemOnboardReport`/`WorkspacesReport` result.
+
+/// One row's state in a Set up checklist. `notStarted` and `working` are
+/// separate, exhaustive cases — never a `Bool` — so a never-started row and
+/// an in-flight one can never render the same way (spec §2, "the rule that
+/// makes never-started unmistakable"). `working` carries the moment it
+/// started, purely so a row could add its own "still working" caption after
+/// a while; it never drives a fabricated position. Equality ignores that
+/// timestamp (two `.working` rows are "the same state" for every purpose
+/// this app has), which is what lets tests compare states without racing a
+/// clock.
+enum SetupRowState: Equatable {
+    case notStarted
+    case working(startedAt: Date)
+    case done(detail: String)
+    case couldNotFinish(detail: String)
+    /// The run ended without the engine ever naming this row (spec, "Work
+    /// ends": "Any row the run never mentioned reads Setup didn't say what
+    /// happened here.") — reconciliation, never a guess at what happened.
+    case neverReported
+
+    static func == (lhs: SetupRowState, rhs: SetupRowState) -> Bool {
+        switch (lhs, rhs) {
+        case (.notStarted, .notStarted), (.neverReported, .neverReported): return true
+        case (.working, .working): return true
+        case (.done(let a), .done(let b)): return a == b
+        case (.couldNotFinish(let a), .couldNotFinish(let b)): return a == b
+        default: return false
+        }
+    }
+}
+
+struct SetupRow: Identifiable, Equatable {
+    let id: String
+    let title: String
+    var state: SetupRowState = .notStarted
+}
+
+/// The whole Set up checklist: one call row with a nested stage disclosure,
+/// plus one row per chosen project (spec §5). The nested disclosure only
+/// ever resolves all at once, the moment the call returns — the CLI reports
+/// nothing finer-grained than "still running" for it today (a real limit,
+/// not a UI choice), so it stays a P2 list inside this P1 row rather than
+/// pretending to fill in one stage at a time.
+struct SetupProgressState: Equatable {
+    /// `onboard.schema.json`'s `ecosystemStage.stage` enum's first six
+    /// values, in the CLI's own order — `materialize`/`doctor` (the
+    /// trailing pair) are Verify's (#w8) own concern, not shown here. Named
+    /// in plain words per the spec's own copy (§5), never the raw stage id
+    /// (the app's own hard rule: no stage ids, internal state names, or
+    /// jargon in a user-facing string).
+    static let namedStages: [(id: String, title: String)] = [
+        ("organization-handoff", "Getting your organization's shared setup"),
+        ("personal-packages", "Setting up your own copy on this Mac"),
+        ("device-ssh", "Giving this Mac its own key"),
+        ("layer-manifest", "Writing down which copilots you get"),
+        ("secret-store", "Connecting your organization's shared store"),
+        ("codex-plugin", "Adding Codex Copilot"),
+    ]
+
+    var callRow = SetupRow(id: "call", title: "Your copilots on this Mac")
+    var stageRows: [SetupRow] = SetupProgressState.namedStages.map { SetupRow(id: $0.id, title: $0.title) }
+    var projectRows: [SetupRow] = []
+    /// Set only once `updateFanout()` is actually fired (a department was
+    /// joined this session) — never shown otherwise, since the sentence
+    /// would promise something that isn't happening.
+    var isFanningOut = false
+
+    /// `N of M done.` — the spec's own rule: only meaningful with two or
+    /// more rows (the call row plus at least one project row), and only
+    /// while the run is alive; the caller hides the count line entirely
+    /// when this is `nil`. The numerator only ever rises (counts `.done`
+    /// rows only); the denominator is every row on screen — the call row
+    /// plus the projects the person already approved — fixed the moment the
+    /// run starts, so the count can never outgrow what was shown.
+    var countLine: String? {
+        let rows = [callRow] + projectRows
+        guard rows.count >= 2 else { return nil }
+        let done = rows.filter {
+            if case .done = $0.state { return true }
+            return false
+        }.count
+        return "\(done) of \(rows.count) done."
+    }
 }
 
 // MARK: - Holding (#w10) — first-class, never a dead end, never adds its own
@@ -233,7 +338,7 @@ final class WizardModel: ObservableObject {
     @Published var adoptionRollbackPaths: [String] = []
     @Published var includeCodex = true
     @Published var departments: [DepartmentRow] = []
-    @Published var materialize = MaterializePhaseState()
+    @Published var setupProgress = SetupProgressState()
     @Published var workspaceFolderName: String?
 
     // MARK: One question first (adopt-and-project-setup spec)
@@ -568,6 +673,38 @@ final class WizardModel: ObservableObject {
         return String(id.dropFirst(prefix.count))
     }
 
+    /// Pure: maps the aggregate onboarding call's real `stages` onto
+    /// `SetupProgressState.namedStages`' six fixed rows — no ordering
+    /// knowledge, no invented result, matching every other parser in this
+    /// file. A stage the call never mentions reads `.neverReported` (the
+    /// spec's own reconciliation rule); `static` so this exact derivation is
+    /// shared between `beginMaterialize` below and the selftest in
+    /// `native/control-tower-tray.swift`.
+    static func resolveStageRows(from stages: [EcosystemOnboardStage]) -> [SetupRow] {
+        var rows = SetupProgressState.namedStages.map { SetupRow(id: $0.id, title: $0.title) }
+        var mentioned = Set<String>()
+        for stage in stages {
+            guard let index = rows.firstIndex(where: { $0.id == stage.stage }) else { continue }
+            mentioned.insert(stage.stage)
+            if stage.result == "blocked" {
+                rows[index].state = .couldNotFinish(detail: couldNotFinishStageText(stage.detail))
+            } else {
+                let detail = stage.detail?.isEmpty == false ? stage.detail! : "Done."
+                rows[index].state = .done(detail: detail)
+            }
+        }
+        for index in rows.indices where !mentioned.contains(rows[index].id) {
+            rows[index].state = .neverReported
+        }
+        return rows
+    }
+
+    private static func couldNotFinishStageText(_ engineDetail: String?) -> String {
+        let base = "Couldn't finish this one. Everything before it is still in place."
+        guard let engineDetail, !engineDetail.isEmpty else { return base }
+        return "\(base) \(engineDetail)"
+    }
+
     func continueFromDetect() {
         guard case .detected = phase else { return }
         phase = .whatYoureGetting
@@ -841,18 +978,18 @@ final class WizardModel: ObservableObject {
         beginMaterialize()
     }
 
-    // MARK: Set up (#w7, renumbered Step 8 of 10) — named-phase materialize, no ETA
+    // MARK: Set up (#w7, renumbered Step 8 of 10) — honest progress, no timer
 
-    /// Calls `update()` for real; also calls `updateFanout()` (fire-and-
-    /// forget, non-gating) when at least one department was joined this
-    /// session, since a fan-out sweep is only warranted once there is more
-    /// than the default org layer to reconcile across. The rotating phase
-    /// labels below are the best available progress proxy: a single
-    /// `update()` call reports no finer-grained progress than "still
-    /// running", so pacing through the discrete named phases is "tied to
-    /// actual call progress" in the only sense a one-shot call allows —
-    /// phase advancement waits for the real call to finish, never fakes
-    /// completion ahead of it.
+    /// Calls `ecosystemOnboardApply()` for real; also calls `updateFanout()`
+    /// (fire-and-forget, non-gating) when at least one department was
+    /// joined this session, since a fan-out sweep is only warranted once
+    /// there is more than the default org layer to reconcile across. Every
+    /// row in `setupProgress` is set only from that call's own real result
+    /// (`WizardModel.resolveStageRows(from:)`) or from each project's own
+    /// real `configureWorkspace` outcome (`applySelectedProjects` below) —
+    /// nothing here is ever paced by a sleep (see the progress-and-waiting
+    /// spec's own architecture decision, "Advancing the count by elapsed
+    /// time... is precisely what is being removed").
     func beginMaterialize() {
         guard !materializeInFlight else { return }
         materializeInFlight = true
@@ -864,22 +1001,18 @@ final class WizardModel: ObservableObject {
             projectsStepOutcome = .skipped
         }
 
-        var labels = [
-            // "Including what you already have…" per Step 8's own copy —
-            // only when there is something adopted this session to name;
-            // otherwise the original label still describes the same call.
-            adoptExisting.isEmpty ? "Confirming your private GitHub spaces…" : "Including what you already have…",
-            "Setting up your copilots…",
-        ]
-        labels += joinedDepartments.map { "Bringing in your \($0.name) department…" }
-        let projectPathsToApply = selectedProjectPaths
-        if !projectPathsToApply.isEmpty {
-            labels.append("Setting up your copilots in \(projectPathsToApply.count) project\(projectPathsToApply.count == 1 ? "" : "s")…")
-        }
-        labels.append("Finishing up…")
-        materialize = MaterializePhaseState(label: labels[0], index: 1, total: labels.count)
+        // The same order and names the person just read in "Your projects"
+        // (Step 7) — `projectWorkspaces` is the CLI's own list order,
+        // never `selectedProjectPaths`' own (unordered) `Set` iteration
+        // order.
+        let orderedProjects = projectWorkspaces.filter { selectedProjectPaths.contains($0.path) }
 
+        var progress = SetupProgressState()
+        progress.callRow.state = .working(startedAt: Date())
+        progress.projectRows = orderedProjects.map { SetupRow(id: $0.path, title: $0.name) }
         let shouldFanOut = !joinedDepartments.isEmpty
+        progress.isFanningOut = shouldFanOut
+        setupProgress = progress
 
         Task {
             switch await CliClient.shared.ecosystemOnboardApply(products: self.copilotProducts, adoptExisting: Array(self.adoptExisting)) {
@@ -894,6 +1027,8 @@ final class WizardModel: ObservableObject {
                 self.ecosystemInventory = report.inventory ?? self.ecosystemInventory
                 self.ecosystemInventorySummary = report.inventorySummary ?? self.ecosystemInventorySummary
                 self.adoptionRollbackPaths = report.stages.compactMap(\.rollbackPath)
+                self.setupProgress.callRow.state = .done(detail: "Done.")
+                self.setupProgress.stageRows = Self.resolveStageRows(from: report.stages)
             case .failure(let error):
                 self.materializeInFlight = false
                 self.enterHolding(reason: self.genericHoldingReason(for: error), origin: .materialize)
@@ -902,10 +1037,9 @@ final class WizardModel: ObservableObject {
             if shouldFanOut {
                 Task { _ = await CliClient.shared.updateFanout() }
             }
-            if !projectPathsToApply.isEmpty {
-                await self.applySelectedProjects(projectPathsToApply)
+            if !orderedProjects.isEmpty {
+                await self.applySelectedProjects(orderedProjects)
             }
-            await self.cyclePhases(labels)
             self.materializeInFlight = false
             self.beginVerify()
         }
@@ -916,32 +1050,33 @@ final class WizardModel: ObservableObject {
     /// stops the rest, and Done (below) never claims full success when it
     /// was not. Runs the copilots this project's setup copies from already
     /// exist on this Mac by this point (the ecosystem apply above just
-    /// finished), matching `can_apply_now`'s own contract.
-    private func applySelectedProjects(_ paths: Set<String>) async {
+    /// finished), matching `can_apply_now`'s own contract. Genuinely
+    /// sequential — `setupProgress.projectRows` is updated live, one row at
+    /// a time, as each real call actually resolves (spec §5: "these resolve
+    /// one at a time, because the loop really is sequential").
+    private func applySelectedProjects(_ projects: [WorkspaceEntry]) async {
         var succeeded = 0
-        for path in paths {
-            let components = self.projectWorkspaces.first(where: { $0.path == path })?.recommendedComponents ?? []
+        for (index, workspace) in projects.enumerated() {
+            setupProgress.projectRows[index].state = .working(startedAt: Date())
             let result = await CliClient.shared.configureWorkspace(
-                path: path, components: components, shareWithProject: false, apply: true
+                path: workspace.path, components: workspace.recommendedComponents, shareWithProject: false, apply: true
             )
             if case .success(let report) = result,
-               let updated = report.workspaces.first(where: { $0.path == path }),
+               let updated = report.workspaces.first(where: { $0.path == workspace.path }),
                updated.state != .blocked {
                 succeeded += 1
+                setupProgress.projectRows[index].state = .done(detail: updated.detail)
+            } else {
+                setupProgress.projectRows[index].state = .couldNotFinish(
+                    detail: "Couldn't set up \(workspace.name). Nothing in it was changed. You can add it later from the menu bar."
+                )
             }
         }
-        self.projectsStepOutcome = .setUp(succeeded: succeeded, total: paths.count)
+        self.projectsStepOutcome = .setUp(succeeded: succeeded, total: projects.count)
     }
 
     private var copilotProducts: [String] {
         includeCodex ? ["claude", "codex"] : ["claude"]
-    }
-
-    private func cyclePhases(_ labels: [String]) async {
-        for (index, label) in labels.enumerated() {
-            self.materialize = MaterializePhaseState(label: label, index: index + 1, total: labels.count)
-            try? await Task.sleep(nanoseconds: 500_000_000)
-        }
     }
 
     // MARK: Verify (#w8)
@@ -1276,7 +1411,13 @@ struct WizardRootView: View {
         case .departments: return "departments"
         case .integrations: return "integrations"
         case .projects: return "projects"
-        case .materializing: return "materializing-\(model.materialize.index)"
+        // Constant for the whole run, unlike the old fabricated
+        // `"materializing-\(index)"`: rows fill in via normal SwiftUI
+        // diffing on `model.setupProgress`, never by re-mounting the whole
+        // step (that per-tick identity churn was itself part of the
+        // fabrication this task removes — a real update doesn't arrive on
+        // a 500ms cadence, so the view shouldn't transition like one does).
+        case .materializing: return "materializing"
         case .verifying: return "verifying"
         case .verified: return "verified"
         case .done: return "done"
@@ -1391,6 +1532,23 @@ struct WizardRootView: View {
                         Text("Waiting for you to finish in your browser…")
                             .font(.caption)
                             .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+
+                        // P5 (progress-and-waiting spec §7): "One addition,
+                        // because a lost browser window is the common
+                        // failure" — no timer, no count, just the way back
+                        // in, beside the existing wait sentence above.
+                        HStack(spacing: 6) {
+                            Text("Didn't see the browser?")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                            Button("Open it again") {
+                                model.openGitHubSignIn()
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(Color(nsColor: .linkColor))
+                            .disabled(model.deviceFlow.verificationUri == nil)
+                        }
                     }
                 }
             case .authorized:
@@ -1813,7 +1971,7 @@ struct WizardRootView: View {
             Button { model.joinDepartment(department.id) } label: { Text("Join") }
                 .buttonStyle(.bordered)
         case .joining:
-            ProgressView().controlSize(.small)
+            CTNamedWaitSpinner(subject: "Joining \(department.name)…")
         case .joined, .waitingForNetwork, .notAvailable:
             EmptyView()
         }
@@ -2160,24 +2318,60 @@ struct WizardRootView: View {
         }
     }
 
-    // MARK: 8. Set up (#w7) — named phase, no ETA
+    // MARK: 8. Set up (#w7) — honest progress, from real CLI results only
+    //
+    // P1 (progress-and-waiting spec §5): one call row (with a nested P2
+    // stage disclosure) plus one row per chosen project. The heading is
+    // fixed for the whole run — it never rotates through fake labels, which
+    // is the exact defect this replaces (`docs/40-initiatives/
+    // 02-enac-self-onboarding/walkthroughs/progress-and-waiting-spec.md`).
 
     private var materializeView: some View {
         stepShell(
             eyebrow: "Step 8 of 10",
-            title: model.materialize.label.isEmpty ? "Setting up" : model.materialize.label,
+            title: "Setting up your copilots",
             intro: "This part runs on its own. Keep this window open, or close it and let Control Tower finish in the menu bar."
         ) {
-            VStack(spacing: 12) {
-                ProgressView()
-                if model.materialize.total > 0 {
-                    Text("Part \(model.materialize.index) of \(model.materialize.total)")
-                        .font(.callout)
+            VStack(alignment: .leading, spacing: 14) {
+                if let countLine = model.setupProgress.countLine {
+                    Text(countLine)
+                        .font(.callout.weight(.semibold))
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Setting up your copilots. \(countLine)")
+                }
+                sectionCard("") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        setupRow(model.setupProgress.callRow)
+                        DisclosureGroup("What this includes") {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(model.setupProgress.stageRows) { row in
+                                    setupRow(row)
+                                }
+                            }
+                            .padding(.top, 6)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .padding(.leading, 26)
+                    }
+                }
+                if !model.setupProgress.projectRows.isEmpty {
+                    sectionCard("Your projects") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(model.setupProgress.projectRows) { row in
+                                setupRow(row)
+                            }
+                        }
+                    }
+                }
+                if model.setupProgress.isFanningOut {
+                    Text("Also checking your other projects in the background. You don't have to wait for that.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(24)
+            .padding(4)
         } leadingActions: {
             EmptyView()
         } primaryAction: {
@@ -2186,6 +2380,75 @@ struct WizardRootView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(true)
+            .help("Setup is running. This finishes on its own.")
+        }
+    }
+
+    /// Every row in every Set up checklist (the call row, its nested stage
+    /// disclosure, and every project row) draws through this one function —
+    /// the spec's own "six distinct shapes, six distinct sentences" (§3),
+    /// never colour alone. `notStarted` has no branch that reaches
+    /// `CTNamedWaitSpinner`, so a never-started row can never animate.
+    private func setupRow(_ row: SetupRow) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            setupRowGlyph(row.state)
+                .frame(width: 16)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                Text(setupRowStateText(row.state))
+                    .font(.caption)
+                    .foregroundColor(setupRowStateColor(row.state))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            if case .working = row.state {
+                CTNamedWaitSpinner(subject: row.title)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.title), \(setupRowStateText(row.state))")
+    }
+
+    private func setupRowStateText(_ state: SetupRowState) -> String {
+        switch state {
+        case .notStarted: return "Not started yet."
+        case .working: return "Working on it now."
+        case .done(let detail): return detail
+        case .couldNotFinish(let detail): return detail
+        case .neverReported: return "Setup didn't say what happened here."
+        }
+    }
+
+    private func setupRowStateColor(_ state: SetupRowState) -> Color {
+        switch state {
+        case .notStarted: return Color(nsColor: .tertiaryLabelColor)
+        case .working, .done, .neverReported: return Color(nsColor: .secondaryLabelColor)
+        case .couldNotFinish: return Color(nsColor: .systemRed)
+        }
+    }
+
+    @ViewBuilder
+    private func setupRowGlyph(_ state: SetupRowState) -> some View {
+        switch state {
+        case .notStarted:
+            Image(systemName: "circle")
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+        case .working:
+            Image(systemName: "circle.inset.filled")
+                .foregroundColor(Color(nsColor: .controlAccentColor))
+        case .done:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(Color(nsColor: .systemGreen))
+        case .couldNotFinish:
+            Image(systemName: "xmark.circle.fill")
+                .foregroundColor(Color(nsColor: .systemRed))
+        case .neverReported:
+            Image(systemName: "questionmark.circle")
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
         }
     }
 
@@ -2389,7 +2652,7 @@ struct WizardRootView: View {
 
     private func verifyingCard(_ status: String) -> some View {
         VStack(spacing: 12) {
-            ProgressView()
+            CTNamedWaitSpinner(subject: status)
             Text(status)
                 .font(.callout)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))

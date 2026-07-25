@@ -64,6 +64,27 @@ enum JoinRowState: Equatable {
     case message(String, canRetry: Bool)
 }
 
+/// Pure: the P4 "hasn't come through yet" silence-path sentences (spec
+/// §7), verbatim, shared between `TrayModel.join(_:)`/`addProject(_:)`/
+/// `undoProject(_:)` and the selftest below — so the live silence path and
+/// its own test can never quietly drift apart, and so this wording (a
+/// real-but-unresolved wait) can never be confused with the CLI's own
+/// reported failure copy (`"Couldn't join... right now."` etc.), which is
+/// a DIFFERENT, already-existing sentence for a DIFFERENT situation.
+enum NamedWaitRender {
+    static func hasNotComeThrough(_ subject: String) -> String {
+        "\(subject) hasn't come through yet. Nothing was changed."
+    }
+
+    static func projectHasNotComeThrough(_ projectName: String) -> String {
+        "\(projectName) hasn't come through yet. Nothing in it was changed."
+    }
+
+    static func projectUndoHasNotComeThrough(_ projectName: String) -> String {
+        "\(projectName) hasn't come through yet. Nothing was undone."
+    }
+}
+
 // MARK: - Region 6, projects notice + drill-in (adopt-and-project-setup spec)
 
 /// One project row's transient, session-local UI state while `TrayModel.
@@ -76,8 +97,16 @@ enum JoinRowState: Equatable {
 enum ProjectRowAction: Equatable {
     case adding
     case failed
+    /// The P4 silence path (spec §7): `adding` has gone quiet past
+    /// `TrayModel.silenceThreshold` with no CLI answer yet — distinct from
+    /// `failed`, which is a real reported outcome. Offers the same "Try
+    /// again" control as `failed`, with `NamedWaitRender.
+    /// projectHasNotComeThrough(_:)`'s own, different caption.
+    case stalled
     case undoing
     case undoFailed
+    /// `undoing`'s own silence-path pair to `stalled` above.
+    case undoStalled
 }
 
 /// Pure: the Region 6 notice's count and copy. A `static`, instance-free
@@ -223,6 +252,16 @@ final class TrayModel: ObservableObject {
     /// as `AppDelegate.firstRunDefaultsKey` (`native/models.swift`'s own
     /// doc comment on why this isn't `UserDefaults`/cfprefsd).
     private static let automaticSetupNoticeShownKey = "ct.hasShownAutomaticProjectsNotice"
+
+    /// How long a P4 named single wait (`join(_:)`/`addProject(_:)`/
+    /// `undoProject(_:)`) stays silent before the row admits it: "hasn't
+    /// come through yet" (spec §7). Not a value the spec gives verbatim —
+    /// chosen to sit comfortably above ordinary GitHub round-trip latency
+    /// while still surfacing within one sitting. Nothing is cancelled when
+    /// this fires (the spec's own rule: "additive and safe to run again");
+    /// it only changes what the row says while the real call keeps running
+    /// underneath it.
+    private static let silenceThreshold: TimeInterval = 20
 
     @Published private(set) var state: RenderState = TrayModel.notYetChecked
     /// Region 3, "Available to join": entitled-but-not-joined department/org
@@ -385,14 +424,38 @@ final class TrayModel: ObservableObject {
         projectRowActions.values.contains(.adding) || projectRowActions.values.contains(.undoing)
     }
 
+    /// One `addProject(_:)`/`undoProject(_:)` attempt per project path, so a
+    /// stale watchdog (or a stale real result) from an EARLIER attempt on
+    /// the same row can never stomp a NEWER one started by pressing "Try
+    /// again" after a silence path or a real failure — mirrors
+    /// `joinAttemptGeneration` below.
+    private var projectAttemptGeneration: [String: Int] = [:]
+
     /// One row's **Add** / **Finish setup** (Region 6 drill-in). By this
     /// point the copilots this project's setup copies from already exist on
     /// this Mac, so `can_apply_now` is expected true and the add applies
     /// immediately — the whole reason the drill-in uses per-row `Add`
     /// instead of the wizard's checkboxes (spec, "Architecture decision").
+    /// Gains the P4 silence path (spec §7): past `Self.silenceThreshold`
+    /// with no answer, the row reads `.stalled` instead of spinning
+    /// forever — nothing is cancelled, the real call keeps running
+    /// underneath (the CLI's own `flock` on `copilot.lock` makes a second
+    /// concurrent invocation safe, per `CLAUDE.md` invariant #2).
     func addProject(_ workspace: WorkspaceEntry) async {
         guard !isAnyProjectAdding else { return }
         projectRowActions[workspace.path] = .adding
+        let generation = (projectAttemptGeneration[workspace.path] ?? 0) + 1
+        projectAttemptGeneration[workspace.path] = generation
+
+        let watchdog = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.silenceThreshold * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            guard self.projectAttemptGeneration[workspace.path] == generation else { return }
+            guard self.projectRowActions[workspace.path] == .adding else { return }
+            self.projectRowActions[workspace.path] = .stalled
+        }
+        defer { watchdog.cancel() }
+
         let shouldShare = workspace.declaredComponents.isEmpty
         let result = await CliClient.shared.configureWorkspace(
             path: workspace.path,
@@ -400,6 +463,7 @@ final class TrayModel: ObservableObject {
             shareWithProject: shouldShare,
             apply: true
         )
+        guard projectAttemptGeneration[workspace.path] == generation else { return }
         if case .success(let report) = result,
            let updated = report.workspaces.first(where: { $0.path == workspace.path }),
            updated.state != .blocked {
@@ -418,11 +482,25 @@ final class TrayModel: ObservableObject {
     /// off the revert call's own result — the CLI stays the sole source of
     /// truth for the post-undo state (`state`, `undo`, `recently_set_up`
     /// all change together: `revert_project` purges the project from
-    /// `recently_set_up` immediately).
+    /// `recently_set_up` immediately). Same silence path as `addProject(_:)`
+    /// above, its own `undoStalled` pair.
     func undoProject(_ workspace: WorkspaceEntry) async {
         guard !isAnyProjectAdding else { return }
         projectRowActions[workspace.path] = .undoing
+        let generation = (projectAttemptGeneration[workspace.path] ?? 0) + 1
+        projectAttemptGeneration[workspace.path] = generation
+
+        let watchdog = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.silenceThreshold * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            guard self.projectAttemptGeneration[workspace.path] == generation else { return }
+            guard self.projectRowActions[workspace.path] == .undoing else { return }
+            self.projectRowActions[workspace.path] = .undoStalled
+        }
+        defer { watchdog.cancel() }
+
         let result = await CliClient.shared.revertWorkspace(path: workspace.path, apply: true)
+        guard projectAttemptGeneration[workspace.path] == generation else { return }
         switch result {
         case .success(let report) where report.result != .blocked:
             projectRowActions[workspace.path] = nil
@@ -510,19 +588,42 @@ final class TrayModel: ObservableObject {
         await refresh()
     }
 
+    /// One `join(_:)` attempt per row, so a stale watchdog (or a stale real
+    /// result) from an earlier attempt can never overwrite a NEWER attempt
+    /// started by pressing "Try again" — see `projectAttemptGeneration`
+    /// above, the same shape for Region 6's rows.
+    private var joinAttemptGeneration: [String: Int] = [:]
+
     /// Region 3's `Join` action (`control-tower-copy-deck.md` §1.5). On a
     /// successful join (`joined`/`already-joined`) the row is cleared locally
     /// and a full `refresh()` runs so the component tree picks up the newly
     /// entitled layer's passing dots — "the tree filling in is the reward",
     /// never a toast. Every other outcome renders its own verbatim §1.5
-    /// message, `canRetry` controlling whether `Join` reappears.
+    /// message, `canRetry` controlling whether `Join` reappears. Gains the
+    /// P4 silence path (spec §7): past `Self.silenceThreshold` with no
+    /// answer, the row reads `NamedWaitRender.hasNotComeThrough(_:)` instead
+    /// of spinning forever — a DIFFERENT sentence from the real "couldn't
+    /// join" failure below, so a stall is never misread as a report.
     func join(_ entry: LayerEntry) async {
         guard joinRowStates[entry.id] != .joining else { return }
         joinRowStates[entry.id] = .joining
+        let generation = (joinAttemptGeneration[entry.id] ?? 0) + 1
+        joinAttemptGeneration[entry.id] = generation
 
-        switch await CliClient.shared.layersJoin(id: entry.id) {
-        case .success(let result):
-            switch result.result {
+        let watchdog = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.silenceThreshold * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            guard self.joinAttemptGeneration[entry.id] == generation else { return }
+            guard self.joinRowStates[entry.id] == .joining else { return }
+            self.joinRowStates[entry.id] = .message(NamedWaitRender.hasNotComeThrough(entry.name), canRetry: true)
+        }
+        defer { watchdog.cancel() }
+
+        let result = await CliClient.shared.layersJoin(id: entry.id)
+        guard joinAttemptGeneration[entry.id] == generation else { return }
+        switch result {
+        case .success(let joinResult):
+            switch joinResult.result {
             case .joined, .alreadyJoined:
                 joinRowStates[entry.id] = nil
                 await refresh()
@@ -689,8 +790,7 @@ private struct JoinRow: View {
             Text("Joining \(entry.name)…")
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
             Spacer()
-            ProgressView()
-                .controlSize(.small)
+            CTNamedWaitSpinner(subject: "Joining \(entry.name)…")
                 .frame(width: 14, height: 14)
         case .message(let text, let canRetry):
             Text(text)
@@ -1126,7 +1226,9 @@ struct PopoverContentView: View {
         switch localAction {
         case .adding: caption = "Adding…"
         case .failed: caption = "Couldn't add it right now. Nothing existing was changed."
+        case .stalled: caption = NamedWaitRender.projectHasNotComeThrough(workspace.name)
         case .undoFailed: caption = "Couldn't undo that right now. Nothing was changed."
+        case .undoStalled: caption = NamedWaitRender.projectUndoHasNotComeThrough(workspace.name)
         case .undoing, nil: caption = ProjectRowRender.caption(for: workspace, recentlySetUpNames: recentlySetUpNames)
         }
 
@@ -1152,16 +1254,15 @@ struct PopoverContentView: View {
     private func projectDrillInRowControl(_ workspace: WorkspaceEntry, localAction: ProjectRowAction?, recentlySetUpNames: Set<String>) -> some View {
         switch localAction {
         case .adding, .undoing:
-            ProgressView()
-                .controlSize(.small)
+            CTNamedWaitSpinner(subject: workspace.name)
                 .frame(width: 14, height: 14)
-        case .failed:
+        case .failed, .stalled:
             Button("Try again") {
                 Task { await model.addProject(workspace) }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-        case .undoFailed:
+        case .undoFailed, .undoStalled:
             Button("Try again") {
                 Task { await model.undoProject(workspace) }
             }
@@ -1541,6 +1642,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if env["CT_TRAY_PROJECTS_SELFTEST"] == "1" {
             exit(Self.runTrayProjectsSelftest() ? 0 : 1)
         }
+        if env["CT_SETUP_PROGRESS_SELFTEST"] == "1" {
+            exit(Self.runSetupProgressSelftest() ? 0 : 1)
+        }
+        if env["CT_TRAY_WAIT_SELFTEST"] == "1" {
+            exit(Self.runTrayWaitSelftest() ? 0 : 1)
+        }
 
         #if CT_ADMIN_BUILD
         // The Admin distribution is a conventional double-clickable app, not
@@ -1740,6 +1847,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // CONCURRENTLY — exactly the shape that deadlocks a
                     // sequential-drain or drain-after-`waitUntilExit()`
                     // implementation.
+                    //
+                    // SCOPE, so this is not mistaken for full coverage: this
+                    // exercises `ShellRunner.run`, which is `async` and never
+                    // blocks its caller. `CliClient.runRaw` blocks a thread
+                    // synchronously, and a `readabilityHandler`-based drain
+                    // deadlocked there while this very assertion passed — the
+                    // callback had no free thread to run on, the pipe filled,
+                    // and the child never exited. `scripts/tests/smoke-cli.sh`
+                    // is what covers that path; run it before trusting any
+                    // change to `ProcessDrain`.
                     let largeOutputStart = Date()
                     let largeOutputResult = await ShellRunner.run(
                         "(yes | head -c 500000 >&2) & (yes | head -c 500000 >&1) & wait"
@@ -1787,6 +1904,129 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }.joined(separator: ",")
                     print("ADMIN_READINESS \(rows)")
                     exit(model.githubReadinessComplete ? 0 : 1)
+                }
+                return
+            }
+
+            // Offline coverage for the mutating run's progress model
+            // (progress-and-waiting-spec.md §4, `native/admin-support.swift`'s
+            // `RunPhase`/`RunRow`/`ApplyStepTarget`): step lines landing out
+            // of the plan's own order, a worse result winning over an
+            // earlier better one on the SAME row, a row the engine never
+            // reports at all reconciling honestly once the run ends, a line
+            // naming something outside the plan growing the denominator
+            // without ever letting the numerator pass it, and the silence
+            // watchdog firing on a real elapsed time — never on a sleep.
+            // No `Process`/shell-out: `handleApplyStepLine` is fed
+            // hand-built NDJSON strings directly, exactly the shape a real
+            // `admin_bootstrap.sh` run streams, and `applyPhaseAfterSilence`
+            // is exercised with synthetic `Date`s rather than a real wait.
+            if env["CT_ADMIN_APPLY_PROGRESS_SELFTEST"] == "1" {
+                let model = AdminModel()
+                model.orgNameInput = "acme-co"
+                model.departments = [DepartmentEntry(name: "Accounting")]
+
+                let planJSON = """
+                {"schema_version":"1.0","scope":"organization","owner":"acme-co","mode":"plan","result":"ready","repositories":[
+                  {"component":"knowledge","role":"organization","unit":null,"owner":"acme-co","name":"knowledge-copilot-internal","visibility":"private","state":"existing-private","action":"none","detail":"Existing private repository will be reused."},
+                  {"component":"cli","role":"organization","unit":null,"owner":"acme-co","name":"cli-copilot-internal","visibility":"private","state":"existing-private","action":"none","detail":"Existing private repository will be reused."},
+                  {"component":"knowledge","role":"department","unit":"accounting","owner":"acme-co","name":"knowledge-copilot-accounting","visibility":null,"state":"missing","action":"create","detail":"Repository does not exist and can be created privately."},
+                  {"component":"cli","role":"department","unit":"accounting","owner":"acme-co","name":"cli-copilot-accounting","visibility":null,"state":"missing","action":"create","detail":"Repository does not exist and can be created privately."}
+                ],"summary":{"existing":2,"missing":2,"created":0,"blocked":0}}
+                """
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                guard let planData = planJSON.data(using: .utf8),
+                      let plan = try? decoder.decode(AdminRepositoryPlan.self, from: planData)
+                else {
+                    print("ADMIN_APPLY_PROGRESS fixtureDecode=fail")
+                    exit(1)
+                }
+
+                Task { @MainActor in
+                    model.repositoryPlan = plan
+                    model.repositoryPlanState = .success
+                    model.applyRunRows = model.buildApplyRunRows()
+                    model.seedApplyKnownRows()
+                    // default-access + 2 org spaces + (2 dept spaces + 1
+                    // dept team) + setup-file = 7, in `run_standup()`'s own
+                    // execution order (see buildApplyRunRows's doc comment).
+                    let rowCountPass = model.applyRunRows.count == 7
+                    let rowOrderPass = model.applyRunRows.map(\.id) == [
+                        "default-access", "knowledge-copilot-internal", "cli-copilot-internal",
+                        "knowledge-copilot-accounting", "cli-copilot-accounting", "team:accounting", "setup-file",
+                    ]
+
+                    model.applyRunPhase = .alive(startedAt: Date(), lastLineAt: Date(), subject: nil)
+
+                    // Out of order: the department's team line, and a
+                    // branch-protection line for an org repo, both arrive
+                    // before that repo/team's own creation line.
+                    model.handleApplyStepLine(#"{"step":"dept-team:accounting","result":"created","detail":"Created the accounting team."}"#)
+                    model.handleApplyStepLine(#"{"step":"branch-protection:knowledge-copilot-internal","result":"already-present","detail":"knowledge-copilot-internal requires review."}"#)
+                    let outOfOrderPass = model.applyRunRows.first(where: { $0.id == "team:accounting" })?.result
+                        == .done(detail: "Created the accounting team.")
+                        && model.applyRunRows.first(where: { $0.id == "knowledge-copilot-internal" })?.result
+                        == .done(detail: "knowledge-copilot-internal requires review.")
+
+                    // Worse-result-wins, and the row stays where it is: the
+                    // SAME org repo resolves done via its creation line,
+                    // then fails via its branch-protection line.
+                    model.handleApplyStepLine(#"{"step":"org-repo:cli-copilot-internal","result":"already-present","detail":"cli-copilot-internal already exists, private."}"#)
+                    model.handleApplyStepLine(#"{"step":"branch-protection:cli-copilot-internal","result":"failed","detail":"Could not set branch protection on cli-copilot-internal."}"#)
+                    let cliIndex = model.applyRunRows.firstIndex(where: { $0.id == "cli-copilot-internal" })
+                    let failedBesideDonePass = cliIndex == 2
+                        && model.applyRunRows[cliIndex ?? 0].result == .failed(detail: "Could not set branch protection on cli-copilot-internal.")
+                        && model.applyRunRows[1].result == .done(detail: "knowledge-copilot-internal requires review.")
+
+                    // A line naming something outside the plan grows the
+                    // denominator by exactly one, and the numerator never
+                    // exceeds the new total.
+                    model.handleApplyStepLine(#"{"step":"org-repo:extra-copilot-internal","result":"created","detail":"Created extra-copilot-internal, private."}"#)
+                    let extraRowPass = model.applyExtraRowCount == 1 && model.applyRunRows.count == 8
+                    let countNeverExceedsPass = model.applyDoneCount <= model.applyRunRows.count
+
+                    // A step the engine never reports: end the run and
+                    // confirm reconciliation, not silence, owns that row.
+                    model.applyRunPhase = .ended(.unfinished(count: 3))
+                    let neverReportedPass = model.applyRunRows.first(where: { $0.id == "setup-file" })?.result == nil
+
+                    // The stall watchdog: pure, deterministic, no real wait.
+                    let stalledPhase = AdminModel.applyPhaseAfterSilence(
+                        .alive(startedAt: Date(), lastLineAt: Date().addingTimeInterval(-100), subject: RunSubject(rowID: "setup-file", title: "Your organization's setup file")),
+                        now: Date(),
+                        stallThreshold: AdminModel.applyStallThreshold
+                    )
+                    let watchdogFiresPass: Bool = {
+                        if case .stalled(let lastSubject) = stalledPhase { return lastSubject?.rowID == "setup-file" }
+                        return false
+                    }()
+                    let freshPhase = AdminModel.applyPhaseAfterSilence(
+                        .alive(startedAt: Date(), lastLineAt: Date(), subject: nil),
+                        now: Date(),
+                        stallThreshold: AdminModel.applyStallThreshold
+                    )
+                    let watchdogHoldsWhileFreshPass: Bool = {
+                        if case .alive = freshPhase { return true }
+                        return false
+                    }()
+
+                    let passed = rowCountPass && rowOrderPass && outOfOrderPass && failedBesideDonePass
+                        && extraRowPass && countNeverExceedsPass && neverReportedPass
+                        && watchdogFiresPass && watchdogHoldsWhileFreshPass
+                    print(
+                        "ADMIN_APPLY_PROGRESS "
+                            + "rowCount=\(rowCountPass ? "pass" : "fail") "
+                            + "rowOrder=\(rowOrderPass ? "pass" : "fail") "
+                            + "outOfOrder=\(outOfOrderPass ? "pass" : "fail") "
+                            + "failedBesideDone=\(failedBesideDonePass ? "pass" : "fail") "
+                            + "extraRow=\(extraRowPass ? "pass" : "fail") "
+                            + "countBounded=\(countNeverExceedsPass ? "pass" : "fail") "
+                            + "neverReported=\(neverReportedPass ? "pass" : "fail") "
+                            + "watchdogFires=\(watchdogFiresPass ? "pass" : "fail") "
+                            + "watchdogHoldsWhileFresh=\(watchdogHoldsWhileFreshPass ? "pass" : "fail")"
+                    )
+                    exit(passed ? 0 : 1)
                 }
                 return
             }
@@ -2171,6 +2411,130 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 + "automatic=\(automaticPass ? "pass" : "fail") "
                 + "automaticNotice=\(automaticNoticePass ? "pass" : "fail") "
                 + "revert=\(revertDecodePass ? "pass" : "fail")"
+        )
+        return passed
+    }
+
+    // MARK: CT_SETUP_PROGRESS_SELFTEST — wizard Step 8, "Setting up your
+    // copilots" (progress-and-waiting spec)
+    //
+    // Proves, offline, pure: (1) a fresh `SetupProgressState` is
+    // `.notStarted` EVERYWHERE — no row defaults to `.working`, and the two
+    // cases are structurally distinct (never a boolean that could conflate
+    // them); (2) `WizardModel.resolveStageRows(from:)` reads real engine
+    // results — a "blocked" stage becomes `.couldNotFinish` carrying the
+    // engine's own detail, an ordinary stage becomes `.done`, and a stage
+    // the report never mentions at all becomes `.neverReported`, never
+    // silently `.notStarted` forever; (3) `countLine` counts only rows that
+    // are really `.done`, never below two total rows; (4) the one
+    // background-sweep sentence this file renders carries no digit at all
+    // (P3's own rule: never a denominator it doesn't have). No `Task.sleep`
+    // and no timer of any kind appears anywhere in this function — every
+    // value below comes straight from data.
+    private static func runSetupProgressSelftest() -> Bool {
+        let fresh = SetupProgressState()
+        let neverStartedPass = fresh.callRow.state == .notStarted
+            && fresh.projectRows.isEmpty
+            && fresh.stageRows.count == 6
+            && fresh.stageRows.allSatisfy { $0.state == .notStarted }
+
+        var working = fresh
+        working.callRow.state = .working(startedAt: Date())
+        let distinctFromWorkingPass = working.callRow.state != .notStarted
+            && fresh.callRow.state != working.callRow.state
+
+        let stagesJSON = """
+        [
+          {"stage": "organization-handoff", "result": "ready"},
+          {"stage": "personal-packages", "result": "applied"},
+          {"stage": "device-ssh", "result": "blocked", "detail": "This Mac's own secure connection could not be confirmed."},
+          {"stage": "secret-store", "result": "deferred"},
+          {"stage": "codex-plugin", "result": "ready"}
+        ]
+        """
+        guard let stagesData = stagesJSON.data(using: .utf8),
+              let stages = try? selftestDecoder().decode([EcosystemOnboardStage].self, from: stagesData) else {
+            print("SELFTEST setupProgress stagesDecode=fail")
+            return false
+        }
+        // `layer-manifest` is deliberately absent from the fixture above —
+        // it must read `.neverReported`, not silently stay `.notStarted`.
+        let rows = WizardModel.resolveStageRows(from: stages)
+        let doneRow = rows.first(where: { $0.id == "organization-handoff" })
+        let blockedRow = rows.first(where: { $0.id == "device-ssh" })
+        let neverReportedRow = rows.first(where: { $0.id == "layer-manifest" })
+        var realResultsPass = false
+        var blockedDetailPass = false
+        if case .done = doneRow?.state, case .couldNotFinish(let detail) = blockedRow?.state,
+           case .neverReported = neverReportedRow?.state {
+            realResultsPass = true
+            blockedDetailPass = detail.contains("This Mac's own secure connection could not be confirmed.")
+        }
+
+        var counted = SetupProgressState()
+        counted.callRow.state = .done(detail: "Done.")
+        counted.projectRows = [
+            SetupRow(id: "/p/a", title: "a", state: .done(detail: "Copilot is ready for this project.")),
+            SetupRow(id: "/p/b", title: "b", state: .working(startedAt: Date())),
+        ]
+        // The call row is itself one of the rows on screen, so a `.done` call
+        // row counts toward the numerator alongside the finished project —
+        // two of the three visible rows are done here.
+        let countLinePass = counted.countLine == "2 of 3 done."
+        let noCountBelowTwoPass = SetupProgressState().countLine == nil
+
+        let backgroundNote = "Also checking your other projects in the background. You don't have to wait for that."
+        let noDenominatorPass = !backgroundNote.contains(where: { $0.isNumber })
+
+        let passed = neverStartedPass && distinctFromWorkingPass && realResultsPass
+            && blockedDetailPass && countLinePass && noCountBelowTwoPass && noDenominatorPass
+        print(
+            "SELFTEST setupProgress neverStarted=\(neverStartedPass ? "pass" : "fail") "
+                + "distinctWorking=\(distinctFromWorkingPass ? "pass" : "fail") "
+                + "realResults=\(realResultsPass ? "pass" : "fail") "
+                + "blockedDetail=\(blockedDetailPass ? "pass" : "fail") "
+                + "countLine=\(countLinePass ? "pass" : "fail") "
+                + "noCountBelowTwo=\(noCountBelowTwoPass ? "pass" : "fail") "
+                + "noDenominator=\(noDenominatorPass ? "pass" : "fail")"
+        )
+        return passed
+    }
+
+    // MARK: CT_TRAY_WAIT_SELFTEST — P4 named single waits (join a
+    // department, add/undo a project) and the shared named-subject spinner
+    //
+    // Proves, offline, pure: (1) `NamedWaitRender`'s silence-path sentences
+    // are exactly the ones the progress-and-waiting spec gives verbatim
+    // (§7), and are each a DIFFERENT sentence from the CLI's own real-
+    // failure copy, so a stall can never be misread as a report; (2)
+    // `CTNamedWaitSpinner` — the one place this file and `native/wizard.swift`
+    // construct a `ProgressView` — always carries the subject it was given,
+    // never blank.
+    private static func runTrayWaitSelftest() -> Bool {
+        let joinWaitText = NamedWaitRender.hasNotComeThrough("Design")
+        let joinFailureText = "Couldn't join Design right now. Try again."
+        let joinTextPass = joinWaitText == "Design hasn't come through yet. Nothing was changed."
+            && joinWaitText != joinFailureText
+
+        let addWaitText = NamedWaitRender.projectHasNotComeThrough("Insights Copilot")
+        let addFailureText = "Couldn't add it right now. Nothing existing was changed."
+        let addTextPass = addWaitText == "Insights Copilot hasn't come through yet. Nothing in it was changed."
+            && addWaitText != addFailureText
+
+        let undoWaitText = NamedWaitRender.projectUndoHasNotComeThrough("Insights Copilot")
+        let undoFailureText = "Couldn't undo that right now. Nothing was changed."
+        let undoTextPass = undoWaitText == "Insights Copilot hasn't come through yet. Nothing was undone."
+            && undoWaitText != undoFailureText
+
+        let spinner = CTNamedWaitSpinner(subject: "Joining Design…")
+        let namedSpinnerPass = spinner.subject == "Joining Design…" && !spinner.subject.isEmpty
+
+        let passed = joinTextPass && addTextPass && undoTextPass && namedSpinnerPass
+        print(
+            "SELFTEST trayWait join=\(joinTextPass ? "pass" : "fail") "
+                + "add=\(addTextPass ? "pass" : "fail") "
+                + "undo=\(undoTextPass ? "pass" : "fail") "
+                + "namedSpinner=\(namedSpinnerPass ? "pass" : "fail")"
         )
         return passed
     }

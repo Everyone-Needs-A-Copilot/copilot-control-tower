@@ -122,36 +122,50 @@ enum ProcessDrain {
         timeout: TimeInterval?,
         onStdoutLine: ((String) -> Void)?
     ) -> Result {
-        var outData = Data()
-        var errData = Data()
         let outHandle = stdoutPipe.fileHandleForReading
         let errHandle = stderrPipe.fileHandleForReading
         let outDrained = DispatchSemaphore(value: 0)
         let errDrained = DispatchSemaphore(value: 0)
         let lineFramer = onStdoutLine.map(LineFramer.init(onLine:))
 
-        // Each handle's `readabilityHandler` is invoked serially (never
-        // concurrently with itself), and only this closure ever touches
-        // `outData`/the framer, so no external lock is needed here.
-        outHandle.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            if chunk.isEmpty {
-                handle.readabilityHandler = nil
-                lineFramer?.flush()
-                outDrained.signal()
-            } else {
+        // Each pipe is drained by a BLOCKING read loop on its own dedicated
+        // thread, and deliberately NOT by `readabilityHandler`.
+        //
+        // This function blocks its caller until the child exits. A handler
+        // that never gets scheduled cannot drain, the pipe buffer fills, the
+        // child blocks forever on its next write, and so it never exits —
+        // which means the wait below never returns either. That deadlock is
+        // not hypothetical: it hung every single CLI call and was only caught
+        // by `scripts/tests/smoke-cli.sh`, because the in-binary bundle
+        // self-tests never spawn a real child. Draining must never depend on
+        // the caller's thread being free to service callbacks.
+        //
+        // `availableData` blocks until at least one byte is readable and
+        // returns empty exactly at EOF, so each loop ends on its own when the
+        // child's pipe closes.
+        //
+        // The accumulators are each touched by exactly one thread before its
+        // semaphore is signalled, and read by the caller only after both
+        // waits below have returned — that ordering is the synchronisation.
+        // NOTE: `onStdoutLine` is therefore invoked on a background thread;
+        // callers that touch UI state must hop to the main actor themselves.
+        nonisolated(unsafe) var outData = Data()
+        nonisolated(unsafe) var errData = Data()
+
+        let drainQueue = DispatchQueue(label: "control-tower.process-drain", attributes: .concurrent)
+        drainQueue.async {
+            while case let chunk = outHandle.availableData, !chunk.isEmpty {
                 outData.append(chunk)
                 lineFramer?.feed(chunk)
             }
+            lineFramer?.flush()
+            outDrained.signal()
         }
-        errHandle.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            if chunk.isEmpty {
-                handle.readabilityHandler = nil
-                errDrained.signal()
-            } else {
+        drainQueue.async {
+            while case let chunk = errHandle.availableData, !chunk.isEmpty {
                 errData.append(chunk)
             }
+            errDrained.signal()
         }
 
         // `waitUntilExit()` blocks its caller until the process exits; on
@@ -174,14 +188,11 @@ enum ProcessDrain {
             exited.wait()
         }
 
-        // The readability handlers deliver their final (empty-data) EOF
-        // callback once the process's pipes close, which happens at/after
-        // exit — bounded so this can never hang even if that somehow never
-        // fires.
+        // Both read loops hit EOF once the child's pipes close, which happens
+        // at or just after exit. Bounded anyway, so a pipe held open by some
+        // surviving grandchild degrades to truncated output instead of a hang.
         _ = outDrained.wait(timeout: .now() + 5)
         _ = errDrained.wait(timeout: .now() + 5)
-        outHandle.readabilityHandler = nil
-        errHandle.readabilityHandler = nil
 
         return Result(stdout: outData, stderr: errData, timedOut: timedOut)
     }

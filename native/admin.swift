@@ -799,8 +799,18 @@ final class AdminModel: ObservableObject {
     @Published var lastWrittenBriefFingerprint: String? = nil
     @Published var repositoryPlanState: WriteState = .idle
     @Published var repositoryPlan: AdminRepositoryPlan? = nil
-    @Published var repositoryApplyState: WriteState = .idle
     @Published var repositorySetupMessage: String? = nil
+
+    // Surface 8 (running): "Set up organization" streams the engine's own
+    // per-step lines onto these — never a boolean "is it working". See
+    // `RunPhase`'s doc comment (native/admin-support.swift) for why
+    // `WriteState`'s .idle/.working pair was retired for this one run: a
+    // plain `.working` can get stuck true forever with nothing named on
+    // screen, exactly the defect progress-and-waiting-spec.md exists to fix.
+    @Published var applyRunPhase: RunPhase = .notStarted
+    @Published var applyRunRows: [RunRow] = []
+    var applyKnownRowIDs: Set<String> = []
+    var applyWatchdogTask: Task<Void, Never>? = nil
 
     // Surface 10: Setup check
     @Published var verifyState: WriteState = .idle // idle == never run
@@ -916,7 +926,16 @@ final class AdminModel: ObservableObject {
         githubChecking = true
         githubCheckDegraded = false
         githubAuthorizationMessage = nil
-        for i in readinessRows.indices { readinessRows[i].status = .checking }
+        // Spec fix (progress-and-waiting-spec.md §5): only the row whose
+        // check is ACTUALLY running may read as working — the old
+        // "flip all four at once" left three spinners turning over rows
+        // with no call behind them yet. Each row below is set to
+        // `.checking` only immediately before the one real call that
+        // resolves it.
+        for i in readinessRows.indices { readinessRows[i].status = .notChecked }
+        var toolsRow0 = readinessRows[.adminTools]
+        toolsRow0.status = .checking
+        readinessRows[.adminTools] = toolsRow0
 
         guard let ghPath = AdminPaths.bundledTool("gh"),
               let jqPath = AdminPaths.bundledTool("jq")
@@ -963,6 +982,10 @@ final class AdminModel: ObservableObject {
             githubChecking = false
             return
         }
+
+        var signedInChecking = readinessRows[.signedIn]
+        signedInChecking.status = .checking
+        readinessRows[.signedIn] = signedInChecking
 
         let auth = await ShellRunner.run(
             executable: ghPath,
@@ -1013,6 +1036,9 @@ final class AdminModel: ObservableObject {
             githubChecking = false
             return
         }
+
+        ownerRow.status = .checking
+        readinessRows[.owner] = ownerRow
 
         let membership = await ShellRunner.run(
             executable: ghPath,
@@ -1203,7 +1229,9 @@ final class AdminModel: ObservableObject {
         pendingDepartmentTouched = false
         repositoryPlanState = .idle
         repositoryPlan = nil
-        repositoryApplyState = .idle
+        disarmApplyWatchdog()
+        applyRunPhase = .notStarted
+        applyRunRows = []
         repositorySetupMessage = nil
         reopenCompletionForGovernanceChange()
         selection = .onboarding(.review)
@@ -1333,7 +1361,7 @@ final class AdminModel: ObservableObject {
         }
         if let departmentSlugs = payload["departments"] as? [String] {
             departments = departmentSlugs.map {
-                DepartmentEntry(name: Self.departmentDisplayName(from: $0))
+                DepartmentEntry(name: Self.departmentDisplayName(forSlug: $0))
             }
         }
         if let contacts = payload["contacts"] as? [String: Any] {
@@ -1374,8 +1402,14 @@ final class AdminModel: ObservableObject {
         return true
     }
 
-    private static func departmentDisplayName(from slug: String) -> String {
-        slug.split(separator: "-")
+    /// `knownDepartments`, when it already has a real entry for `slug`,
+    /// wins over the bare capitalization fallback — so a row built for a
+    /// step naming a department the administrator already typed a real
+    /// name for (`RunRowNaming`, native/admin-support.swift) shows that
+    /// name, not a guess reconstructed from its slug.
+    static func departmentDisplayName(forSlug slug: String, knownDepartments: [DepartmentEntry] = []) -> String {
+        if let known = knownDepartments.first(where: { $0.slug == slug }) { return known.name }
+        return slug.split(separator: "-")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
             .joined(separator: " ")
     }
@@ -1966,6 +2000,16 @@ extension AdminRootView {
                     }
                 }
 
+                if model.githubChecking, model.readinessRows.count >= 2 {
+                    Text("\(readinessCheckedCount) of \(model.readinessRows.count) checked.")
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .labelColor))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Getting this Mac ready")
+                        .accessibilityValue("\(readinessCheckedCount) of \(model.readinessRows.count) checked")
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
+
                 AdminCard {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(ReadinessRow.Kind.allCases) { kind in
@@ -2076,6 +2120,13 @@ extension AdminRootView {
         case .fail: return "not ready"
         case .cannotCheckLocally: return "can't be checked from here"
         }
+    }
+
+    /// P1's count (spec §5): rows that have a real answer this pass —
+    /// `.notChecked`/`.checking` are still in flight, everything else
+    /// (`.pass`/`.fail`/`.cannotCheckLocally`) is a real, current result.
+    private var readinessCheckedCount: Int {
+        model.readinessRows.filter { $0.status != .notChecked && $0.status != .checking }.count
     }
 }
 
@@ -2483,200 +2534,142 @@ extension AdminRootView {
     var reviewView: some View {
         StepShell(
             eyebrow: "ONBOARDING",
-            title: "Review organization setup",
-            intro: "Here's what Admin found and how it will finish the setup. Existing private repositories are kept, compatible setup is completed in place, and only confirmed-missing repositories are created."
+            title: applyRunTitle,
+            intro: applyRunIntro
         ) {
             VStack(alignment: .leading, spacing: 20) {
-                AdminCard {
-                    Text("You do not need to remove an existing ecosystem. Admin preserves it, adds only what is missing, and stops before any ambiguous change.")
-                        .font(.body.weight(.medium))
-                        .foregroundColor(Color(nsColor: .labelColor))
-                        .fixedSize(horizontal: false, vertical: true)
+                switch model.applyRunPhase {
+                case .notStarted:
+                    reviewPlanContent
+                default:
+                    RunChecklistView(model: model)
                 }
-
-                AdminCard(title: "The complete organization setup") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Org spaces: \(model.selectedComponentDisplayNames.joined(separator: ", ")) repositories ending in -internal. Private.")
-                        ForEach(model.departments.filter { !$0.slug.isEmpty }) { dept in
-                            Text("\(dept.name): \(model.selectedComponentRepoTokens.count) spaces and a team for \(dept.name) that can reach them.")
-                        }
-                        Text("Your organization's setup file (ecosystem.yml).")
-                        Text("Your organization's public GitHub OAuth App client ID. The client secret is never collected.")
-                        Text("Your whole organization set to read by default.")
-                        Text("Harnesses: \(model.selectedHarnessDisplayNames).")
-                        Text(model.storeStatus == .connected ? "Store: connected." : "Store: not connected yet.")
-                    }
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .labelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-
-                briefCard
-                repositoryInventoryCard
             }
         } leadingActions: {
-            backButton { model.goBack(from: .review) }
+            reviewLeadingActions
         } primaryAction: {
-            primaryButton(
-                model.repositoryApplyState == .working ? "Setting up…" : "Set up organization",
-                enabled: model.githubOAuthClientIDIsValid && model.repositoryPlanState == .success && model.repositoryPlan?.result != .blocked && model.repositoryApplyState != .working
-            ) {
-                Task {
-                    await model.applyRepositoryPlan()
-                    if model.repositoryApplyState == .success {
-                        model.advance(from: .review)
-                    }
-                }
-            }
+            reviewPrimaryAction
         }
         .task {
             await model.refreshReviewIfNeeded()
         }
     }
 
+    // The heading of a running operation never changes while it runs
+    // (progress-and-waiting-spec.md §9); this is the one place the title
+    // is allowed to differ, between "not started yet" and "running/ended".
+    private var applyRunTitle: String {
+        if case .notStarted = model.applyRunPhase { return "Review organization setup" }
+        return "Setting up your organization"
+    }
+
+    private var applyRunIntro: String {
+        switch model.applyRunPhase {
+        case .notStarted, .ended:
+            return "Here's what Admin found and how it will finish the setup. Existing private repositories are kept, compatible setup is completed in place, and only confirmed-missing repositories are created."
+        case .alive(_, _, let subject):
+            return subject == nil
+                ? "Checking your access and every space on GitHub first. Nothing has been changed yet."
+                : "Setup only adds what's missing. Existing spaces are kept exactly as they are."
+        case .stalled:
+            return "Setup only adds what's missing. Existing spaces are kept exactly as they are."
+        }
+    }
+
+    @ViewBuilder
+    private var reviewLeadingActions: some View {
+        switch model.applyRunPhase {
+        case .alive, .stalled:
+            // Back is removed while the run is alive (spec §4) — there is
+            // nothing to go back to mid-mutation.
+            EmptyView()
+        case .notStarted, .ended(.allDone):
+            backButton { model.goBack(from: .review) }
+        case .ended(.unfinished):
+            HStack(spacing: 10) {
+                backButton { model.goBack(from: .review) }
+                Button("See what's really on GitHub") {
+                    model.selection = .onboarding(.setupCheck)
+                    model.runSetupCheck()
+                }
+                .buttonStyle(.bordered)
+            }
+        case .ended(.refused), .ended(.timedOut):
+            backButton { model.goBack(from: .review) }
+        }
+    }
+
+    @ViewBuilder
+    private var reviewPrimaryAction: some View {
+        switch model.applyRunPhase {
+        case .notStarted:
+            primaryButton(
+                "Set up organization",
+                enabled: model.githubOAuthClientIDIsValid && model.repositoryPlanState == .success && model.repositoryPlan?.result != .blocked
+            ) {
+                Task { await model.runApplyAndAdvanceIfDone() }
+            }
+        case .alive, .stalled:
+            Button {} label: { Text("Setting up…") }
+                .buttonStyle(.borderedProminent)
+                .disabled(true)
+                .help("Setup is running. This finishes on its own.")
+                .accessibilityHint("Setup is running. This finishes on its own.")
+        case .ended(.allDone):
+            // Unreachable in practice — `runApplyAndAdvanceIfDone()`
+            // navigates away from Review the instant the run ends this way.
+            EmptyView()
+        case .ended(.unfinished), .ended(.timedOut):
+            primaryButton("Try setup again") {
+                Task { await model.runApplyAndAdvanceIfDone() }
+            }
+        case .ended(.refused):
+            primaryButton("See what's really on GitHub") {
+                model.selection = .onboarding(.setupCheck)
+                model.runSetupCheck()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var reviewPlanContent: some View {
+        AdminCard {
+            Text("You do not need to remove an existing ecosystem. Admin preserves it, adds only what is missing, and stops before any ambiguous change.")
+                .font(.body.weight(.medium))
+                .foregroundColor(Color(nsColor: .labelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        AdminCard(title: "The complete organization setup") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Org spaces: \(model.selectedComponentDisplayNames.joined(separator: ", ")) repositories ending in -internal. Private.")
+                ForEach(model.departments.filter { !$0.slug.isEmpty }) { dept in
+                    Text("\(dept.name): \(model.selectedComponentRepoTokens.count) spaces and a team for \(dept.name) that can reach them.")
+                }
+                Text("Your organization's setup file (ecosystem.yml).")
+                Text("Your organization's public GitHub OAuth App client ID. The client secret is never collected.")
+                Text("Your whole organization set to read by default.")
+                Text("Harnesses: \(model.selectedHarnessDisplayNames).")
+                Text(model.storeStatus == .connected ? "Store: connected." : "Store: not connected yet.")
+            }
+            .font(.body)
+            .foregroundColor(Color(nsColor: .labelColor))
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        briefCard
+        repositoryInventoryCard
+    }
+
     private var briefCard: some View {
         AdminCard(title: "The file setup wrote for you") {
-            VStack(alignment: .leading, spacing: 8) {
-                switch model.briefWriteState {
-                case .idle:
-                    // Never-started is not "in flight": no spinner here.
-                    // Reachable only for a frame at most, since `.task`
-                    // above calls `refreshReviewIfNeeded()` immediately on
-                    // appearance, which drives this to `.working` right
-                    // away whenever real work is needed.
-                    Text("Setup hasn't written your file yet.")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                case .working:
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Writing your setup file...")
-                            .font(.callout)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    }
-                case .failure:
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("I couldn't write the setup file, so I won't hand off a command that points at nothing. Try again.")
-                            .foregroundColor(Color(nsColor: .systemRed))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Try again") {
-                            Task { await model.refreshReview() }
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                case .success:
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Setup wrote a plain description of your organization you can read:")
-                            .fixedSize(horizontal: false, vertical: true)
-                        HStack {
-                            Text(AdminPaths.briefPathDisplay)
-                                .font(.system(.callout, design: .monospaced))
-                                .foregroundColor(Color(nsColor: .labelColor))
-                            Button {
-                                AdminIO.revealInFinder(AdminPaths.briefPath)
-                            } label: {
-                                Text("Reveal ›")
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundColor(Color(nsColor: .controlAccentColor))
-                        }
-                        Text("At a glance: \(model.orgSlug) · \(model.selectedHarnessDisplayNames) · \(model.departments.filter { !$0.slug.isEmpty }.count) departments · \(model.storeAtAGlance).")
-                            .font(.callout)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        Text("It carries no secrets and no integrations.")
-                            .font(.callout)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    }
-                }
-            }
+            BriefCardBody(model: model)
         }
     }
 
     private var repositoryInventoryCard: some View {
         AdminCard(title: "What Admin found on GitHub") {
-            VStack(alignment: .leading, spacing: 8) {
-                switch model.repositoryPlanState {
-                case .idle:
-                    // Never-started is not "in flight": no spinner here.
-                    // Same transient-only reachability as `briefCard` above.
-                    Text("Setup hasn't checked your repositories yet.")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                case .working:
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Checking every organization and department repository…")
-                    }
-                case .failure:
-                    Text(model.repositorySetupMessage ?? "I couldn't read the repository inventory, so I won't create anything.")
-                        .foregroundColor(Color(nsColor: .systemRed))
-                    Button("Try again") { Task { await model.loadRepositoryPlan() } }
-                        .buttonStyle(.bordered)
-                case .success:
-                    if let plan = model.repositoryPlan {
-                        ForEach(plan.repositories, id: \.name) { repository in
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: repositoryInventoryGlyph(repository.state))
-                                    .foregroundColor(repositoryInventoryColor(repository.state))
-                                    .frame(width: 18)
-                                    .accessibilityHidden(true)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        Text("\(repository.owner)/\(repository.name)")
-                                            .font(.system(.callout, design: .monospaced))
-                                        Spacer()
-                                        Text(repositoryInventoryAction(repository.state))
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundColor(repositoryInventoryColor(repository.state))
-                                    }
-                                    Text(repository.detail)
-                                        .font(.caption)
-                                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        Text("\(plan.summary.existing) kept · \(plan.summary.missing) to create privately · \(plan.summary.blocked) needing review")
-                            .font(.callout.weight(.semibold))
-                        Text("Admin rechecks this inventory immediately before setup. Existing private repositories are reused, compatible content is completed additively, and every new repository is private.")
-                            .font(.callout.weight(.medium))
-                    }
-                    if let message = model.repositorySetupMessage {
-                        Text(message)
-                            .foregroundColor(model.repositoryPlan?.result == .blocked ? Color(nsColor: .systemRed) : Color(nsColor: .secondaryLabelColor))
-                    }
-                }
-            }
+            RepositoryInventoryCardBody(model: model)
         }
-    }
-
-    private func repositoryInventoryAction(_ state: RepositoryState) -> String {
-        switch state {
-        case .existingPrivate: return "Keep"
-        case .missing: return "Create privately"
-        case .created: return "Created privately"
-        case .conflictPublic, .unknown: return "Review"
-        }
-    }
-
-    private func repositoryInventoryGlyph(_ state: RepositoryState) -> String {
-        switch state {
-        case .existingPrivate, .created: return "checkmark.circle.fill"
-        case .missing: return "plus.circle.fill"
-        case .conflictPublic, .unknown: return "hand.raised.circle.fill"
-        }
-    }
-
-    private func repositoryInventoryColor(_ state: RepositoryState) -> Color {
-        switch state {
-        case .existingPrivate, .created: return Color(nsColor: .systemGreen)
-        case .missing: return Color(nsColor: .controlAccentColor)
-        case .conflictPublic, .unknown: return Color(nsColor: .systemRed)
-        }
-    }
-
-    private func openTerminalAndAdvance() {
-        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
-        model.advance(from: .review)
     }
 }

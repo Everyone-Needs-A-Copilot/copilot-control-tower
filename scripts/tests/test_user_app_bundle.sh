@@ -52,4 +52,26 @@ if [[ "${tray_projects_output}" != *"SELFTEST trayProjects notice=pass rows=pass
   exit 1
 fi
 
+setup_progress_output="$(CT_SETUP_PROGRESS_SELFTEST=1 "${APP_BIN}")"
+if [[ "${setup_progress_output}" != *"SELFTEST setupProgress neverStarted=pass distinctWorking=pass realResults=pass blockedDetail=pass countLine=pass noCountBelowTwo=pass noDenominator=pass"* ]]; then
+  echo "Setup progress selftest failed: ${setup_progress_output}" >&2
+  exit 1
+fi
+
+tray_wait_output="$(CT_TRAY_WAIT_SELFTEST=1 "${APP_BIN}")"
+if [[ "${tray_wait_output}" != *"SELFTEST trayWait join=pass add=pass undo=pass namedSpinner=pass"* ]]; then
+  echo "Tray named-wait selftest failed: ${tray_wait_output}" >&2
+  exit 1
+fi
+
+# The wizard's Set up step once faked its progress: a Swift-built label array
+# advanced by `cyclePhases`' own `Task.sleep`, running after the real call had
+# already returned. Progress must come from the CLI's reported stages, so keep
+# that pattern from coming back. Matches the definition, not the word, since
+# the comment explaining the removal names it too.
+if rg -q 'func +cyclePhases' native/wizard.swift; then
+  echo "Wizard setup progress is timer-driven again (cyclePhases returned)" >&2
+  exit 1
+fi
+
 echo "user app bundle tests: PASS"
