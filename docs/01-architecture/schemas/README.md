@@ -14,7 +14,7 @@ it implements no resolution/merge/sign/wipe logic of its own.
 | Schema | Verb | Notes |
 |---|---|---|
 | `_envelope.schema.json` | — | Shared `$defs` (`schema_version`, `git_sha`, `timestamp`, `severity`) `$ref`'d by every verb. There is **no** uniform status/error wrapper in the contract; the only universal field is `schema_version`. |
-| `auth.schema.json` | `copilot auth [login\|status] --json` | GitHub device-flow sign-in (WS-A Stream-A). Three `kind`-discriminated payloads (`device-code`/`poll`/`status`) plus the shared error envelope; NO-SECRET fitness `allOf` recursively forbids any `access_token`/`token`/`refresh_token`/`secret` key at any depth — the OAuth token lives only in the OS keychain, never in this contract. |
+| `auth.schema.json` | `copilot auth [login\|grant\|status] --json` | GitHub device-flow sign-in plus the identity-bound, least-privilege `write:public_key` upgrade. Five `kind`-discriminated payloads (`device-code`/`poll`/`grant-device-code`/`grant-poll`/`status`) plus the shared error envelope; NO-SECRET fitness recursively forbids credential-shaped keys at every depth. |
 | `doctor.schema.json` | `copilot doctor --json` | Health verdict. Encodes the "a false Healthy is impossible" invariant (healthy ⇒ not offline, no `fail` checker). |
 | `update.schema.json` | `copilot update --json` | Reconciling sync; `pruned` op + `severity_trailer`/`shadowed_by` banner drivers. Additive `path` property (Component Sync Stream-E) carries this same shape for a single project's `copilot materialize --project <path> --json` result. |
 | `resolve.schema.json` | `copilot resolve --explain --json` | Per-item layered resolution; `live_hash_matches:false` ⇒ MODIFIED. |

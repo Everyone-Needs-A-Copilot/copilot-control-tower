@@ -864,6 +864,15 @@ PY
       exit 0
     fi
 
+    if [ "$subverb" = "grant" ]; then
+      if [ "$poll" -eq 0 ]; then
+        printf '%s\n' '{"schema_version":"1.0","kind":"grant-device-code","permission":"write:public_key","user_code":"GRNT-KEY1","verification_uri":"https://example.com/device","expires_in":900,"interval":5,"device_code":"mock-grant-device-code-0000"}'
+      else
+        printf '%s\n' '{"schema_version":"1.0","kind":"grant-poll","status":"granted"}'
+      fi
+      exit 0
+    fi
+
     case "$auth_scenario" in
       authorized|denied|expired|timeout|pending|authorized-leaked-field-adversarial) ;;
       org-required-then-authorized|org-required-then-not-found|org-required-then-no-company-app|org-required-then-network-unavailable) ;;

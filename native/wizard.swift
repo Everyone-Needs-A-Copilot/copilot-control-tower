@@ -107,15 +107,12 @@ enum OrgFieldValidation: Equatable {
 }
 
 // MARK: - Holding H7, granting a missing GitHub permission: device-flow
-// state (copy spec §2.9.3) — same shape as `DeviceFlowState` above, plus
-// `.unavailable` and `.timedOut`, which `auth login`'s flow has no
-// equivalent of: `.unavailable` is the real, distinguishable "the CLI
-// cannot drive this" state (Appendix D.2), and `.timedOut` exists because
-// `auth grant` reports no `expires_in` the way `AuthDeviceCode` does, so
-// this app imposes its OWN bound rather than waiting forever.
+// state (copy spec §2.9.3) — same shape as `DeviceFlowState` above, with
+// explicit fail-closed identity/scope terminal states.
 
 enum GrantFlowStatus: Equatable {
-    case idle, pending, granted, denied, expired, timedOut, unavailable
+    case idle, pending, granted, denied, expired, identityMismatch
+    case insufficientScope, timedOut, unavailable
 }
 
 /// RENDER data only, same discipline as `DeviceFlowState` — no field here a
@@ -2191,7 +2188,7 @@ final class WizardModel: ObservableObject {
     /// ceremony Connect GitHub already uses, against `cc auth grant --json`.
     /// A response this app can't use for real — launch/decode failure
     /// (including the verb not existing at all on this Mac's installed CLI)
-    /// or an explicit `result: "unavailable"` — resolves to `.unavailable`
+    /// — resolves to `.unavailable`
     /// rather than ever leaving the sheet spinning or showing a broken code
     /// (holding-copy-spec H7: "must not render a button that does
     /// nothing"). Called with the sheet ALREADY about to open (`h7View`'s
@@ -2204,19 +2201,21 @@ final class WizardModel: ObservableObject {
         Task {
             switch await CliClient.shared.authGrantInitiate() {
             case .success(let start):
-                guard start.result != "unavailable",
-                      let userCode = start.userCode,
-                      let verificationUri = start.verificationUri,
-                      let deviceCode = start.deviceCode
+                guard start.kind == "grant-device-code",
+                      start.permission == "write:public_key"
                 else {
                     self.handleGrantUnavailable()
                     return
                 }
-                self.grantFlow.userCode = userCode
-                self.grantFlow.verificationUri = verificationUri
-                self.grantFlow.deviceCode = deviceCode
-                self.grantFlow.interval = start.interval ?? 5
-                self.startGrantPolling(deviceCode: deviceCode, interval: start.interval ?? 5)
+                self.grantFlow.userCode = start.userCode
+                self.grantFlow.verificationUri = start.verificationUri
+                self.grantFlow.deviceCode = start.deviceCode
+                self.grantFlow.interval = start.interval
+                self.startGrantPolling(
+                    deviceCode: start.deviceCode,
+                    interval: start.interval,
+                    expiresIn: start.expiresIn
+                )
             case .failure:
                 self.handleGrantUnavailable()
             }
@@ -2228,15 +2227,14 @@ final class WizardModel: ObservableObject {
         grantUnavailableKnown = true
     }
 
-    /// `auth grant` reports no `expires_in` the way `auth login`'s device
-    /// code does (Appendix D.2's own described shape has no such field), so
-    /// this app imposes its own bound — GitHub's own OAuth device-flow
-    /// default (900s) — rather than polling forever. Reaching it renders
-    /// `.timedOut`, distinct from a CLI-reported `.expired`.
-    private static let grantPollTimeout: TimeInterval = 900
-
-    private func startGrantPolling(deviceCode: String, interval: Int) {
-        let deadline = Date().addingTimeInterval(Self.grantPollTimeout)
+    private func startGrantPolling(
+        deviceCode: String,
+        interval: Int,
+        expiresIn: Int
+    ) {
+        let deadline = Date().addingTimeInterval(
+            TimeInterval(max(expiresIn, 1))
+        )
         let waitSeconds = UInt64(max(interval, 1))
         grantPollTask = Task { [weak self] in
             while true {
@@ -2250,22 +2248,28 @@ final class WizardModel: ObservableObject {
                 if Task.isCancelled { return }
                 switch await CliClient.shared.authGrantPoll(deviceCode: deviceCode) {
                 case .success(let poll):
-                    if poll.result == "unavailable" {
+                    guard poll.kind == "grant-poll" else {
                         self.handleGrantUnavailable()
                         return
                     }
                     switch poll.status {
-                    case "granted":
+                    case .granted:
                         self.grantFlow.status = .granted
                         return
-                    case "denied":
+                    case .denied:
                         self.grantFlow.status = .denied
                         return
-                    case "expired":
+                    case .expired:
                         self.grantFlow.status = .expired
                         return
-                    default:
-                        continue // "pending", or an unrecognized value — keep waiting
+                    case .identityMismatch:
+                        self.grantFlow.status = .identityMismatch
+                        return
+                    case .insufficientScope:
+                        self.grantFlow.status = .insufficientScope
+                        return
+                    case .pending:
+                        continue
                     }
                 case .failure:
                     self.handleGrantUnavailable()
@@ -4872,6 +4876,16 @@ private struct GrantPermissionSheet: View {
                 terminalBody(message: "That was declined.", actionLabel: "Try again")
             case .expired:
                 terminalBody(message: "That code expired.", actionLabel: "Get a new code")
+            case .identityMismatch:
+                terminalBody(
+                    message: "GitHub confirmed a different account, so nothing changed.",
+                    actionLabel: "Try again"
+                )
+            case .insufficientScope:
+                terminalBody(
+                    message: "GitHub did not grant the permission this Mac needs.",
+                    actionLabel: "Try again"
+                )
             case .timedOut:
                 terminalBody(message: "That took too long.", actionLabel: "Get a new code")
             case .unavailable:
@@ -4977,7 +4991,7 @@ private struct GrantFallbackSheet: View {
     /// same contract as `InstallHelperSheet.onDone` above.
     let onDone: () -> Void
 
-    private static let step = "gh auth refresh -h github.com -s admin:public_key"
+    private static let step = "gh auth refresh -h github.com -s write:public_key"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {

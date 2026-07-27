@@ -527,6 +527,8 @@ Verbatim reuse of §2.5.1's device-flow grammar, which the person completed two 
 - Granted: `Granted. Picking up where I left off.`
 - Denied: `That was declined.` + `Try again`
 - Expired: `That code expired.` + `Get a new code`
+- Different account: `GitHub confirmed a different account, so nothing changed.` + `Try again`
+- Permission not granted: `GitHub did not grant the permission this Mac needs.` + `Try again`
 - Timeout: `That took too long.` + `Get a new code`
 - Dismiss buttons: `Cancel` (while pending) / `Done` (once granted)
 - Quiet caption on H7 itself, above the footer: `I'll take you to GitHub to grant it. Nothing on this Mac changes.`
@@ -535,7 +537,7 @@ Verbatim reuse of §2.5.1's device-flow grammar, which the person completed two 
 
 - Title: `Granting the permission by hand`
 - Intro: `This is one command. If you're comfortable in Terminal, paste it there. If you're not, copy it and send it to whoever looks after your Mac.`
-- Block label: `The step` (mono block, never wrapped into prose): `gh auth refresh -h github.com -s admin:public_key`
+- Block label: `The step` (mono block, never wrapped into prose): `gh auth refresh -h github.com -s write:public_key`
 - Copy affordance: `Copy this step` / confirmed `Copied`
 - Primary: `Done` (closes the sheet and re-checks once, automatically)
 - The H7 body itself never contains a command, a path, or the phrase `permission scope`.

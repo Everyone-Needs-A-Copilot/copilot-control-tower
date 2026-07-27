@@ -446,22 +446,15 @@ actor CliClient {
         }
     }
 
-    /// H7's primary action (`docs/03-design/control-tower-copy-deck.md`
-    /// §2.9.3, Appendix D.2). Deliberately calls `decodeLenient`, NOT
-    /// `decodeVerb` — see `AuthGrantStart`'s own doc comment in
-    /// `native/cli-dtos.swift` for why this verb's contract isn't frozen
-    /// yet. Any launch/parse failure (including "no such command", the
-    /// real behavior of every `cc` build that predates this verb shipping)
-    /// is returned as an ordinary `CliError`, exactly like every other verb
-    /// here; `WizardModel.beginGrantFlow` is what folds THAT, plus an
-    /// explicit `result: "unavailable"`, into one real, distinguishable
-    /// `.unavailable` state.
+    /// H7's primary action. The grant variants are frozen in
+    /// `docs/01-architecture/schemas/auth.schema.json`, so both calls use
+    /// the ordinary schema-major gate and strict non-optional DTOs.
     func authGrantInitiate() async -> Result<AuthGrantStart, CliError> {
-        await decodeLenient(["auth", "grant", "--json"])
+        await decodeVerb(["auth", "grant", "--json"])
     }
 
     func authGrantPoll(deviceCode: String) async -> Result<AuthGrantPoll, CliError> {
-        await decodeLenient(["auth", "grant", "--poll", "--device-code", deviceCode, "--json"])
+        await decodeVerb(["auth", "grant", "--poll", "--device-code", deviceCode, "--json"])
     }
 
     func layers() async -> Result<LayersReport, CliError> {
@@ -643,40 +636,6 @@ actor CliClient {
 
             if case .failure(let gateError) = SchemaGate.check(raw.stdout) {
                 return .failure(gateError)
-            }
-
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            do {
-                return .success(try decoder.decode(T.self, from: raw.stdout))
-            } catch {
-                return .failure(Self.mapDecodingError(error))
-            }
-        }
-    }
-
-    /// The lenient counterpart to `decodeVerb`, for a verb whose contract
-    /// isn't frozen in `docs/01-architecture/schemas/` yet (today: only
-    /// `auth grant`/`auth grant --poll`, see `AuthGrantStart`'s doc
-    /// comment). Skips `SchemaGate` entirely — there is no `schema_version`
-    /// floor to gate against for a verb with no versioned schema — but
-    /// keeps every other fail-closed behavior `decodeVerb` has: exit 2 still
-    /// decodes ONLY the shared error envelope, never the verb's normal
-    /// shape, and a body that doesn't decode as `T` is still a `.parse`
-    /// failure, never a silently-fabricated empty value.
-    private func decodeLenient<T: Decodable>(_ args: [String]) async -> Result<T, CliError> {
-        switch await runRaw(args) {
-        case .failure(let error):
-            return .failure(error)
-
-        case .success(let raw):
-            if raw.exit == 2 {
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
-                if let envelope = try? decoder.decode(ErrorEnvelope.self, from: raw.stdout) {
-                    return .failure(.exit2(code: envelope.error.code, message: envelope.error.message))
-                }
-                return .failure(.exit2(code: "unknown", message: "no readable error body"))
             }
 
             let decoder = JSONDecoder()

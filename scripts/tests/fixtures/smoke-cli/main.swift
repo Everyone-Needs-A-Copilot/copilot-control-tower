@@ -176,6 +176,28 @@ case .failure(let error):
     check("auth status decodes", false, "got \(error)")
 }
 
+switch await CliClient.shared.authGrantInitiate() {
+case .success(let grant):
+    check(
+        "auth grant initiate is least privilege",
+        grant.kind == "grant-device-code"
+            && grant.permission == "write:public_key"
+            && grant.expiresIn == 900
+    )
+case .failure(let error):
+    check("auth grant initiate decodes", false, "got \(error)")
+}
+
+switch await CliClient.shared.authGrantPoll(deviceCode: "mock-grant-device-code-0000") {
+case .success(let poll):
+    check(
+        "auth grant poll decodes",
+        poll.kind == "grant-poll" && poll.status == .granted
+    )
+case .failure(let error):
+    check("auth grant poll decodes", false, "got \(error)")
+}
+
 // MARK: - onboard: plan then apply decode the fail-closed repository contract
 
 switch await CliClient.shared.onboardPlan(components: ["knowledge", "cli", "claude", "codex"]) {
