@@ -486,12 +486,16 @@ test_verify_json_schema() {
   assert_true "test5: includes a deferred store row" "$has_deferred" "$verify_out"
   assert_true "test5: includes a present-undeclared row for the undeclared hr department" "$has_undeclared" "$verify_out"
 
-  local github_app_status personal_handoff_status team_grant_status
+  local github_app_status personal_handoff_status bootstrap_repo_status bootstrap_yml_status team_grant_status
   github_app_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "github-app") | .status')"
   personal_handoff_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "personal-handoff") | .status')"
+  bootstrap_repo_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "bootstrap-repo") | .status')"
+  bootstrap_yml_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "bootstrap-yml") | .status')"
   team_grant_status="$(printf '%s' "$verify_out" | jq -r '[.checks[] | select(.check == "dept-team-grant") | .status] | unique | join(",")')"
   assert_eq "test5: verifies the public GitHub OAuth App client ID" "pass" "$github_app_status"
   assert_eq "test5: verifies the personal User Setup handoff" "pass" "$personal_handoff_status"
+  assert_eq "test5: verifies the signed-out bootstrap repo is public" "pass" "$bootstrap_repo_status"
+  assert_eq "test5: verifies bootstrap.yml exactly matches the discovery contract" "pass" "$bootstrap_yml_status"
   assert_eq "test5: treats GitHub's 204 No Content team-permission response as access" "pass" "$team_grant_status"
 
   local deferred_excluded=1
@@ -1677,6 +1681,38 @@ test_bootstrap_yml_foreign_content_refuses() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 36: verify must not report a standing org as ready while the public
+# signed-out bootstrap artifact is absent. Both rows fail independently and
+# the read-only verb never creates or writes either artifact.
+# ---------------------------------------------------------------------------
+
+test_verify_fails_when_bootstrap_artifact_is_missing() {
+  local st brief setup_log verify_log verify_out repo_status yml_status must_fix mutating
+  st="$(new_org_state bootstrap-verify-missing)"
+  brief="$WORKDIR/brief-bootstrap-verify-missing.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  setup_log="$WORKDIR/bootstrap-verify-missing-setup.log"
+  verify_log="$WORKDIR/bootstrap-verify-missing.log"
+
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test36: fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  rm -rf "$st/repos/acme-co/copilot-bootstrap"
+  run_engine "$st" "$verify_log" --verify --brief "$brief" --json
+  verify_out="$RUN_STDOUT"
+
+  assert_eq "test36: verify exits 0 and reports check-level failures in JSON" "0" "$RUN_EXIT" "$RUN_STDERR"
+  repo_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "bootstrap-repo") | .status')"
+  yml_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "bootstrap-yml") | .status')"
+  must_fix="$(printf '%s' "$verify_out" | jq -r '.summary.must_fix')"
+  mutating="$(count_mutating_calls "$verify_log")"
+  assert_eq "test36: missing public bootstrap repo is a failure" "fail" "$repo_status"
+  assert_eq "test36: missing bootstrap.yml is a failure" "fail" "$yml_status"
+  assert_eq "test36: both missing bootstrap obligations count toward must_fix" "2" "$must_fix"
+  assert_eq "test36: verify never repairs the missing bootstrap artifact" "0" "$mutating"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1715,6 +1751,7 @@ test_store_reachability_uses_bounded_http_probe
 test_branch_protection_preserves_admin_recovery
 test_bootstrap_repo_private_conflict_refuses
 test_bootstrap_yml_foreign_content_refuses
+test_verify_fails_when_bootstrap_artifact_is_missing
 
 echo
 echo "-----------------------------------------"

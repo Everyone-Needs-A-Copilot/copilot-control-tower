@@ -2056,6 +2056,42 @@ _check_personal_handoff() {
   fi
 }
 
+_check_public_bootstrap_repo() {
+  local org="$1"
+  _probe_repo "$org" "copilot-bootstrap"
+  case "$_REPO_PROBE_STATE" in
+    conflict-public)
+      _check_row "bootstrap-repo" "pass" "$org/copilot-bootstrap exists and is public for signed-out discovery." "" "none"
+      ;;
+    existing-private)
+      _check_row "bootstrap-repo" "fail" "$org/copilot-bootstrap exists but is private, so a signed-out Mac cannot read it." "Admin" "describe"
+      ;;
+    missing)
+      _check_row "bootstrap-repo" "fail" "$org/copilot-bootstrap does not exist yet, so signed-out discovery cannot start." "Admin" "describe"
+      ;;
+    *)
+      _check_row "bootstrap-repo" "unknown" "I couldn't read $org/copilot-bootstrap, so I won't guess whether signed-out discovery is available." "Admin" "describe"
+      ;;
+  esac
+}
+
+_check_bootstrap_yml() {
+  local org="$1" expected content
+  expected="$(_render_bootstrap_yml "$org" "$GITHUB_OAUTH_CLIENT_ID")"
+  if _gh_read "repos/$org/copilot-bootstrap/contents/bootstrap.yml" '.content // empty'; then
+    content="$(printf '%s' "$_GH_READ_VALUE" | _b64_decode)"
+    if [[ "$content" == "$expected" ]]; then
+      _check_row "bootstrap-yml" "pass" "$org/copilot-bootstrap/bootstrap.yml carries exactly the expected organization name and public sign-in ID." "" "none"
+    else
+      _check_row "bootstrap-yml" "fail" "$org/copilot-bootstrap/bootstrap.yml is missing, differs, or carries fields outside the two-field discovery contract." "Admin" "describe"
+    fi
+  elif [[ "$_GH_READ_STATUS" == "not-found" ]]; then
+    _check_row "bootstrap-yml" "fail" "$org/copilot-bootstrap has no bootstrap.yml matching the signed-out discovery contract." "Admin" "describe"
+  else
+    _check_row "bootstrap-yml" "unknown" "I couldn't read $org/copilot-bootstrap/bootstrap.yml, so I won't guess whether its discovery data is safe and current." "Admin" "describe"
+  fi
+}
+
 _check_layer_package() {
   local org="$1" repo="$2" product="$3" role="$4" rank="$5" content
   if _gh_read "repos/$org/$repo/contents/copilot.layer.yml" '.content // empty'; then
@@ -2156,6 +2192,8 @@ run_verify() {
   row="$(_check_ecosystem_file "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
   row="$(_check_github_app "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
   row="$(_check_personal_handoff "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+  row="$(_check_public_bootstrap_repo "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
+  row="$(_check_bootstrap_yml "$org")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
   for h in "${HARNESS_LIST[@]}"; do
     row="$(_check_layer_package "$org" "${h}-copilot-internal" "$h" "organization" "30")"; checks_json="$(echo "$checks_json" | jq --argjson r "$row" '. + [$r]')"; _tally "$row"
     for unit in "${DEPARTMENTS[@]+"${DEPARTMENTS[@]}"}"; do

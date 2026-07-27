@@ -7,12 +7,12 @@
 
 ## 1. State
 
-Both branches are unmerged and unpushed. Neither repo's working tree needed a code change to produce this handoff — the only new files are this document, its companion work record, and the three copied design specs (see the work record's "References" section for exact paths).
+Both branches are unmerged and unpushed. The original handoff was documentation-only; TASK-161 and TASK-162 now add the safety implementation, verification coverage, and completion record described below.
 
 | Repo | Branch | Ahead of | Pushed? | Tip commit |
 |---|---|---|---|---|
-| `copilot-control-tower` | `app-build` | `origin/app-build` by 21 commits (5 of which are this sub-phase: `dca7e58`…`1aef610`) | Not pushed | `1aef610` |
-| `claude-copilot` | `feat/adopt-and-project-setup` | local `main` by 6 commits (4 of which are this sub-phase: `e3e1826`…`20886b3`) | No remote branch exists at all (`git ls-remote --heads origin feat/adopt-and-project-setup` returns nothing) | `20886b3` |
+| `copilot-control-tower` | `app-build` | `origin/app-build` by 23 commits | Not pushed | This TASK-161/TASK-162 commit |
+| `claude-copilot` | `feat/adopt-and-project-setup` | local `main` by 7 commits | No remote branch exists at all (`git ls-remote --heads origin feat/adopt-and-project-setup` returns nothing) | `8fedac6` |
 
 **Both native app targets build clean.** Verified by running `scripts/tests/smoke-scenarios.sh`, which builds both bundles via `scripts/build-user.command --build-only` and `scripts/build-admin.command --build-only` before running any scenario; both build steps exited 0. Note for future builds: **you do not need to set `CC`/`PATH` yourself** — `scripts/build-user.command:68` and `scripts/build-admin.command:80` already hardcode `CC=/usr/bin/cc PATH=/usr/bin:$PATH` immediately before their own `swiftc` invocation, precisely because the `copilot` CLI installs itself as `cc` on this machine and shadows the real C compiler. That protection is already baked into the scripts; it only matters if you invoke `swiftc`/`swift build` directly, outside them.
 
@@ -21,8 +21,9 @@ Both branches are unmerged and unpushed. Neither repo's working tree needed a co
 | Suite | Command | Result |
 |---|---|---|
 | App smoke scenarios | `bash scripts/tests/smoke-scenarios.sh` (from repo root) | **110 passed, 0 failed** — matches the commit-message figure exactly. |
-| App admin bootstrap suite | `bash scripts/tests/test_admin_bootstrap.sh` | **206 passed, 0 failed** — matches the commit-message figure exactly. |
-| CLI pytest suite | `cd claude-copilot/tools/cc && source .venv/bin/activate && pytest` | **1,097 passed, 3 failed, 14 errors, 0 skipped** (1,114 collected). |
+| App admin bootstrap suite | `bash scripts/tests/test_admin_bootstrap.sh` | **214 passed, 0 failed** — includes read-only verification of the public bootstrap repository and exact two-field file contract. |
+| CLI focused safety suite | `cd claude-copilot/tools/cc && source .venv/bin/activate && pytest tests/test_ssh_identity.py tests/test_onboard_contract.py -o addopts=''` | **50 passed, 0 failed**. |
+| CLI full pytest suite | `cd claude-copilot/tools/cc && source .venv/bin/activate && pytest -o addopts=''` | **1,104 passed, 3 failed, 14 errors, 0 skipped** (1,121 collected). |
 
 **The CLI number does not match the commit messages' self-reported "1,100 passing, 14 skipped", and I'm flagging that rather than quietly reporting the commit figure.** I traced the discrepancy rather than assuming either number was wrong:
 
@@ -35,16 +36,17 @@ Both branches are unmerged and unpushed. Neither repo's working tree needed a co
 
 | Path | SHA-256 before | SHA-256 after | Changed? |
 |---|---|---|---|
-| `~/.claude/cc/config.json` | `604ad20169016fc258551579bc8fc787876eb143504ad901ddf8f54a210cd30d` | `604ad20169016fc258551579bc8fc787876eb143504ad901ddf8f54a210cd30d` | No |
+| `~/.claude/cc/config.json` | `604ad20169016fc258551579bc8fc787876eb143504ad901ddf8f54a210cd30d` | `c4cdf9cb7a26aa9fb2d2a4cc787bcc5e2a2644b7f583e2a4803a07c88d228bf8` | **Yes, intentionally:** the live standup wrote `github_app.org: Everyone-Needs-A-Copilot` after publication. The full CLI test run itself left the before hash unchanged. |
 | `~/.ssh/config` | `3afe60267212ab03742a784beeff4a402e3fa7b3016b4a5a84a0ac750b0d0385` | `3afe60267212ab03742a784beeff4a402e3fa7b3016b4a5a84a0ac750b0d0385` | No |
+| `~/.config/copilot/copilot.layers.yml` | `9fea06b6498ebf941a3c7fff0e720aa041d93e0acedac929bdaea5c5dbe16038` | `9fea06b6498ebf941a3c7fff0e720aa041d93e0acedac929bdaea5c5dbe16038` | No |
 | `~/.claude/memory/` (tree hash) | `db5bdcf4003a6e1aeca09977e7817079cfdb589f830fe8a9a9147328143c201f` | `db5bdcf4003a6e1aeca09977e7817079cfdb589f830fe8a9a9147328143c201f` | No |
 | `~/Library/Application Support/CopilotControlTower/standup-brief.{json,md}` | mtime `Jul 27 10:20:09`, before any test run this session | unchanged (not touched by the smoke or bootstrap suites, which use an isolated `$TMPDIR/ct-smoke-scenario-home.*` `HOME` override) | No |
 
-I did not run `gh auth refresh`, any `--apply` flag, or `cc config set` against this machine, per the constraints for this task.
+I did not run `gh auth refresh` or any `--apply` flag. The owner-authorized live standup did invoke its existing local-pointer step, which is the intentional `cc config set github_app.org Everyone-Needs-A-Copilot` mutation recorded above.
 
 ---
 
-## 2. The owner action that blocks everything
+## 2. The owner action is complete
 
 Nothing in this sub-phase (or in Phase 6 generally) works for a real, first-time end user until the organization publishes a public repository, **`Everyone-Needs-A-Copilot/copilot-bootstrap`**, containing exactly one file, `bootstrap.yml`:
 
@@ -56,31 +58,26 @@ github_app:
 
 Both values are non-secret by ratification: a GitHub organization name is public, and a GitHub OAuth/App **client id** is meant to be public (only the client *secret* is sensitive, and it is never collected anywhere in this flow). I confirmed both values are already correct and present in this machine's own local admin state — `~/Library/Application Support/CopilotControlTower/standup-brief.json`'s `org` and `github_app.client_id` fields match the two lines above exactly.
 
-**I confirmed via `gh api` (read-only) that this repository does not exist yet:** `gh repo view Everyone-Needs-A-Copilot/copilot-bootstrap` returns "Could not resolve to a Repository." The four private `-internal` repositories (`knowledge-copilot-internal`, `cli-copilot-internal`, `claude-copilot-internal`, `codex-copilot-internal`) already exist, so a real standup run would be a no-op for those and would only add this one new public artifact plus a local pointer.
+**Published 2026-07-27 under TASK-162.** The owner-authorized standup created [`Everyone-Needs-A-Copilot/copilot-bootstrap`](https://github.com/Everyone-Needs-A-Copilot/copilot-bootstrap) as a public repository, wrote the exact file above, and set this Mac's local organization pointer. Every pre-existing organization and department artifact was reported `already-present` or `skipped`; only the public repository, `bootstrap.yml`, and local pointer changed.
 
-**Why this blocks everything:** without this public file, `cc auth login` cannot resolve which GitHub App to start a device-flow sign-in against on a Mac that has never signed in before (the deadlock problem 4 in the work record describes) — so no fresh Mac, including the two-machine cold-start proof Phase 6 itself is building toward, can complete first-run sign-in.
+**Why it mattered:** without this public file, `cc auth login` could not resolve which GitHub App to start a device-flow sign-in against on a Mac that had never signed in before. That signed-out discovery deadlock is now removed; the remaining clean-machine proof can exercise the real path.
 
-**Why it was not done as part of this session:** creating a public artifact under the organization's name is exactly the kind of action this project's own norms reserve for the owner (a real, externally-visible, one-way act on a live GitHub organization) — not a reversible local change a coding session should take unilaterally. The code to create and keep it in sync already exists and is unmodified by this session: `scripts/admin_bootstrap.sh`'s `_ensure_public_bootstrap_repo`, `_render_bootstrap_yml`, and `_ensure_bootstrap_yml` functions, called automatically as the last step of the existing standup sequence (`scripts/admin_bootstrap.sh:1719-1724`), guarded by the same leak-scan the rest of the script already uses (it refuses to write anything but `org` and `github_app.client_id`, and refuses to overwrite a `bootstrap.yml` carrying fields it didn't author).
+The verification gap was closed before publication: `--verify --json` now checks public visibility and compares `bootstrap.yml` byte-for-byte with the two-field rendering. Before the live run those rows were the only failures (`must_fix: 2`, `unknown: 0`); afterward both passed and the full summary was `must_fix: 0`, `unknown: 0`. An unauthenticated `curl` to the raw URL returned exactly the YAML above.
 
-**Exact steps for the owner:**
+**Repeatable verification:**
 
-1. Confirm the standup brief is current at its fixed path (already true on this machine): `~/Library/Application Support/CopilotControlTower/standup-brief.md` / `.json`.
-2. Dry run first, read-only: `bash scripts/admin_bootstrap.sh --verify --json` (no `--brief` needed; the fixed default path is used). Confirm a clean `pass` column and `must_fix: 0`.
-3. Real run: `bash scripts/admin_bootstrap.sh`. This is additive/idempotent for everything that already exists (the four private repos, `ecosystem.yml`, branch protection) and will newly create `Everyone-Needs-A-Copilot/copilot-bootstrap` (public), write its `bootstrap.yml`, and write this Mac's own local org pointer.
-4. Re-verify: `bash scripts/admin_bootstrap.sh --verify --json`. Confirm the new repository and file are reflected.
-5. Spot-check from the outside, unauthenticated, that the whole point of the change actually holds: `curl -s https://raw.githubusercontent.com/Everyone-Needs-A-Copilot/copilot-bootstrap/main/bootstrap.yml` should return the two-line YAML above with no sign-in required.
+1. Run `bash scripts/admin_bootstrap.sh --verify --json`; confirm both `bootstrap-*` rows pass and the summary is `must_fix: 0`, `unknown: 0`.
+2. Run `curl -fsSL https://raw.githubusercontent.com/Everyone-Needs-A-Copilot/copilot-bootstrap/main/bootstrap.yml` without a GitHub token; confirm the exact YAML above.
 
 ---
 
 ## 3. Open decisions requiring a human
 
-**3.1 — `cc auth grant` is unbuilt, and blocked on a genuine policy fork, not on effort.** H7 (the wizard variant that tells someone their GitHub sign-in is missing the `admin:public_key` permission needed to register this Mac's key) degrades to showing the documented command (`gh auth refresh -h github.com -s admin:public_key`) rather than a button, because the verb that would drive it doesn't exist. The fork: this organization's device flow authenticates through a **GitHub App**, but `admin:public_key` is a **classic OAuth scope** with no GitHub App equivalent — a GitHub App cannot request it at all. Options, none of them a coding decision:
+**3.1 — `cc auth grant` is unbuilt; the earlier policy fork was framed from the wrong app type.** H7 (the wizard variant that tells someone their GitHub sign-in cannot register this Mac's key) degrades to the documented `gh auth refresh` command because the verb that would drive its button does not exist. The architecture and runbooks consistently define the current organization-owned identity as an **OAuth App**, not a GitHub App, and GitHub's device-code endpoint accepts OAuth scopes. GitHub's current REST contract requires `write:public_key` to list/create a user's SSH key; `admin:public_key` is broader and is only needed for full management such as deletion.
 
-- Register a dedicated classic OAuth App alongside the existing GitHub App, purely to carry this one scope. New admin-standup step; a second app identity to keep straight in support conversations.
-- Borrow `gh`'s own public OAuth client id (the GitHub CLI's) to drive this one grant. Works today with no new registration, but embeds a third party's (GitHub's own CLI team's) application identity into this product's flow — a policy call about whose identity the product is willing to act through, not an engineering one.
-- Something else not considered here.
+The least-privilege recommendation is therefore to reuse the existing organization-owned OAuth App, request `write:public_key` in the grant device flow, validate that the returned identity matches the signed-in user, replace that user's Keychain token only after successful validation, and have the CLI call the keys API with its own Keychain token. This also closes a second architectural mismatch: today's SSH code shells out to `gh api`, so granting the organization's OAuth token would otherwise leave the actual registration call using `gh`'s still-unprivileged token.
 
-Until this lands, every H7 screen (both the ordinary user path and the admin self-serve path) shows a command, never a button, and that is the honest, currently-correct behavior — not a bug to silently patch around.
+This recommendation still needs owner ratification before implementation because it expands the permissions of the product's existing sign-in identity. Borrowing GitHub CLI's client identity or creating a second OAuth App are no longer the default options; both add an identity boundary without a technical necessity. Until ratification, every H7 screen continues to show the command fallback and never a button that does nothing.
 
 **3.2 — `cc config set` has no `--json` output.** `docs/01-architecture/schemas/auth.schema.json` and `docs/03-design/control-tower-copy-deck.md` Appendix E.4 both flag this as open: the organization-question screen (§2.1.1) persists the org-name pointer via `cc config set github_app.org <name>`, and the CLI's own `commands/auth.py` docstring already names this as the app's job. But `cc config set` prints human-readable text and returns only an exit code — no structured payload the app can parse under invariant #1's versioned-contract discipline. The copy itself does not depend on the answer (no string claims the value was saved; the one failure path routes to an existing, honest H2 screen), but the **contract** question is real: is exit-code-only acceptable for a mutating verb under the versioned `--json` contract, or does persistence need a proper machine-readable verb of its own? This is a repo-architecture call (WS-A contract shape), not something to resolve by precedent-matching in isolation.
 
@@ -94,9 +91,9 @@ Until this lands, every H7 screen (both the ordinary user path and the admin sel
 
 **The `copilotcontroltower://connect?organization=` deep link was designed, then deliberately dropped — not forgotten.** It would let the organization's download page hand the org name to the app directly, removing the one paste this whole sub-phase's fallback screen exists to handle. Reasoning recorded in `docs/03-design/control-tower-copy-deck.md` §2.1.1 and `docs/03-design/landing-site.md` §3.1: a custom URL scheme registers a handler any process on the machine can invoke, on the one code path that runs before any credential exists, and to stay safe it would still need a confirmation screen anyway — so it buys one saved paste at the cost of new, externally-triggerable attack surface. The copyable name on the download page carries nearly all the same benefit with none of the risk. Revisit once the organization-question flow has real usage and the saved paste is worth re-litigating the surface.
 
-**One CLI sweep item flagged by this documentation pass, not by the commits themselves, and left unfixed:** `build_ecosystem_onboard_report`'s `manifest_path` parameter (`claude-copilot/tools/cc/src/cc/commands/onboard.py:1204`) defaults, when not explicitly passed, to the real `~/.config/copilot/copilot.layers.yml` (line ~1287). The `write_guard` prevention layer added in this sub-phase (`claude-copilot/tools/cc/src/cc/core/write_guard.py`) hard-refuses test-time writes to the real machine config, the real secrets file, and the real global memory root — but its `_FORBIDDEN_REAL_PATHS` denylist does **not** include this layer-manifest path. A future onboard test that forgets to pass `manifest_path=` (or forgets to monkeypatch `Path.home`) could silently write to the developer's real layer manifest, the same class of incident as the two recorded below, just not yet closed for this specific file. Nobody has hit this yet; it is a gap found by tracing the guard's own denylist against every real-path write the onboard module can reach, not a reported bug.
+**Closed in TASK-161 — the layer-manifest test-isolation gap.** `build_ecosystem_onboard_report` defaults to the real `~/.config/copilot/copilot.layers.yml` when a caller omits `manifest_path`; two legacy locations can also be adopted. The aggregate YAML writer now calls `assert_write_is_isolated` before `mkdir`, temporary-file creation, or replacement; all three real paths are in `_FORBIDDEN_REAL_PATHS`; and the global autouse fixture checksums all three before and after every test. A focused regression proves each path fails before any artifact is created or replaced.
 
-**The pre-existing passphrase-less bare key at the SSH happy path is still present, and still a real violation.** `ssh_identity.py`'s key-generation call (around line 485) runs `ssh-keygen -t ed25519 -f <key> -N "" -C <title>` — an empty passphrase, written to a bare file on disk. `docs/05-security/credentials-and-boundary.md` §6.1 requires the private key to "never leave the machine" via the OS keychain-backed `ssh-agent` (`ssh-add --apple-use-keychain` on macOS) and "never [go] to a bare plaintext file a git working tree or backup tool could pick up as content." The current happy path does exactly the thing §6.1 forbids. This was flagged, not fixed, in `e3e1826`'s own commit message ("the gate defends a property its own success path does not deliver") and remains true as of this writing — confirmed by reading the current code, not by trusting the old note.
+**Closed in TASK-161 — the passphrase-less SSH happy path.** The inherited implementation used `ssh-keygen ... -N ""`, producing a bare private-key file while later claiming Keychain-backed protection. The corrected path generates a high-entropy per-machine passphrase, creates a bcrypt-PBKDF-protected OpenSSH key, loads it with `ssh-add --apple-use-keychain`, and removes a just-created keypair if secure agent enrollment fails. The normative security document now states the platform behavior precisely: macOS Keychain stores the passphrase, not the private key; the durable private-key file remains encrypted. Existing passphrase-less keys from builds predating this fix are not silently rotated because that changes a live GitHub identity; an explicit migration/rotation transaction remains follow-up work.
 
 ---
 
@@ -128,7 +125,7 @@ bash scripts/tests/smoke-scenarios.sh
 
 # Admin bootstrap offline harness (fully mocked gh; nothing touches real GitHub).
 bash scripts/tests/test_admin_bootstrap.sh
-# Expect: "admin_bootstrap tests: 206 passed, 0 failed"
+# Expect: "admin_bootstrap tests: 214 passed, 0 failed"
 ```
 
 **CLI repo (`claude-copilot/tools/cc`):**
@@ -149,7 +146,7 @@ shasum -a 256 "$HOME/.claude/cc/config.json" "$HOME/.ssh/config"
 # swiftc build.)
 source .venv/bin/activate
 pytest
-# Expect (as of this session, verified): 1,097 passed, 3 failed, 14 errors,
+# Expect (as of this session, verified): 1,104 passed, 3 failed, 14 errors,
 # 0 skipped — see §1 for exactly why this differs from the commit messages'
 # quoted "1,100 passing, 14 skipped", and confirm the 3 failures are still
 # only in test_fts5_integration.py::TestCrossToolContract and the 14 errors
@@ -169,7 +166,7 @@ shasum -a 256 "$HOME/.claude/cc/config.json" "$HOME/.ssh/config"
 
 **A note on SourceKit.** If you're reading `native/*.swift` in an editor with SourceKit-based diagnostics, expect spurious red squiggles that do not reflect real compile errors — this is a known, pre-existing false-positive in this repo's SourceKit indexing, not something introduced this session. Judge correctness by the real compile (`scripts/build-user.command`/`scripts/build-admin.command`, or the build step inside `smoke-scenarios.sh`), never by the editor's live diagnostics.
 
-**Do not, while verifying:** modify `~/.ssh/config`, `~/.claude/cc/config.json`, `~/.claude/memory/`, or anything under `~/Library/Application Support/CopilotControlTower/`; run `gh auth refresh`; run any `--apply` flag; or run `cc config set` against this real machine. All of the above are read-only-safe as written.
+**Do not, while verifying:** modify `~/.ssh/config`, `~/.claude/cc/config.json`, `~/.claude/memory/`, or anything under `~/Library/Application Support/CopilotControlTower/`; run `gh auth refresh`; run any `--apply` flag; or run `cc config set` against this real machine. The commands above are read-only-safe as written.
 
 ---
 
@@ -177,11 +174,12 @@ shasum -a 256 "$HOME/.claude/cc/config.json" "$HOME/.ssh/config"
 
 In rough priority order — this is a sequencing/dependency list, not a time estimate:
 
-1. **Owner action (§2): publish `Everyone-Needs-A-Copilot/copilot-bootstrap`.** Nothing downstream of this (a real fresh-Mac sign-in, the Phase 6 two-machine cold-start proof) can be genuinely tested until this exists. Low complexity, no code dependency — it is purely a "run the existing script for real" action gated on the owner's willingness to make a public GitHub artifact.
-2. **Resolve the `cc auth grant` fork (§3.1).** This is a decision, not a build task; once made, building the verb and wiring H7's button is a contained, previously-scoped change (the shape is already fully specified in `docs/03-design/control-tower-copy-deck.md` §2.9.3 and the copied `adopt-and-honesty-copy-spec.md` §3.5–§3.7).
-3. **Get a real visual pass on at least the seven Holding variants, the adopt offer, and the organization question**, on real pixels, before trusting any of this against an actual non-technical user. This is the single largest gap between "logically verified" and "known to work" in the whole sub-phase (§4).
-4. **Close the `manifest_path` write_guard gap (§4)** by adding `~/.config/copilot/copilot.layers.yml` (and its two legacy fallback paths) to `write_guard.py`'s `_FORBIDDEN_REAL_PATHS`, before it produces a third incident of the same shape as §5's two.
-5. **Decide the `cc config set --json` contract question (§3.2)** as part of, or ahead of, whatever WS-A contract work is already tracked for this repo.
-6. **Fix the passphrase-less bare key (§4)** to route the on-device SSH private key through the keychain-backed `ssh-agent` per `credentials-and-boundary.md` §6.1, closing the last flagged-but-unfixed security gap from this sequence.
-7. **Push both branches** once the owner is satisfied with the state above — `app-build` is 21 commits ahead of `origin/app-build`; `feat/adopt-and-project-setup` has no remote branch at all yet.
-8. Resume the parent initiative at [`phase-6-ecosystem-install-and-onboarding-proof.md`](phase-6-ecosystem-install-and-onboarding-proof.md) §5 (the second-machine cold-start proof) once 1–4 above are settled; that document's own execution plan (§8) and acceptance criteria are unchanged by this sub-phase and remain the next real milestone.
+1. **Ratify and implement the least-privilege `cc auth grant` path (§3.1).** Confirm reuse of the existing organization-owned OAuth App with `write:public_key`; then freeze the schema, implement the device-flow/token-upgrade transaction, move key listing/registration off `gh api` onto the CLI's Keychain token, and enable H7's already-built button.
+2. **Get a real visual pass on at least the seven Holding variants, the adopt offer, and the organization question**, on real pixels, before trusting any of this against an actual non-technical user. This is the single largest gap between "logically verified" and "known to work" in the whole sub-phase (§4).
+3. **Package a current signed/notarized User-app release candidate** before the clean-machine proof. The older signed DMG predates this onboarding work; the current local bundle is ad-hoc signed.
+4. **Publish signed foundation trust anchors** for the Claude and Codex foundation tags before treating their content as a verified supply-chain root.
+5. **Keep the closed `manifest_path` and encrypted-key regressions green (§4).** TASK-161 added prevention plus checksum detection for every active/legacy manifest path and Keychain-backed passphrase protection for newly generated keys.
+6. **Decide the `cc config set --json` contract question (§3.2)** as part of, or ahead of, whatever WS-A contract work is already tracked for this repo.
+7. **Migrate any product-owned passphrase-less key created by an older build (§4)** through an explicit rotation transaction. New keys are encrypted and Keychain-backed under TASK-161; existing live identities are not silently replaced.
+8. **Push both branches** once the owner is satisfied with the state above — `app-build` is 23 commits ahead of `origin/app-build`; `feat/adopt-and-project-setup` has no remote branch at all yet.
+9. Resume the parent initiative at [`phase-6-ecosystem-install-and-onboarding-proof.md`](phase-6-ecosystem-install-and-onboarding-proof.md) §5 for the real-pixel and second-machine cold-start proof after items 1–5 above are settled.
