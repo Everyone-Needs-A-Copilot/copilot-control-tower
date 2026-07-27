@@ -429,6 +429,16 @@ struct HoldingInfo {
     /// cards; empty for every other variant, which never reach that swap.
     var stages: [EcosystemOnboardStage] = []
     var isRepeat = false
+    /// H7 ONLY, and only its self-serve flavor (§2.9's own owner test: "the
+    /// fix is yours, it is a real fix and not a decision, and you can do it
+    /// right here" — true here even though the mechanism is a terminal
+    /// command this Mac's own admin can run, rather than a GitHub permission
+    /// grant device flow). Set ONLY by `h7ForOrgSignIn(...)`, and only once
+    /// BOTH `LocalAdminSignal.standupBriefExists` and
+    /// `LocalAdminSignal.standupGitHubAppClientID` are true (never a
+    /// placeholder to fill in by hand) — `nil` for the existing
+    /// GitHub-permission H7, which keeps its own device-flow sheet.
+    var selfServeCommand: String? = nil
 
     var signature: HoldingSignature {
         HoldingSignature(variant: variant, origin: origin, stage: support?.stage, code: support?.code, message: support?.message)
@@ -635,6 +645,47 @@ extension HoldingInfo {
             framedDetail: nil,
             reviewItems: [],
             support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date())
+        )
+    }
+
+    // MARK: H7 (self-serve variant) — the org's own sign-in ID, not yet
+    // given to this Mac
+
+    /// The exact, already-verified fix for the `no-company-app` cause, ONLY
+    /// when THIS Mac's own admin standup already wrote its non-secret brief
+    /// here (`LocalAdminSignal.standupBriefExists`) AND that same brief
+    /// names the org's GitHub App client id
+    /// (`LocalAdminSignal.standupGitHubAppClientID`) — never a guess, never
+    /// a placeholder to fill in by hand. `nil` when either fact isn't
+    /// available, in which case the caller stays on the ordinary H6 (see
+    /// `holdingInfo(forExit2Code:)`'s `no-company-app` branch): never claim
+    /// a fix the app hasn't actually verified.
+    nonisolated static func selfServeOrgSignInCommand() -> String? {
+        guard LocalAdminSignal.standupBriefExists,
+              let clientID = LocalAdminSignal.standupGitHubAppClientID
+        else { return nil }
+        return "cc config set github_app.client_id \(clientID)"
+    }
+
+    /// Reuses H7's variant identity (eyebrow, blue tint, `.key` badge) per
+    /// §2.9's own owner test — "the fix is yours, it is a real fix and not a
+    /// decision, and you can do it right here" is exactly as true of a
+    /// terminal command this Mac's own admin can run as it is of a GitHub
+    /// permission grant — rather than inventing an eighth variant. Never
+    /// constructed directly by a call site: only reached through
+    /// `selfServeOrgSignInCommand()` returning non-nil, so `command` is
+    /// always the real, local, already-verified value.
+    static func h7ForOrgSignIn(origin: WizardStage, command: String, code: String? = nil, message: String? = nil) -> HoldingInfo {
+        HoldingInfo(
+            variant: .needsPermission,
+            origin: origin,
+            eyebrow: "ONE THING ONLY YOU CAN DO",
+            title: "Setup needs your organization's sign-in ID",
+            intro: "Your organization hasn't finished setting up sign-in yet. I can see this Mac already set up your organization, so this one's yours to finish: your organization's sign-in already has its own ID, and this Mac just hasn't been given it.",
+            framedDetail: nil,
+            reviewItems: [],
+            support: HoldingSupportInfo(schemaVersion: nil, stage: nil, result: nil, code: code, message: message, recordedAt: Date()),
+            selfServeCommand: command
         )
     }
 }
@@ -1308,7 +1359,7 @@ final class WizardModel: ObservableObject {
         case "secret-store":
             return HoldingInfo.h6(
                 origin: origin,
-                intro: "Your organization's shared store isn't ready for this Mac yet. There's nothing for you to do.",
+                intro: "Your organization's shared store isn't ready for this Mac yet.",
                 stage: stage.stage, result: stage.result, message: stage.detail
             )
 
@@ -1995,13 +2046,24 @@ final class WizardModel: ObservableObject {
         case "onboard-unavailable":
             return HoldingInfo.h6(
                 origin: origin,
-                intro: "I couldn't read your organization's setup from GitHub, so I've paused. There's nothing for you to do.",
+                intro: "I couldn't read your organization's setup from GitHub, so I've paused.",
                 code: code, message: message
             )
         case "no-company-app":
+            // The one H6 cause with a known, already-verified self-serve fix
+            // (Defect 1b): when this Mac's own admin standup already ran
+            // here, `selfServeOrgSignInCommand()` reads the exact command
+            // back from what that standup already wrote, and the owner test
+            // (§2.9) reclassifies this from H6 ("the organization; nothing
+            // for you to do") to H7 ("yours, real, doable right here").
+            // Every OTHER end user, and an admin brief without a readable
+            // client id, stays the ordinary H6 below.
+            if let command = HoldingInfo.selfServeOrgSignInCommand() {
+                return HoldingInfo.h7ForOrgSignIn(origin: origin, command: command, code: code, message: message)
+            }
             return HoldingInfo.h6(
                 origin: origin,
-                intro: "Your organization hasn't finished setting up sign-in yet. There's nothing for you to do.",
+                intro: "Your organization hasn't finished setting up sign-in yet.",
                 code: code, message: message
             )
         case "invalid-manifest":
@@ -2257,6 +2319,12 @@ struct WizardRootView: View {
     /// `.unavailable` — see `GrantPermissionSheet`'s own doc comment.
     @State private var showsGrantSheet = false
     @State private var showsGrantFallbackSheet = false
+    /// H7's self-serve org-sign-in flavor (Defect 1b) — same
+    /// presentation-only pattern as `showsInstallSheet` above: the command
+    /// itself lives on `HoldingInfo.selfServeCommand` (read back from
+    /// `model.phase` at presentation time, `currentSelfServeCommand` below),
+    /// never duplicated into a second piece of state.
+    @State private var showsOrgSignInSheet = false
     /// Copy spec §7: "focus moves to the title on entering Holding." Scoped
     /// to the Holding phase only (`h1View`...`h7View`, `honestIncompleteView`
     /// — see `StepShell.focusTitle`) — the wizard's other nine steps have no
@@ -2300,6 +2368,26 @@ struct WizardRootView: View {
                 model.tryAgainAfterHolding()
             }
         }
+        .sheet(isPresented: $showsOrgSignInSheet) {
+            OrgSignInIDSheet(command: currentSelfServeCommand ?? "") {
+                showsOrgSignInSheet = false
+                model.tryAgainAfterHolding()
+            }
+        }
+    }
+
+    /// The exact command `h7OrgSignInView`'s primary is showing a sheet
+    /// for — read live from `model.phase` rather than duplicated into its
+    /// own `@State`, so it can never drift from what the Holding screen
+    /// itself is displaying. `??  ""` is unreachable in practice (the sheet
+    /// is only ever opened from `h7OrgSignInView`, which only exists when
+    /// `selfServeCommand` is non-nil) but keeps this a total, crash-free
+    /// read rather than a force-unwrap.
+    private var currentSelfServeCommand: String? {
+        if case .holding(let info) = model.phase {
+            return info.selfServeCommand
+        }
+        return nil
     }
 
     @ViewBuilder
@@ -3864,7 +3952,14 @@ struct WizardRootView: View {
     }
 
     /// H6 — waiting on your organization. The one variant whose primary is
-    /// not a retry (§1: "retrying cannot change the outcome").
+    /// not a retry (§1: "retrying cannot change the outcome"). Defect 1a: a
+    /// genuine end user reading H6 has exactly one real action (tell their
+    /// admin, with the details attached), so — the same call §2.10 already
+    /// made for "Here's where that leaves you" — `Copy details for support`
+    /// is the PROMINENT primary here too, never a buried disclosure, and the
+    /// footer caption names who picks this up, instead of implying (falsely,
+    /// for whoever actually IS that admin — Defect 1b, `h7ForOrgSignIn`
+    /// above) that there is nothing anyone can do yet.
     private func h6View(_ info: HoldingInfo) -> some View {
         stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
             VStack(alignment: .leading, spacing: 16) {
@@ -3877,29 +3972,85 @@ struct WizardRootView: View {
                         expandedCaption: "Send this to whoever looks after your Mac."
                     )
                 }
+                Text("Whoever looks after your Mac can pick this up from here.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
         } leadingActions: {
             Button { model.tryAgainAfterHolding() } label: { Text("Check again") }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
-        } primaryAction: {
             Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            if let support = info.support {
+                CopyDetailsForSupportButton(lines: HoldingInfo.supportLines(support), prominent: true)
+            } else {
+                Button { onClose() } label: { Text("Continue in the menu bar") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .headerTint(info.variant.tint)
+    }
+
+    /// H7 — something only you can do. Two flavors of the SAME variant
+    /// (§2.9's owner test, not two different taxonomy entries): the existing
+    /// GitHub-permission grant (`h7GitHubPermissionView`) when
+    /// `info.selfServeCommand` is `nil`, and the self-serve org-sign-in
+    /// command (`h7OrgSignInView`, Defect 1b) when it isn't.
+    @ViewBuilder
+    private func h7View(_ info: HoldingInfo) -> some View {
+        if let command = info.selfServeCommand {
+            h7OrgSignInView(info, command: command)
+        } else {
+            h7GitHubPermissionView(info)
+        }
+    }
+
+    /// H7, self-serve org-sign-in flavor (Defect 1b): unlike the GitHub
+    /// permission grant below, there is no interactive flow the app can
+    /// drive here — the fix is a terminal command this Mac's own admin can
+    /// run. Follows H1's own discipline instead (§2.9.2: "The H1 body itself
+    /// never contains a command... only the sheet does"): the body never
+    /// shows the raw command, and the primary opens a sheet that does,
+    /// exactly like `showInstallSheet()`/`InstallHelperSheet` above.
+    private func h7OrgSignInView(_ info: HoldingInfo, command: String) -> some View {
+        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+            VStack(alignment: .leading, spacing: 16) {
+                if info.isRepeat {
+                    stillTheSameCaption
+                }
+                if let support = info.support {
+                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                }
+            }
+        } leadingActions: {
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Button { model.tryAgainAfterHolding() } label: { Text("Check again") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            Button { showsOrgSignInSheet = true } label: { Text("Show me the command") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
         }
         .headerTint(info.variant.tint)
     }
 
-    /// H7 — something only you can do (copy spec §3, Appendix D.2). The
-    /// owner of this fix is the person and can be nobody else — it is a
-    /// permission on his own GitHub sign-in, so `Grant this on GitHub` is a
-    /// PRIMARY that actually drives the flow (`model.beginGrantFlow()`),
-    /// never a copyable command. `Show me how to grant it` renders ONLY
-    /// once `model.grantUnavailableKnown` is true — a real state the CLI (or
-    /// its own absence on this Mac) reported this session, never a
-    /// speculative "just in case" fallback shown up front (§3.4: "that
-    /// state is the only thing that reveals the fallback").
-    private func h7View(_ info: HoldingInfo) -> some View {
+    /// H7, the existing GitHub-permission-grant flavor (copy spec §3,
+    /// Appendix D.2). The owner of this fix is the person and can be nobody
+    /// else — it is a permission on his own GitHub sign-in, so `Grant this
+    /// on GitHub` is a PRIMARY that actually drives the flow
+    /// (`model.beginGrantFlow()`), never a copyable command. `Show me how to
+    /// grant it` renders ONLY once `model.grantUnavailableKnown` is true —
+    /// a real state the CLI (or its own absence on this Mac) reported this
+    /// session, never a speculative "just in case" fallback shown up front
+    /// (§3.4: "that state is the only thing that reveals the fallback").
+    private func h7GitHubPermissionView(_ info: HoldingInfo) -> some View {
         stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
             VStack(alignment: .leading, spacing: 16) {
                 if info.isRepeat {
@@ -4431,6 +4582,52 @@ private struct GrantFallbackSheet: View {
     }
 }
 
+/// H7's self-serve org-sign-in forward step (Defect 1b) — the sheet behind
+/// `h7OrgSignInView`'s primary, same shape as `GrantFallbackSheet` above
+/// (one command, "The step" label): unlike the GitHub-permission grant,
+/// there is no interactive flow to drive, so this IS the fix, not a
+/// fallback. `command` is always the exact, already-verified value read
+/// back from this Mac's own admin brief (`HoldingInfo.selfServeCommand`,
+/// `LocalAdminSignal.standupGitHubAppClientID`) — never a placeholder.
+private struct OrgSignInIDSheet: View {
+    let command: String
+    /// Closes the sheet AND re-checks once, automatically — same contract
+    /// as `InstallHelperSheet.onDone`/`GrantFallbackSheet.onDone` above.
+    let onDone: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Giving this Mac your organization's sign-in ID")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+
+            Text("This is one command for whoever set up this Mac. If that's you, paste it into Terminal. It only tells this Mac the ID your organization's sign-in already has; it changes nothing else.")
+                .font(.body)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("The step")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .textCase(.uppercase)
+                WizardCopyableCodeBlock(text: command, copyLabel: "Copy this step")
+            }
+
+            Spacer()
+
+            HStack {
+                Spacer()
+                Button { onDone() } label: { Text("Done") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(28)
+        .frame(width: 520, height: 320)
+    }
+}
+
 // MARK: - Wizard window controller
 
 /// Owns the wizard's single `NSWindow` + its `WizardModel` for the lifetime of
@@ -4691,6 +4888,7 @@ enum WizardSelftest {
             "SELFTEST holding=\(token) stage=\(info.support?.stage ?? "none")"
                 + " result=\(info.support?.result ?? "none") code=\(info.support?.code ?? "none")"
                 + " message=\(info.support?.message ?? "none")"
+                + " selfServeCommand=\(info.selfServeCommand ?? "none")"
         )
         if let support = info.support {
             print("SELFTEST supportLines=\(HoldingInfo.supportLines(support).joined(separator: "|"))")

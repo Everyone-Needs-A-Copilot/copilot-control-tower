@@ -252,6 +252,63 @@ enum LocalDefaults {
     }
 }
 
+// MARK: - Local admin-standup signal (Holding H6-vs-H7, `native/wizard.swift`)
+
+/// Whether Admin mode's own standup already wrote its non-secret brief on
+/// THIS Mac (`AdminPaths.briefPath`/`briefJSONPath`, `native/admin.swift`,
+/// Admin-only) — the one zero-network, machine-local signal that tells "a
+/// genuine end user" apart from "the person who provisioned this very Mac as
+/// the org's admin." No CLI verb carries an org-role token (none could: at
+/// the moment Holding's H6 fires there is no credential yet for one to ride
+/// on), so this is the only honest discriminator available (invariant #1:
+/// still parsing, never computing — reading back a file this Mac's own
+/// earlier admin action already wrote is not resolution/sync/compute logic).
+///
+/// `native/wizard.swift` (compiled into BOTH the User and Admin builds, per
+/// `scripts/build-user.command`/`scripts/build-admin.command`'s own source
+/// lists) reads this on its own rather than referencing `AdminPaths`, which
+/// is Admin-only and unavailable to the User build.
+///
+/// Reads the path the SAME way `LocalDefaults` above reads its plist (env
+/// `HOME`, never `NSHomeDirectory()`, which empirically ignores a process's
+/// `$HOME` override even though it does resolve the real logged-in user's
+/// home when unset) so `scripts/tests/smoke-scenarios.sh`'s per-scenario
+/// scratch-`HOME` isolation can fake presence/absence deterministically; in
+/// production `HOME` always matches the real home directory, so this names
+/// the exact same file `AdminPaths.briefPath`/`briefJSONPath` do.
+enum LocalAdminSignal {
+    private static var supportDirectory: URL {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        return URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent("Library/Application Support/CopilotControlTower", isDirectory: true)
+    }
+
+    /// Mirrors `AdminPaths.briefPath` exactly (`standup-brief.md`).
+    static var standupBriefExists: Bool {
+        FileManager.default.fileExists(atPath: supportDirectory.appendingPathComponent("standup-brief.md").path)
+    }
+
+    /// Best-effort read of one field from the non-secret machine-readable
+    /// twin (`AdminPaths.briefJSONPath`, `standup-brief.json`): the org's
+    /// GitHub App client id, which the admin typed in with their own hands
+    /// during standup (`AdminModel.githubOAuthClientIDInput`) and which is
+    /// not a secret — GitHub publishes a Client ID, only the App's client
+    /// SECRET is sensitive, and that never reaches this file. `nil` on any
+    /// read/parse failure or a missing/blank field — never a fabricated
+    /// placeholder, so the caller can fall back to the ordinary H6 rather
+    /// than assert a fix that isn't actually known.
+    static var standupGitHubAppClientID: String? {
+        let path = supportDirectory.appendingPathComponent("standup-brief.json").path
+        guard let data = FileManager.default.contents(atPath: path),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let githubApp = payload["github_app"] as? [String: Any],
+              let clientID = githubApp["client_id"] as? String
+        else { return nil }
+        let trimmed = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
 // MARK: - Shared brand asset loading (tray glyph vs. everywhere else)
 
 /// Loads the real Control Tower "aviators" glyph. Per owner directive this is

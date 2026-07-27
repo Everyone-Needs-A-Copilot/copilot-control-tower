@@ -622,6 +622,84 @@ scenario_S25() { connection_prompt_scenario S25 device-ssh-adoptable false true;
 scenario_S26() { connection_prompt_scenario S26 healthy-clean-fleet false false; }
 
 # ==========================================================================
+# Scenarios S27..S29 — H6-vs-H7 asserts the right owner
+# (`control-tower-copy-deck.md` §2.9/§2.9's H6 vs H7, `LocalAdminSignal`,
+# `native/models.swift`/`native/wizard.swift`), the SAME `no-company-app`
+# exit-2 code the real-world trigger names verbatim ("Your organization
+# hasn't finished setting up sign-in yet"). `holding_scenario` (S18-S23
+# above) always launches against a completely fresh, empty scratch `HOME`,
+# so it can't seed a standup brief into it first — these three scenarios
+# reimplement just enough of it to plant (or withhold) that file before
+# launch. Proves the discriminator BOTH ways (S27: absent stays H6, never
+# H7; S28: present-and-readable flips to H7, never H6) plus the honest
+# fallback (S29: present but unreadable stays H6 too — never fabricate a
+# fix from a half-answer) — a false positive on either side would tell a
+# plain end user they're the admin, which is its own lie.
+# ==========================================================================
+
+# S27 — the real-world trigger's own end-user lane: no admin brief on this
+# Mac at all, so `LocalAdminSignal.standupBriefExists` reads false and this
+# stays the ordinary H6, never H7.
+scenario_S27() {
+    local id="S27"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=exit2-no-company-app CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=holding
+    rm -rf "${home}"
+    assert_exit_zero "${id} (no admin brief on this Mac)"
+    assert_contains "${id} (no admin brief on this Mac)" "holding=waitingOnOrg"
+    assert_contains "${id} (no admin brief on this Mac)" "code=no-company-app"
+    assert_contains "${id} (no admin brief on this Mac)" "selfServeCommand=none"
+    assert_not_contains "${id} (no admin brief on this Mac)" "holding=needsPermission"
+}
+
+# S28 — this Mac's own admin standup already ran here: both the brief and
+# its non-secret JSON twin (`AdminPaths.briefPath`/`briefJSONPath`'s exact
+# path) are present, and the JSON names the org's GitHub App client id — so
+# this flips to H7, with the EXACT command read back verbatim, never a
+# placeholder.
+scenario_S28() {
+    local id="S28"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    mkdir -p "${home}/Library/Application Support/CopilotControlTower"
+    printf '%s\n' '# Fixture-only standup brief (S28). Presence alone is the signal this scenario exercises.' \
+        > "${home}/Library/Application Support/CopilotControlTower/standup-brief.md"
+    printf '%s\n' '{"schema_version":"1.0","org":"acme-co","github_app":{"client_id":"Iv1.a1b2c3d4e5f6a7b8"}}' \
+        > "${home}/Library/Application Support/CopilotControlTower/standup-brief.json"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=exit2-no-company-app CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=holding
+    rm -rf "${home}"
+    assert_exit_zero "${id} (admin brief present, client id known)"
+    assert_contains "${id} (admin brief present, client id known)" "holding=needsPermission"
+    assert_contains "${id} (admin brief present, client id known)" "selfServeCommand=cc config set github_app.client_id Iv1.a1b2c3d4e5f6a7b8"
+    assert_not_contains "${id} (admin brief present, client id known)" "holding=waitingOnOrg"
+}
+
+# S29 — the honest edge case: the brief exists (this Mac's admin standup DID
+# run here) but its JSON twin carries no readable client id. Never fabricate
+# a command from a half-answer — this must stay the ordinary H6, not a
+# broken/placeholder H7.
+scenario_S29() {
+    local id="S29"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    mkdir -p "${home}/Library/Application Support/CopilotControlTower"
+    printf '%s\n' '# Fixture-only standup brief (S29), incomplete on purpose.' \
+        > "${home}/Library/Application Support/CopilotControlTower/standup-brief.md"
+    printf '%s\n' '{"schema_version":"1.0","org":"acme-co"}' \
+        > "${home}/Library/Application Support/CopilotControlTower/standup-brief.json"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=exit2-no-company-app CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=holding
+    rm -rf "${home}"
+    assert_exit_zero "${id} (admin brief present, client id NOT known)"
+    assert_contains "${id} (admin brief present, client id NOT known)" "holding=waitingOnOrg"
+    assert_contains "${id} (admin brief present, client id NOT known)" "selfServeCommand=none"
+    assert_not_contains "${id} (admin brief present, client id NOT known)" "holding=needsPermission"
+}
+
+# ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
 
@@ -719,6 +797,9 @@ scenario_S23
 scenario_S24
 scenario_S25
 scenario_S26
+scenario_S27
+scenario_S28
+scenario_S29
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

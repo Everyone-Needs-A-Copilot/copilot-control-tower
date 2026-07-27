@@ -1717,8 +1717,17 @@ extension AdminRootView {
                         .foregroundColor(Color(nsColor: .controlAccentColor))
                     }
                 }
+                // Defect 2 (completion-rule violation, §2.10): the old copy
+                // here ("it sets them up from what you just built... they'll
+                // see the departments they're on") was a specific,
+                // falsifiable prediction about a machine this run never
+                // tested. The Setup check above only reads GitHub (repos,
+                // teams, the setup file); a user's own Mac being able to
+                // sign in is never in that check, so this card may only
+                // claim what was actually proven — never verify it here
+                // either (invariant #1: no added compute), just say so.
                 AdminCard(title: "Point users at the app") {
-                    Text("Your team installs Copilot Control Tower themselves, and it sets them up from what you just built. Send them the app, and they'll see the departments they're on.")
+                    Text("Your team installs Copilot Control Tower themselves. The setup check above only confirmed your organization's spaces on GitHub, not any one person's Mac, so the first person who signs in is the real test of that.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

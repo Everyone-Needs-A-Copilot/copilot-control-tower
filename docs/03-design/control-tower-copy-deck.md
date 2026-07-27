@@ -383,6 +383,8 @@ An **ask row** is any inventory item with `reversible == true`, in the CLI's ord
 
 Holding is seven variants, not one screen. The variant is chosen by **who owns the fix**, never by what went wrong. Three of the seven are not failures at all: H4 is invariant #3 working correctly (setup found something the person already owns and refused to overwrite it), H5/H6 are patience, and H7 is a request only the person can answer. Only H2 and H3 are faults.
 
+**H6 is patience for a genuine end user, but the owner test can still reclassify it.** The `no-company-app` cause (the org's sign-in isn't finished) has exactly one real, already-known fix today: give this Mac the org's GitHub App sign-in ID (`cc config set github_app.client_id <id>`). Whether "you" can do anything about that depends entirely on whether "you" are the org's own admin, standing at the very Mac that ran its standup — and that is knowable, locally, with no network and no CLI role token (none exists, and none could: at the moment H6 fires there is no credential yet for one to ride on). Admin mode's own standup already writes a non-secret brief on this Mac (`~/Library/Application Support/CopilotControlTower/standup-brief.md`/`.json`) the instant it runs; its mere presence says "the org's admin set this Mac up," and its `github_app.client_id` field (typed in by the admin's own hand during standup, and not a secret — GitHub publishes a Client ID; only the App's client *secret* is sensitive) supplies the exact command with no guessing. So: brief absent -> ordinary H6 below, unchanged. Brief present AND its client id readable -> the owner test flips this to H7 (§2.9's own words: "the fix is yours, it is a real fix and not a decision, and you can do it right here" is exactly as true of a terminal command as of a GitHub permission grant), reusing H7's existing eyebrow/tint/badge rather than inventing an eighth variant, with its own title/intro/sheet (below). Brief present but the client id isn't readable -> stays the ordinary H6 too: never assert a fix that isn't actually verified. The other two H6 causes (`onboard-unavailable`, `secret-store`) have no known concrete local fix today, so they stay H6 regardless of who's reading the screen.
+
 | # | Variant | Eyebrow | Title | Tint (visual-system §2.2) |
 |---|---|---|---|---|
 | H1 | Not installed | `ONE MORE PIECE TO INSTALL` | `The setup helper isn't installed yet` | `setup-needed` neutral |
@@ -416,14 +418,19 @@ Holding is seven variants, not one screen. The variant is chosen by **who owns t
 | Couldn't confirm everything is current | H3, title `I couldn't confirm everything's current` | the tray's own per-status sentence (§1.1), verbatim |
 | Offline | H5 | `I can't reach the network right now, so I've paused. Nothing was changed, and I'll carry on as soon as you're back.` |
 | Something else is updating | H5 | `Your setup is already being updated by something else, so I stepped back rather than get in the way.` |
-| Organization setup unreadable | H6 | `I couldn't read your organization's setup from GitHub, so I've paused. There's nothing for you to do.` |
-| Organization sign-in not set up | H6 | `Your organization hasn't finished setting up sign-in yet. There's nothing for you to do.` |
-| Shared store not ready | H6 | `Your organization's shared store isn't ready for this Mac yet. There's nothing for you to do.` |
+| Organization setup unreadable | H6 | `I couldn't read your organization's setup from GitHub, so I've paused.` |
+| Organization sign-in not set up (this Mac isn't the org's admin, or the admin's own brief has no readable sign-in ID) | H6 | `Your organization hasn't finished setting up sign-in yet.` |
+| Shared store not ready | H6 | `Your organization's shared store isn't ready for this Mac yet.` |
 | GitHub hasn't been asked for a permission | H7 | `Setup gives this Mac its own key so it can reach GitHub safely. Adding that key needs a permission GitHub hasn't been asked for yet, and you're the only one who can give it.` |
+| Organization sign-in not set up, but this Mac's own admin standup already ran here (title: `Setup needs your organization's sign-in ID`) | H7 (self-serve) | `Your organization hasn't finished setting up sign-in yet. I can see this Mac already set up your organization, so this one's yours to finish: your organization's sign-in already has its own ID, and this Mac just hasn't been given it.` |
 
 **H4 only:** the card `What I left alone` (one row per CLI review item, the CLI's own detail verbatim) and the caption `Nothing was changed, moved, or removed.`. The confirmation after `Keep what I have` is **always §2.10**, never a resolved-sounding screen: H4 is reachable only from `result: "blocked"`, so the completion rule can never pass at that moment. The old `Kept as it is` confirmation is withdrawn.
 
-**Actions.** `Try again` (primary: H2, H3, H5) · `Check again` (H1, H4, H6; nothing failed, so "try" would overstate it) · `Continue in the menu bar` (all seven; never marks setup complete) · `Show me how to install it` (primary: H1) · `Keep what I have` (primary: H4) · `Let setup manage it` (H4, only when the CLI declares consent for that gate) · `Include what I already have` (H4, existing return path) · `Grant this on GitHub` (primary: H7) · `Show me how to grant it` (H7, **only** when the CLI reports it cannot drive the grant itself). On a repeat of the identical hold, add one caption: `Still the same. Nothing changed.`
+**H6 only (Defect 1a):** a footer caption, `Whoever looks after your Mac can pick this up from here.`, and — the same call §2.10 already made for "Here's where that leaves you" — `Copy details for support` is H6's PROMINENT primary, not a buried disclosure: whoever actually reads this screen has exactly one real action (tell their admin, with the details attached), so the handoff is the explicit action rather than an implication. `Check again` and `Continue in the menu bar` both move to the leading row.
+
+**H7 self-serve only:** no interactive flow exists here (unlike the GitHub permission grant), so it follows H1's own discipline instead: the body never contains the command, and the primary, `Show me the command`, opens a sheet that does (`Giving this Mac your organization's sign-in ID` / "This is one command for whoever set up this Mac. If that's you, paste it into Terminal. It only tells this Mac the ID your organization's sign-in already has; it changes nothing else." / block label `The step` / `Copy this step` / `Done`, closing the sheet and re-checking once automatically, exactly like §2.9.2/§2.9.3's own sheets). Leading actions: `Continue in the menu bar` and `Check again`.
+
+**Actions.** `Try again` (primary: H2, H3, H5) · `Check again` (H1, H4, H6, H7 self-serve; nothing failed, so "try" would overstate it) · `Continue in the menu bar` (all seven; never marks setup complete) · `Show me how to install it` (primary: H1) · `Keep what I have` (primary: H4) · `Let setup manage it` (H4, only when the CLI declares consent for that gate) · `Include what I already have` (H4, existing return path) · `Copy details for support` (primary: H6) · `Grant this on GitHub` (primary: H7) · `Show me how to grant it` (H7, **only** when the CLI reports it cannot drive the grant itself) · `Show me the command` (primary: H7 self-serve). On a repeat of the identical hold, add one caption: `Still the same. Nothing changed.`
 
 **A CLI-authored message is never a headline.** It appears under `What setup found:` (when the CLI wrote it for a person) or only inside the support details (when it names machinery). It is never concatenated into an app sentence.
 
@@ -936,9 +943,14 @@ Calm confirmation, then the two forward actions. **No celebration.**
 - **Invite the team, on GitHub:** `People join a department by being added to its team
   on GitHub. Add someone to the Sales team and they can join Sales from their own
   copilot. This app never manages people. GitHub does.` + link `Open your teams ›`
-- **Point users at the app:** `Your team installs Copilot Control Tower themselves, and
-  it sets them up from what you just built. Send them the app, and they'll see the
-  departments they're on.`
+- **Point users at the app** (Defect 2, completion-rule violation: the withdrawn copy
+  here — "it sets them up from what you just built... they'll see the departments
+  they're on" — was a specific, falsifiable prediction about a machine this run never
+  tested; the Setup check above only reads GitHub, never a user's own Mac, so this card
+  may only claim what was actually proven): `Your team installs Copilot Control Tower
+  themselves. The setup check above only confirmed your organization's spaces on
+  GitHub, not any one person's Mac, so the first person who signs in is the real test
+  of that.`
 
 ---
 

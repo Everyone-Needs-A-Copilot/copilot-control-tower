@@ -66,6 +66,21 @@ for expected_copy in \
   fi
 done
 
+# Defect 2 (completion-rule violation, §2.10): the Done screen's "Point
+# users at the app" card may only claim what the Setup check actually
+# proved (GitHub-side org/team state), never predict that a user's own Mac
+# can sign in — that machine is never tested by this run. Assert BOTH that
+# the honest replacement is present and that the old falsifiable prediction
+# is gone, so a future edit can't silently reintroduce either half.
+if ! rg -Fq "the first person who signs in is the real test of that" native/admin-support.swift; then
+  echo "doneView's \"Point users at the app\" card is missing its honest, unverified-claim-free copy" >&2
+  exit 1
+fi
+if rg -Fq "they'll see the departments they're on" native/admin-support.swift; then
+  echo "doneView still claims a user's Mac can sign in, which this run never tested" >&2
+  exit 1
+fi
+
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${CONTENTS}/Info.plist")" == "com.everyoneneedsacopilot.controltower.admin" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${CONTENTS}/Info.plist")" == "Copilot Control Tower Admin" ]]
 codesign --verify --deep --strict "${APP}"

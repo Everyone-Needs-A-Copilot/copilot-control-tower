@@ -65,7 +65,12 @@
 #                                     #   this script, which prints an empty body),
 #                                     #   exit2-empty-fields (§2.9.1's empty-value guard: a
 #                                     #   real exit-2 envelope whose code/message are
-#                                     #   present but `""`, not omitted).
+#                                     #   present but `""`, not omitted), exit2-no-company-app
+#                                     #   (the real-world trigger's own code, verbatim: H6
+#                                     #   for a genuine end user, or H7 self-serve when
+#                                     #   THIS Mac's own admin standup brief is present —
+#                                     #   `native/models.swift`'s `LocalAdminSignal`, never
+#                                     #   this fixture body, is what tells the two apart).
 #
 # Fixture selection for `doctor` (checked in this order):
 #   1. --fixture=<name> or --fixture <name> on the command line
@@ -495,6 +500,17 @@ printf '%s\n' '{"schema_version":"1.0","mode":"status","result":"action-required
           # `HoldingInfo.supportLines(_:)` omits the `Code:`/`Message:`
           # lines entirely rather than printing a dangling bare label.
           printf '%s\n' '{"schema_version":"1.0","error":{"code":"","message":""}}'
+          exit 2
+          ;;
+        exit2-no-company-app)
+          # `scripts/tests/smoke-scenarios.sh` S27-S29 (Holding H6 vs H7,
+          # `no-company-app`): the exact code/message shape the real-world
+          # trigger's own screen showed. `$CT_FIXTURE` only selects this
+          # error envelope; whether the app renders H6 or the H7 self-serve
+          # flavor depends ENTIRELY on the launching scratch `HOME`'s own
+          # `standup-brief.json` (`LocalAdminSignal`, `native/models.swift`),
+          # never on anything this fixture prints.
+          printf '%s\n' '{"schema_version":"1.0","error":{"code":"no-company-app","message":"GitHub reports your organization'\''s sign-in app isn'\''t finished being set up yet."}}'
           exit 2
           ;;
       esac
