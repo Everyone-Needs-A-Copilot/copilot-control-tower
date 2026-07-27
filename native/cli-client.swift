@@ -168,24 +168,30 @@ enum ProcessDrain {
             errDrained.signal()
         }
 
-        // `waitUntilExit()` blocks its caller until the process exits; on
-        // its own dedicated task, this call can race against `timeout`
-        // below instead of hanging this whole function with it.
-        let exited = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
-            process.waitUntilExit()
-            exited.signal()
-        }
-
+        // Poll `isRunning` instead of dispatching `waitUntilExit()`. On
+        // macOS 26, a very short-lived child can exit between `run()` and
+        // the background wait task starting; Foundation's wait then remains
+        // in its private run loop even though the child is already gone.
+        // The grant mock exposed that race reliably. Polling the Process
+        // state avoids a notification-registration race while the two
+        // dedicated drain loops continue consuming both pipes.
         var timedOut = false
-        if let timeout, timeout > 0 {
-            if exited.wait(timeout: .now() + timeout) == .timedOut {
+        let deadline = timeout.flatMap { value in
+            value > 0 ? Date().addingTimeInterval(value) : nil
+        }
+        while process.isRunning {
+            if let deadline, Date() >= deadline {
                 timedOut = true
                 process.terminate()
-                _ = exited.wait(timeout: .now() + 5)
+                break
             }
-        } else {
-            exited.wait()
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        if timedOut {
+            let terminationDeadline = Date().addingTimeInterval(5)
+            while process.isRunning, Date() < terminationDeadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
         }
 
         // Both read loops hit EOF once the child's pipes close, which happens
