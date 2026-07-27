@@ -334,7 +334,7 @@ exists today.
 | B-5 | Scoped Infisical credentials in the laptop Keychain. | `copilot infisical identity provision` creates/reuses a no-org-access identity, exact environment/path read role, membership, universal-auth client, and one-time secret written directly to Keychain. | **Built and tested.** Live Infisical proof remains. |
 | B-6 | The store **config** (endpoint, workspace, env, path). | **Inherited** — it travels in the committed `cli.overlay.yml config:` block and `copilot update` clones it into the mirror; `managed_store._find_store_layer` reads it from the composed config, no `.env` needed. | **Done** — config inheritance shipped (Phase 4 #1; verified 3-level). |
 | B-7 | `copilot update` to clone both mirrors (never-destroy, semver range → `v0.3.0`). | Built (`config/sync.py`, `main.py:365`). | **Done.** |
-| B-8 | The signed user app installed (optional for the CLI proof, required for the product). | The native exact-ref release pipeline Developer-ID signs, notarizes, staples, and Gatekeeper-verifies the app and drag-install DMG. | **Complete-helper release build in progress.** The real helper is embedded; the final app and DMG must pass notarization, stapling, Gatekeeper, and bundle QA before user handoff. |
+| B-8 | The signed user app installed (optional for the CLI proof, required for the product). | The native exact-ref release pipeline Developer-ID signs, notarizes, staples, and Gatekeeper-verifies the app and drag-install DMG. | **Complete-helper release ready for user handoff.** The real helper is embedded unchanged; the final app and DMG passed Apple notarization, stapling, Gatekeeper assessment, mounted-DMG inspection, and native bundle QA. Live onboarding remains the user's next action. |
 
 ### 5.2 The one-command target vs. today's manual steps
 
@@ -439,8 +439,8 @@ content in Admin output**.
 | Machine-identity bootstrap-cred provisioning | **Built; 58 focused Infisical tests green** | Live scoped-identity proof remains. |
 | On-device SSH key gen + GitHub registration at onboarding | **Built; focused QA green** | Live second-machine proof remains. |
 | ssh-config managed aliases | **Built; focused QA green** | Surgical bounded block; collisions hold. |
-| Native user app (wizard + tray, de-mocked) | **Built and real-pixel verified** | The real vendored helper is embedded; final complete-helper DMG QA and live account onboarding remain. |
-| App signing / notarization / self-update (signed) | **Native signing/notarization built and proven** | Stable self-update manifest/minisign custody remains owner-gated; the complete-helper DMG is the current release candidate. |
+| Native user app (wizard + tray, de-mocked) | **Complete-helper DMG ready and real-pixel verified** | The real vendored helper is embedded unchanged; the final welcome window and mounted DMG were inspected. Live account onboarding remains. |
+| App signing / notarization / self-update (signed) | **Native signing/notarization proven for the install DMG** | The complete-helper app and DMG are notarized, stapled, and Gatekeeper-approved. Stable self-update manifest/minisign custody remains a separate owner decision. |
 | App first-run orchestration | **Built; Swift builds and smoke contracts green** | Detect plans and Set Up applies the one aggregate transaction. |
 | Recurring workspace activation | **Built; QA approved** | `TASK-149`–`TASK-152`; bounded discovery, root approval, portable declaration + ownership lock, opaque personal association, portable two-product additive setup, and User-app prompt are implemented (WP-124–WP-136). Cold-machine foundations and personal-repository hydration remain in aggregate onboarding. |
 | "Two CLIs" ownership | **Ratified** | `cc` is the control plane and coordinates `copilot`; app calls only `cc` |
