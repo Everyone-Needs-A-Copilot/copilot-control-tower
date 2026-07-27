@@ -95,7 +95,7 @@ if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
         SWIFT_FLAGS+=("-D" "CT_VISUAL_TEST_BUILD")
     fi
     CC=/usr/bin/cc PATH=/usr/bin:$PATH /usr/bin/env swiftc \
-        "${SWIFT_FLAGS[@]}" "${SOURCES[@]}" -o "${BIN}"
+        ${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"} "${SOURCES[@]}" -o "${BIN}"
     printf '%s\n' "${EXPECTED_BUILD_MODE}" > "${BUILD_MODE_FILE}"
 fi
 

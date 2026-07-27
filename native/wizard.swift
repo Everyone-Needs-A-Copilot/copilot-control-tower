@@ -2969,51 +2969,69 @@ struct WizardRootView: View {
         ) {
             switch model.deviceFlow.status {
             case .idle, .pending:
-                sectionCard("Your code") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text(model.deviceFlow.userCode ?? "")
-                                .font(.title3.monospaced())
-                                .textSelection(.enabled)
-                                .foregroundColor(Color(nsColor: .labelColor))
-                            Spacer()
-                            Button {
-                                model.copyDeviceCode()
-                            } label: {
-                                Text("Copy code")
+                if let userCode = model.deviceFlow.userCode {
+                    sectionCard("Your code") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text(userCode)
+                                    .font(.title3.monospaced())
+                                    .textSelection(.enabled)
+                                    .foregroundColor(Color(nsColor: .labelColor))
+                                Spacer()
+                                Button {
+                                    model.copyDeviceCode()
+                                } label: {
+                                    Text("Copy code")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .disabled(model.deviceFlow.userCode == nil)
-                        }
-                        Button {
-                            model.openGitHubSignIn()
-                        } label: {
-                            Text("Open GitHub")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(model.deviceFlow.verificationUri == nil)
+                            Button {
+                                model.openGitHubSignIn()
+                            } label: {
+                                Text("Open GitHub")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(model.deviceFlow.verificationUri == nil)
 
-                        Text("Waiting for you to finish in your browser…")
-                            .font(.caption)
-                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-
-                        // P5 (progress-and-waiting spec §7): "One addition,
-                        // because a lost browser window is the common
-                        // failure" — no timer, no count, just the way back
-                        // in, beside the existing wait sentence above.
-                        HStack(spacing: 6) {
-                            Text("Didn't see the browser?")
+                            Text("Waiting for you to finish in your browser…")
                                 .font(.caption)
                                 .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                            Button("Open it again") {
-                                model.openGitHubSignIn()
+
+                            // P5 (progress-and-waiting spec §7): "One addition,
+                            // because a lost browser window is the common
+                            // failure" — no timer, no count, just the way back
+                            // in, beside the existing wait sentence above.
+                            HStack(spacing: 6) {
+                                Text("Didn't see the browser?")
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                                Button("Open it again") {
+                                    model.openGitHubSignIn()
+                                }
+                                .buttonStyle(.plain)
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(Color(nsColor: .linkColor))
+                                .disabled(model.deviceFlow.verificationUri == nil)
                             }
-                            .buttonStyle(.plain)
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(Color(nsColor: .linkColor))
-                            .disabled(model.deviceFlow.verificationUri == nil)
                         }
+                    }
+                } else {
+                    sectionCard("Getting your code") {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                                .controlSize(.small)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Connecting securely to GitHub…")
+                                    .font(.body)
+                                    .foregroundColor(Color(nsColor: .labelColor))
+                                Text("This can take a few seconds.")
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Getting your GitHub sign-in code")
                     }
                 }
             case .authorized:
