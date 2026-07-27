@@ -240,7 +240,8 @@ profile. The existing release workflow expects:
 
 - `APPLE_NOTARY_KEY_ID`
 - `APPLE_NOTARY_KEY_ISSUER`
-- `APPLE_NOTARY_KEY_PATH`
+- `APPLE_NOTARY_KEY` (the `.p8` contents; the workflow materializes an
+  owner-only temporary file)
 
 Apple's current notarization tooling is `notarytool`; see:
 <https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool>
@@ -279,33 +280,30 @@ release notes.
 Use the terminal commands only as a fallback for debugging or headless
 publisher machines.
 
-The local build has one important gotcha: the `copilot` CLI may also be
-installed as `cc`, which can shadow the system C compiler. Force the real C
-compiler when building the Tauri app:
+The release command packages the native Swift User app—not the historical
+Tauri surface—and builds an exact pushed branch or tag from a temporary clone:
 
 ```bash
-PATH="/usr/bin:$PATH" CC=/usr/bin/cc npm run tauri build
+./scripts/package-user-release.sh
 ```
 
-The repo's signing and notarization scripts read the environment; they do not
-hardcode credentials:
+The command refuses to proceed when local `HEAD` does not equal the selected
+remote ref. Pass a branch or tag explicitly when needed:
+
+```bash
+./scripts/package-user-release.sh --source-ref app-build
+```
+
+It invokes the repo's signing and notarization scripts, which read the
+environment and never hardcode credentials:
 
 - [`../../scripts/sign.sh`](../../scripts/sign.sh)
 - [`../../scripts/notarize.sh`](../../scripts/notarize.sh)
 
-Run the explicit signing pass:
-
-```bash
-./scripts/sign.sh "src-tauri/target/release/bundle/macos/Copilot Control Tower.app"
-```
-
-Then submit, staple, and validate:
-
-```bash
-./scripts/notarize.sh \
-  "src-tauri/target/release/bundle/macos/Copilot Control Tower.app" \
-  "src-tauri/target/release/bundle/dmg/Copilot Control Tower.dmg"
-```
+The pipeline builds with ad-hoc signing disabled, applies the Developer ID
+signature, creates the drag-install DMG, notarizes and staples the app and DMG,
+validates both tickets, runs Gatekeeper assessment, and emits a SHA-256 sidecar
+plus `release-metadata.json` under `dist/user-release/`.
 
 The result is a publisher-produced artifact suitable for admin/fleet testing.
 It is not, by itself, a complete `stable` self-update promotion until the
@@ -321,7 +319,7 @@ secrets used by [`../../.github/workflows/release.yml`](../../.github/workflows/
 - `APPLE_CERTIFICATE_PASSWORD`
 - `APPLE_NOTARY_KEY_ID`
 - `APPLE_NOTARY_KEY_ISSUER`
-- `APPLE_NOTARY_KEY_PATH`
+- `APPLE_NOTARY_KEY`
 
 The workflow is tag-triggered (`v*`) and should remain owner-gated. Do not use
 CI to discover missing credentials for the first time; prove them locally first,

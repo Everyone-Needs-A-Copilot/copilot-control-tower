@@ -198,4 +198,4 @@ echo "Wrote ${ENV_FILE} with mode 600."
 echo
 echo "Next:"
 echo "  source ${ENV_FILE}"
-echo '  PATH="/usr/bin:$PATH" CC=/usr/bin/cc npm run tauri build'
+echo "  ./scripts/package-user-release.sh"

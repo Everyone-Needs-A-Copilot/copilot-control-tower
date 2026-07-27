@@ -509,9 +509,9 @@ final class PublisherSetupModel: ObservableObject {
     }
 
     func publish(_ setup: SetupSuccess) {
-        let appPath = "src-tauri/target/release/bundle/macos/Copilot Control Tower.app"
-        let dmgBundleDir = "src-tauri/target/release/bundle/dmg"
-        let productNamePrefix = "Copilot Control Tower"
+        let appPath = "dist/user-release/Copilot Control Tower.app"
+        let dmgBundleDir = "dist/user-release"
+        let productNamePrefix = "Copilot-Control-Tower"
         let notarizedSkipped = setup.notarySkipped
 
         isRunning = true
@@ -527,9 +527,9 @@ final class PublisherSetupModel: ObservableObject {
             var log = ""
 
             do {
-                var result = try Self.runReleaseStep(
-                    title: "Build app",
-                    command: #"PATH="/usr/bin:$PATH" CC=/usr/bin/cc npm run tauri build"#,
+                let result = try Self.runReleaseStep(
+                    title: "Build, sign, notarize, and verify native User app",
+                    command: "./scripts/package-user-release.sh",
                     envFile: setup.envFile,
                     log: log
                 ) { step, output in
@@ -539,11 +539,11 @@ final class PublisherSetupModel: ObservableObject {
                     }
                 }
                 log = result.log
-                try Self.requireReleaseStepSuccess("Build app", status: result.status)
+                try Self.requireReleaseStepSuccess("Package native User app", status: result.status)
 
-                // Tauri v2 emits a versioned, arch-suffixed dmg filename (e.g.
-                // "Copilot Control Tower_0.1.0_aarch64.dmg"), not a fixed name. Resolve the
-                // artifact the build actually produced instead of assuming a literal path.
+                // The native release script names the DMG with the app version
+                // and architecture. Resolve that verified output rather than
+                // teaching the Publisher UI a second naming implementation.
                 let resolvedDmgPath: String
                 do {
                     resolvedDmgPath = try Self.resolveDMGPath(bundleDir: dmgBundleDir, productPrefix: productNamePrefix)
@@ -555,34 +555,6 @@ final class PublisherSetupModel: ObservableObject {
                     }
                     throw error
                 }
-
-                result = try Self.runReleaseStep(
-                    title: "Sign app",
-                    command: "./scripts/sign.sh \(shellQuote(appPath))",
-                    envFile: setup.envFile,
-                    log: log
-                ) { step, output in
-                    DispatchQueue.main.async {
-                        self.publishStep = step
-                        self.publishLog = output
-                    }
-                }
-                log = result.log
-                try Self.requireReleaseStepSuccess("Sign app", status: result.status)
-
-                result = try Self.runReleaseStep(
-                    title: "Notarize and staple",
-                    command: "./scripts/notarize.sh \(shellQuote(appPath)) \(shellQuote(resolvedDmgPath))",
-                    envFile: setup.envFile,
-                    log: log
-                ) { step, output in
-                    DispatchQueue.main.async {
-                        self.publishStep = step
-                        self.publishLog = output
-                    }
-                }
-                log = result.log
-                try Self.requireReleaseStepSuccess("Notarize and staple", status: result.status)
 
                 DispatchQueue.main.async {
                     self.isRunning = false
@@ -679,8 +651,8 @@ final class PublisherSetupModel: ObservableObject {
         return image
     }
 
-    /// Globs the dmg bundle directory for the produced artifact instead of assuming a fixed
-    /// filename. Tauri v2 emits a versioned, arch-suffixed dmg name.
+    /// Resolves the native release pipeline's versioned, architecture-suffixed
+    /// DMG instead of duplicating its artifact naming contract in the UI.
     nonisolated private static func resolveDMGPath(bundleDir: String, productPrefix: String) throws -> String {
         let cwd = FileManager.default.currentDirectoryPath
         let dirURL = URL(fileURLWithPath: bundleDir, relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
@@ -694,7 +666,7 @@ final class PublisherSetupModel: ObservableObject {
             throw NSError(
                 domain: "PublisherSetup",
                 code: 3,
-                userInfo: [NSLocalizedDescriptionKey: "No dmg bundle output directory found at \(bundleDir). Confirm `npm run tauri build` produced a dmg bundle target."]
+                userInfo: [NSLocalizedDescriptionKey: "No DMG output directory found at \(bundleDir). Confirm the native User release pipeline completed."]
             )
         }
 
@@ -1654,7 +1626,7 @@ struct PublisherSetupView: View {
             }
 
             calloutBlock(
-                "Build, Sign & Notarize runs npm run tauri build, signs the app with your Developer ID certificate, submits it to Apple for notarization, then staples the result. Keep this window open while it runs.",
+                "Build, Sign & Notarize clones the exact pushed source, builds the native User app, signs it with your Developer ID certificate, submits it to Apple for notarization, staples it, and verifies Gatekeeper. Keep this window open while it runs.",
                 symbol: "hammer"
             )
         } leadingActions: {
@@ -2147,10 +2119,7 @@ struct PublisherSetupView: View {
     private func publisherCommands(envFile: String) -> String {
         """
         source \(envFile)
-        PATH="/usr/bin:$PATH" CC=/usr/bin/cc npm run tauri build
-        ./scripts/sign.sh "src-tauri/target/release/bundle/macos/Copilot Control Tower.app"
-        DMG="$(ls -t src-tauri/target/release/bundle/dmg/*.dmg | head -n1)"
-        ./scripts/notarize.sh "src-tauri/target/release/bundle/macos/Copilot Control Tower.app" "$DMG"
+        ./scripts/package-user-release.sh
         """
     }
 }

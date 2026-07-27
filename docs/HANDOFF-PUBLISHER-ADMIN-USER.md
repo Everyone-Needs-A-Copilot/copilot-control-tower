@@ -126,11 +126,9 @@ Validation already run for the uncommitted change:
 Still needed:
 
 - Real end-to-end run of **Build, Sign, and Notarize** on Pablo's Mac.
-- Confirm the expected DMG path after `npm run tauri build`; adjust the app if
-  Tauri emits a versioned DMG filename rather than
-  `Copilot Control Tower.dmg`.
 - Confirm failure logs are readable and copy cleanly.
-- Commit the uncommitted publisher runner/doc changes after the real run.
+- Confirm the native artifact paths and checksum shown on the Admin handoff
+  screen match `dist/user-release/release-metadata.json`.
 
 ### What Comes After That
 
@@ -365,8 +363,9 @@ config, Git, YAML, or terminal commands.
 
 ## Known Risks
 
-- The publisher app currently assumes fixed artifact paths. Tauri may emit a
-  versioned DMG name; verify before relying on the Admin handoff screen.
+- The publisher app resolves the native pipeline's versioned DMG under
+  `dist/user-release/`; verify its displayed checksum against
+  `release-metadata.json` before relying on the Admin handoff screen.
 - Admin mode has a strong design, but much of the standup path is still
   designed/not built, and the design itself just changed (MDM dropped; repos/
   teams/secret-store/seed is the new center of gravity). Re-check any Admin

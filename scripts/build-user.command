@@ -5,15 +5,6 @@
 # `native/admin.swift`/`native/admin-support.swift` — those two are Admin-only
 # and are compiled by `scripts/build-admin.command` instead.
 #
-# Phase F note (native-rebuild plan, WS foundation): until a later phase
-# guards `native/control-tower-tray.swift`'s Admin menu-item wiring behind
-# `#if CT_ADMIN_BUILD`, THIS SCRIPT WILL FAIL TO LINK — the tray file
-# references `AdminWindowController` (defined in `native/admin-support.swift`,
-# not compiled here) unconditionally. That is expected and tracked, not a
-# Phase F regression: Phase F's own build gate is `build-admin.command`
-# (which compiles the old code and the new CLI-seam files together
-# successfully), not this script — see `scripts/tests/smoke-cli.sh` and the
-# Phase F plan extract's own note on this exact ordering.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -50,6 +41,13 @@ case "${CT_FORCE_REBUILD:-0}" in
         exit 2
         ;;
 esac
+case "${CT_SKIP_ADHOC_SIGN:-0}" in
+    0|1) ;;
+    *)
+        echo "error: CT_SKIP_ADHOC_SIGN must be 0 or 1." >&2
+        exit 2
+        ;;
+esac
 if [[ ! -x "${BIN}" ]]; then
     NEEDS_BUILD=1
 else
@@ -80,8 +78,11 @@ cp src-tauri/icons/icon.icns "${APP_RESOURCES}/ControlTower.icns"
 chmod 755 "${APP_BIN}"
 
 # Local development builds are ad-hoc signed so macOS validates the exact
-# bundle the user opens. Distribution still uses Developer ID + notarization.
-codesign --force --deep --sign - "${APP}" >/dev/null
+# bundle the user opens. The release pipeline disables this pass and applies
+# the Developer ID signature exactly once through scripts/sign.sh.
+if [[ "${CT_SKIP_ADHOC_SIGN:-0}" -eq 0 ]]; then
+    codesign --force --deep --sign - "${APP}" >/dev/null
+fi
 
 if [[ "${1:-}" == "--build-only" ]]; then
     echo "${APP}"
