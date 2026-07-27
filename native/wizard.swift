@@ -2628,35 +2628,47 @@ struct StepShell<Content: View, Leading: View, Trailing: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Text(eyebrow)
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(tint)
-                        .textCase(.uppercase)
-                        .accessibilityAddTraits(.isHeader)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        Color.clear
+                            .frame(height: 0)
+                            .id("step-shell-top")
 
-                    Text(title)
-                        .font(.title.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .labelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .modifier(TitleAccessibilityFocus(binding: focusTitle))
+                        Text(eyebrow)
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(tint)
+                            .textCase(.uppercase)
+                            .accessibilityAddTraits(.isHeader)
 
-                    if let intro {
-                        Text(intro)
-                            .font(.body)
-                            .lineSpacing(2)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        Text(title)
+                            .font(.title.weight(.semibold))
+                            .foregroundColor(Color(nsColor: .labelColor))
                             .fixedSize(horizontal: false, vertical: true)
-                    }
+                            .modifier(TitleAccessibilityFocus(binding: focusTitle))
 
-                    content
+                        if let intro {
+                            Text(intro)
+                                .font(.body)
+                                .lineSpacing(2)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        content
+                    }
+                    .frame(maxWidth: 600, alignment: .leading)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 24)
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: 600, alignment: .leading)
-                .padding(.horizontal, 32)
-                .padding(.top, 24)
-                .padding(.bottom, 24)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .onAppear {
+                    proxy.scrollTo("step-shell-top", anchor: .top)
+                }
+                .onChange(of: title) { _ in
+                    proxy.scrollTo("step-shell-top", anchor: .top)
+                }
             }
 
             Divider()
