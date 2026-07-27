@@ -594,7 +594,7 @@ scenario_S23() {
         CT_CLI_PATH="${MOCK_CC}" CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=completion-rule
     rm -rf "${home}"
     assert_exit_zero "${id} (CT_SELFTEST_STEP=completion-rule)"
-    assert_contains "${id}" "SELFTEST completionRule full=true missingStage=false blockedStage=false blockedResult=false claudeOnlyNoCodex=true"
+    assert_contains "${id}" "SELFTEST completionRule full=true missingStage=false blockedStage=false optionalDeferred=true requiredDeferred=false deferredNotYet=1 blockedResult=false claudeOnlyNoCodex=true"
 }
 
 # ==========================================================================

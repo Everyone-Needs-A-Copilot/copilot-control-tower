@@ -245,6 +245,10 @@ enum SetupRowState: Equatable {
     case notStarted
     case working(startedAt: Date)
     case done(detail: String)
+    /// An optional capability was deliberately left for later. This is
+    /// neither a success checkmark nor a failure: the rest of setup may
+    /// continue while the row remains explicit.
+    case deferred(detail: String)
     case couldNotFinish(detail: String)
     /// The run ended without the engine ever naming this row (spec, "Work
     /// ends": "Any row the run never mentioned reads Setup didn't say what
@@ -256,6 +260,7 @@ enum SetupRowState: Equatable {
         case (.notStarted, .notStarted), (.neverReported, .neverReported): return true
         case (.working, .working): return true
         case (.done(let a), .done(let b)): return a == b
+        case (.deferred(let a), .deferred(let b)): return a == b
         case (.couldNotFinish(let a), .couldNotFinish(let b)): return a == b
         default: return false
         }
@@ -1629,8 +1634,16 @@ final class WizardModel: ObservableObject {
     nonisolated static func completionRulePasses(result: OnboardResult, stages: [EcosystemOnboardStage], includeCodex: Bool) -> Bool {
         guard result == .applied || result == .ready else { return false }
         guard !stages.contains(where: { $0.result == "blocked" }) else { return false }
+        // The shared credential store is an optional, additive rung. A
+        // structured deferral there may finish core setup; no other stage
+        // gets that exception.
+        guard !stages.contains(where: { $0.result == "deferred" && $0.stage != "secret-store" }) else { return false }
         let mentioned = Set(stages.map(\.stage))
         return expectedStageIds(includeCodex: includeCodex).allSatisfy(mentioned.contains)
+    }
+
+    nonisolated static func sharedStoreIsDeferred(_ stages: [EcosystemOnboardStage]) -> Bool {
+        stages.contains(where: { $0.stage == "secret-store" && $0.result == "deferred" })
     }
 
     /// §2.10's two capability lists — "works now" rows first, "doesn't work
@@ -1644,7 +1657,7 @@ final class WizardModel: ObservableObject {
         var worksNow: [String] = []
         var notYet: [String] = []
         for entry in allReportStages where includeCodex || entry.id != "codex-plugin" {
-            if let stage = byId[entry.id], stage.result != "blocked" {
+            if let stage = byId[entry.id], stage.result != "blocked", stage.result != "deferred" {
                 worksNow.append(entry.worksNow)
             } else {
                 notYet.append(entry.notYet)
@@ -1668,6 +1681,11 @@ final class WizardModel: ObservableObject {
             mentioned.insert(stage.stage)
             if stage.result == "blocked" {
                 rows[index].state = .couldNotFinish(detail: couldNotFinishStageText(stage.detail))
+            } else if stage.result == "deferred" {
+                let detail = stage.detail?.isEmpty == false
+                    ? stage.detail!
+                    : "Not connected on this Mac. Setup continued without this optional capability."
+                rows[index].state = .deferred(detail: detail)
             } else {
                 let detail = stage.detail?.isEmpty == false ? stage.detail! : "Done."
                 rows[index].state = .done(detail: detail)
@@ -4048,6 +4066,7 @@ struct WizardRootView: View {
         case .notStarted: return "Not started yet."
         case .working: return "Working on it now."
         case .done(let detail): return detail
+        case .deferred(let detail): return detail
         case .couldNotFinish(let detail): return detail
         case .neverReported: return "Setup didn't say what happened here."
         }
@@ -4056,7 +4075,7 @@ struct WizardRootView: View {
     private func setupRowStateColor(_ state: SetupRowState) -> Color {
         switch state {
         case .notStarted: return Color(nsColor: .tertiaryLabelColor)
-        case .working, .done, .neverReported: return Color(nsColor: .secondaryLabelColor)
+        case .working, .done, .deferred, .neverReported: return Color(nsColor: .secondaryLabelColor)
         case .couldNotFinish: return Color(nsColor: .systemRed)
         }
     }
@@ -4073,6 +4092,9 @@ struct WizardRootView: View {
         case .done:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(Color(nsColor: .systemGreen))
+        case .deferred:
+            Image(systemName: "clock.badge.exclamationmark")
+                .foregroundColor(Color(nsColor: .systemOrange))
         case .couldNotFinish:
             Image(systemName: "xmark.circle.fill")
                 .foregroundColor(Color(nsColor: .systemRed))
@@ -4096,6 +4118,10 @@ struct WizardRootView: View {
     private var verifyCompletionPasses: Bool {
         guard let result = model.lastOnboardResult else { return false }
         return WizardModel.completionRulePasses(result: result, stages: model.lastOnboardStages, includeCodex: model.includeCodex)
+    }
+
+    private var sharedStoreIsDeferred: Bool {
+        WizardModel.sharedStoreIsDeferred(model.lastOnboardStages)
     }
 
     /// A real (never `nil`) support block for Verify's own §2.10 fallback —
@@ -4142,9 +4168,15 @@ struct WizardRootView: View {
                 intro: "The only success here is everything actually being up to date."
             ) {
                 VStack {
-                    Text("Everything checks out.")
+                    Text(sharedStoreIsDeferred ? "Your core setup checks out." : "Everything checks out.")
                         .font(.callout.weight(.semibold))
                         .foregroundColor(Color(nsColor: .labelColor))
+                    if sharedStoreIsDeferred {
+                        Text("Shared team integrations aren't connected on this Mac yet. Your existing credentials were kept.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .padding(.top, 5)
+                    }
                     if !model.adoptionRollbackPaths.isEmpty {
                         Text("Your previous setup was preserved in a rollback copy.")
                             .font(.caption)
@@ -4187,8 +4219,10 @@ struct WizardRootView: View {
     private var doneView: some View {
         stepShell(
             eyebrow: "Step 10 of 10",
-            title: "That's it. You're ready.",
-            intro: "Control Tower now lives quietly in your menu bar. When the icon is quiet, everything's current. And when you're added to a new department later, it'll show up there, ready when you are."
+            title: sharedStoreIsDeferred ? "Your copilots are ready." : "That's it. You're ready.",
+            intro: sharedStoreIsDeferred
+                ? "Control Tower now lives quietly in your menu bar. Shared team integrations aren't connected on this Mac yet; your existing credentials remain in place."
+                : "Control Tower now lives quietly in your menu bar. When the icon is quiet, everything's current. And when you're added to a new department later, it'll show up there, ready when you are."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("You have the tools. Now go change the world!")
@@ -5631,17 +5665,24 @@ enum WizardSelftest {
         let allApplied = eightIds.map { stage($0, "applied") }
         let sevenNoDoctor = allApplied.filter { $0.stage != "doctor" }
         let oneBlocked = allApplied.map { $0.stage == "device-ssh" ? stage("device-ssh", "blocked") : $0 }
+        let deferredStore = allApplied.map { $0.stage == "secret-store" ? stage("secret-store", "deferred") : $0 }
+        let deferredRequired = allApplied.map { $0.stage == "device-ssh" ? stage("device-ssh", "deferred") : $0 }
         let claudeOnlySeven = allApplied.filter { $0.stage != "codex-plugin" }
 
         let full = WizardModel.completionRulePasses(result: .ready, stages: allApplied, includeCodex: true)
         let missingStage = WizardModel.completionRulePasses(result: .ready, stages: sevenNoDoctor, includeCodex: true)
         let blockedStage = WizardModel.completionRulePasses(result: .ready, stages: oneBlocked, includeCodex: true)
+        let optionalDeferred = WizardModel.completionRulePasses(result: .ready, stages: deferredStore, includeCodex: true)
+        let requiredDeferred = WizardModel.completionRulePasses(result: .ready, stages: deferredRequired, includeCodex: true)
+        let deferredRows = WizardModel.honestCapabilityRows(stages: deferredStore, includeCodex: true)
         let blockedResult = WizardModel.completionRulePasses(result: .blocked, stages: allApplied, includeCodex: true)
         let claudeOnlyNoCodex = WizardModel.completionRulePasses(result: .ready, stages: claudeOnlySeven, includeCodex: false)
 
         print(
             "SELFTEST completionRule full=\(full) missingStage=\(missingStage)"
-                + " blockedStage=\(blockedStage) blockedResult=\(blockedResult) claudeOnlyNoCodex=\(claudeOnlyNoCodex)"
+                + " blockedStage=\(blockedStage) optionalDeferred=\(optionalDeferred)"
+                + " requiredDeferred=\(requiredDeferred) deferredNotYet=\(deferredRows.notYet.count)"
+                + " blockedResult=\(blockedResult) claudeOnlyNoCodex=\(claudeOnlyNoCodex)"
         )
     }
 
