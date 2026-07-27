@@ -231,13 +231,25 @@ enum CliLocator {
         "/usr/local/bin/cc",
     ]
 
-    static func locate() -> URL? {
+    static func locate(
+        bundledResourceURL: URL? = Bundle.main.resourceURL
+    ) -> URL? {
         let env = ProcessInfo.processInfo.environment
         if let override = env[overrideEnvVar], !override.isEmpty {
             let expanded = (override as NSString).expandingTildeInPath
             if FileManager.default.isExecutableFile(atPath: expanded) {
                 return URL(fileURLWithPath: expanded)
             }
+        }
+
+        // A release app carries the independently signed, checksum-pinned
+        // helper at Contents/Resources/cc. Keep the explicit test override
+        // ahead of it, but prefer this translocation-safe bundle-relative
+        // path over every machine-installed copy. The native release pipeline
+        // refuses to package the placeholder artifact.
+        if let bundled = bundledResourceURL?.appendingPathComponent("cc"),
+           FileManager.default.isExecutableFile(atPath: bundled.path) {
+            return bundled
         }
 
         for candidate in standardLocations {

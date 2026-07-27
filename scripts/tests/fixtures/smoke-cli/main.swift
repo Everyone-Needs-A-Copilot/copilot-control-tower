@@ -32,6 +32,33 @@ guard CommandLine.arguments.count >= 2 else {
     exit(2)
 }
 let mockCC = CommandLine.arguments[1]
+
+// A clean-machine release must resolve its pinned helper relative to the
+// translocated app bundle before considering user-installed locations.
+let locatorRoot = FileManager.default.temporaryDirectory
+    .appendingPathComponent("control-tower-locator-\(UUID().uuidString)")
+let locatorCC = locatorRoot.appendingPathComponent("cc")
+do {
+    try FileManager.default.createDirectory(
+        at: locatorRoot,
+        withIntermediateDirectories: true
+    )
+    try Data("#!/bin/sh\nexit 0\n".utf8).write(to: locatorCC)
+    try FileManager.default.setAttributes(
+        [.posixPermissions: 0o755],
+        ofItemAtPath: locatorCC.path
+    )
+    setenv("CT_CLI_PATH", "/does/not/exist", 1)
+    check(
+        "bundle-relative cc wins over machine-installed locations",
+        CliLocator.locate(bundledResourceURL: locatorRoot)?.standardizedFileURL
+            == locatorCC.standardizedFileURL
+    )
+} catch {
+    check("bundle-relative cc fixture can be created", false, "\(error)")
+}
+try? FileManager.default.removeItem(at: locatorRoot)
+
 setenv("CT_CLI_PATH", mockCC, 1)
 
 // MARK: - doctor: print badge + sentence for every corpus fixture

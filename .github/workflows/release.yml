@@ -43,7 +43,7 @@ jobs:
           cargo fmt --check
 
       - name: Verify vendored cc (checksum + verify-not-resign, ADR-M4-005)
-        run: ./scripts/verify-vendored-cc.sh packaging/cc/cc
+        run: ./scripts/verify-vendored-cc.sh --release packaging/cc/cc
 
       - name: plutil -lint watchdog plist
         run: plutil -lint packaging/launchd/com.everyoneneedsacopilot.controltower.plist

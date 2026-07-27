@@ -281,7 +281,10 @@ Use the terminal commands only as a fallback for debugging or headless
 publisher machines.
 
 The release command packages the native Swift User app—not the historical
-Tauri surface—and builds an exact pushed branch or tag from a temporary clone:
+Tauri surface—and builds an exact pushed branch or tag from a temporary clone.
+Before any signing work, it verifies that `packaging/cc/cc` matches its pinned
+checksum, is a signed/Gatekeeper-approved universal Mach-O, and is not the
+checked-in development placeholder:
 
 ```bash
 ./scripts/package-user-release.sh
@@ -300,10 +303,13 @@ environment and never hardcode credentials:
 - [`../../scripts/sign.sh`](../../scripts/sign.sh)
 - [`../../scripts/notarize.sh`](../../scripts/notarize.sh)
 
-The pipeline builds with ad-hoc signing disabled, applies the Developer ID
-signature, creates the drag-install DMG, notarizes and staples the app and DMG,
-validates both tickets, runs Gatekeeper assessment, and emits a SHA-256 sidecar
-plus `release-metadata.json` under `dist/user-release/`.
+The pipeline embeds that independently signed helper at
+`Contents/Resources/cc` without re-signing it, builds with ad-hoc signing
+disabled, applies the Developer ID signature to the outer app, creates the
+drag-install DMG, notarizes and staples the app and DMG, validates both tickets,
+runs Gatekeeper assessment, and emits a SHA-256 sidecar plus
+`release-metadata.json` (including the helper version and SHA-256) under
+`dist/user-release/`.
 
 The result is a publisher-produced artifact suitable for admin/fleet testing.
 It is not, by itself, a complete `stable` self-update promotion until the

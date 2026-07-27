@@ -140,7 +140,10 @@ cleanup_stage() {
 trap cleanup_stage EXIT
 
 echo "release: building native User app from ${source_commit}"
-CT_FORCE_REBUILD=1 CT_SKIP_ADHOC_SIGN=1 \
+vendored_cc="${REPO_ROOT}/packaging/cc/cc"
+vendored_cc_version="$(<"${REPO_ROOT}/packaging/cc/VERSION")"
+vendored_cc_sha="$(shasum -a 256 "${vendored_cc}" | awk '{print $1}')"
+CT_FORCE_REBUILD=1 CT_SKIP_ADHOC_SIGN=1 CT_VENDORED_CC_PATH="${vendored_cc}" \
     bash scripts/build-user.command --build-only >/dev/null
 
 echo "release: applying Developer ID signature"
@@ -196,6 +199,8 @@ cat > "${OUTPUT_DIR}/release-metadata.json" <<EOF
   "version": "${version}",
   "build_number": "${build_number}",
   "architecture": "${architecture}",
+  "vendored_cc_version": "${vendored_cc_version}",
+  "vendored_cc_sha256": "${vendored_cc_sha}",
   "developer_id_identity": "${CT_SIGN_IDENTITY}",
   "notarized": true,
   "stapled": true,

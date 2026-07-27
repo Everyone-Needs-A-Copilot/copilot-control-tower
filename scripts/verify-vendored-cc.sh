@@ -18,7 +18,7 @@
 # placeholder IS run (in-repo, no live-system Gatekeeper calls) as part of
 # this session's verification.
 #
-# Usage: verify-vendored-cc.sh /path/to/Contents/Resources/cc
+# Usage: verify-vendored-cc.sh [--release] /path/to/Contents/Resources/cc
 
 set -euo pipefail
 
@@ -26,7 +26,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PINNED_SHA_FILE="${REPO_ROOT}/packaging/cc/PINNED_SHA256"
 
-CC_PATH="${1:?usage: verify-vendored-cc.sh /path/to/Contents/Resources/cc}"
+RELEASE_MODE=false
+if [[ "${1:-}" == "--release" ]]; then
+    RELEASE_MODE=true
+    shift
+fi
+CC_PATH="${1:?usage: verify-vendored-cc.sh [--release] /path/to/Contents/Resources/cc}"
+[[ $# -eq 1 ]] || {
+    echo "error: usage: verify-vendored-cc.sh [--release] /path/to/Contents/Resources/cc" >&2
+    exit 2
+}
 
 if [[ ! -f "${CC_PATH}" ]]; then
     echo "error: no cc at ${CC_PATH}" >&2
@@ -61,11 +70,26 @@ echo "checksum OK: ${actual_sha}"
 # Gatekeeper checks below are placeholder-conditional rather than skipped
 # silently.
 if file "${CC_PATH}" | grep -q "Mach-O"; then
+    if $RELEASE_MODE; then
+        architectures="$(lipo -archs "${CC_PATH}")"
+        [[ " ${architectures} " == *" arm64 "* ]] || {
+            echo "error: release cc is missing the arm64 architecture" >&2
+            exit 1
+        }
+        [[ " ${architectures} " == *" x86_64 "* ]] || {
+            echo "error: release cc is missing the x86_64 architecture" >&2
+            exit 1
+        }
+    fi
     echo "verifying Developer ID / notarization chain (never re-signing)..."
     codesign --verify --deep --strict --verbose=2 "${CC_PATH}"
     spctl --assess --type execute --verbose=4 "${CC_PATH}"
     echo "vendored cc verified (verify-not-resign): ${CC_PATH}"
 else
+    if $RELEASE_MODE; then
+        echo "error: release blocked: ${CC_PATH} is not the signed universal Mach-O cc artifact" >&2
+        exit 1
+    fi
     echo "warning: ${CC_PATH} is not a Mach-O binary (placeholder stub) —" >&2
     echo "         skipping codesign/spctl checks; checksum gate is the only" >&2
     echo "         check that applies until the real signed artifact (D-3)" >&2

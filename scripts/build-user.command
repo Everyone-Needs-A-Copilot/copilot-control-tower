@@ -60,6 +60,10 @@ if [[ "${CT_VISUAL_TEST_BUILD:-0}" -eq 1 && "${CT_SKIP_ADHOC_SIGN:-0}" -eq 1 ]];
     echo "error: visual-test builds cannot enter the release-signing path." >&2
     exit 2
 fi
+if [[ -n "${CT_VENDORED_CC_PATH:-}" && "${CT_SKIP_ADHOC_SIGN:-0}" -ne 1 ]]; then
+    echo "error: a vendored cc must retain its own signature; set CT_SKIP_ADHOC_SIGN=1." >&2
+    exit 2
+fi
 EXPECTED_BUILD_MODE="production"
 if [[ "${CT_VISUAL_TEST_BUILD:-0}" -eq 1 ]]; then
     EXPECTED_BUILD_MODE="visual-test"
@@ -95,6 +99,10 @@ if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
     printf '%s\n' "${EXPECTED_BUILD_MODE}" > "${BUILD_MODE_FILE}"
 fi
 
+if [[ -n "${CT_VENDORED_CC_PATH:-}" ]]; then
+    scripts/verify-vendored-cc.sh --release "${CT_VENDORED_CC_PATH}"
+fi
+
 # Conventional double-clickable macOS bundle. The bare binary remains in
 # place because lower-level smoke harnesses exercise it directly.
 if [[ -d "${APP}" ]]; then
@@ -105,6 +113,10 @@ cp packaging/macos/User-Info.plist "${APP_CONTENTS}/Info.plist"
 cp "${BIN}" "${APP_BIN}"
 cp src-tauri/icons/icon.icns "${APP_RESOURCES}/ControlTower.icns"
 chmod 755 "${APP_BIN}"
+if [[ -n "${CT_VENDORED_CC_PATH:-}" ]]; then
+    cp -p "${CT_VENDORED_CC_PATH}" "${APP_RESOURCES}/cc"
+    chmod 755 "${APP_RESOURCES}/cc"
+fi
 
 # Local development builds are ad-hoc signed so macOS validates the exact
 # bundle the user opens. The release pipeline disables this pass and applies
