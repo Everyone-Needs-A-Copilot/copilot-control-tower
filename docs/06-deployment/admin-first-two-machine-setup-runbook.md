@@ -34,6 +34,11 @@ The Admin development app is self-contained and can be exercised locally
 without Terminal. A wiped laptop does not yet have a fully recoverable, trusted
 User installation path.
 
+The reproducible release procedure is documented in
+[`foundation-release-signing.md`](foundation-release-signing.md). Its dry-run
+tooling is ready, but publishing still requires a dedicated, approved ENAC
+release key; a personal GitHub authentication key must not be substituted.
+
 ## Result to expect
 
 With no departments, Admin Setup will check and then create or reuse these four
