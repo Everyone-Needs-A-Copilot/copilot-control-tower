@@ -108,6 +108,8 @@ compat = json.load(open(compat_path, encoding="utf-8"))
 
 if notarization.get("notarization_status") != "Accepted":
     raise SystemExit("upstream notarization status is not Accepted")
+if notarization.get("device_flow_https_probe") != "passed":
+    raise SystemExit("upstream helper did not pass the live GitHub device-flow HTTPS probe")
 if notarization.get("sha256") != actual_sha:
     raise SystemExit("notarization evidence SHA does not match vendored cc")
 if sorted(notarization.get("architectures") or []) != ["arm64", "x86_64"]:
