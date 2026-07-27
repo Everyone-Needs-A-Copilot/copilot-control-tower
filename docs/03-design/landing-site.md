@@ -111,6 +111,25 @@ committing.
   1. `Download the app.`
   2. `Open it and drag it to your Applications.`
   3. `Open it once. It'll walk you through the rest.`
+- **The organization name block** (directly under the three steps, above the video slot).
+  Control Tower's first-run wizard asks which organization you're with, because sign-in
+  can't start without knowing whose to ask for (copy deck §2.1.1, and Appendix E.2 for
+  why this block is what makes that screen's wording true). This page is the org's own,
+  so it already knows the answer and prints it rather than making anyone remember it:
+  - Block label: `When Control Tower asks which organization you're with`
+  - The name, rendered as copyable text: `Acme-Co` (the org swaps its own GitHub
+    organization name, verbatim, case preserved, never lowercased)
+  - Copy affordance: `Copy` / confirmed `Copied`
+  - Quiet line: `Copy this and paste it in when Control Tower asks. It's the only thing
+    you'll need to type.`
+
+  This is a public, non-secret name (the page already prints "Signed by `<Org>`", and
+  the small bootstrap file it points at is public by construction), so the block breaks
+  none of §1's constraints: still no admin materials, no client secret, no admin build.
+  A deep link that filled the name in automatically was designed and **deferred**, not
+  rejected: it would register a URL handler anything on the machine could invoke, on the
+  one path that runs before any credential exists, and it would need a confirmation
+  screen anyway. See the copy deck §2.1.1's own deferral note.
 - **Welcome tour video slot** (`welcomeTour`): a low-emphasis link, not an autoplay.
   Label: `Watch a short welcome tour` with the YouTube out-link chip. This is the same
   welcome video the in-app wizard offers on its first screen (§6).
@@ -304,6 +323,13 @@ Invitation email (org-sent, by AdminContact)
   from understanding.
 - **The download button serves the user build.** Never the admin build. The admin build
   has no path from any surface a normal employee touches.
+- **The email carries the organization name too**, one plain line near the download link:
+  `When it asks which organization you're with, the answer is Acme-Co.` Home's own
+  organization name block (§3.1) is the primary carrier, but an employee who installs
+  straight from the email and never returns to the site still needs the answer. Both
+  carriers exist so the wizard's own wording (copy deck §2.1.1: "You'll find its name on
+  the page you downloaded Control Tower from, and in the email that sent you there") is
+  true whichever route they took.
 - **One video registry, two consumers.** The site's `videos` config and the in-app
   wizard's video links resolve from the same org-owned list. Swap a video URL once and both
   the site and the wizard point at the new video. This is the owner's "if they want to

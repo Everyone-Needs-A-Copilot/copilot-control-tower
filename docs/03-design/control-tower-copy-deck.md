@@ -226,9 +226,9 @@ re-asks the system.)
 
 # SURFACE 2: The first-run wizard (S2)
 
-One guided window, **ten** steps in the built flow, plus two first-class inline terminals that add no sidebar row and change no step number: the **holding** screen (§2.9) and the **one question first** screen (§2.2.1). No time estimates anywhere. Step position reads as `Step N of 10`, sentence case, never a clock.
+One guided window, **ten** steps in the built flow, plus **three** first-class inline screens that add no sidebar row and change no step number: the **holding** screen (§2.9), the **organization question** (§2.1.1), and the **one question first** screen (§2.2.1). No time estimates anywhere. Step position reads as `Step N of 10`, sentence case, never a clock.
 
-**Two steps have no section of their own below.** `Connect GitHub` (step 2) is the device-flow sign-in, whose strings live in §2.5.1. `Your projects` (step 7) is specified in full in `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/adopt-and-project-setup-spec.md`. The eyebrows in §2.2 through §2.8 below carry their correct built positions.
+**Two steps have no section of their own below.** `Connect GitHub` (step 2) is the device-flow sign-in, whose strings live in §2.5.1 and whose one inline question lives in §2.1.1. `Your projects` (step 7) is specified in full in `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/adopt-and-project-setup-spec.md`. The eyebrows in §2.2 through §2.8 below carry their correct built positions.
 
 Window title: `Set Up Copilot Control Tower`
 Sidebar header: `Set Up Copilot Control Tower`
@@ -244,6 +244,66 @@ Roadmap row titles: `Welcome` · `Connect GitHub` · `Detect` · `What you're ge
 - Secondary button: `Quit`
 - Admin opt-in (secondary control, off by default, a role declaration not a feature
   unlock): checkbox label `I'm setting this up for my organization.`
+
+### 2.1.1 Which organization are you with? (inline over Connect GitHub)
+
+Rendered the way Holding and §2.2.1 are rendered: a `StepShell` over the Connect GitHub stage, no sidebar row, no step-number change, `accent` blue and never orange, because this is a question and not a pause. Entered when `cc auth login --json` returns `org-required`, which on a genuinely fresh Mac is every time. Sign-in needs the organization's GitHub App sign-in ID, that ID now comes from a small public file the organization publishes, and fetching it means knowing which organization. Nothing on a fresh Mac does. The CLI cannot ask, because it must stay non-interactive and machine-readable, so asking is the app's job.
+
+**Never a Holding variant.** `holdingInfo(for:origin:)` returns `nil` for `org-required`, exactly as it already does for `signed-out`, and `routeCliError` enters this screen. Before this section, `org-required` fell through to H2's `Something stopped me from reading your setup, so I won't guess.` on every fresh Mac, which is the failure class §2.10 exists to remove.
+
+**The app exhausts everything it can know before it asks.** First, an organization pointer already set on this Mac, in which case `org-required` never fires and no screen appears. Then the admin standup brief's `org` field, tried **silently** with nothing rendered (the admin rule below). Only then does it ask.
+
+- Eyebrow: `BEFORE YOU SIGN IN`
+- Title: `Which organization are you with?`
+- Intro, by how we got here (the first sentence is constant; only the second changes):
+  - Nothing known, empty field: `Your organization sets up its own sign-in, so I need to know which one to ask. You'll find its name on the page you downloaded Control Tower from, and in the email that sent you there.`
+  - This Mac's own standup name was tried and didn't work, field prefilled with it: `Your organization sets up its own sign-in, so I need to know which one to ask. This Mac already set up Acme-Co, so I tried that first.`
+- Field label: `Your organization's name on GitHub`
+- Placeholder: `Acme-Co`
+- Helper text, always present: `The short name in your organization's GitHub address, like the Acme-Co in github.com/Acme-Co.`
+- Leading actions: `Help me find it`, then `Continue in the menu bar`
+- Primary action: `Continue to sign in`
+- Primary disabled hint, empty field: `Add your organization's name, or select Help me find it.`
+
+**The field takes an address as happily as a name.** `https://github.com/Acme-Co`, `github.com/Acme-Co/copilot-bootstrap`, and `github.com/orgs/Acme-Co/repositories` all rewrite in place to `Acme-Co`, with no message: the visible rewrite is the feedback. Text it cannot reduce is left exactly as typed and answered by validation, never silently discarded.
+
+**Validation**, shown only after the field is left or the primary is pressed, never while the first characters are typed (Admin's own `orgSlugTouched` discipline):
+
+| Condition | Message | Extra affordance |
+|---|---|---|
+| Contains spaces | `Your organization's name on GitHub is one word, with dashes instead of spaces. Acme Corporation is usually Acme-Corporation.` | Button `Use Acme-Corporation` |
+| Contains `@` | `That's an email address. I need your organization's name on GitHub, which is usually one word with dashes.` | none |
+| Anything else GitHub would not accept | `Names on GitHub use letters, numbers, and single dashes, and nothing else.` | none |
+
+The spaces message and its button both echo the person's own typed value back, with runs of spaces turned into single dashes, so the transform is shown on the thing they actually typed.
+
+**What comes back:**
+
+| CLI result | Where it goes |
+|---|---|
+| Device code returned | Connect GitHub's ordinary code card (§2.5.1). No confirmation and no toast: silence is the success state. |
+| `org-not-found` | Stays here. Under the field: `I couldn't find Acme-Coo on GitHub. It may be spelled differently there, and whoever looks after your Mac will know.` The field keeps what was typed, so the difference stays visible. |
+| `no-company-app` | H6, or H7 self-serve on an admin Mac, both unchanged, plus the `Use a different organization` action §2.9 now carries. The organization is real and has not published yet. That is never the person's mistake and must never read as one. |
+| `network-unavailable` | H5, offline, existing intro verbatim. |
+| The pointer could not be written to this Mac | H2 with `environment-error`'s existing intro, verbatim. |
+
+**The pointer is written only after the sign-in ceremony actually starts** (`cc config set github_app.org <name>`, machine config, once the device code comes back). A name that never resolved is never persisted, so a wrong answer costs one keystroke and leaves nothing behind.
+
+**The admin's own Mac: try the standup name silently.** The standup brief already carries `org` beside the `github_app.client_id` H7 self-serve reads. On `org-required`, if that name resolves and hasn't already been tried this session, the app retries with it and renders nothing; a success means the person never sees this screen. A confirmation screen here would consist entirely of "this Mac already set up Acme-Co, press Continue," and a screen whose whole content is *everything is fine* is the one thing this deck refuses to render anywhere else. Three things make silence safe: nothing is persisted until sign-in actually starts, so a stale name leaves nothing behind; every failure is visible and explained, landing on this screen's second intro variant or on a hold that carries a way back; and the value came from a file this Mac's own admin app wrote from something the admin typed by hand. H7 self-serve reads the same brief and still shows a screen, but for a reason that doesn't apply here: there the fix is a command the app genuinely cannot run. The standup should also write the pointer itself (Appendix E.3), after which this branch is only a recovery path for Macs set up before that change.
+
+**Handing the name over instead of asking for it: what was deferred.** A `copilotcontroltower://connect?organization=` link from the org's download page would remove the paste entirely, and it was designed and then deferred rather than rejected. It registers a URL handler in both builds that anything on the machine can invoke, on the one code path that runs before any credential exists, and to stay safe it would have to render a confirmation screen anyway, so it buys a saved paste at the cost of new externally-triggerable surface. The copyable name on the page (Appendix E.2) carries nearly all of the benefit with none of that. Revisit once the flow has real usage.
+
+### 2.1.2 Finding your organization's name (the sheet behind `Help me find it`)
+
+§2.9.2's pattern, inverted. There, the block holds a command for a technical person to run. Here the person is not missing a command, they are missing a fact, and the fact belongs to their admin. So the copyable block is the message that asks for it, already written. Actor-competence (invariant #5): when the fix is not theirs, hand them the shortest route to whoever owns it.
+
+- Title: `Finding your organization's name`
+- Intro: `It's on the page you downloaded Control Tower from, and in the email that sent you there. If you can't find either, send this to whoever looks after your Mac.`
+- Block label: `The message`
+- Block contents, verbatim: `Hi, I'm setting up Copilot Control Tower on my Mac. It's asking for our organization's name on GitHub, the short name in our GitHub address. Can you send it to me?`
+- Copy affordance: `Copy this message` / confirmed `Copied`
+- Primary: `Done` (closes the sheet, returns focus to the field)
+- The sheet never links to GitHub: opening the organization's page requires the very thing they don't have.
 
 ## 2.2 Detect
 
@@ -430,7 +490,9 @@ Holding is seven variants, not one screen. The variant is chosen by **who owns t
 
 **H7 self-serve only:** no interactive flow exists here (unlike the GitHub permission grant), so it follows H1's own discipline instead: the body never contains the command, and the primary, `Show me the command`, opens a sheet that does (`Giving this Mac your organization's sign-in ID` / "This is one command for whoever set up this Mac. If that's you, paste it into Terminal. It only tells this Mac the ID your organization's sign-in already has; it changes nothing else." / block label `The step` / `Copy this step` / `Done`, closing the sheet and re-checking once automatically, exactly like §2.9.2/§2.9.3's own sheets). Leading actions: `Continue in the menu bar` and `Check again`.
 
-**Actions.** `Try again` (primary: H2, H3, H5) · `Check again` (H1, H4, H6, H7 self-serve; nothing failed, so "try" would overstate it) · `Continue in the menu bar` (all seven; never marks setup complete) · `Show me how to install it` (primary: H1) · `Keep what I have` (primary: H4) · `Let setup manage it` (H4, only when the CLI declares consent for that gate) · `Include what I already have` (H4, existing return path) · `Copy details for support` (primary: H6) · `Grant this on GitHub` (primary: H7) · `Show me how to grant it` (H7, **only** when the CLI reports it cannot drive the grant itself) · `Show me the command` (primary: H7 self-serve). On a repeat of the identical hold, add one caption: `Still the same. Nothing changed.`
+**Actions.** `Try again` (primary: H2, H3, H5) · `Check again` (H1, H4, H6, H7 self-serve; nothing failed, so "try" would overstate it) · `Continue in the menu bar` (all seven; never marks setup complete) · `Show me how to install it` (primary: H1) · `Keep what I have` (primary: H4) · `Let setup manage it` (H4, only when the CLI declares consent for that gate) · `Include what I already have` (H4, existing return path) · `Copy details for support` (primary: H6) · `Grant this on GitHub` (primary: H7) · `Show me how to grant it` (H7, **only** when the CLI reports it cannot drive the grant itself) · `Show me the command` (primary: H7 self-serve) · `Use a different organization` (H6 and H7 self-serve, **only** when the hold was reached from §2.1.1; returns there with the field populated). On a repeat of the identical hold, add one caption: `Still the same. Nothing changed.`
+
+**Why H6 needs a way back.** `Acme` and `Acme-Co` can both be real organizations on GitHub. Type the first when you meant the second and H6 is truthful about what it found and useless about what to do: you are told your organization hasn't finished setting up sign-in, and you wait on an admin with nothing to fix. `Use a different organization` exists for that one case and appears nowhere else. It is not a retry, because nothing failed. It is the correction of an answer given two screens earlier, and it costs one keystroke because nothing was persisted. Returning shows §2.1.1's second intro variant when the name came from this Mac's standup brief, and its first in every other case.
 
 **A CLI-authored message is never a headline.** It appears under `What setup found:` (when the CLI wrote it for a person) or only inside the support details (when it names machinery). It is never concatenated into an app sentence.
 
@@ -1121,6 +1183,7 @@ voice stays consistent end to end.
 | `Here's where that leaves you.` | `Kept as it is.` (while five stages never ran) |
 | `This Mac can't reach GitHub on its own yet.` | `3 of 8 done` |
 | `Setup needs one permission from you.` | `Your token is missing the admin:public_key scope.` |
+| `Which organization are you with?` | `Set github_app.org to your organization slug.` |
 
 # Appendix B: Words banned from every user surface
 
@@ -1205,6 +1268,45 @@ Both are in `native/wizard.swift`. Without both fixes, §2.2.1's machine-scope r
 ## D.4 Ordering note, already correct
 
 `performDetect` asks the question **before** the blocked-guard, which is right and must stay that way. A plan that is blocked purely because an unrelated item needs review must still surface the question rather than dropping it behind Holding's review-only card. That is the old dead end, and the ordering is what prevents it.
+
+# Appendix E: The organization question, contract additions and carriers
+
+§2.1.1 asks a person for a value. That single fact changes who owns three failures the CLI currently collapses into one code, and it puts a fourth on the person's own field. `core/ecosystem/bootstrap_config.py`'s `fetch_org_client_id()` fails open to `None` on every network, format, and mismatch problem alike, and `commands/auth.py`'s `_resolve_client_id()` renders all of them as `no-company-app`. Its docstring's reasoning, that none of these are actionable by the person signing in, was true before this screen existed and is false now.
+
+## E.1 Contract additions
+
+| Verb | Addition | Why the app needs it |
+|---|---|---|
+| `auth login --json` | The bootstrap file's `org` comparison folds case. The value is still sent to GitHub exactly as published. | A person told `Acme-Co` types `acme-co`. Today `data.get("org") != org` is an exact match, so that fails open and renders H6, telling them their organization hasn't finished setting up sign-in when it has. This is the most likely single input error in the flow, and it currently lands on the variant reserved for "not your fault, wait." GitHub logins are case-insensitive and unique by fold, and commit `401b585` already settled that the name is used verbatim and never lowercased. |
+| `auth login --json` | New error code `org-not-found`, from an unauthenticated check that the organization resolves on GitHub at all. **An inconclusive or rate-limited probe degrades to `no-company-app`, never to `org-not-found`.** | Separates "the name I was given isn't an organization on GitHub" (§2.1.1's own field, one keystroke) from "your organization hasn't published its sign-in yet" (H6, their admin's). Without it every typo becomes an indefinite wait on someone with nothing to fix. The fail direction is load-bearing: telling someone their real organization doesn't exist is worse than making them wait, and the unauthenticated GitHub rate limit is shared by everyone behind one corporate address. |
+| `auth login --json` | New error code `network-unavailable` for a transport failure fetching the bootstrap file. | Today an offline Mac is told its organization hasn't finished setting up sign-in. That is a fabricated state, which hard rule 6 forbids, and H5 already exists for it. |
+
+## E.2 The carriers, so §2.1.1's intro is true
+
+§2.1.1 tells the person the name is on the download page and in the email. Both must carry it, or the sentence is a lie and the screen is a dead end with better manners.
+
+**`landing-site.md` §3.1, directly under the three install steps:**
+
+- Block label: `When Control Tower asks which organization you're with`
+- The name, copyable: `Acme-Co`
+- Copy affordance: `Copy` / confirmed `Copied`
+- Quiet line: `Copy this and paste it in when Control Tower asks. It's the only thing you'll need to type.`
+
+**The invitation email (walkthrough screen 1.1), one line near the download link:** `When it asks which organization you're with, the answer is Acme-Co.`
+
+The organization's name on GitHub is not a secret and is not org configuration in the sense `landing-site.md` §1's admin bullet forbids: the page already prints "Signed by `<Org>`", and the file it names is public by construction. The page still carries no admin materials, no client secret, and no download of the admin build. (Owner confirmed.)
+
+## E.3 App-side and admin-side plumbing this copy depends on
+
+- `holdingInfo(forExit2Code:)` gains `case "org-required": return nil`, beside the existing `signed-out` case, and `routeCliError` enters the organization question rather than Holding when `nil` comes back from that code.
+- `CliClient.authLoginInitiate()` and `authLoginPoll(deviceCode:)` both take an optional organization and pass `--org`. The poll needs it too: `build_auth_poll_report` re-resolves the client id on every call.
+- `LocalAdminSignal` gains `standupOrgName`, reading `org` from `standup-brief.json` exactly as `standupGitHubAppClientID` reads `github_app.client_id`: trimmed, `nil` on any read failure or blank field, never a fabricated placeholder.
+- **Admin standup writes `github_app.org` when it writes the brief.** Then the admin's own Mac never reaches `org-required` at all, and §2.1.1's silent brief branch is only a recovery path for Macs whose standup predates that change.
+- The user wizard has no text field today. This is its first. Admin's organization field (§3.7) is the visual reference, and its `orgSlugTouched` gating is the validation-timing reference.
+
+## E.4 Open contract question
+
+This appendix assumes the app persists the pointer with `cc config set github_app.org <name>`, which is what `commands/auth.py`'s own docstring names as the app's job ("the app sets this once via `cc config set github_app.org <org>` after collecting it during onboarding"), so the CLI already anticipated this screen. But `cc config set` prints human text and has no `--json` output, so the app can read only its exit code. Whether that is acceptable under the versioned contract, or whether persistence needs a machine-readable verb of its own, is unresolved and owner-owned. The copy does not depend on the answer: no string claims the value was saved, and the only failure path ("the pointer could not be written to this Mac") routes to an existing H2 intro.
 
 ---
 

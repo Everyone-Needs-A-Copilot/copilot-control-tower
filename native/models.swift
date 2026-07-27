@@ -307,6 +307,24 @@ enum LocalAdminSignal {
         let trimmed = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+    /// Best-effort read of the brief's top-level `org` field (org-question
+    /// copy spec §5/Appendix E.3) — the organization name this Mac's own
+    /// admin typed by hand during standup, read the exact same way
+    /// `standupGitHubAppClientID` above reads `github_app.client_id`: `nil`
+    /// on any read/parse failure or a missing/blank field, never a
+    /// fabricated placeholder. The one signal `org-required`'s silent
+    /// standup-brief retry (`WizardModel.handleOrgRequired`) is allowed to
+    /// act on without ever showing a screen.
+    static var standupOrgName: String? {
+        let path = supportDirectory.appendingPathComponent("standup-brief.json").path
+        guard let data = FileManager.default.contents(atPath: path),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let org = payload["org"] as? String
+        else { return nil }
+        let trimmed = org.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
 // MARK: - Shared brand asset loading (tray glyph vs. everywhere else)

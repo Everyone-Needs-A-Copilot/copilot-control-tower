@@ -111,7 +111,30 @@
 #   4. "authorized"          (default happy path, so an unconfigured run is deterministic)
 #
 # Scenarios: authorized | denied | expired | timeout | pending | exit-2 |
-#            authorized-leaked-field-adversarial
+#            authorized-leaked-field-adversarial | org-required-then-authorized |
+#            org-required-then-not-found | org-required-then-no-company-app |
+#            org-required-then-network-unavailable
+#
+# The four `org-required-then-*` scenarios (org-question copy spec §2.1.1/§6,
+# `WizardModel.handleOrgRequired`/`handleConnectGitHubError`) model the ONE real
+# CLI behavior the whole organization-question screen exists to answer: EVERY
+# call that carries no `--org <name>` fails `org-required` (a genuinely fresh
+# Mac, every time); a call that DOES carry `--org` resolves per scenario name:
+#   org-required-then-authorized        -> the ordinary ceremony/poll, exactly
+#                                           as if the organization were already
+#                                           known (the happy "ask, then sign in"
+#                                           path)
+#   org-required-then-not-found         -> exit 2, code org-not-found (the typed
+#                                           name isn't a real GitHub organization)
+#   org-required-then-no-company-app    -> exit 2, code no-company-app (the
+#                                           organization is real; its sign-in
+#                                           isn't published yet)
+#   org-required-then-network-unavailable -> exit 2, code network-unavailable
+#                                           (a transport failure, never told as
+#                                           a fabricated "not set up yet")
+# `--org <name>` is otherwise ignored by every OTHER auth scenario (it's a
+# genuinely no-op flag there, same as an unrecognized flag) -- only these four
+# scenario names react to its presence at all.
 #
 # The INITIATE call (no --poll) always emits the same canned ceremony regardless of
 # scenario — the ceremony is the render data shown to the user BEFORE any outcome is
@@ -279,6 +302,7 @@ fanout=0
 all_projects=0
 onboard_apply=0
 ecosystem_onboard=0
+org_value=""
 i=0
 while [ $i -lt ${#args[@]} ]; do
   arg="${args[$i]}"
@@ -300,8 +324,17 @@ while [ $i -lt ${#args[@]} ]; do
       onboard_apply=1
       ;;
     --org|--org=*)
+      # Reused for BOTH `onboard --org <o>` (ecosystem_onboard, pre-existing)
+      # AND `auth login --org <name>` (org-question copy spec §2.1.1) --
+      # orthogonal verbs, so one flag safely serves both. `org_value` is the
+      # ONLY thing the four `org-required-then-*` auth scenarios read.
       ecosystem_onboard=1
-      if [ "$arg" = "--org" ]; then i=$((i + 1)); fi
+      if [ "$arg" = "--org" ]; then
+        i=$((i + 1))
+        org_value="${args[$i]:-}"
+      else
+        org_value="${arg#--org=}"
+      fi
       ;;
     --fixture=*)
       fixture="${arg#--fixture=}"
@@ -833,9 +866,45 @@ PY
 
     case "$auth_scenario" in
       authorized|denied|expired|timeout|pending|authorized-leaked-field-adversarial) ;;
+      org-required-then-authorized|org-required-then-not-found|org-required-then-no-company-app|org-required-then-network-unavailable) ;;
       *)
-        echo "mock-cc: unknown auth scenario '$auth_scenario'. Valid: authorized, denied, expired, timeout, pending, authorized-leaked-field-adversarial, exit-2." >&2
+        echo "mock-cc: unknown auth scenario '$auth_scenario'. Valid: authorized, denied, expired, timeout, pending, authorized-leaked-field-adversarial, org-required-then-authorized, org-required-then-not-found, org-required-then-no-company-app, org-required-then-network-unavailable, exit-2." >&2
         exit 2
+        ;;
+    esac
+
+    # The four `org-required-then-*` scenarios (org-question copy spec
+    # §2.1.1/§6): every call with no `--org` fails org-required, regardless
+    # of --poll — a genuinely fresh Mac hits this on the ceremony AND would
+    # hit it again on a poll that (unrealistically) omitted --org, since the
+    # real CLI re-resolves the organization's client id on every call
+    # (Appendix E.3). A call that DOES carry `--org` resolves per scenario;
+    # `org-required-then-authorized` reduces to the ordinary `authorized`
+    # scenario from here on, so the ceremony/poll logic below never needs to
+    # know the difference.
+    case "$auth_scenario" in
+      org-required-then-authorized|org-required-then-not-found|org-required-then-no-company-app|org-required-then-network-unavailable)
+        if [ "$ecosystem_onboard" -eq 0 ]; then
+          printf '%s\n' '{"schema_version":"1.0","error":{"code":"org-required","message":"Nobody'\''s told me which organization you'\''re with yet, so I can'\''t sign you in."}}'
+          exit 2
+        fi
+        case "$auth_scenario" in
+          org-required-then-not-found)
+            printf '%s\n' '{"schema_version":"1.0","error":{"code":"org-not-found","message":"'"${org_value:-that name}"' doesn'\''t look like an organization on GitHub."}}'
+            exit 2
+            ;;
+          org-required-then-no-company-app)
+            printf '%s\n' '{"schema_version":"1.0","error":{"code":"no-company-app","message":"GitHub reports your organization'\''s sign-in app isn'\''t finished being set up yet."}}'
+            exit 2
+            ;;
+          org-required-then-network-unavailable)
+            printf '%s\n' '{"schema_version":"1.0","error":{"code":"network-unavailable","message":"I couldn'\''t reach the network to check your organization'\''s sign-in setup."}}'
+            exit 2
+            ;;
+          org-required-then-authorized)
+            auth_scenario="authorized"
+            ;;
+        esac
         ;;
     esac
 
@@ -869,8 +938,28 @@ PY
     exit 0
     ;;
 
+  config)
+    # `cc config set github_app.org <name>` (org-question copy spec §2.1.1,
+    # `CliClient.configSetGithubAppOrg`) -- the one config verb the app calls,
+    # ONLY after a device code has already come back for a real organization
+    # name. Succeeds (exit 0, no stdout) by default: the real `cc config set`
+    # has no `--json` output either (Appendix E.4's own open contract
+    # question), so `configSetGithubAppOrg` reads only the exit code, never a
+    # body. `CT_CONFIG_SET_FAILS=1` forces it to fail instead, for the copy
+    # spec's own "the pointer could not be written to this Mac" -> H2 row.
+    if [ "$subverb" = "set" ]; then
+      if [ "${CT_CONFIG_SET_FAILS:-0}" = "1" ]; then
+        echo "mock-cc: simulated config-set failure" >&2
+        exit 1
+      fi
+      exit 0
+    fi
+    echo "mock-cc: unsupported config invocation (only 'config set' is implemented)" >&2
+    exit 1
+    ;;
+
   *)
-    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json', 'auth --json [--poll]' / 'auth status --json', 'layers --json' / 'layers join <id> --json', 'freshness --json' / 'freshness --all-projects --json', 'deprovision <org> --json', and 'update --json' / 'update --project <path> --json' / 'update --fanout --json'" >&2
+    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json', 'auth --json [--poll]' / 'auth status --json', 'layers --json' / 'layers join <id> --json', 'freshness --json' / 'freshness --all-projects --json', 'deprovision <org> --json', 'update --json' / 'update --project <path> --json' / 'update --fanout --json', and 'config set <key> <value>'" >&2
     exit 2
     ;;
 esac

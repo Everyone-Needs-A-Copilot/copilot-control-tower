@@ -45,6 +45,17 @@ if [[ "$RESOLVED_GH" != "$MOCK_BIN/gh" ]]; then
   exit 1
 fi
 
+# Same gate, for `cc` (_ensure_local_org_pointer's "local sign-in pointer"
+# step, org-question copy spec §5/Appendix E.3): this machine has a REAL,
+# persistent `cc` config file a test must never write to. Refuse to run a
+# single test unless `cc` resolves to this suite's own mock first.
+RESOLVED_CC="$(command -v cc || true)"
+if [[ "$RESOLVED_CC" != "$MOCK_BIN/cc" ]]; then
+  echo "FATAL: cc resolves to [$RESOLVED_CC], not the mock at $MOCK_BIN/cc." >&2
+  echo "Refusing to run any test: this would risk real writes to this Mac's real setup-helper config." >&2
+  exit 1
+fi
+
 PASS=0
 FAIL=0
 FAILED_NAMES=()
@@ -268,7 +279,7 @@ test_fresh_standup_full_matrix() {
   base_perm_count="$(count_calls "$log" '^PATCH$' '^orgs/acme-co$')"
   eco_count="$(count_calls "$log" '^PUT$' 'contents/ecosystem\.yml$')"
 
-  assert_eq "test1: creates 9 repos (org triplet + accounting triplet + sales triplet)" "9" "$repo_count"
+  assert_eq "test1: creates 10 repos (org triplet + accounting triplet + sales triplet + the public copilot-bootstrap repo)" "10" "$repo_count"
   assert_eq "test1: creates 2 teams (accounting, sales)" "2" "$team_count"
   assert_eq "test1: grants 6 team-repo permissions (3 per department)" "6" "$grant_count"
   assert_eq "test1: sets org base permission exactly once" "1" "$base_perm_count"
@@ -293,19 +304,29 @@ test_fresh_standup_full_matrix() {
     fi
   done
   assert_eq "test1: every expected repo was reported created" "" "$missing"
+  assert_contains "test1: the public copilot-bootstrap repo was reported created" "$RUN_STDOUT" "Created acme-co/copilot-bootstrap, public."
 
   # Contract order: readiness and org-base-permission first; the harness
-  # repo's ecosystem.yml write and its branch protection are last (see
+  # repo's ecosystem.yml write and its branch protection come next (see
   # admin_bootstrap.sh's run_standup for why protection on the harness repo
-  # is deferred until it actually carries content).
-  local first_step last_step second_last_step
+  # is deferred until it actually carries content); the public
+  # copilot-bootstrap mirror and this Mac's own local sign-in pointer
+  # (org-question copy spec §1/§5) are always last, after every other real
+  # GitHub state this run creates.
+  local first_step last_step second_last_step third_last_step fourth_last_step fifth_last_step
   first_step="$(printf '%s\n' "$RUN_STDOUT" | head -1 | jq -r .step)"
   last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -1 | jq -r .step)"
   second_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -2 | head -1 | jq -r .step)"
+  third_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -3 | head -1 | jq -r .step)"
+  fourth_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -4 | head -1 | jq -r .step)"
+  fifth_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -5 | head -1 | jq -r .step)"
   assert_eq "test1: first NDJSON step is readiness" "readiness" "$first_step"
-  assert_eq "test1: layer package is initialized before the harness repo's branch protection" "layer-package:codex-copilot-internal" "$second_last_step"
+  assert_eq "test1: layer package is initialized before the harness repo's branch protection" "layer-package:codex-copilot-internal" "$fifth_last_step"
   assert_contains "test1: ecosystem handoff is written before package initialization" "$RUN_STDOUT" '"step":"ecosystem-yml"'
-  assert_eq "test1: last NDJSON step protects the harness repo" "branch-protection:codex-copilot-internal" "$last_step"
+  assert_eq "test1: the harness repo's branch protection precedes the bootstrap mirror" "branch-protection:codex-copilot-internal" "$fourth_last_step"
+  assert_eq "test1: the public bootstrap repo precedes its bootstrap.yml" "bootstrap-repo" "$third_last_step"
+  assert_eq "test1: bootstrap.yml precedes this Mac's own local sign-in pointer" "bootstrap-yml" "$second_last_step"
+  assert_eq "test1: last NDJSON step sets this Mac's own local sign-in pointer" "local-org-pointer" "$last_step"
 }
 
 # ---------------------------------------------------------------------------
@@ -1601,6 +1622,61 @@ test_branch_protection_preserves_admin_recovery() {
 }
 
 # ---------------------------------------------------------------------------
+# Test 34: the public copilot-bootstrap repo must stay public (org-question
+# copy spec §1/Appendix E.2) — an existing PRIVATE copilot-bootstrap refuses
+# rather than ever having its visibility changed.
+# ---------------------------------------------------------------------------
+
+test_bootstrap_repo_private_conflict_refuses() {
+  local st brief log
+  st="$(new_org_state bootstrap-private-conflict)"
+  brief="$WORKDIR/brief-bootstrap-private.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/bootstrap-private.log"
+
+  mkdir -p "$st/repos/acme-co/copilot-bootstrap"
+  echo true > "$st/repos/acme-co/copilot-bootstrap/private"
+  echo main > "$st/repos/acme-co/copilot-bootstrap/default_branch"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test34: standup refuses (exit 2)" "2" "$RUN_EXIT"
+  assert_contains "test34: refusal names the visibility rule" "$RUN_STDERR" "must stay public"
+  local yml_writes
+  yml_writes="$(count_calls "$log" '^PUT$' 'copilot-bootstrap/contents/bootstrap\.yml$')"
+  assert_eq "test34: bootstrap.yml is never written once the repo conflicts" "0" "$yml_writes"
+}
+
+# ---------------------------------------------------------------------------
+# Test 35: bootstrap.yml is guarded — it can carry ONLY org and
+# github_app.client_id, so foreign content already there is never
+# overwritten (org-question copy spec Appendix E.2's own guard).
+# ---------------------------------------------------------------------------
+
+test_bootstrap_yml_foreign_content_refuses() {
+  local st brief log
+  st="$(new_org_state bootstrap-foreign-content)"
+  brief="$WORKDIR/brief-bootstrap-foreign.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/bootstrap-foreign.log"
+
+  mkdir -p "$st/repos/acme-co/copilot-bootstrap/refs/main"
+  echo false > "$st/repos/acme-co/copilot-bootstrap/private"
+  echo main > "$st/repos/acme-co/copilot-bootstrap/default_branch"
+  touch "$st/repos/acme-co/copilot-bootstrap/has_commits"
+  printf 'org: "acme-co"\ngithub_app:\n  client_id: "some-other-id"\nnotes: "hand-added"\n' \
+    > "$st/repos/acme-co/copilot-bootstrap/refs/main/bootstrap.yml"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test35: standup refuses (exit 2)" "2" "$RUN_EXIT"
+  assert_contains "test35: refusal names the unrecognized field" "$RUN_STDERR" "fields I didn't write"
+  local yml_writes
+  yml_writes="$(count_calls "$log" '^PUT$' 'copilot-bootstrap/contents/bootstrap\.yml$')"
+  assert_eq "test35: the foreign bootstrap.yml is never overwritten" "0" "$yml_writes"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1637,6 +1713,8 @@ test_layer_package_conflicts_refuse_before_mutation
 test_json_brief_drives_read_only_plan
 test_store_reachability_uses_bounded_http_probe
 test_branch_protection_preserves_admin_recovery
+test_bootstrap_repo_private_conflict_refuses
+test_bootstrap_yml_foreign_content_refuses
 
 echo
 echo "-----------------------------------------"

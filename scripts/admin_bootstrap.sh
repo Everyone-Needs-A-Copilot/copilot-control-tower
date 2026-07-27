@@ -1516,6 +1516,150 @@ _write_ecosystem_yml() {
 }
 
 # ---------------------------------------------------------------------------
+# The public copilot-bootstrap repo (org-question copy spec §1/Appendix E.2)
+#
+# Sign-in needs the organization's GitHub App client id. Today that comes
+# from the PRIVATE ecosystem.yml this engine already writes above, which a
+# signed-out Mac cannot read at all. `<org>/copilot-bootstrap`'s
+# `bootstrap.yml` is the public mirror of exactly the two non-secret fields a
+# genuinely fresh Mac needs before it has any credential: `org` and
+# `github_app.client_id`. Neither is a secret — GitHub publishes an
+# organization's name and a GitHub App's Client ID; only the App's client
+# SECRET is sensitive, and that never reaches this file (guarded below).
+# ---------------------------------------------------------------------------
+
+_render_bootstrap_yml() {
+  local org="$1" client_id="$2"
+  printf 'org: "%s"\n' "$org"
+  printf 'github_app:\n'
+  printf '  client_id: "%s"\n' "$client_id"
+}
+
+# _ensure_public_bootstrap_repo ORG — creates (or confirms) a PUBLIC
+# <org>/copilot-bootstrap repository. Public, not private: this is the one
+# repository in the whole engine that MUST be public, because it exists so a
+# signed-out Mac can read it with no credential at all.
+_ensure_public_bootstrap_repo() {
+  local org="$1" step="bootstrap-repo"
+  _probe_repo "$org" "copilot-bootstrap"
+  case "$_REPO_PROBE_STATE" in
+    conflict-public)
+      # `_probe_repo`'s "conflict-public" is every other repo's UNWANTED
+      # state (they must be private); it is this one repo's WANTED state.
+      emit_step "$step" "already-present" "$org/copilot-bootstrap already exists, public."
+      return
+      ;;
+    existing-private)
+      refuse "$step" "$org/copilot-bootstrap already exists but is private. It must stay public so a signed-out Mac can read it before it has any credential; I won't change its visibility myself."
+      ;;
+    unknown)
+      refuse "$step" "I couldn't confirm whether $org/copilot-bootstrap exists, so I won't guess or create it. Check GitHub access and try again."
+      ;;
+    missing) ;;
+  esac
+  if gh api -X POST "orgs/$org/repos" -f name="copilot-bootstrap" -F private=false >/dev/null 2>&1; then
+    emit_step "$step" "created" "Created $org/copilot-bootstrap, public."
+  else
+    fail_step "$step" "Could not create $org/copilot-bootstrap."
+  fi
+}
+
+# _ensure_bootstrap_yml ORG — writes (or confirms) bootstrap.yml at the root
+# of <org>/copilot-bootstrap. Unlike ecosystem.yml this file is ENTIRELY
+# engine-rendered from exactly two fields and never hand-edited, so an
+# update overwrites directly rather than opening a PR for review — but only
+# once the existing content is confirmed to carry nothing else. That check
+# is the guard: nothing but `org` and `github_app.client_id` can ever be
+# written here, so this never drifts into a general-purpose config surface.
+_ensure_bootstrap_yml() {
+  local org="$1" step="bootstrap-yml" rendered existing_content existing_sha info err_file encoded foreign_lines
+
+  rendered="$(_render_bootstrap_yml "$org" "$GITHUB_OAUTH_CLIENT_ID")"
+  if ! _leak_scan "$rendered"; then
+    refuse "leak-scan" "bootstrap.yml would have carried a secret-shaped value, so I stopped before pushing anything. This file only ever carries org and github_app.client_id."
+  fi
+
+  err_file="$(mktemp)"
+  if info="$(gh api "repos/$org/copilot-bootstrap/contents/bootstrap.yml" 2>"$err_file")"; then
+    rm -f "$err_file"
+    existing_content="$(printf '%s' "$info" | jq -r '.content // empty' | _b64_decode)"
+    existing_sha="$(printf '%s' "$info" | jq -r '.sha // empty')"
+    if [[ "$existing_content" == "$rendered" ]]; then
+      emit_step "$step" "already-present" "$org/copilot-bootstrap already carries the current organization name and sign-in ID."
+      return
+    fi
+    foreign_lines="$(printf '%s\n' "$existing_content" | grep -Ev '^(org: |github_app:$|  client_id: )' || true)"
+    if [[ -n "$foreign_lines" ]]; then
+      refuse "$step" "$org/copilot-bootstrap's bootstrap.yml carries fields I didn't write. I won't overwrite it."
+    fi
+    encoded="$(printf '%s' "$rendered" | _b64_encode)"
+    if gh api -X PUT "repos/$org/copilot-bootstrap/contents/bootstrap.yml" \
+        -f message="Update organization name and sign-in ID" -f content="$encoded" -f sha="$existing_sha" >/dev/null 2>&1; then
+      emit_step "$step" "updated" "Updated $org/copilot-bootstrap's bootstrap.yml with the current organization name and sign-in ID."
+    else
+      fail_step "$step" "Could not update $org/copilot-bootstrap's bootstrap.yml."
+    fi
+    return
+  fi
+  if grep -qi 'HTTP 404' "$err_file" 2>/dev/null; then
+    rm -f "$err_file"
+    encoded="$(printf '%s' "$rendered" | _b64_encode)"
+    if gh api -X PUT "repos/$org/copilot-bootstrap/contents/bootstrap.yml" \
+        -f message="Initialize organization name and sign-in ID" -f content="$encoded" >/dev/null 2>&1; then
+      emit_step "$step" "created" "Wrote $org/copilot-bootstrap's bootstrap.yml with the organization name and sign-in ID."
+    else
+      fail_step "$step" "Could not write $org/copilot-bootstrap's bootstrap.yml."
+    fi
+    return
+  fi
+  rm -f "$err_file"
+  refuse "$step" "I couldn't confirm whether $org/copilot-bootstrap already has a bootstrap.yml, so I won't write one. Check GitHub access and try again."
+}
+
+# ---------------------------------------------------------------------------
+# The local sign-in pointer (org-question copy spec §5, "the better fix, one
+# layer up") — setting github_app.org on THIS Mac the moment standup runs
+# here means Control Tower's own `cc auth login` never returns
+# `org-required` on the admin's own Mac at all, and its silent
+# standup-brief retry (`WizardModel.handleOrgRequired`) becomes a recovery
+# path only, for a Mac whose standup predates this step.
+#
+# Best-effort and NEVER fatal: unlike gh/jq/python3, `cc` is not one of this
+# script's declared dependencies, and it may genuinely not be installed yet
+# at the point standup runs on a given Mac. A missing or failing `cc`
+# degrades to "skipped" — it must never block or fail a run that has already
+# created real, wanted state on GitHub.
+# ---------------------------------------------------------------------------
+
+_ensure_local_org_pointer() {
+  local org="$1" step="local-org-pointer" cc_bin current
+  # Resolved via PATH (`command -v`), deliberately never a hardcoded
+  # absolute path: this is the SAME seam `scripts/tests/test_admin_bootstrap.sh`
+  # already uses to keep every `gh` call inside this script sandboxed to its
+  # own mock rather than the real GitHub CLI, and it lets that harness mock
+  # `cc` the identical way (`fixtures/bin/cc`) so this step can be tested
+  # without ever touching a real Mac's real setup-helper config -- see that
+  # test file's own hard safety gate for both.
+  if ! cc_bin="$(command -v cc 2>/dev/null)" || [[ -z "$cc_bin" ]]; then
+    emit_step "$step" "skipped" "The setup helper isn't on this Mac yet, so I didn't set its organization pointer. Control Tower will ask for it once, the first time it needs to sign in here."
+    return
+  fi
+  # Check-then-act, same discipline as every GitHub mutation above: a
+  # standing Mac whose pointer already matches is a no-op, never a repeated
+  # "updated" (admin-standup-contract's own re-run promise: a re-run against
+  # a standing org emits only already-present/skipped and mutates nothing).
+  if current="$("$cc_bin" config get github_app.org --raw 2>/dev/null)" && [[ "$current" == "$org" ]]; then
+    emit_step "$step" "already-present" "This Mac's setup helper already knows which organization it's with."
+    return
+  fi
+  if "$cc_bin" config set github_app.org "$org" >/dev/null 2>&1; then
+    emit_step "$step" "updated" "Told this Mac's setup helper which organization it's with, so it won't have to ask."
+  else
+    emit_step "$step" "skipped" "Couldn't set this Mac's organization pointer. Control Tower will ask for it once, the first time it needs to sign in here."
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Standup / add-department orchestration
 # ---------------------------------------------------------------------------
 
@@ -1571,6 +1715,14 @@ run_standup() {
     fi
     _ensure_branch_protection "$org" "${repo}-copilot-internal" "branch-protection:${repo}-copilot-internal"
   done
+
+  # The public mirror of the two fields a signed-out Mac needs before it can
+  # sign in at all (org-question copy spec §1/Appendix E.2), then this
+  # Mac's own local pointer (§5, "the better fix, one layer up") — both
+  # additive, both after every other real GitHub state this run creates.
+  _ensure_public_bootstrap_repo "$org"
+  _ensure_bootstrap_yml "$org"
+  _ensure_local_org_pointer "$org"
 }
 
 run_add_department() {

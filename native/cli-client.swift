@@ -400,12 +400,50 @@ actor CliClient {
         await decodeVerb(["auth", "status", "--json"])
     }
 
-    func authLoginInitiate() async -> Result<AuthDeviceCode, CliError> {
-        await decodeVerb(["auth", "login", "--json"])
+    /// `org`, when non-nil, is passed as `--org <name>` (copy spec Appendix
+    /// E.3/§2.1.1): the one thing that resolves `org-required` — the CLI
+    /// cannot ask which organization a signed-out Mac is with (it must stay
+    /// non-interactive and `--json`-parseable), so the app supplies it here,
+    /// either read silently from this Mac's own admin standup brief or typed
+    /// by the person on the organization question screen. `nil` (the
+    /// default) is every other call site: the CLI resolves from whatever
+    /// organization pointer is already set on this Mac, exactly as before
+    /// this parameter existed.
+    func authLoginInitiate(org: String? = nil) async -> Result<AuthDeviceCode, CliError> {
+        var args = ["auth", "login"]
+        if let org, !org.isEmpty { args += ["--org", org] }
+        args.append("--json")
+        return await decodeVerb(args)
     }
 
-    func authLoginPoll(deviceCode: String) async -> Result<AuthPoll, CliError> {
-        await decodeVerb(["auth", "login", "--poll", "--device-code", deviceCode, "--json"])
+    /// The poll needs `org` too, not just the initiate call — the CLI
+    /// re-resolves the organization's GitHub App client id on every poll
+    /// (`build_auth_poll_report`, copy spec Appendix E.3), so a poll that
+    /// omits it can re-hit `org-required` mid-flow for the same organization
+    /// the initiate call already resolved.
+    func authLoginPoll(deviceCode: String, org: String? = nil) async -> Result<AuthPoll, CliError> {
+        var args = ["auth", "login", "--poll", "--device-code", deviceCode]
+        if let org, !org.isEmpty { args += ["--org", org] }
+        args.append("--json")
+        return await decodeVerb(args)
+    }
+
+    /// Persists the resolved organization pointer (copy spec §2.1.1: "written
+    /// only after the sign-in ceremony actually starts... a name that never
+    /// resolved is never persisted") — called ONLY once `authLoginInitiate`
+    /// has already returned a real device code for this `org`, never before.
+    /// `cc config set` has no `--json` output (copy spec Appendix E.4, an
+    /// open contract question flagged to the owner rather than resolved
+    /// here) — this reads ONLY the process exit code, never stdout, and
+    /// never trusts a partial or human-formatted body. A `false` return
+    /// means the pointer was NOT written; the caller degrades to the
+    /// existing `environment-error` H2 hold rather than silently claiming
+    /// success (copy spec §2.1.1's own "pointer could not be written" row).
+    func configSetGithubAppOrg(_ org: String) async -> Bool {
+        switch await runRaw(["config", "set", "github_app.org", org]) {
+        case .success(let raw): return raw.exit == 0
+        case .failure: return false
+        }
     }
 
     /// H7's primary action (`docs/03-design/control-tower-copy-deck.md`

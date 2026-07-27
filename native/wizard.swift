@@ -91,6 +91,21 @@ struct DeviceFlowState {
     var interval: Int = 5
 }
 
+// MARK: - §2.1.1, the organization question: field validation
+//
+// A closed, three-condition table (copy spec §3's own order — spaces first,
+// then `@`, then everything else GitHub wouldn't accept), evaluated only once
+// the field is non-empty, and only ever shown once `WizardModel.orgFieldTouched`
+// is true (the same `orgSlugTouched` discipline `native/admin.swift`'s own
+// organization field already uses, per the copy spec's own citation) — never
+// while the first characters are being typed.
+enum OrgFieldValidation: Equatable {
+    case none
+    case containsSpaces(suggestion: String)
+    case containsAt
+    case invalidCharacters
+}
+
 // MARK: - Holding H7, granting a missing GitHub permission: device-flow
 // state (copy spec §2.9.3) — same shape as `DeviceFlowState` above, plus
 // `.unavailable` and `.timedOut`, which `auth login`'s flow has no
@@ -439,6 +454,15 @@ struct HoldingInfo {
     /// placeholder to fill in by hand) — `nil` for the existing
     /// GitHub-permission H7, which keeps its own device-flow sheet.
     var selfServeCommand: String? = nil
+    /// Set ONLY when this hold was reached as the direct consequence of an
+    /// organization name the person (or this Mac's own silent admin-standup
+    /// retry) just supplied to `auth login --org` (copy spec §2.1.1/§5) —
+    /// never for a `no-company-app` reached any other way (e.g. a Mac whose
+    /// organization pointer was already configured before this session
+    /// started). Non-nil here is exactly what reveals `Use a different
+    /// organization` (H6/H7-self-serve's own leading action, §2.9's Diff 3)
+    /// and gives it the value to return to the field with.
+    var orgNameForReturn: String? = nil
 
     var signature: HoldingSignature {
         HoldingSignature(variant: variant, origin: origin, stage: support?.stage, code: support?.code, message: support?.message)
@@ -695,6 +719,13 @@ extension HoldingInfo {
 enum WizardPhase {
     case welcome
     case connectGitHub
+    /// The organization question (copy spec §2.1.1), inline over Connect
+    /// GitHub — same no-sidebar-row/no-step-number mechanism `.onboardQuestion`
+    /// already uses over Detect. Entered when `cc auth login --json` returns
+    /// `org-required` and this Mac's own admin standup brief either has no
+    /// readable organization name or has already been tried silently and
+    /// failed this session (`WizardModel.handleOrgRequired`).
+    case orgQuestion
     case detecting
     /// The re-plan after a "One question first" decision (`Include what I
     /// have` / `Not now`) — same origin stage (`.detect`) as `.detecting`,
@@ -732,6 +763,186 @@ final class WizardModel: ObservableObject {
     @Published var phase: WizardPhase = .welcome
     @Published var deviceFlow = DeviceFlowState()
     @Published var authorizedLogin: String?
+
+    // MARK: §2.1.1, the organization question
+
+    /// The field's current value — already paste-normalized (`orgNameInputChanged()`)
+    /// by the time anything else reads it. Prefilled with this Mac's own
+    /// standup-brief organization name when `handleOrgRequired()`'s silent
+    /// retry is attempted, so a failure lands on the screen with it already
+    /// in place (copy spec §2.1.1's second intro variant).
+    @Published var orgNameInput = ""
+    /// Same discipline as `native/admin.swift`'s `orgSlugTouched` — set the
+    /// moment the field is edited, and it's what gates `orgFieldValidation`
+    /// from showing anything while the field is still empty.
+    @Published var orgFieldTouched = false
+    /// True only while `Continue to sign in`'s own `auth login` call is in
+    /// flight — guards against a double submit, nothing more (the screen
+    /// itself never renders a spinner over the field; the person just sees
+    /// the ordinary Connect GitHub code card the moment it resolves).
+    @Published var orgQuestionSubmitting = false
+    /// The exact value that most recently came back `org-not-found` from the
+    /// CLI, or `nil`. Compared against `orgNameInput` live (`orgNotFoundMessage`)
+    /// rather than cleared explicitly, so editing the field away from the
+    /// failed value silently retires the message — the same "never explain a
+    /// value the person didn't just try" rule the intro variant follows.
+    private var orgNotFoundAttempt: String?
+    /// The standup-brief organization name `handleOrgRequired()` tried
+    /// silently, or `nil` if no silent attempt has happened this session.
+    /// Compared against `orgNameInput` live (`orgQuestionIntro`,
+    /// `useADifferentOrganization()`'s return-variant choice) rather than a
+    /// separate frozen flag, so editing the prefilled value away from what
+    /// was tried reverts the screen to its first intro variant, exactly as
+    /// the copy spec requires ("the screen never has to explain a value the
+    /// person did not type").
+    private var silentlyTriedOrgName: String?
+    /// Guards the silent standup-brief retry to once per session
+    /// (`handleOrgRequired()`) — a second `org-required` this session (e.g.
+    /// after `Use a different organization`) always asks instead of retrying
+    /// the same brief value again.
+    private var orgSilentAttemptTriedThisSession = false
+    /// Whatever organization `beginDeviceFlow(org:)` was last called with —
+    /// `nil` on the very first attempt. `beginDeviceFlow()`'s public, no-arg
+    /// form (used by `getStarted()` and every Holding "Try again"/"Check
+    /// again" whose origin is Connect GitHub) replays this exact value, so a
+    /// retry re-asks the SAME organization rather than silently reverting to
+    /// none.
+    private var lastAttemptedOrg: String?
+
+    var orgFieldValidation: OrgFieldValidation {
+        guard orgFieldTouched, !orgNameInput.isEmpty else { return .none }
+        return Self.validateOrgInput(orgNameInput)
+    }
+
+    var canContinueToSignIn: Bool {
+        !orgNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var orgQuestionIntro: String {
+        let constant = "Your organization sets up its own sign-in, so I need to know which one to ask. "
+        if let silentlyTriedOrgName, orgNameInput == silentlyTriedOrgName {
+            return constant + "This Mac already set up \(silentlyTriedOrgName), so I tried that first."
+        }
+        return constant + "You'll find its name on the page you downloaded Control Tower from, and in the email that sent you there."
+    }
+
+    var orgNotFoundMessage: String? {
+        guard let orgNotFoundAttempt, orgNotFoundAttempt == orgNameInput else { return nil }
+        return "I couldn't find \(orgNotFoundAttempt) on GitHub. It may be spelled differently there, and whoever looks after your Mac will know."
+    }
+
+    /// The field's own live paste-normalization (copy spec §2.1.1: a full
+    /// GitHub address rewrites in place to the bare organization name, with
+    /// no message — the rewrite is its own feedback). Called from the
+    /// view's `onChange`, never from a `Binding` transform, so the touched
+    /// flag and the normalization stay in one place.
+    func orgNameInputChanged() {
+        orgFieldTouched = true
+        let normalized = Self.normalizedOrgInput(orgNameInput)
+        if normalized != orgNameInput {
+            orgNameInput = normalized
+        }
+    }
+
+    /// The spaces-validation fix button, `Use <suggestion>` — fills the
+    /// field with the transformed value and leaves it touched (it already
+    /// was, to have reached this button at all).
+    func applyOrgSpacesFix(_ suggestion: String) {
+        orgNameInput = suggestion
+        orgFieldTouched = true
+    }
+
+    /// `Continue to sign in` (copy spec §2.1.1's action table). Local
+    /// validation runs first and blocks the call entirely when it fails —
+    /// the CLI is never asked to resolve a value this screen's own rules
+    /// already know GitHub would refuse.
+    func continueToSignInFromOrgQuestion() {
+        orgFieldTouched = true
+        guard Self.validateOrgInput(orgNameInput) == .none else { return }
+        guard !orgQuestionSubmitting else { return }
+        orgQuestionSubmitting = true
+        beginDeviceFlow(org: orgNameInput)
+    }
+
+    /// H6/H7-self-serve's `Use a different organization` (copy spec §5's
+    /// "escape from H6"): returns to the field, pre-populated with the exact
+    /// value that led to this hold, spending nothing (nothing was ever
+    /// persisted for a `no-company-app` hold) so the correction costs one
+    /// keystroke.
+    func useADifferentOrganization() {
+        guard case .holding(let info) = phase, let orgName = info.orgNameForReturn else { return }
+        orgNameInput = orgName
+        orgFieldTouched = false
+        orgNotFoundAttempt = nil
+        phase = .orgQuestion
+    }
+
+    /// Pure: GitHub's real organization-name rule. Mirrors
+    /// `AdminSlug.isValidGitHubOrgName` (`native/admin.swift`) exactly, but
+    /// duplicated rather than shared — that file is Admin-only
+    /// (`scripts/build-admin.command`) and this one must also compile into
+    /// the User build (`scripts/build-user.command`). Any change to GitHub's
+    /// org-name rule must be made in BOTH places.
+    nonisolated static func isValidGitHubOrgName(_ value: String) -> Bool {
+        guard !value.isEmpty, value.count <= 39 else { return false }
+        let chars = Array(value)
+        var previousWasHyphen = false
+        for (index, ch) in chars.enumerated() {
+            if ch == "-" {
+                if index == 0 || index == chars.count - 1 || previousWasHyphen { return false }
+                previousWasHyphen = true
+                continue
+            }
+            let isAsciiLetter = ch.isASCII && ch.isLetter
+            let isAsciiDigit = ch.isASCII && ch.isNumber
+            guard isAsciiLetter || isAsciiDigit else { return false }
+            previousWasHyphen = false
+        }
+        return true
+    }
+
+    /// Pure: the closed three-condition validation table (copy spec §3), in
+    /// its own stated priority order — spaces before `@` before "anything
+    /// else GitHub wouldn't accept", so a value with more than one problem
+    /// shows exactly the one the spec puts first.
+    nonisolated static func validateOrgInput(_ raw: String) -> OrgFieldValidation {
+        guard !raw.isEmpty else { return .none }
+        if raw.contains(" ") {
+            return .containsSpaces(suggestion: dashedSuggestion(raw))
+        }
+        if raw.contains("@") { return .containsAt }
+        if !isValidGitHubOrgName(raw) { return .invalidCharacters }
+        return .none
+    }
+
+    /// Pure: "runs of spaces turned into single dashes" (copy spec §3's own
+    /// dynamic pattern) — `Acme Corporation` -> `Acme-Corporation`, `Acme
+    /// Co` (a run of three spaces) -> `Acme-Co`. Every other character is
+    /// left exactly as typed; this transform touches spaces only.
+    nonisolated static func dashedSuggestion(_ raw: String) -> String {
+        raw.split(separator: " ").joined(separator: "-")
+    }
+
+    /// Pure: the paste-normalization rewrite (copy spec §2.1.1) —
+    /// `https://github.com/Acme-Co`, `github.com/Acme-Co/copilot-bootstrap`,
+    /// and `github.com/orgs/Acme-Co/repositories` all reduce to `Acme-Co`.
+    /// Text this can't reduce (including a plain, already-bare name) is
+    /// returned exactly as given — "left alone for validation to answer",
+    /// never silently discarded.
+    nonisolated static func normalizedOrgInput(_ raw: String) -> String {
+        var working = raw
+        if let schemeRange = working.range(of: "://") {
+            working = String(working[schemeRange.upperBound...])
+        }
+        guard working.lowercased().hasPrefix("github.com/") else { return raw }
+        var path = String(working.dropFirst("github.com/".count))
+        if path.lowercased().hasPrefix("orgs/") {
+            path = String(path.dropFirst("orgs/".count))
+        }
+        guard let firstSegment = path.split(separator: "/").first, !firstSegment.isEmpty else { return raw }
+        return String(firstSegment)
+    }
+
     @Published var detectLines: [String] = []
     @Published var ecosystemInventory: [EcosystemInventoryItem] = []
     @Published var ecosystemInventorySummary: EcosystemInventorySummary?
@@ -838,7 +1049,10 @@ final class WizardModel: ObservableObject {
     var currentStage: WizardStage {
         switch phase {
         case .welcome: return .welcome
-        case .connectGitHub: return .connectGitHub
+        // `.orgQuestion` renders inline over Connect GitHub, same mechanism
+        // as Holding/`.onboardQuestion`: no sidebar row of its own, no
+        // step-number change (copy spec §2.1.1).
+        case .connectGitHub, .orgQuestion: return .connectGitHub
         // `.onboardQuestion` renders inline over Detect, same mechanism as
         // Holding: no sidebar row of its own, no step-number change.
         case .detecting, .replanningAfterDecision, .detected, .onboardQuestion: return .detect
@@ -874,26 +1088,62 @@ final class WizardModel: ObservableObject {
     /// ever rendered from this state (`DeviceFlowState` carries no visible
     /// timer), even though `startPolling` below tracks `expiresIn`
     /// internally to hard-stop the loop.
+    ///
+    /// The public, no-arg entry point every existing call site
+    /// (`getStarted()`, and every Holding "Try again"/"Check again" whose
+    /// origin is Connect GitHub) already used before the organization
+    /// question existed — replays `lastAttemptedOrg` (`nil` on the very
+    /// first call this session) rather than silently reverting to no
+    /// organization on a retry.
     func beginDeviceFlow() {
+        beginDeviceFlow(org: lastAttemptedOrg)
+    }
+
+    /// `org`, when non-nil, is passed straight through to `auth login --org`
+    /// (copy spec §2.1.1) — either this Mac's own standup-brief name
+    /// (`handleOrgRequired()`'s silent retry) or whatever the person just
+    /// typed (`continueToSignInFromOrgQuestion()`). The pointer is persisted
+    /// with `cc config set` ONLY after a device code actually comes back for
+    /// this `org` (copy spec: "a name that never resolved is never
+    /// persisted") — never before, and never for the `nil`/no-organization
+    /// case, since there is nothing new to persist there.
+    private func beginDeviceFlow(org: String?) {
         pollTask?.cancel()
+        lastAttemptedOrg = org
         deviceFlow = DeviceFlowState(status: .pending)
         Task {
-            switch await CliClient.shared.authLoginInitiate() {
+            switch await CliClient.shared.authLoginInitiate(org: org) {
             case .success(let code):
+                if let org {
+                    guard await CliClient.shared.configSetGithubAppOrg(org) else {
+                        self.orgQuestionSubmitting = false
+                        self.enterHolding(HoldingInfo.h2(
+                            origin: .connectGitHub,
+                            intro: "Something on this Mac stopped the setup helper, so I've paused.",
+                            code: "environment-error"
+                        ))
+                        return
+                    }
+                }
+                self.orgQuestionSubmitting = false
+                self.phase = .connectGitHub
                 self.deviceFlow.userCode = code.userCode
                 self.deviceFlow.verificationUri = code.verificationUri
                 self.deviceFlow.deviceCode = code.deviceCode
                 self.deviceFlow.interval = code.interval
-                self.startPolling(deviceCode: code.deviceCode, interval: code.interval, expiresIn: code.expiresIn)
+                self.startPolling(deviceCode: code.deviceCode, interval: code.interval, expiresIn: code.expiresIn, org: org)
             case .failure(let error):
-                self.routeCliError(error, origin: .connectGitHub)
+                self.orgQuestionSubmitting = false
+                self.handleConnectGitHubError(error, attemptedOrg: org)
             }
         }
     }
 
     /// Hard stop at `expiresIn`, never a visible countdown. `pending` polls
-    /// silently repeat; `authorized`/`expired`/`denied` are terminal.
-    private func startPolling(deviceCode: String, interval: Int, expiresIn: Int) {
+    /// silently repeat; `authorized`/`expired`/`denied` are terminal. `org`
+    /// carries through to every poll (`authLoginPoll(deviceCode:org:)`) —
+    /// the CLI re-resolves the organization's client id on every call.
+    private func startPolling(deviceCode: String, interval: Int, expiresIn: Int, org: String?) {
         let deadline = Date().addingTimeInterval(TimeInterval(expiresIn))
         let waitSeconds = UInt64(max(interval, 1))
         pollTask = Task { [weak self] in
@@ -906,7 +1156,7 @@ final class WizardModel: ObservableObject {
                 }
                 try? await Task.sleep(nanoseconds: waitSeconds * 1_000_000_000)
                 if Task.isCancelled { return }
-                switch await CliClient.shared.authLoginPoll(deviceCode: deviceCode) {
+                switch await CliClient.shared.authLoginPoll(deviceCode: deviceCode, org: org) {
                 case .success(let poll):
                     switch poll.status {
                     case .authorized:
@@ -922,7 +1172,7 @@ final class WizardModel: ObservableObject {
                         continue
                     }
                 case .failure(let error):
-                    self.handleDeviceFlowError(error)
+                    self.handleConnectGitHubError(error, attemptedOrg: org)
                     return
                 }
             }
@@ -955,8 +1205,59 @@ final class WizardModel: ObservableObject {
         enterHolding(HoldingInfo.h3(origin: .connectGitHub, intro: "That sign-in was declined. You can try again whenever you're ready."))
     }
 
-    private func handleDeviceFlowError(_ error: CliError) {
-        routeCliError(error, origin: .connectGitHub)
+    /// The Connect GitHub-origin error router — a superset of `routeCliError`
+    /// that additionally recognizes the three organization codes
+    /// (copy spec Appendix E.1) before falling back to the shared table for
+    /// every other `CliError`, tagging `no-company-app`'s `Use a different
+    /// organization` return path (§5) onto the resulting hold whenever this
+    /// attempt actually carried an organization name.
+    private func handleConnectGitHubError(_ error: CliError, attemptedOrg: String?) {
+        if case .exit2(let code, _) = error {
+            switch code {
+            case "org-required":
+                handleOrgRequired()
+                return
+            case "org-not-found":
+                // Stays on the organization screen with what was typed (or
+                // silently tried) still in the field — never discarded, so
+                // the difference between it and the real name stays visible.
+                orgNotFoundAttempt = attemptedOrg
+                orgQuestionSubmitting = false
+                phase = .orgQuestion
+                return
+            case "network-unavailable":
+                enterHolding(HoldingInfo.h5Offline(origin: .connectGitHub))
+                return
+            default:
+                break
+            }
+        }
+        guard var resolvedInfo = Self.holdingInfo(for: error, origin: .connectGitHub) else {
+            pollTask?.cancel()
+            phase = .connectGitHub
+            beginDeviceFlow()
+            return
+        }
+        if attemptedOrg != nil, resolvedInfo.variant == .waitingOnOrg || resolvedInfo.variant == .needsPermission {
+            resolvedInfo.orgNameForReturn = attemptedOrg
+        }
+        enterHolding(resolvedInfo)
+    }
+
+    /// `org-required` (copy spec §2.1.1/§5): this Mac's own admin standup
+    /// brief is tried silently, ONCE per session, before anything is ever
+    /// shown — a success means the person never sees the organization
+    /// screen at all. Every other case (no brief, an already-blank brief, or
+    /// a brief already tried and failed this session) shows the screen.
+    private func handleOrgRequired() {
+        if !orgSilentAttemptTriedThisSession, let standupOrg = LocalAdminSignal.standupOrgName {
+            orgSilentAttemptTriedThisSession = true
+            silentlyTriedOrgName = standupOrg
+            orgNameInput = standupOrg
+            beginDeviceFlow(org: standupOrg)
+        } else {
+            phase = .orgQuestion
+        }
     }
 
     func openGitHubSignIn() {
@@ -2325,6 +2626,10 @@ struct WizardRootView: View {
     /// `model.phase` at presentation time, `currentSelfServeCommand` below),
     /// never duplicated into a second piece of state.
     @State private var showsOrgSignInSheet = false
+    /// §2.1.2's own sheet, behind the organization question's `Help me find
+    /// it` — unlike the Holding sheets above, closing it never re-checks
+    /// anything: it just returns focus to the field on the SAME screen.
+    @State private var showsOrgHelpSheet = false
     /// Copy spec §7: "focus moves to the title on entering Holding." Scoped
     /// to the Holding phase only (`h1View`...`h7View`, `honestIncompleteView`
     /// — see `StepShell.focusTitle`) — the wizard's other nine steps have no
@@ -2374,6 +2679,11 @@ struct WizardRootView: View {
                 model.tryAgainAfterHolding()
             }
         }
+        .sheet(isPresented: $showsOrgHelpSheet) {
+            OrgHelpSheet {
+                showsOrgHelpSheet = false
+            }
+        }
     }
 
     /// The exact command `h7OrgSignInView`'s primary is showing a sheet
@@ -2395,6 +2705,7 @@ struct WizardRootView: View {
         switch model.phase {
         case .welcome: welcomeView
         case .connectGitHub: connectGitHubView
+        case .orgQuestion: orgQuestionView
         case .detecting, .replanningAfterDecision, .detected: detectView
         case .onboardQuestion: onboardQuestionView
         case .whatYoureGetting: whatYoureGettingView
@@ -2416,6 +2727,7 @@ struct WizardRootView: View {
         switch model.phase {
         case .welcome: return "welcome"
         case .connectGitHub: return "connectGitHub-\(model.deviceFlow.status)"
+        case .orgQuestion: return "orgQuestion"
         case .detecting: return "detecting"
         case .replanningAfterDecision: return "replanningAfterDecision"
         case .detected: return "detected"
@@ -2585,6 +2897,107 @@ struct WizardRootView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(model.deviceFlow.status != .authorized)
+        }
+    }
+
+    // MARK: 2.1.1 Which organization are you with? (inline over Connect
+    // GitHub, entered on `org-required` — copy spec §2.1.1). Same
+    // no-sidebar-row/`accent` blue mechanism `onboardQuestionView` already
+    // uses over Detect; `stepShell`'s default tint IS `.systemBlue`, so this
+    // view never calls `.headerTint(_:)` either — this is a question, never
+    // a Holding variant.
+
+    private var orgQuestionView: some View {
+        stepShell(
+            eyebrow: "BEFORE YOU SIGN IN",
+            title: "Which organization are you with?",
+            intro: model.orgQuestionIntro
+        ) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Your organization's name on GitHub")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                TextField("Acme-Co", text: $model.orgNameInput)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 320)
+                    .onChange(of: model.orgNameInput) { _ in model.orgNameInputChanged() }
+                    .accessibilityLabel("Your organization's name on GitHub")
+                Text("The short name in your organization's GitHub address, like the Acme-Co in github.com/Acme-Co.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                orgValidationView
+
+                if let notFound = model.orgNotFoundMessage {
+                    Text(notFound)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .systemRed))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
+            }
+        } leadingActions: {
+            Button { showsOrgHelpSheet = true } label: { Text("Help me find it") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Button { onClose() } label: { Text("Continue in the menu bar") }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        } primaryAction: {
+            VStack(alignment: .trailing, spacing: 4) {
+                Button { model.continueToSignInFromOrgQuestion() } label: { Text("Continue to sign in") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!model.canContinueToSignIn || model.orgQuestionSubmitting)
+                    // Accessibility: "the disabled primary always carries its
+                    // hint as help text" — same discipline `onboardQuestionView`
+                    // already follows.
+                    .help(model.canContinueToSignIn ? "" : "Add your organization's name, or select Help me find it.")
+                if !model.canContinueToSignIn {
+                    Text("Add your organization's name, or select Help me find it.")
+                        .font(.caption2)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                }
+            }
+        }
+    }
+
+    /// The closed three-condition validation table (copy spec §3), shown
+    /// only once `WizardModel.orgFieldValidation` itself is non-`.none`
+    /// (which already gates on `orgFieldTouched`/non-empty) — never while
+    /// the first characters are being typed.
+    @ViewBuilder
+    private var orgValidationView: some View {
+        switch model.orgFieldValidation {
+        case .none:
+            EmptyView()
+        case .containsSpaces(let suggestion):
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Your organization's name on GitHub is one word, with dashes instead of spaces. \(model.orgNameInput) is usually \(suggestion).")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .systemRed))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Use \(suggestion)") {
+                    model.applyOrgSpacesFix(suggestion)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.top, 4)
+            .accessibilityElement(children: .combine)
+        case .containsAt:
+            Text("That's an email address. I need your organization's name on GitHub, which is usually one word with dashes.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .systemRed))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
+        case .invalidCharacters:
+            Text("Names on GitHub use letters, numbers, and single dashes, and nothing else.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .systemRed))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
         }
     }
 
@@ -3977,6 +4390,15 @@ struct WizardRootView: View {
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
         } leadingActions: {
+            // Copy spec §5's "escape from H6": only shown when this hold was
+            // reached as the direct consequence of an organization name just
+            // supplied at §2.1.1 — never fabricated for a `no-company-app`
+            // reached any other way (e.g. an already-configured Mac).
+            if info.orgNameForReturn != nil {
+                Button { model.useADifferentOrganization() } label: { Text("Use a different organization") }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
             Button { model.tryAgainAfterHolding() } label: { Text("Check again") }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -4027,6 +4449,14 @@ struct WizardRootView: View {
                 }
             }
         } leadingActions: {
+            // Copy spec §5's "escape from H6" — see `h6View`'s identical
+            // comment; this self-serve H7 flavor is only ever reached via
+            // the same `no-company-app` code, so it carries the same escape.
+            if info.orgNameForReturn != nil {
+                Button { model.useADifferentOrganization() } label: { Text("Use a different organization") }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
             Button { onClose() } label: { Text("Continue in the menu bar") }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -4628,6 +5058,88 @@ private struct OrgSignInIDSheet: View {
     }
 }
 
+/// §2.1.2, the sheet behind the organization question's `Help me find it` —
+/// §2.9.2's pattern inverted (copy spec §4): there the block holds a command
+/// for a technical person to run; here the person is missing a fact that
+/// belongs to their admin, so the copyable block IS the message that asks
+/// for it, already written. Never links to GitHub — opening the
+/// organization's own page requires the very thing they don't have. Unlike
+/// every Holding sheet above, `onDone` never re-checks anything: it just
+/// returns focus to the field on the same, still-active screen.
+private struct OrgHelpSheet: View {
+    let onDone: () -> Void
+
+    private static let message = "Hi, I'm setting up Copilot Control Tower on my Mac. It's asking for our organization's name on GitHub, the short name in our GitHub address. Can you send it to me?"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Finding your organization's name")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+
+            Text("It's on the page you downloaded Control Tower from, and in the email that sent you there. If you can't find either, send this to whoever looks after your Mac.")
+                .font(.body)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("The message")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .textCase(.uppercase)
+                WizardCopyableMessageBlock(text: Self.message, copyLabel: "Copy this message")
+            }
+
+            Spacer()
+
+            HStack {
+                Spacer()
+                Button { onDone() } label: { Text("Done") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(28)
+        .frame(width: 480, height: 320)
+    }
+}
+
+/// The prose counterpart to `WizardCopyableCodeBlock` — same copy-button
+/// plumbing, but `.body`/non-monospaced, since the copyable content here is
+/// a sentence a person reads and sends, never a command.
+private struct WizardCopyableMessageBlock: View {
+    let text: String
+    var copyLabel = "Copy this message"
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(text)
+                .font(.body)
+                .textSelection(.enabled)
+                .foregroundColor(Color(nsColor: .labelColor))
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            Button {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(text, forType: .string)
+                copied = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    copied = false
+                }
+            } label: {
+                Text(copied ? "Copied" : copyLabel)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityLabel(copied ? "Copied" : copyLabel)
+        }
+    }
+}
+
 // MARK: - Wizard window controller
 
 /// Owns the wizard's single `NSWindow` + its `WizardModel` for the lifetime of
@@ -4744,6 +5256,22 @@ enum WizardSelftest {
     }
 
     private static func run() async {
+        // CT_SELFTEST_STEP=org-question — the §2.1.1 organization question
+        // and its `org-required`/`org-not-found`/`no-company-app`/
+        // `network-unavailable` routing (org-question copy spec §2.1.1/§6).
+        // Exits early, bypassing the direct-`CliClient` auth dance below
+        // entirely: this step drives a REAL `WizardModel` instance instead,
+        // because the routing under test (`handleOrgRequired`/
+        // `handleConnectGitHubError`/`useADifferentOrganization`) lives on
+        // that type, not on `CliClient` — the same "prove the routing isn't
+        // vacuous" bar `CT_SELFTEST_STEP=holding` already holds itself to,
+        // just against `WizardModel`'s instance behavior instead of its pure
+        // static classifiers.
+        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "org-question" {
+            await runOrgQuestionSelftest()
+            exit(0)
+        }
+
         guard case .success(let code) = await CliClient.shared.authLoginInitiate() else {
             print("SELFTEST auth=error")
             exit(1)
@@ -4942,5 +5470,138 @@ enum WizardSelftest {
             "SELFTEST completionRule full=\(full) missingStage=\(missingStage)"
                 + " blockedStage=\(blockedStage) blockedResult=\(blockedResult) claudeOnlyNoCodex=\(claudeOnlyNoCodex)"
         )
+    }
+
+    // MARK: CT_SELFTEST_STEP=org-question — §2.1.1's organization question
+
+    /// Pure-function proof first (no CLI, no `WizardModel`): the exact paste-
+    /// normalization and validation examples the copy spec itself names
+    /// (§2.1.1/§3), so a regression in either fails this line even if every
+    /// downstream screen still happened to render something plausible.
+    private static func printOrgPureFunctionSelftestLines() {
+        let normalizeCases: [(input: String, expected: String)] = [
+            ("https://github.com/Acme-Co", "Acme-Co"),
+            ("github.com/Acme-Co/copilot-bootstrap", "Acme-Co"),
+            ("github.com/orgs/Acme-Co/repositories", "Acme-Co"),
+            ("Acme-Co", "Acme-Co"),
+        ]
+        let normalizeResults = normalizeCases.map { WizardModel.normalizedOrgInput($0.input) == $0.expected ? "pass" : "fail" }
+        print("SELFTEST orgNormalize=\(normalizeResults.joined(separator: ","))")
+
+        func validationToken(_ value: OrgFieldValidation) -> String {
+            switch value {
+            case .none: return "none"
+            case .containsSpaces(let suggestion): return "spaces:\(suggestion)"
+            case .containsAt: return "at"
+            case .invalidCharacters: return "invalid"
+            }
+        }
+        let validateCases: [(input: String, expected: String)] = [
+            ("Acme Corporation", "spaces:Acme-Corporation"),
+            ("acme@x", "at"),
+            ("-acme-", "invalid"),
+            ("Acme-Co", "none"),
+        ]
+        let validateResults = validateCases.map { validationToken(WizardModel.validateOrgInput($0.input)) == $0.expected ? "pass" : "fail" }
+        print("SELFTEST orgValidate=\(validateResults.joined(separator: ","))")
+    }
+
+    private static func holdingVariantToken(_ variant: HoldingVariant) -> String {
+        switch variant {
+        case .notInstalled: return "notInstalled"
+        case .unreadable: return "unreadable"
+        case .fault: return "fault"
+        case .yours: return "yours"
+        case .waitingOffline: return "waitingOffline"
+        case .waitingBusy: return "waitingBusy"
+        case .waitingOnOrg: return "waitingOnOrg"
+        case .needsPermission: return "needsPermission"
+        }
+    }
+
+    @MainActor
+    private static func orgPhaseToken(_ phase: WizardPhase) -> String {
+        switch phase {
+        case .welcome: return "welcome"
+        case .connectGitHub: return "connectGitHub"
+        case .orgQuestion: return "orgQuestion"
+        case .holding: return "holding"
+        default: return "other"
+        }
+    }
+
+    /// Polls a real `WizardModel` instance until whatever it's currently
+    /// doing (the very first `authLoginInitiate()`, or a submission from the
+    /// organization screen) actually resolves — bounded, never infinite, the
+    /// same discipline `run()`'s own auth poll loop above already uses.
+    @MainActor
+    private static func waitForOrgSelftestSettled(_ model: WizardModel) async {
+        for _ in 0..<50 {
+            let stillConnecting = { () -> Bool in
+                if case .connectGitHub = model.phase, model.deviceFlow.status == .pending { return true }
+                return false
+            }()
+            if stillConnecting || model.orgQuestionSubmitting {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                continue
+            }
+            return
+        }
+    }
+
+    /// Drives a REAL `WizardModel` instance through its own real entry
+    /// points (`getStarted()`, `continueToSignInFromOrgQuestion()`,
+    /// `useADifferentOrganization()`) against the mock CLI's four
+    /// `org-required-then-*` scenarios (`CT_AUTH_SCENARIO`) — this is what
+    /// makes the routing proof non-vacuous: a deleted or short-circuited
+    /// `org-required` case in `handleConnectGitHubError` changes what THIS
+    /// prints, not just what a person clicking through the UI would see.
+    @MainActor
+    private static func runOrgQuestionSelftest() async {
+        printOrgPureFunctionSelftestLines()
+
+        let model = WizardModel()
+        model.getStarted()
+        await waitForOrgSelftestSettled(model)
+
+        switch model.phase {
+        case .orgQuestion:
+            let sawStandupIntro = model.orgQuestionIntro.contains("already set up")
+            print("SELFTEST orgPhase=orgQuestion prefill=\(model.orgNameInput.isEmpty ? "none" : model.orgNameInput) introNamesStandup=\(sawStandupIntro)")
+        case .holding(let info):
+            print("SELFTEST orgPhase=holding variant=\(holdingVariantToken(info.variant)) orgNameForReturn=\(info.orgNameForReturn ?? "none")")
+        default:
+            print("SELFTEST orgPhase=\(orgPhaseToken(model.phase))")
+        }
+
+        // Only the organization screen has anything left to submit — every
+        // other landing state (a silent-brief success, or a hold) is
+        // already this scenario's whole story.
+        guard case .orgQuestion = model.phase else { return }
+
+        model.orgNameInput = "Acme-Co"
+        model.orgNameInputChanged()
+        model.continueToSignInFromOrgQuestion()
+        await waitForOrgSelftestSettled(model)
+
+        switch model.phase {
+        case .connectGitHub:
+            print("SELFTEST orgSubmitResult=connectGitHub deviceFlowStatus=\(model.deviceFlow.status)")
+        case .orgQuestion:
+            print("SELFTEST orgSubmitResult=orgQuestion orgNotFoundMessage=\(model.orgNotFoundMessage ?? "none")")
+        case .holding(let info):
+            print("SELFTEST orgSubmitResult=holding variant=\(holdingVariantToken(info.variant)) orgNameForReturn=\(info.orgNameForReturn ?? "none")")
+        default:
+            print("SELFTEST orgSubmitResult=\(orgPhaseToken(model.phase))")
+        }
+
+        // `Use a different organization` (§5's "escape from H6") — only
+        // reachable when the hold actually carries a return value; proves
+        // the return trip lands back on the organization screen with the
+        // field populated, never a fresh blank one.
+        if case .holding(let info) = model.phase, info.orgNameForReturn != nil {
+            model.useADifferentOrganization()
+            print("SELFTEST orgUseADifferentOrg phase=\(orgPhaseToken(model.phase)) field=\(model.orgNameInput)")
+        }
     }
 }

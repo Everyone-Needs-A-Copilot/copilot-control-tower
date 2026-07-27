@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S26) for both
+# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S37) for both
 # native binaries, driven entirely by the mock CLI
 # (`src-tauri/fixtures/mock-cc`) and the SELFTEST contract:
 #
@@ -41,8 +41,26 @@
 #                                           full=<bool> missingStage=<bool>
 #                                           blockedStage=<bool>
 #                                           blockedResult=<bool>
-#                                           claudeOnlyNoCodex=<bool>`),
-#                                           exit 0.
+#                                           claudeOnlyNoCodex=<bool>`; or, when
+#                                           CT_SELFTEST_STEP=org-question (the
+#                                           organization question,
+#                                           `control-tower-copy-deck.md`
+#                                           §2.1.1/Appendix E): `SELFTEST
+#                                           orgNormalize=<pass,...>` and
+#                                           `SELFTEST orgValidate=<pass,...>`
+#                                           (the pure paste-normalization/
+#                                           validation examples), then
+#                                           `SELFTEST orgPhase=<...>` for
+#                                           where a real WizardModel landed
+#                                           right after `getStarted()`, then
+#                                           (only if it landed on the
+#                                           organization screen) `SELFTEST
+#                                           orgSubmitResult=<...>` for where
+#                                           typing "Acme-Co" and submitting
+#                                           landed, then (only on a
+#                                           `no-company-app` hold) `SELFTEST
+#                                           orgUseADifferentOrg phase=<...>
+#                                           field=<...>`), exit 0.
 #
 # Each scenario prints its own PASS/FAIL lines; the suite exits non-zero if
 # any assertion failed anywhere. Pass `--only <id>` to run a single scenario
@@ -700,6 +718,148 @@ scenario_S29() {
 }
 
 # ==========================================================================
+# Scenarios S30..S37 — the organization question (`org-required` routing,
+# `docs/03-design/control-tower-copy-deck.md` §2.1.1/Appendix E,
+# `native/wizard.swift`'s `WizardModel.handleOrgRequired`/
+# `handleConnectGitHubError`/`useADifferentOrganization`).
+#
+# `CT_SELFTEST_STEP=org-question` drives a REAL `WizardModel` instance
+# through its own real entry points (`getStarted()`,
+# `continueToSignInFromOrgQuestion()`, `useADifferentOrganization()`)
+# against `mock-cc`'s four `org-required-then-*` auth scenarios — never a
+# bespoke, potentially-drifted second reading of the routing table. S37
+# is the "not vacuous the other way" proof (S27-S29's own discipline,
+# applied here): an ordinary `authorized` scenario, where the CLI never
+# asks for an organization at all, must never show this screen either.
+# ==========================================================================
+
+scenario_S30() {
+    # Fresh Mac, no standup brief: asks first (empty field, first intro
+    # variant), then a typed name that resolves reaches Connect GitHub's
+    # ordinary code card — the whole "ask, then sign in" happy path.
+    local id="S30"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO=org-required-then-authorized CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
+    rm -rf "${home}"
+    assert_exit_zero "${id} (org-required-then-authorized)"
+    assert_contains "${id}" "SELFTEST orgNormalize=pass,pass,pass,pass"
+    assert_contains "${id}" "SELFTEST orgValidate=pass,pass,pass,pass"
+    assert_contains "${id}" "SELFTEST orgPhase=orgQuestion prefill=none introNamesStandup=false"
+    assert_contains "${id}" "SELFTEST orgSubmitResult=connectGitHub"
+}
+
+scenario_S31() {
+    # `org-not-found`: stays on the screen, keeping what was typed, with the
+    # under-field message naming it.
+    local id="S31"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO=org-required-then-not-found CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
+    rm -rf "${home}"
+    assert_exit_zero "${id} (org-required-then-not-found)"
+    assert_contains "${id}" "SELFTEST orgSubmitResult=orgQuestion"
+    assert_contains "${id}" "orgNotFoundMessage=I couldn't find Acme-Co on GitHub."
+}
+
+scenario_S32() {
+    # `no-company-app`: lands on H6 carrying the value that led there
+    # (`orgNameForReturn`), and `Use a different organization` returns to
+    # the field populated with it — the escape from H6 this whole thing
+    # exists to close (copy spec §5).
+    local id="S32"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO=org-required-then-no-company-app CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
+    rm -rf "${home}"
+    assert_exit_zero "${id} (org-required-then-no-company-app)"
+    assert_contains "${id}" "SELFTEST orgSubmitResult=holding variant=waitingOnOrg orgNameForReturn=Acme-Co"
+    assert_contains "${id}" "SELFTEST orgUseADifferentOrg phase=orgQuestion field=Acme-Co"
+}
+
+scenario_S33() {
+    # `network-unavailable`: H5, offline — never told the fabricated
+    # "hasn't finished setting up sign-in yet", and carries no return value
+    # (H5 never offers `Use a different organization`).
+    local id="S33"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO=org-required-then-network-unavailable CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
+    rm -rf "${home}"
+    assert_exit_zero "${id} (org-required-then-network-unavailable)"
+    assert_contains "${id}" "SELFTEST orgSubmitResult=holding variant=waitingOffline orgNameForReturn=none"
+}
+
+# S34/S35 — the admin's own Mac: a standup brief carrying `org` is tried
+# SILENTLY (§5). S34 is the success case (no screen ever appears); S35 is
+# the honest failure fallback (the screen appears, prefilled, naming where
+# the value came from).
+seed_standup_org_brief() {
+    local home="$1" org="$2"
+    mkdir -p "${home}/Library/Application Support/CopilotControlTower"
+    printf '%s\n' "{\"org\":\"${org}\",\"github_app\":{\"client_id\":\"Iv1.a1b2c3d4e5f6a7b8\"}}" \
+        > "${home}/Library/Application Support/CopilotControlTower/standup-brief.json"
+}
+
+scenario_S34() {
+    local id="S34"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    seed_standup_org_brief "${home}" "Acme-Co"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO=org-required-then-authorized CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
+    rm -rf "${home}"
+    assert_exit_zero "${id} (standup brief org resolves)"
+    assert_contains "${id}" "SELFTEST orgPhase=connectGitHub"
+    assert_not_contains "${id}" "orgPhase=orgQuestion"
+}
+
+scenario_S35() {
+    local id="S35"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    seed_standup_org_brief "${home}" "Acme-Co"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO=org-required-then-not-found CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
+    rm -rf "${home}"
+    assert_exit_zero "${id} (standup brief org fails silently, screen explains why)"
+    assert_contains "${id}" "SELFTEST orgPhase=orgQuestion prefill=Acme-Co introNamesStandup=true"
+}
+
+scenario_S36() {
+    # The pointer could not be written to this Mac: H2 with the existing
+    # environment-error intro, verbatim (copy spec §2.1.1's own row) — never
+    # silently claimed as a success.
+    local id="S36"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_CONFIG_SET_FAILS=1 CT_AUTH_SCENARIO=org-required-then-authorized CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
+    rm -rf "${home}"
+    assert_exit_zero "${id} (cc config set fails)"
+    assert_contains "${id}" "SELFTEST orgSubmitResult=holding variant=unreadable orgNameForReturn=none"
+}
+
+scenario_S37() {
+    # Not vacuous the other way (S27-S29's own discipline): an ordinary
+    # `authorized` scenario, where the CLI never asks for an organization at
+    # all, must never show this screen either.
+    local id="S37"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO=authorized CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
+    rm -rf "${home}"
+    assert_exit_zero "${id} (CT_AUTH_SCENARIO=authorized, org never required)"
+    assert_contains "${id}" "SELFTEST orgPhase=connectGitHub"
+    assert_not_contains "${id}" "orgPhase=orgQuestion"
+}
+
+# ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
 
@@ -800,6 +960,14 @@ scenario_S26
 scenario_S27
 scenario_S28
 scenario_S29
+scenario_S30
+scenario_S31
+scenario_S32
+scenario_S33
+scenario_S34
+scenario_S35
+scenario_S36
+scenario_S37
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="
