@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Keeps the native clean-machine release honest while the real signed helper
-# is owner-gated, and automatically flips to full verification when it lands.
+# Keeps the native release honest by requiring full verification for the
+# signed Mach-O helper and fail-closed behavior for any development placeholder.
 
 set -euo pipefail
 

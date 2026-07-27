@@ -67,9 +67,9 @@ fi
 
 echo "signing (inside-out) with identity: ${CT_SIGN_IDENTITY}"
 
-# Deepest first: nested frameworks, dylibs, and any embedded executables
-# (including the vendored `cc` — see S8/verify-vendored-cc.sh for why `cc`
-# itself is verified, never re-signed by us; this loop's globs intentionally
+# Deepest first: nested frameworks and dylibs. The vendored `cc` executable is
+# excluded — see S8/verify-vendored-cc.sh for why it is verified, never
+# re-signed by us; this loop's globs intentionally
 # exclude it. If `cc`'s own path ever needs touching that is a signing-
 # authority change, not a glob tweak).
 #

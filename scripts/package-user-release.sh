@@ -148,6 +148,11 @@ CT_FORCE_REBUILD=1 CT_SKIP_ADHOC_SIGN=1 CT_VENDORED_CC_PATH="${vendored_cc}" \
 
 echo "release: applying Developer ID signature"
 scripts/sign.sh "${app_path}"
+embedded_cc="${app_path}/Contents/Resources/cc"
+embedded_cc_sha="$(shasum -a 256 "${embedded_cc}" | awk '{print $1}')"
+[[ "${embedded_cc_sha}" == "${vendored_cc_sha}" ]] ||
+    die "embedded cc changed while building the app"
+scripts/verify-vendored-cc.sh --release "${embedded_cc}"
 
 version="$(plutil -extract CFBundleShortVersionString raw "${plist_path}")"
 build_number="$(plutil -extract CFBundleVersion raw "${plist_path}")"
@@ -186,6 +191,10 @@ final_app="${OUTPUT_DIR}/Copilot Control Tower.app"
 final_dmg="${OUTPUT_DIR}/${artifact_base}.dmg"
 ditto "${app_path}" "${final_app}"
 ditto "${unsigned_dmg}" "${final_dmg}"
+ditto "${REPO_ROOT}/controltower.compat.json" \
+    "${OUTPUT_DIR}/controltower.compat.json"
+ditto "${REPO_ROOT}/packaging/cc/NOTARIZATION.json" \
+    "${OUTPUT_DIR}/cc-notarization.json"
 
 checksum="$(shasum -a 256 "${final_dmg}" | awk '{print $1}')"
 printf '%s  %s\n' "${checksum}" "$(basename "${final_dmg}")" \

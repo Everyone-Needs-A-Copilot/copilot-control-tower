@@ -2,9 +2,9 @@ name: release
 
 # Build, sign, notarize, verify, and publish the native macOS User app.
 #
-# CONFIG ONLY, NOT executed by this session (owner-gated: needs the real
-# Developer ID Application cert + notarization credentials + a real signed
-# `cc` artifact — none of which this repo holds). Triggered only by pushing
+# Owner-gated: needs the Developer ID Application cert and notarization
+# credentials; the real signed `cc` artifact is pinned in this repository.
+# Triggered only by pushing
 # a `v*` tag, which is itself an owner action, never a normal PR/push.
 #
 # Every credential below is read from a repo/environment secret — never
@@ -109,4 +109,6 @@ jobs:
             dist/user-release/*.app
             dist/user-release/*.dmg
             dist/user-release/*.sha256
+            dist/user-release/controltower.compat.json
+            dist/user-release/cc-notarization.json
             dist/user-release/release-metadata.json

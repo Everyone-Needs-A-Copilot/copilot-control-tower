@@ -327,14 +327,14 @@ exists today.
 
 | # | The laptop needs… | Provided by | Exists today? |
 |---|---|---|---|
-| B-1 | The `cc` control-plane CLI and the `copilot` service CLI installed at supported absolute paths. | The test installer installs immutable compatible commits without relying on bare `cc`; the native release app resolves a signed, checksum-pinned `cc` from its own Resources directory. | **Development path and native vendoring gate built** (`scripts/install-test-clis.sh` plus TASK-38); the real signed universal `cc` artifact remains owner-gated, and release now fails while the placeholder is present. |
+| B-1 | The `cc` control-plane CLI and the `copilot` service CLI installed at supported absolute paths. | The test installer installs immutable compatible commits without relying on bare `cc`; the native release app resolves a signed, checksum-pinned `cc` from its own Resources directory. | **Signed helper published and vendored.** Universal `cc` 1.7.0 is published from Claude foundation `v5.13.0`, pinned by SHA-256, and release-gated against its Apple notarization record and the app compatibility floor. The existing-account live install still verifies the separately installed `copilot` service CLI. |
 | B-2 | A unified ecosystem manifest for Claude and Codex: personal rank 10, organization rank 30, foundation rank 40. | Derived and written by `cc onboard` from the Admin handoff plus the authenticated user. | **Built and transaction-tested.** Live machine proof remains. |
 | B-3 | SSH access to private organization repositories. | A new on-device ed25519 keypair; only its public half is registered with GitHub. | **Built and tested with injected GitHub/SSH seams.** Live laptop proof remains. |
 | B-4 | Managed `github-work` and `github-personal` aliases in `~/.ssh/config`. | One bounded Control Tower block; unrelated content is preserved and unmanaged alias collisions hold. | **Built and tested.** |
 | B-5 | Scoped Infisical credentials in the laptop Keychain. | `copilot infisical identity provision` creates/reuses a no-org-access identity, exact environment/path read role, membership, universal-auth client, and one-time secret written directly to Keychain. | **Built and tested.** Live Infisical proof remains. |
 | B-6 | The store **config** (endpoint, workspace, env, path). | **Inherited** — it travels in the committed `cli.overlay.yml config:` block and `copilot update` clones it into the mirror; `managed_store._find_store_layer` reads it from the composed config, no `.env` needed. | **Done** — config inheritance shipped (Phase 4 #1; verified 3-level). |
 | B-7 | `copilot update` to clone both mirrors (never-destroy, semver range → `v0.3.0`). | Built (`config/sync.py`, `main.py:365`). | **Done.** |
-| B-8 | The signed user app installed (optional for the CLI proof, required for the product). | The native exact-ref release pipeline Developer-ID signs, notarizes, staples, and Gatekeeper-verifies the app and drag-install DMG. | **App-only release candidate built and notarized.** A clean-machine product release remains blocked until B-1's real signed helper replaces the placeholder and is embedded. |
+| B-8 | The signed user app installed (optional for the CLI proof, required for the product). | The native exact-ref release pipeline Developer-ID signs, notarizes, staples, and Gatekeeper-verifies the app and drag-install DMG. | **Complete-helper release build in progress.** The real helper is embedded; the final app and DMG must pass notarization, stapling, Gatekeeper, and bundle QA before user handoff. |
 
 ### 5.2 The one-command target vs. today's manual steps
 
@@ -370,11 +370,11 @@ GitHub device flow (§6.1/§6.2 machinery), drives `copilot infisical identity
 provision` to mint a **scoped per-machine** identity and drop its creds in the
 laptop keychain, resolves/materializes Claude and Codex, coordinates `copilot
 update`, and prints one verify summary. **This orchestration is implemented.**
-The remaining cold-machine bootstrap gap is supplying the real independently
-signed universal `cc` artifact. The native app now resolves that artifact from
-`Contents/Resources/cc`, and both CI and the release packager refuse the
-checked-in placeholder. Until that upstream artifact exists, the notarized
-DMG is an app-only candidate rather than a complete clean-machine installer.
+The independently signed universal `cc` artifact is now published and pinned.
+The native app resolves it from `Contents/Resources/cc`; CI and the release
+packager verify its checksum, upstream signature, notarization record, and
+compatibility floor without re-signing it. The remaining proof is the live
+onboarding transaction on the user's own account and machine.
 
 ### 5.3 Tasks to close the laptop gap
 
@@ -435,12 +435,12 @@ content in Admin output**.
 | Executable-content signature/policy verification | **Built; focused QA green** | Valid Git signature + exact allowed fingerprint required. Current unsigned public heads are a release gate. |
 | Personal layer provisioning | **Built; focused QA green** | Explicit 404-only private creation, confirmed-empty rank-10 seed, unfamiliar-content hold, and idempotent reuse. |
 | Unified manifest delivery to a new machine | **Built; transaction-tested** | Aggregate onboarding writes and configures the six-layer manifest atomically. Live proof remains. |
-| CLI install on a new machine | **Development installer + native vendoring gate built** | Immutable source commits, plan/apply, collision hold. Bundle-relative discovery and verify-not-resign release gating are wired; the real signed universal artifact remains owner-gated. |
+| CLI install on a new machine | **Signed native helper published and vendored** | Universal `cc` 1.7.0 is pinned by SHA-256 with upstream signing/notarization evidence. Immutable source commits, plan/apply, collision hold, bundle-relative discovery, and verify-not-resign gating are wired. |
 | Machine-identity bootstrap-cred provisioning | **Built; 58 focused Infisical tests green** | Live scoped-identity proof remains. |
 | On-device SSH key gen + GitHub registration at onboarding | **Built; focused QA green** | Live second-machine proof remains. |
 | ssh-config managed aliases | **Built; focused QA green** | Surgical bounded block; collisions hold. |
-| Native user app (wizard + tray, de-mocked) | **Built and real-pixel verified** | App-only native DMG is notarized; clean-machine completion still depends on the real vendored helper. |
-| App signing / notarization / self-update (signed) | **Native signing/notarization built and proven** | Stable self-update manifest/minisign custody remains owner-gated; clean-machine promotion also requires the real vendored helper. |
+| Native user app (wizard + tray, de-mocked) | **Built and real-pixel verified** | The real vendored helper is embedded; final complete-helper DMG QA and live account onboarding remain. |
+| App signing / notarization / self-update (signed) | **Native signing/notarization built and proven** | Stable self-update manifest/minisign custody remains owner-gated; the complete-helper DMG is the current release candidate. |
 | App first-run orchestration | **Built; Swift builds and smoke contracts green** | Detect plans and Set Up applies the one aggregate transaction. |
 | Recurring workspace activation | **Built; QA approved** | `TASK-149`–`TASK-152`; bounded discovery, root approval, portable declaration + ownership lock, opaque personal association, portable two-product additive setup, and User-app prompt are implemented (WP-124–WP-136). Cold-machine foundations and personal-repository hydration remain in aggregate onboarding. |
 | "Two CLIs" ownership | **Ratified** | `cc` is the control plane and coordinates `copilot`; app calls only `cc` |
