@@ -1034,6 +1034,142 @@ final class WizardModel: ObservableObject {
     @Published var grantUnavailableKnown = false
     private var grantPollTask: Task<Void, Never>?
 
+    #if CT_VISUAL_TEST_BUILD
+    /// Test-build-only direct state loading for pixel inspection. Production
+    /// binaries do not compile this method or recognize CT_VISUAL_SCENARIO.
+    /// The fixtures use the same model values and render paths as live CLI
+    /// routing; they only remove device-flow/network timing from screenshot
+    /// capture.
+    func loadVisualScenario(_ name: String) {
+        func inventoryItem(
+            id: String,
+            scope: String,
+            title: String,
+            state: String,
+            action: String,
+            detail: String,
+            reversible: Bool,
+            declineDetail: String? = nil
+        ) -> EcosystemInventoryItem {
+            EcosystemInventoryItem(
+                id: id,
+                scope: scope,
+                title: title,
+                state: state,
+                action: action,
+                detail: detail,
+                sourcePath: nil,
+                destinationPath: nil,
+                reversible: reversible,
+                declineDetail: declineDetail
+            )
+        }
+
+        func stage(_ id: String, result: String, detail: String? = nil) -> EcosystemOnboardStage {
+            let payload: [String: Any?] = [
+                "stage": id,
+                "result": result,
+                "detail": detail,
+            ]
+            let normalized = payload.compactMapValues { $0 }
+            let data = try! JSONSerialization.data(withJSONObject: normalized)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try! decoder.decode(EcosystemOnboardStage.self, from: data)
+        }
+
+        let heldItem = inventoryItem(
+            id: "device-ssh",
+            scope: "machine",
+            title: "Your Mac's connection to GitHub",
+            state: "held",
+            action: "review",
+            detail: "This Mac's existing GitHub connection signs in as a different account, so I left it exactly as it is.",
+            reversible: false
+        )
+        let appliedStages = [
+            stage("organization-handoff", result: "applied"),
+            stage("personal-packages", result: "applied"),
+            stage("device-ssh", result: "blocked", detail: heldItem.detail),
+        ]
+
+        switch name {
+        case "org-question":
+            orgNameInput = ""
+            orgFieldTouched = false
+            phase = .orgQuestion
+        case "adoption-offer":
+            let item = inventoryItem(
+                id: "device-ssh",
+                scope: "machine",
+                title: "Your Mac's connection to GitHub",
+                state: "adoptable",
+                action: "create",
+                detail: "This Mac already connects to GitHub, and I checked that it works and that it's signed in as you. I'll leave that exactly as it is and add the one connection it's still missing.",
+                reversible: true,
+                declineDetail: "Without this, setup can't add the missing connection on this Mac."
+            )
+            onboardQuestionItems = [item]
+            onboardSelections = [item.id]
+            phase = .onboardQuestion
+        case "completion-fallback":
+            lastOnboardResult = .ready
+            lastOnboardStages = appliedStages
+            phase = .verified
+        case "h1":
+            phase = .holding(.h1(origin: .detect))
+        case "h2":
+            phase = .holding(.h2(
+                origin: .detect,
+                intro: "Something stopped me from reading your setup, so I won't guess.",
+                code: "environment-error",
+                message: "The setup report could not be read."
+            ))
+        case "h3":
+            phase = .holding(.h3(
+                origin: .detect,
+                intro: "I couldn't give this Mac its own key, so I stopped. Nothing that was already here was changed.",
+                schemaVersion: "1.0",
+                stage: "device-ssh",
+                result: "blocked",
+                message: "This Mac could not finish its secure GitHub connection."
+            ))
+        case "h4":
+            phase = .holding(.h4(
+                origin: .detect,
+                intro: "I found something that belongs to you, so I left it alone and stopped before changing anything.",
+                reviewItems: [heldItem],
+                stages: appliedStages,
+                schemaVersion: "1.0",
+                stage: "device-ssh",
+                result: "blocked",
+                message: heldItem.detail
+            ))
+        case "h5":
+            phase = .holding(.h5Offline(origin: .detect))
+        case "h6":
+            phase = .holding(.h6(
+                origin: .detect,
+                intro: "I can see your organization's setup, but it isn't ready for this Mac yet.",
+                code: "onboard-unavailable",
+                stage: "organization-handoff",
+                result: "blocked",
+                message: "Could not reach GitHub to read the organization setup."
+            ))
+        case "h7":
+            phase = .holding(.h7(
+                origin: .detect,
+                schemaVersion: "1.0",
+                stage: "device-ssh",
+                result: "blocked",
+                message: "Your GitHub sign-in doesn't include permission to add this Mac's key."
+            ))
+        default:
+            break
+        }
+    }
+    #endif
+
     /// The "Shared with your team" register (#w6) is static, verbatim,
     /// honest placeholder content — see `SharedIntegrationRow`'s own doc.
     let sharedIntegrations: [SharedIntegrationRow] = [
@@ -5185,6 +5321,11 @@ final class WizardWindowController: NSWindowController {
     }
 
     func show() {
+        #if CT_VISUAL_TEST_BUILD
+        if let scenario = ProcessInfo.processInfo.environment["CT_VISUAL_SCENARIO"] {
+            model.loadVisualScenario(scenario)
+        }
+        #endif
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
 

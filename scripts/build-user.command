@@ -13,6 +13,7 @@ cd "${REPO_ROOT}"
 
 BUILD_DIR=".copilot/control-tower-tray"
 BIN="${BUILD_DIR}/Copilot Control Tower"
+BUILD_MODE_FILE="${BUILD_DIR}/build-mode"
 APP="build/Copilot Control Tower.app"
 APP_CONTENTS="${APP}/Contents"
 APP_MACOS="${APP_CONTENTS}/MacOS"
@@ -48,9 +49,31 @@ case "${CT_SKIP_ADHOC_SIGN:-0}" in
         exit 2
         ;;
 esac
+case "${CT_VISUAL_TEST_BUILD:-0}" in
+    0|1) ;;
+    *)
+        echo "error: CT_VISUAL_TEST_BUILD must be 0 or 1." >&2
+        exit 2
+        ;;
+esac
+if [[ "${CT_VISUAL_TEST_BUILD:-0}" -eq 1 && "${CT_SKIP_ADHOC_SIGN:-0}" -eq 1 ]]; then
+    echo "error: visual-test builds cannot enter the release-signing path." >&2
+    exit 2
+fi
+EXPECTED_BUILD_MODE="production"
+if [[ "${CT_VISUAL_TEST_BUILD:-0}" -eq 1 ]]; then
+    EXPECTED_BUILD_MODE="visual-test"
+fi
 if [[ ! -x "${BIN}" ]]; then
     NEEDS_BUILD=1
 else
+    CURRENT_BUILD_MODE="production"
+    if [[ -f "${BUILD_MODE_FILE}" ]]; then
+        CURRENT_BUILD_MODE="$(<"${BUILD_MODE_FILE}")"
+    fi
+    if [[ "${CURRENT_BUILD_MODE}" != "${EXPECTED_BUILD_MODE}" ]]; then
+        NEEDS_BUILD=1
+    fi
     for SOURCE in "${SOURCES[@]}"; do
         if [[ "${SOURCE}" -nt "${BIN}" ]]; then
             NEEDS_BUILD=1
@@ -63,7 +86,13 @@ else
 fi
 
 if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
-    CC=/usr/bin/cc PATH=/usr/bin:$PATH /usr/bin/env swiftc "${SOURCES[@]}" -o "${BIN}"
+    SWIFT_FLAGS=()
+    if [[ "${CT_VISUAL_TEST_BUILD:-0}" -eq 1 ]]; then
+        SWIFT_FLAGS+=("-D" "CT_VISUAL_TEST_BUILD")
+    fi
+    CC=/usr/bin/cc PATH=/usr/bin:$PATH /usr/bin/env swiftc \
+        "${SWIFT_FLAGS[@]}" "${SOURCES[@]}" -o "${BIN}"
+    printf '%s\n' "${EXPECTED_BUILD_MODE}" > "${BUILD_MODE_FILE}"
 fi
 
 # Conventional double-clickable macOS bundle. The bare binary remains in

@@ -31,6 +31,14 @@ done
 
 codesign --verify --deep --strict "${APP}"
 
+# Pixel inspection builds can load deterministic wizard states, but the hook
+# must be compiled out of the User app people install.
+if strings "${APP_BIN}" | rg -q 'CT_VISUAL_SCENARIO|completion-fallback' ||
+  nm "${APP_BIN}" | rg -q 'loadVisualScenario'; then
+  echo "visual-test hook is present in the production User app" >&2
+  exit 1
+fi
+
 # adopt-and-project-setup spec self-tests (in-binary, offline — see
 # native/control-tower-tray.swift's `AppDelegate.applicationDidFinishLaunching`
 # for the harness contract these three env vars trigger).

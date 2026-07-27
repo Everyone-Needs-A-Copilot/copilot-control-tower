@@ -85,9 +85,19 @@ This recommendation still needs owner ratification before implementation because
 
 ## 4. Known gaps, stated plainly
 
-**No GUI test harness exists in this repo.** Every screen built or changed this session — all seven Holding variants, the widened adopt-offer, the completion-rule fallback, and the organization question — is verified only at the logic/string/CLI-seam layer, through `CT_SELFTEST`-driven scenario assertions against a mock CLI (`src-tauri/fixtures/mock-cc`). **The single visual confirmation across the entire session was one user screenshot of H6.** Nobody, including me, has watched any of these screens actually render on real pixels with real interaction. Treat every copy string and every layout claim in the work record and in the design specs as logically verified, not visually verified.
+**Closed on 2026-07-27 — the GUI test-harness and first visual-pass gap.**
+`CT_VISUAL_TEST_BUILD=1` now compiles a test-only `CT_VISUAL_SCENARIO`
+loader into the native User app. It drives the real model and render paths for
+all seven Holding variants, the adoption offer, the completion fallback, and
+the organization question without depending on device-flow or network timing.
+The complete matrix was captured at 1640×1408 and inspected on real pixels.
+The organization question and adoption flow were also inspected in the exact
+notarized release candidate, not only the development build. The ordinary
+production build recompiles when the build mode changes, and
+`scripts/tests/test_user_app_bundle.sh` fails if the visual hook or its
+test-only symbols are present in the production executable.
 
-**`permissionNeededPending` and `reopenForConnectionOffer()`/`reopenForPermissionNeeded()` are implemented and wired, not merely designed.** `native/control-tower-tray.swift` derives both booleans live from the same read-only `ecosystemOnboardPlan` refresh the tray already performs (lines ~303–370), renders a Region 6 prompt/notice pair from them (~1109, ~1211), and each button calls into `WizardWindowController.shared.reopenForConnectionOffer()` / `.reopenForPermissionNeeded()` (`native/wizard.swift:5197`, `:5226`) to reopen the wizard directly onto the relevant screen. This closes the gap the `9d4730f` commit message itself flagged as "unwired." What remains genuinely open is the same GUI-test gap above: this mechanism is `CT_SELFTEST`-verified (scenarios S24–S26 in the smoke suite), never visually verified.
+**`permissionNeededPending` and `reopenForConnectionOffer()`/`reopenForPermissionNeeded()` are implemented and wired, not merely designed.** `native/control-tower-tray.swift` derives both booleans live from the same read-only `ecosystemOnboardPlan` refresh the tray already performs (lines ~303–370), renders a Region 6 prompt/notice pair from them (~1109, ~1211), and each button calls into `WizardWindowController.shared.reopenForConnectionOffer()` / `.reopenForPermissionNeeded()` (`native/wizard.swift:5197`, `:5226`) to reopen the wizard directly onto the relevant screen. This closes the gap the `9d4730f` commit message itself flagged as "unwired." Scenarios S24–S26 keep the routing logic covered, and the destination adoption and permission screens are now included in the real-pixel matrix above. Clicking through from the tray prompt remains part of the fresh-account proof rather than a release-code gap.
 
 **The `copilotcontroltower://connect?organization=` deep link was designed, then deliberately dropped — not forgotten.** It would let the organization's download page hand the org name to the app directly, removing the one paste this whole sub-phase's fallback screen exists to handle. Reasoning recorded in `docs/03-design/control-tower-copy-deck.md` §2.1.1 and `docs/03-design/landing-site.md` §3.1: a custom URL scheme registers a handler any process on the machine can invoke, on the one code path that runs before any credential exists, and to stay safe it would still need a confirmation screen anyway — so it buys one saved paste at the cost of new, externally-triggerable attack surface. The copyable name on the download page carries nearly all the same benefit with none of the risk. Revisit once the organization-question flow has real usage and the saved paste is worth re-litigating the surface.
 
@@ -174,12 +184,14 @@ shasum -a 256 "$HOME/.claude/cc/config.json" "$HOME/.ssh/config"
 
 In rough priority order — this is a sequencing/dependency list, not a time estimate:
 
-1. **Ratify and implement the least-privilege `cc auth grant` path (§3.1).** Confirm reuse of the existing organization-owned OAuth App with `write:public_key`; then freeze the schema, implement the device-flow/token-upgrade transaction, move key listing/registration off `gh api` onto the CLI's Keychain token, and enable H7's already-built button.
-2. **Get a real visual pass on at least the seven Holding variants, the adopt offer, and the organization question**, on real pixels, before trusting any of this against an actual non-technical user. This is the single largest gap between "logically verified" and "known to work" in the whole sub-phase (§4).
-3. **Package a current signed/notarized User-app release candidate** before the clean-machine proof. The older signed DMG predates this onboarding work; the current local bundle is ad-hoc signed.
-4. **Publish signed foundation trust anchors** for the Claude and Codex foundation tags before treating their content as a verified supply-chain root.
+1. **Completed — ratify and implement the least-privilege `cc auth grant` path (§3.1).** A dedicated organization OAuth App requests only `write:public_key`; the CLI owns its Keychain token and calls GitHub's key API directly.
+2. **Completed — get a real visual pass on the seven Holding variants, adoption offer, completion fallback, and organization question.** See §4 for the deterministic native harness and production-hook exclusion.
+3. **Completed — package a current signed/notarized User-app release candidate.** The native arm64 DMG was accepted by Apple's notary service and independently passed stapler, code-signing, and Gatekeeper validation.
+4. **Still open — publish signed foundation trust anchors** for the Claude and Codex foundation tags before treating their content as a verified supply-chain root. The release tooling exists, but the owner must approve a dedicated ENAC release-signing key; an existing GitHub authentication/push key is not accepted as the permanent trust root.
 5. **Keep the closed `manifest_path` and encrypted-key regressions green (§4).** TASK-161 added prevention plus checksum detection for every active/legacy manifest path and Keychain-backed passphrase protection for newly generated keys.
 6. **Decide the `cc config set --json` contract question (§3.2)** as part of, or ahead of, whatever WS-A contract work is already tracked for this repo.
 7. **Migrate any product-owned passphrase-less key created by an older build (§4)** through an explicit rotation transaction. New keys are encrypted and Keychain-backed under TASK-161; existing live identities are not silently replaced.
-8. **Push both branches** once the owner is satisfied with the state above — `app-build` is 23 commits ahead of `origin/app-build`; `feat/adopt-and-project-setup` has no remote branch at all yet.
-9. Resume the parent initiative at [`phase-6-ecosystem-install-and-onboarding-proof.md`](phase-6-ecosystem-install-and-onboarding-proof.md) §5 for the real-pixel and second-machine cold-start proof after items 1–5 above are settled.
+8. **Keep the release branch pushed before packaging.** The native release
+   pipeline refuses to advertise a branch or tag whose remote commit differs
+   from local `HEAD`, and packages from a fresh checkout of that exact ref.
+9. Resume the parent initiative at [`phase-6-ecosystem-install-and-onboarding-proof.md`](phase-6-ecosystem-install-and-onboarding-proof.md) §5 for the fresh-account and second-machine cold-start proof after item 4 is settled. The real-pixel portion is complete; the clean-machine transaction is not.
