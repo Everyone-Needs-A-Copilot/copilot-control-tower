@@ -11,12 +11,17 @@ name: release
 # hardcoded in this file (invariant #4).
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
 
 jobs:
   build-sign-notarize:
+    # The repository currently has no release environment or Apple credential
+    # secrets. Keep tag pushes honest (skipped, not guaranteed-red) until the
+    # owner configures custody and explicitly enables this job.
+    if: ${{ vars.RELEASE_CI_ENABLED == 'true' }}
     runs-on: macos-14
     # Owner-gated: this job requires repo secrets that do not exist in this
     # session (APPLE_SIGNING_IDENTITY, APPLE_CERTIFICATE, etc.) and is only
@@ -44,6 +49,9 @@ jobs:
 
       - name: Verify vendored cc (checksum + verify-not-resign, ADR-M4-005)
         run: ./scripts/verify-vendored-cc.sh --release packaging/cc/cc
+
+      - name: Verify packaged cross-version schema compatibility
+        run: ./scripts/tests/test_schema_compatibility_release_gate.sh
 
       - name: plutil -lint watchdog plist
         run: plutil -lint packaging/launchd/com.everyoneneedsacopilot.controltower.plist
