@@ -1,8 +1,8 @@
 ---
 initiative: 03-schema-mismatch
 title: CLI Layer Schema Mismatch and Discord Hook Outage
-status: active
-status_note: Upstream reader, writer, and hook remediations released; Control Tower 0.1.1 is in signed release QA.
+status: complete
+status_note: Reader, writer, hook, and Control Tower remediations released; quarantined cc 1.7.8 replaced by signed/notarized cc 1.7.9 in Control Tower 0.1.1.
 owner: Pablo Alejo
 created: 2026-07-28
 execution_context:
@@ -16,7 +16,7 @@ superseded_by: null
 | Field | Value |
 |---|---|
 | Date | 2026-07-28 |
-| Status | Upstream remediation released; Control Tower 0.1.1 in release QA |
+| Status | Remediation released in Control Tower 0.1.1 |
 | Impact | Claude Code rejected every prompt at `UserPromptSubmit` |
 | Trigger | The aggregate layer manifest used `product: cli`, while CLI Copilot still filtered for `component: cli` |
 
@@ -183,6 +183,8 @@ Primary regression coverage:
 - Raised the app compatibility floor to `cc 1.7.9` and recorded the exact
   released reader and hook commits.
 - Added this incident record, quarantine record, and prevention checklist.
+- Published Control Tower `v0.1.1` from exact source commit
+  `1288aa64a84f358c8b4e1755e83e87c6eff3e8ac`.
 
 ### CI and release controls
 
@@ -235,8 +237,20 @@ User bundle passed; 110 smoke scenarios; 214 admin bootstrap checks
 
 Release artifacts:
 signed tags v0.3.1, v0.1.1, and v5.13.10 verified by GitHub;
-cc 1.7.9 accepted by Apple notarization
+cc 1.7.9 and Control Tower 0.1.1 accepted by Apple notarization;
+Control Tower app and DMG passed stapling and Gatekeeper assessment
 ```
+
+Control Tower release evidence:
+
+- PR: <https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/pull/1>
+- release: <https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/releases/tag/v0.1.1>
+- app notarization submission:
+  `13e2d9e5-c993-4390-8b6f-28787e204411` (`Accepted`)
+- DMG SHA-256:
+  `4b8be66bc72a46845875b99d3e89c4cbf5bdaea85903c30bb299e39d1a954d75`
+- isolated-HOME packaged-helper result: valid `setup-needed` report, with no
+  live account or manifest writes
 
 Live behavior was also verified:
 
