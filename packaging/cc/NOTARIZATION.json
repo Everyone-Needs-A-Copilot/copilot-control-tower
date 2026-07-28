@@ -1,21 +1,21 @@
 {
   "schema_version": "1.0",
   "product": "claude-copilot-cc",
-  "version": "1.7.6",
-  "foundation_ref": "v5.13.7",
-  "source_commit": "56168983f7ce545e9843d7e29b643d8d49f2da16",
-  "release_tool_commit": "fc2d56da3b70a8ea2af69140e6af781638e5ad3b",
+  "version": "1.7.7",
+  "foundation_ref": "v5.13.8",
+  "source_commit": "d250ae37e5456a28bb9299c42d2199d3a410a8ff",
+  "release_tool_commit": "6501e465f4d81949e3ea7e24c1c4842c8c438e4c",
   "architectures": ["arm64", "x86_64"],
   "python_version": "3.13.13",
   "python_package_sha256": "a909cb655af5db67d5a90b3603437a1d58bec3446d624e4034e278ac62023cc9",
   "pyinstaller_version": "6.21.0",
   "developer_id_identity": "Developer ID Application: Pablo Alejo Jr (3SYGVX2HB8)",
-  "notarization_id": "e49a4eb2-4f07-4df4-bf61-68ea3f3141d5",
+  "notarization_id": "9bdde60f-4fe0-42ef-bdd4-87ca143b29fe",
   "notarization_status": "Accepted",
   "notarization_container": "cc-macos-universal.zip",
-  "notarization_container_sha256": "f7b625573c73c9f8003e64dac54327a16ace15eb9179153746d5c83c33efc55e",
+  "notarization_container_sha256": "486bc3f39367a92b0400912efd93e62bbb25ece744bb75cc42a90ffaab4e787f",
   "standalone_ticket_staple": "unsupported-by-apple",
   "device_flow_https_probe": "passed",
   "finder_gh_resolution_probe": "passed",
-  "sha256": "3f84cc28367c97320fc50bb0dc041f7f150523337f9a3f3fd5a27515a8ff71c0"
+  "sha256": "ab0922c6e3b489af3941c6fbd27b10d4ba3e83774d0b962a3257dca0aba0fc6e"
 }
