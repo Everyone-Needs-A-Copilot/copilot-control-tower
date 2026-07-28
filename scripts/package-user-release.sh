@@ -130,6 +130,15 @@ case "${OUTPUT_DIR}" in
 esac
 [[ ! -e "${OUTPUT_DIR}" ]] || die "output directory already exists: ${OUTPUT_DIR}"
 
+if [[ -n "${CT_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
+    scripts/check-notary-profile.sh \
+        --profile "${CT_NOTARY_KEYCHAIN_PROFILE}" \
+        --evidence "${REPO_ROOT}/packaging/cc/NOTARIZATION.json"
+else
+    [[ -f "${CT_NOTARY_KEY_PATH}" && -r "${CT_NOTARY_KEY_PATH}" ]] ||
+        die "CT_NOTARY_KEY_PATH is not a readable file"
+fi
+
 app_path="${REPO_ROOT}/build/Copilot Control Tower.app"
 plist_path="${app_path}/Contents/Info.plist"
 stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/control-tower-dmg.XXXXXX")"
