@@ -63,27 +63,27 @@ Run order:
 
 ## Step C — manifest wiring *(config only / reversible)*
 
-`copilot.layers.yml` for the `claude` component (repeat per component):
+`copilot.layers.yml` for the `claude` product (repeat per product):
 
 ```yaml
 version: 1
 layers:
   - id: personal-pablo
     role: personal
-    component: claude
+    product: claude
     rank: 10
     source: { repo: git@github-personal:pablitoalejo/claude-copilot-private.git, ref: main }
     auth: ssh-personal
     activation: always
   - id: org-enac
     role: org
-    component: claude
+    product: claude
     rank: 30
     source: { repo: git@github-work:Everyone-Needs-A-Copilot/claude-copilot-internal.git, ref: main }
     auth: ssh-work
   - id: foundation
     role: foundation
-    component: claude
+    product: claude
     rank: 40
     source: { repo: https://github.com/Everyone-Needs-A-Copilot/claude-copilot.git, ref: ^5.8.0 }
     auth: anon
