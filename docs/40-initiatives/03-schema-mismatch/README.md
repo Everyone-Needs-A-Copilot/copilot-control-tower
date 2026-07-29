@@ -2,7 +2,7 @@
 initiative: 03-schema-mismatch
 title: CLI Layer Schema Mismatch and Discord Hook Outage
 status: complete
-status_note: Reader, writer, hook, and Control Tower remediations released; quarantined cc 1.7.8 replaced by signed/notarized cc 1.7.9 in Control Tower 0.1.1.
+status_note: Original remediation released in 0.1.1; Finder-path Detect follow-up released with signed/notarized cc 1.7.10 in Control Tower 0.1.2.
 owner: Pablo Alejo
 created: 2026-07-28
 execution_context:
@@ -85,6 +85,27 @@ This is the required testing shape for future background operations: test the
 state engine directly, test the app's typed seam headlessly, then run the same
 headless command against the final packaged artifact. Opening the UI is a
 visual-product check, not the primary integration test.
+
+Follow-up release evidence:
+
+- upstream `cc` PRs:
+  <https://github.com/Everyone-Needs-A-Copilot/claude-copilot/pull/46> and
+  <https://github.com/Everyone-Needs-A-Copilot/claude-copilot/pull/47>;
+- Control Tower PR:
+  <https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/pull/3>;
+- release:
+  <https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/releases/tag/v0.1.2>;
+- exact app source:
+  `c0fc74a99cb6bd05ec16fbddd922b9030c324d64`;
+- `cc 1.7.10` notarization:
+  `71e46514-09f5-47ea-a97d-854bb2a26563` (`Accepted`);
+- app/DMG notarization:
+  `74ac2bb0-80a1-47b5-962c-5295bae1697f` (`Accepted`);
+- DMG SHA-256:
+  `93c2898ef21b7676859aec5430eb0fca893b452a96187934b232a6d7e92903f6`;
+- final artifact headless result:
+  `contract=pass`, `read_only=true`, products `claude,codex`,
+  `layer-manifest=changes-required/repair`.
 
 ## Causal chain
 
