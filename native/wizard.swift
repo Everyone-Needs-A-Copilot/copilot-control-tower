@@ -26,9 +26,10 @@
 //   - Set up (step 7): aggregate `onboard --apply` (+ `updateFanout()` when a
 //     department was joined)
 //   - Verify (step 8): `doctor()`
-// Integrations (step 6) stays render-only: the per-provider personal-sign-in
-// verb is not yet frozen (see `cli-contract.md`), so its provider cards are
-// honest static state, GitHub excepted (it reuses step 2's own real result).
+// Your connections (step 6) stays render-only until the CLI exposes an
+// organization-scoped connections contract. It shows the GitHub connection
+// established in step 2 and an honest empty state for additional connections;
+// it never advertises providers that the organization has not made available.
 // `WizardModel` never spawns `Process` itself — it only calls `CliClient`,
 // which owns that seam alone (invariant #1, "Parse, never compute").
 //
@@ -44,18 +45,18 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Wizard roadmap (10 rows, verbatim sidebar labels: Welcome / Connect
-// GitHub / Detect / What you're getting / Departments / Integrations / Your
-// projects / Set up / Verify / Done)
+// MARK: - Wizard roadmap (9 rows: Welcome / Connect GitHub / Detect / What
+// you're getting / Departments / Your connections / Your projects / Set up /
+// Verify)
 //
-// `.projects` (adopt-and-project-setup spec, "Step 7 of 10: Your projects")
+// `.projects` (adopt-and-project-setup spec, "Step 7 of 9: Your projects")
 // is a REAL step with a real sidebar row, positioned immediately before Set
 // up — never conditional on `includeCodex`, never skipped silently. Every
 // stage after it shifted by one; every "Step N of 9" eyebrow in this file
 // became "Step N of 10" in the same change.
 
 enum WizardStage: Int, CaseIterable, Identifiable, Equatable {
-    case welcome, connectGitHub, detect, whatYoureGetting, departments, integrations, projects, materialize, verify, done
+    case welcome, connectGitHub, detect, whatYoureGetting, departments, integrations, projects, materialize, verify
     var id: Int { rawValue }
 
     var title: String {
@@ -65,11 +66,10 @@ enum WizardStage: Int, CaseIterable, Identifiable, Equatable {
         case .detect: return "Detect"
         case .whatYoureGetting: return "What you're getting"
         case .departments: return "Departments"
-        case .integrations: return "Integrations"
+        case .integrations: return "Your connections"
         case .projects: return "Your projects"
         case .materialize: return "Set up"
         case .verify: return "Verify"
-        case .done: return "Done"
         }
     }
 }
@@ -145,35 +145,6 @@ struct DepartmentRow: Identifiable, Equatable {
     var state: DepartmentJoinState
 }
 
-// MARK: - Step 6, Integrations: static provider cards
-
-/// One "Your accounts" card (#w6's `.provider-cards`). The per-provider
-/// personal-sign-in verb is not yet frozen (`cli-contract.md`), so every
-/// card besides GitHub is honest-but-inert: real copy, a real card, a
-/// "Connect" affordance that does not (yet) drive a CLI call.
-struct ProviderCard: Identifiable {
-    let id: String
-    let name: String
-
-    static let personalAccounts: [ProviderCard] = [
-        ProviderCard(id: "google", name: "Google"),
-        ProviderCard(id: "microsoft365", name: "Microsoft 365"),
-        ProviderCard(id: "slack", name: "Slack"),
-        ProviderCard(id: "salesforce", name: "Salesforce"),
-    ]
-}
-
-/// The "Shared with your team" register (#w6's first `.qi-block`) — read-only,
-/// entitlement-provisioned rows with nothing to sign into. `copilot
-/// integrations --json` is not a frozen verb (same open decision as the
-/// provider cards above), so this stays honest static content, verbatim from
-/// the spec, rather than a fabricated live read.
-struct SharedIntegrationRow: Identifiable {
-    let id: String
-    let name: String
-    let statusCaption: String
-}
-
 // MARK: - Step 7, Your projects (adopt-and-project-setup spec)
 
 /// One row in the projects list (`cc workspace --all --json`'s
@@ -189,7 +160,7 @@ enum ProjectRowGroup: String {
     case keptAsIs
 }
 
-/// Drives Done's projects card (#w9/Step 10) per the spec's four body
+/// Drives Verify's completion projects card per the spec's four body
 /// variants: set up (with or without a failure), skipped, or declined
 /// (card absent). `.notReached` only ever describes a wizard session that
 /// never got as far as Set up at all.
@@ -748,7 +719,6 @@ enum WizardPhase {
     case materializing
     case verifying
     case verified
-    case done
     case holding(HoldingInfo)
 }
 
@@ -1016,6 +986,12 @@ final class WizardModel: ObservableObject {
     @Published var projectsDeclineConfirmed = false
     @Published var selectedProjectPaths: Set<String> = []
     @Published var projectsStepOutcome: ProjectsStepOutcome = .notReached
+    /// Set only when one or more projects selected from a fresh, actionable
+    /// CLI report still fail during configure. The Set up screen stays put
+    /// until the person explicitly retries, returns to the project list, or
+    /// continues without those projects.
+    @Published var projectSetupNeedsDecision = false
+    @Published var failedProjectPaths: Set<String> = []
     /// "An unusable folder shows the CLI's blocked sentence next to the
     /// picker and keeps the step usable" (spec, Step 7's failure/recovery
     /// row) — this step never routes to Holding on its own; a bad folder
@@ -1084,6 +1060,12 @@ final class WizardModel: ObservableObject {
             return try! decoder.decode(EcosystemOnboardStage.self, from: data)
         }
 
+        func workspace(_ json: String) -> WorkspaceEntry {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try! decoder.decode(WorkspaceEntry.self, from: Data(json.utf8))
+        }
+
         let heldItem = inventoryItem(
             id: "device-ssh",
             scope: "machine",
@@ -1100,6 +1082,46 @@ final class WizardModel: ObservableObject {
         ]
 
         switch name {
+        case "connections":
+            authorizedLogin = "pablo"
+            phase = .integrations
+        case "projects-feedback":
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            projectRoots = [
+                try! decoder.decode(
+                    WorkspaceRootListEntry.self,
+                    from: Data(#"{"name":"Developer","path":"/Users/pablo/Developer","project_count":53}"#.utf8)
+                )
+            ]
+            projectWorkspaces = [
+                workspace(#"{"path":"/p/ready","name":"already-ready","project_id":null,"state":"ready","detail":"Copilot is ready for this project.","declared_components":["claude","codex"],"installed_components":["claude","codex"],"recommended_components":["claude","codex"],"personal_profile":{"state":"associated","project_id":null},"setup_policy":"not-offered","policy_detail":"Copilot is already set up here, so there's nothing to ask.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There's nothing here to undo."}}"#),
+                workspace(#"{"path":"/p/available","name":"available-project","project_id":null,"state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"ask","policy_detail":"You'll be asked before anything is added here.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There's nothing here to undo."}}"#),
+                workspace(#"{"path":"/p/review","name":"admin-server","project_id":null,"state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"ask","policy_detail":"You'll be asked before anything is added here.","can_apply_now":false,"apply_blocked_detail":"Existing project setup needs review before Copilot can add shared files. Nothing was changed.","undo":{"available":false,"detail":"There's nothing here to undo."}}"#),
+            ]
+            phase = .projects
+        case "project-failure":
+            setupProgress.callRow.state = .done(detail: "Copilot on this Mac is ready.")
+            setupProgress.projectRows = [
+                SetupRow(
+                    id: "/p/admin-server",
+                    title: "admin-server",
+                    state: .couldNotFinish(
+                        detail: "Existing project setup needs review before Copilot can add shared files. Nothing was changed. Ask the person who manages this project to review its existing Copilot setup."
+                    )
+                )
+            ]
+            failedProjectPaths = ["/p/admin-server"]
+            projectSetupNeedsDecision = true
+            phase = .materializing
+        case "verified-completion":
+            authorizedLogin = "pablo"
+            lastOnboardResult = .ready
+            lastOnboardStages = Self.expectedStageIds(includeCodex: true).map {
+                stage($0, result: "applied")
+            }
+            projectsStepOutcome = .setUp(succeeded: 2, total: 2)
+            phase = .verified
         case "org-question":
             orgNameInput = ""
             orgFieldTouched = false
@@ -1176,13 +1198,6 @@ final class WizardModel: ObservableObject {
     }
     #endif
 
-    /// The "Shared with your team" register (#w6) is static, verbatim,
-    /// honest placeholder content — see `SharedIntegrationRow`'s own doc.
-    let sharedIntegrations: [SharedIntegrationRow] = [
-        SharedIntegrationRow(id: "salesforce-lookup", name: "Salesforce lookup", statusCaption: "Ready"),
-        SharedIntegrationRow(id: "calendar-read", name: "Calendar read", statusCaption: "Not available right now"),
-    ]
-
     // MARK: Derived
 
     var currentStage: WizardStage {
@@ -1201,7 +1216,6 @@ final class WizardModel: ObservableObject {
         case .projects: return .projects
         case .materializing: return .materialize
         case .verifying, .verified: return .verify
-        case .done: return .done
         case .holding(let info): return info.origin
         }
     }
@@ -2067,20 +2081,27 @@ final class WizardModel: ObservableObject {
         guard case .success(let report) = await CliClient.shared.workspaces() else { return }
         self.projectWorkspaces = report.workspaces
         self.projectsSummary = report.summary
-        // Pre-selected where the CLI says a checkbox is the right grammar
-        // (`can_apply_now: false` at this step, per the spec — the writes
-        // this step collects happen in Set up, not here) AND the row is
-        // genuinely actionable (`setup-available`/`activation-required`).
+        // A discovered project is never consent. Start with no selections;
+        // the person chooses from rows the CLI says are safe to apply now.
         self.selectedProjectPaths = Self.preselectedProjectPaths(from: report.workspaces)
     }
 
-    /// Pure: which project rows start checked. Both currently-actionable
-    /// states (`setup-available`, `activation-required`) are pre-selected,
-    /// per the spec's own table ("Checkbox, selected" for both rows);
-    /// `ready`/`blocked` rows carry no control at all, so they are never in
-    /// this set.
+    /// Pure: project setup is always opt-in. This takes the rows so the
+    /// selftest can prove the policy against real decoded input, but no row
+    /// starts checked.
     static func preselectedProjectPaths(from workspaces: [WorkspaceEntry]) -> Set<String> {
-        Set(workspaces.filter { $0.state == .setupAvailable || $0.state == .activationRequired }.map(\.path))
+        _ = workspaces
+        return []
+    }
+
+    /// Pure: a setup-needed state is only a real action when the CLI's
+    /// preflight also says it can be applied now. `setupAvailable` alone is
+    /// not permission to ignore `can_apply_now`.
+    static func actionableProjectPaths(from workspaces: [WorkspaceEntry]) -> Set<String> {
+        Set(workspaces.filter {
+            ($0.state == .setupAvailable || $0.state == .activationRequired)
+                && $0.canApplyNow
+        }.map(\.path))
     }
 
     func chooseProjectsFolder() {
@@ -2152,6 +2173,10 @@ final class WizardModel: ObservableObject {
     }
 
     func toggleProjectSelection(_ path: String) {
+        guard Self.actionableProjectPaths(from: projectWorkspaces).contains(path) else {
+            selectedProjectPaths.remove(path)
+            return
+        }
         if selectedProjectPaths.contains(path) {
             selectedProjectPaths.remove(path)
         } else {
@@ -2160,7 +2185,7 @@ final class WizardModel: ObservableObject {
     }
 
     func selectAllProjects() {
-        selectedProjectPaths = Self.preselectedProjectPaths(from: projectWorkspaces)
+        selectedProjectPaths = Self.actionableProjectPaths(from: projectWorkspaces)
     }
 
     func selectNoProjects() {
@@ -2183,7 +2208,7 @@ final class WizardModel: ObservableObject {
         beginMaterialize()
     }
 
-    // MARK: Set up (#w7, renumbered Step 8 of 10) — honest progress, no timer
+    // MARK: Set up (Step 8 of 9) — honest progress, no timer
 
     /// Calls `ecosystemOnboardApply()` for real; also calls `updateFanout()`
     /// (fire-and-forget, non-gating) when at least one department was
@@ -2199,6 +2224,8 @@ final class WizardModel: ObservableObject {
         guard !materializeInFlight else { return }
         materializeInFlight = true
         phase = .materializing
+        projectSetupNeedsDecision = false
+        failedProjectPaths = []
 
         if projectsDeclined {
             projectsStepOutcome = .declined
@@ -2243,7 +2270,12 @@ final class WizardModel: ObservableObject {
                 Task { _ = await CliClient.shared.updateFanout() }
             }
             if !orderedProjects.isEmpty {
-                await self.applySelectedProjects(orderedProjects)
+                let failures = await self.applySelectedProjects(orderedProjects)
+                if Self.projectSetupRequiresDecision(failureCount: failures) {
+                    self.materializeInFlight = false
+                    self.projectSetupNeedsDecision = true
+                    return
+                }
             }
             self.materializeInFlight = false
             self.beginVerify()
@@ -2259,25 +2291,94 @@ final class WizardModel: ObservableObject {
     /// sequential — `setupProgress.projectRows` is updated live, one row at
     /// a time, as each real call actually resolves (spec §5: "these resolve
     /// one at a time, because the loop really is sequential").
-    private func applySelectedProjects(_ projects: [WorkspaceEntry]) async {
+    private func applySelectedProjects(_ projects: [WorkspaceEntry]) async -> Int {
         var succeeded = 0
-        for (index, workspace) in projects.enumerated() {
+        var failures = 0
+
+        // Re-read the CLI immediately before any project write. A project
+        // can change after the selection screen; stale eligibility never
+        // becomes permission to write.
+        guard case .success(let freshReport) = await CliClient.shared.workspaces() else {
+            for index in projects.indices {
+                let workspace = projects[index]
+                failedProjectPaths.insert(workspace.path)
+                setupProgress.projectRows[index].state = .couldNotFinish(
+                    detail: "Control Tower couldn't reread this project's setup, so it did not make a change. Try again when the setup helper is available."
+                )
+            }
+            projectsStepOutcome = .setUp(succeeded: 0, total: projects.count)
+            return projects.count
+        }
+        let freshByPath = Dictionary(uniqueKeysWithValues: freshReport.workspaces.map { ($0.path, $0) })
+
+        for (index, selectedWorkspace) in projects.enumerated() {
+            guard let workspace = freshByPath[selectedWorkspace.path] else {
+                failures += 1
+                failedProjectPaths.insert(selectedWorkspace.path)
+                setupProgress.projectRows[index].state = .couldNotFinish(
+                    detail: "Control Tower couldn't find this project in the approved folder anymore, so it did not make a change. Return to Your projects and choose again."
+                )
+                continue
+            }
+            guard Self.actionableProjectPaths(from: [workspace]).contains(workspace.path) else {
+                failures += 1
+                failedProjectPaths.insert(workspace.path)
+                let reason = workspace.applyBlockedDetail ?? workspace.detail
+                setupProgress.projectRows[index].state = .couldNotFinish(
+                    detail: "\(reason) Ask the person who manages this project to review its existing Copilot setup."
+                )
+                continue
+            }
+
             setupProgress.projectRows[index].state = .working(startedAt: Date())
             let result = await CliClient.shared.configureWorkspace(
                 path: workspace.path, components: workspace.recommendedComponents, shareWithProject: false, apply: true
             )
             if case .success(let report) = result,
                let updated = report.workspaces.first(where: { $0.path == workspace.path }),
-               updated.state != .blocked {
+               updated.state == .ready {
                 succeeded += 1
                 setupProgress.projectRows[index].state = .done(detail: updated.detail)
             } else {
+                failures += 1
+                failedProjectPaths.insert(workspace.path)
+                let detail: String
+                if case .success(let report) = result,
+                   let updated = report.workspaces.first(where: { $0.path == workspace.path }) {
+                    detail = "\(updated.detail) Control Tower stopped on this project. Review it with the person who manages its Copilot setup, then try again."
+                } else {
+                    detail = "Control Tower couldn't read a trustworthy result, so it did not claim this project was set up. Ask your support team to check this project before trying again."
+                }
                 setupProgress.projectRows[index].state = .couldNotFinish(
-                    detail: "Couldn't set up \(workspace.name). Nothing in it was changed. You can add it later from the menu bar."
+                    detail: detail
                 )
             }
         }
         self.projectsStepOutcome = .setUp(succeeded: succeeded, total: projects.count)
+        return failures
+    }
+
+    nonisolated static func projectSetupRequiresDecision(failureCount: Int) -> Bool {
+        failureCount > 0
+    }
+
+    func retryFailedProjects() {
+        guard projectSetupNeedsDecision, !failedProjectPaths.isEmpty else { return }
+        selectedProjectPaths = failedProjectPaths
+        beginMaterialize()
+    }
+
+    func returnToFailedProjects() {
+        guard projectSetupNeedsDecision else { return }
+        selectedProjectPaths = failedProjectPaths
+        projectSetupNeedsDecision = false
+        phase = .projects
+    }
+
+    func continueWithoutFailedProjects() {
+        guard projectSetupNeedsDecision else { return }
+        projectSetupNeedsDecision = false
+        beginVerify()
     }
 
     private var copilotProducts: [String] {
@@ -2325,14 +2426,7 @@ final class WizardModel: ObservableObject {
         )
     }
 
-    func continueFromVerify() {
-        guard case .verified = phase else { return }
-        phase = .done
-    }
-
-    // MARK: Done (#w9)
-
-    /// "Let's go" — sets the completed-first-run flag and closes the window
+    /// Finish setup — sets the completed-first-run flag and closes the window
     /// (the actual `window?.close()` is `onClose()`, owned by
     /// `WizardWindowController`).
     func finish(onClose: () -> Void) {
@@ -2597,7 +2691,6 @@ final class WizardModel: ObservableObject {
         case .projects: phase = .projects
         case .materialize: phase = .materializing
         case .verify: phase = .verified
-        case .done: phase = .done
         }
     }
 }
@@ -2928,7 +3021,6 @@ struct WizardRootView: View {
         case .projects: projectsView
         case .materializing: materializeView
         case .verifying, .verified: verifyView
-        case .done: doneView
         case .holding(let info): holdingView(info)
         }
     }
@@ -2959,7 +3051,6 @@ struct WizardRootView: View {
         case .materializing: return "materializing"
         case .verifying: return "verifying"
         case .verified: return "verified"
-        case .done: return "done"
         case .holding(let info): return "holding-\(info.origin.rawValue)"
         }
     }
@@ -2981,7 +3072,7 @@ struct WizardRootView: View {
 
     private var welcomeView: some View {
         stepShell(
-            eyebrow: "Step 1 of 10",
+            eyebrow: "Step 1 of 9",
             title: "Welcome to your copilots.",
             intro: "Your company just gave you a set of AI copilots to help with your everyday work. This app, Copilot Control Tower, is how they land on your Mac and how they stay current."
         ) {
@@ -3037,7 +3128,7 @@ struct WizardRootView: View {
 
     private var connectGitHubView: some View {
         stepShell(
-            eyebrow: "Step 2 of 10",
+            eyebrow: "Step 2 of 9",
             title: "Connect GitHub",
             intro: "GitHub comes first. It's how Control Tower knows what your team shares with you, and where your own space lives. Signing in happens in your browser, on GitHub's own page. Control Tower never asks for your password."
         ) {
@@ -3237,7 +3328,7 @@ struct WizardRootView: View {
 
     private var detectView: some View {
         stepShell(
-            eyebrow: "Step 3 of 10",
+            eyebrow: "Step 3 of 9",
             title: "Checking what's already here",
             intro: "Control Tower keeps the parts that are already right, safely moves or repairs recognized earlier setup, and leaves anything unfamiliar untouched."
         ) {
@@ -3548,7 +3639,7 @@ struct WizardRootView: View {
 
     private var whatYoureGettingView: some View {
         stepShell(
-            eyebrow: "Step 4 of 10",
+            eyebrow: "Step 4 of 9",
             title: "Here's what you're getting",
             intro: "Everyone on your team gets all of this. There's nothing to pick. Control Tower sets it up and keeps it current for you."
         ) {
@@ -3592,7 +3683,7 @@ struct WizardRootView: View {
 
     private var departmentsView: some View {
         stepShell(
-            eyebrow: "Step 5 of 10",
+            eyebrow: "Step 5 of 9",
             title: "Departments you can join",
             intro: "Joining a department brings in everything your team shares there. You can join now, or come back to this later from Settings or the menu bar."
         ) {
@@ -3681,99 +3772,54 @@ struct WizardRootView: View {
         }
     }
 
-    // MARK: 6. Integrations (#w6)
+    // MARK: 6. Your connections
 
     private var integrationsView: some View {
         stepShell(
-            eyebrow: "Step 6 of 10",
-            title: "Integrations",
-            intro: "Some integrations are already set up for you because you're on the team. Others use your own accounts. Signing in always happens in your browser, on the provider's own page. Control Tower never asks for a password."
+            eyebrow: "Step 6 of 9",
+            title: "Your connections",
+            intro: "These are the connections Control Tower can prove are ready for you. If your organization makes another connection available, it will appear here with a working Connect button."
         ) {
-            VStack(alignment: .leading, spacing: 20) {
-                sectionCard("Shared with your team · ready for you. Nothing to sign into.") {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(model.sharedIntegrations.enumerated()), id: \.element.id) { index, row in
-                            HStack {
-                                Text(row.name)
-                                    .font(.callout)
-                                    .foregroundColor(Color(nsColor: .labelColor))
-                                Spacer()
-                                Text(row.statusCaption)
-                                    .font(.caption)
-                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                            }
-                            .padding(.vertical, 8)
-                            if index < model.sharedIntegrations.count - 1 {
-                                Divider()
-                            }
+            VStack(alignment: .leading, spacing: 16) {
+                sectionCard("Ready to use") {
+                    HStack(alignment: .center, spacing: 10) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("GitHub")
+                                .font(.callout.weight(.semibold))
+                                .foregroundColor(Color(nsColor: .labelColor))
+                            Text("Signed in as \(model.authorizedLogin ?? "your GitHub account").")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         }
+                        Spacer()
+                        Text("Ready")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     }
+                    .padding(.vertical, 6)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("GitHub, ready, signed in as \(model.authorizedLogin ?? "your GitHub account")")
                 }
 
-                sectionCard("Your accounts") {
-                    VStack(alignment: .leading, spacing: 9) {
-                        providerCardRow(name: "GitHub") {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("Signed in as \(model.authorizedLogin ?? "you").")
-                                    .font(.caption)
-                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                            }
-                        } note: {
-                            Text("Connected at the start.")
-                        }
-                        ForEach(ProviderCard.personalAccounts) { provider in
-                            providerCardRow(name: provider.name) {
-                                Button {
-                                    // Inert by decision: the personal-sign-in
-                                    // verb per provider is not yet frozen
-                                    // (cli-contract.md), so this card is
-                                    // honest state, not a working action.
-                                } label: {
-                                    Text("Connect")
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                                .disabled(true)
-                                .help("Not available yet.")
-                            } note: { EmptyView() }
-                        }
-                    }
+                sectionCard("Available to connect") {
+                    Text("No additional organization connections are available in Control Tower right now.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         } leadingActions: {
             Button { model.phase = .departments } label: { Text("Back") }
                 .buttonStyle(.bordered)
-            Button { model.skipIntegrations() } label: { Text("Skip for now") }
-                .buttonStyle(.plain)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
         } primaryAction: {
             Button { model.continueFromIntegrations() } label: { Text("Continue") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
         }
-    }
-
-    @ViewBuilder
-    private func providerCardRow<Trailing: View, Note: View>(
-        name: String,
-        @ViewBuilder trailing: () -> Trailing,
-        @ViewBuilder note: () -> Note
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(name)
-                    .font(.callout.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Spacer()
-                trailing()
-            }
-            note()
-                .font(.caption2)
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-        }
-        .padding(10)
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     // MARK: 7. Your projects (adopt-and-project-setup spec) — a real step,
@@ -3782,7 +3828,7 @@ struct WizardRootView: View {
 
     private var projectsView: some View {
         stepShell(
-            eyebrow: "Step 7 of 10",
+            eyebrow: "Step 7 of 9",
             title: "Where do you keep your projects?",
             intro: "If you build things on this Mac, Control Tower can set your copilots up inside each project too. Choose the one folder where your projects live. Control Tower looks only inside that folder, and never anywhere else on this Mac."
         ) {
@@ -3806,14 +3852,14 @@ struct WizardRootView: View {
         } leadingActions: {
             Button { model.backFromProjects() } label: { Text("Back") }
                 .buttonStyle(.bordered)
-            Button { model.declineProjects() } label: { Text("I don't keep projects on this Mac") }
-                .buttonStyle(.plain)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            Button { model.skipProjectsForNow() } label: { Text("Skip for now") }
-                .buttonStyle(.plain)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
         } primaryAction: {
-            Button { model.continueFromProjects() } label: { Text("Continue") }
+            Button { model.continueFromProjects() } label: {
+                Text(
+                    model.selectedProjectPaths.isEmpty
+                        ? "Continue without projects"
+                        : "Set up \(model.selectedProjectPaths.count) selected"
+                )
+            }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
         }
@@ -3829,6 +3875,9 @@ struct WizardRootView: View {
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         Button("Choose folder…") { model.chooseProjectsFolder() }
                             .buttonStyle(.bordered)
+                        Button("I don't keep projects on this Mac") { model.declineProjects() }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         if let blocked = model.projectsFolderBlockedDetail {
                             Text(blocked)
                                 .font(.caption)
@@ -3894,10 +3943,13 @@ struct WizardRootView: View {
     }
 
     private var projectsListCard: some View {
-        let canBeSetUp = model.projectWorkspaces.filter { $0.state == .setupAvailable }
-        let needsFinishing = model.projectWorkspaces.filter { $0.state == .activationRequired }
+        let canBeSetUp = model.projectWorkspaces.filter { $0.state == .setupAvailable && $0.canApplyNow }
+        let needsFinishing = model.projectWorkspaces.filter { $0.state == .activationRequired && $0.canApplyNow }
         let alreadySetUp = model.projectWorkspaces.filter { $0.state == .ready }
-        let keptAsIs = model.projectWorkspaces.filter { $0.state == .blocked }
+        let needsReview = model.projectWorkspaces.filter {
+            $0.state == .blocked
+                || (($0.state == .setupAvailable || $0.state == .activationRequired) && !$0.canApplyNow)
+        }
         let actionable = canBeSetUp.count + needsFinishing.count
 
         return sectionCard("Projects I found") {
@@ -3908,39 +3960,73 @@ struct WizardRootView: View {
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    HStack {
-                        Text("\(model.projectWorkspaces.count) projects found. \(actionable) can be set up.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(
+                            "\(model.projectWorkspaces.count) projects found: "
+                                + "\(alreadySetUp.count) already set up, "
+                                + "\(actionable) available to set up now, and "
+                                + "\(needsReview.count) need review."
+                        )
                             .font(.callout)
+                            .fontWeight(.semibold)
                             .foregroundColor(Color(nsColor: .labelColor))
-                        Spacer()
-                        Button("Select all") { model.selectAllProjects() }
-                            .buttonStyle(.plain)
-                            .foregroundColor(Color(nsColor: .linkColor))
-                        Button("Select none") { model.selectNoProjects() }
-                            .buttonStyle(.plain)
-                            .foregroundColor(Color(nsColor: .linkColor))
-                    }
-                    Text("Your projects get set up in the next step.")
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(
+                            actionable > 0
+                                ? "Select only the projects you want Control Tower to set up. Projects already set up will not be changed."
+                                : "Nothing here can be safely set up automatically right now. Review the reasons below or continue without projects."
+                        )
                         .font(.caption)
-                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(canBeSetUp) { workspace in
-                            projectRow(workspace, group: .canBeSetUp)
-                            Divider()
+                    if actionable > 0 {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Available to set up")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .textCase(.uppercase)
+                                Spacer()
+                                Text("\(model.selectedProjectPaths.count) selected")
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                Button("Select all available") { model.selectAllProjects() }
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(Color(nsColor: .linkColor))
+                                Button("Clear selection") { model.selectNoProjects() }
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(Color(nsColor: .linkColor))
+                            }
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(canBeSetUp) { workspace in
+                                    projectRow(workspace, group: .canBeSetUp)
+                                    if workspace.id != canBeSetUp.last?.id || !needsFinishing.isEmpty { Divider() }
+                                }
+                                ForEach(needsFinishing) { workspace in
+                                    projectRow(workspace, group: .needsFinishing)
+                                    if workspace.id != needsFinishing.last?.id { Divider() }
+                                }
+                            }
                         }
-                        ForEach(needsFinishing) { workspace in
-                            projectRow(workspace, group: .needsFinishing)
-                            Divider()
+                    }
+
+                    if !needsReview.isEmpty {
+                        DisclosureGroup("\(needsReview.count) need review") {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(needsReview) { workspace in
+                                    projectRow(workspace, group: .keptAsIs)
+                                    if workspace.id != needsReview.last?.id { Divider() }
+                                }
+                            }
                         }
-                        ForEach(keptAsIs) { workspace in
-                            projectRow(workspace, group: .keptAsIs)
-                            if workspace.id != keptAsIs.last?.id { Divider() }
-                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     }
 
                     if !alreadySetUp.isEmpty {
-                        DisclosureGroup("\(alreadySetUp.count) already set up ›") {
+                        DisclosureGroup("\(alreadySetUp.count) already set up") {
                             VStack(alignment: .leading, spacing: 0) {
                                 ForEach(alreadySetUp) { workspace in
                                     projectRow(workspace, group: .alreadySetUp)
@@ -3961,7 +4047,7 @@ struct WizardRootView: View {
         case .canBeSetUp: return "Copilot can be set up here."
         case .needsFinishing: return "Set up here already, but not active on this Mac yet."
         case .alreadySetUp: return "Already set up."
-        case .keptAsIs: return workspace.detail
+        case .keptAsIs: return workspace.applyBlockedDetail ?? workspace.detail
         }
     }
 
@@ -4002,6 +4088,9 @@ struct WizardRootView: View {
             .accessibilityLabel("\(workspace.name), \(caption)")
         case .keptAsIs:
             HStack(alignment: .top) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundColor(Color(nsColor: .systemOrange))
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(workspace.name)
                         .font(.callout.weight(.semibold))
@@ -4012,13 +4101,13 @@ struct WizardRootView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
-                Text("Kept as is")
+                Text("Needs review")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
             .padding(.vertical, 8)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(workspace.name), kept as is, \(caption)")
+            .accessibilityLabel("\(workspace.name), needs review, \(caption)")
         }
     }
 
@@ -4032,9 +4121,11 @@ struct WizardRootView: View {
 
     private var materializeView: some View {
         stepShell(
-            eyebrow: "Step 8 of 10",
-            title: "Setting up your copilots",
-            intro: "This part runs on its own. Keep this window open, or close it and let Control Tower finish in the menu bar."
+            eyebrow: "Step 8 of 9",
+            title: model.projectSetupNeedsDecision ? "Some projects need another look" : "Setting up your copilots",
+            intro: model.projectSetupNeedsDecision
+                ? "Control Tower finished the safe work and stopped on the projects listed below. Each row explains why nothing was changed and what to do next."
+                : "This part runs on its own. Keep this window open, or close it and let Control Tower finish in the menu bar."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 if let countLine = model.setupProgress.countLine {
@@ -4077,14 +4168,25 @@ struct WizardRootView: View {
             }
             .padding(4)
         } leadingActions: {
-            EmptyView()
-        } primaryAction: {
-            Button {} label: {
-                Text("Setting up…")
+            if model.projectSetupNeedsDecision {
+                Button("Review projects") { model.returnToFailedProjects() }
+                    .buttonStyle(.bordered)
+                Button("Try again") { model.retryFailedProjects() }
+                    .buttonStyle(.plain)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(true)
-            .help("Setup is running. This finishes on its own.")
+        } primaryAction: {
+            if model.projectSetupNeedsDecision {
+                Button("Continue without projects") { model.continueWithoutFailedProjects() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            } else {
+                Button {} label: {
+                    Text("Setting up…")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(true)
+                .help("Setup is running. This finishes on its own.")
+            }
         }
     }
 
@@ -4132,7 +4234,7 @@ struct WizardRootView: View {
         switch state {
         case .notStarted: return Color(nsColor: .tertiaryLabelColor)
         case .working, .done, .deferred, .neverReported: return Color(nsColor: .secondaryLabelColor)
-        case .couldNotFinish: return Color(nsColor: .systemRed)
+        case .couldNotFinish: return Color(nsColor: .systemOrange)
         }
     }
 
@@ -4152,8 +4254,8 @@ struct WizardRootView: View {
             Image(systemName: "clock.badge.exclamationmark")
                 .foregroundColor(Color(nsColor: .systemOrange))
         case .couldNotFinish:
-            Image(systemName: "xmark.circle.fill")
-                .foregroundColor(Color(nsColor: .systemRed))
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(Color(nsColor: .systemOrange))
         case .neverReported:
             Image(systemName: "questionmark.circle")
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -4204,7 +4306,7 @@ struct WizardRootView: View {
     private var verifyView: some View {
         if case .verifying = model.phase {
             stepShell(
-                eyebrow: "Step 9 of 10",
+                eyebrow: "Step 9 of 9",
                 title: "Making sure everything's current",
                 intro: "The only success here is everything actually being up to date."
             ) {
@@ -4212,40 +4314,68 @@ struct WizardRootView: View {
             } leadingActions: {
                 EmptyView()
             } primaryAction: {
-                Button { model.continueFromVerify() } label: { Text("Continue") }
+                Button {} label: { Text("Checking…") }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(true)
             }
         } else if verifyCompletionPasses {
             stepShell(
-                eyebrow: "Step 9 of 10",
-                title: "Making sure everything's current",
-                intro: "The only success here is everything actually being up to date."
+                eyebrow: "Setup verified · Step 9 of 9",
+                title: "Your copilots are ready",
+                intro: "Control Tower checked the setup it completed. Here is what is ready now and where to go next."
             ) {
-                VStack {
-                    Text(sharedStoreIsDeferred ? "Your core setup checks out." : "Everything checks out.")
-                        .font(.callout.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .labelColor))
-                    if sharedStoreIsDeferred {
-                        Text("Shared team integrations aren't connected on this Mac yet. Your existing credentials were kept.")
-                            .font(.caption)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            .padding(.top, 5)
+                VStack(alignment: .leading, spacing: 16) {
+                    sectionCard("Ready now") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            completionReadyRow("Your GitHub connection")
+                            completionReadyRow("Copilot on this Mac")
+                            completionReadyRow("Control Tower's setup check")
+                        }
                     }
+
+                    if sharedStoreIsDeferred {
+                        sectionCard("Still to do") {
+                            Text("Shared team connections are not available on this Mac yet. Your existing credentials were kept, and you can check again later from Control Tower.")
+                                .font(.callout)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
                     if !model.adoptionRollbackPaths.isEmpty {
                         Text("Your previous setup was preserved in a rollback copy.")
                             .font(.caption)
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            .padding(.top, 5)
                     }
+
+                    if let body = doneProjectsCardBody {
+                        sectionCard("Your projects") {
+                            Text(body)
+                                .font(.callout)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    sectionCard("What happens next") {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "menubar.rectangle")
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .accessibilityHidden(true)
+                            Text("Control Tower now lives in your menu bar. Look for the aviators: a quiet icon means there is nothing you need to do. If something needs you, Control Tower will show a small status badge and explain the next step.")
+                                .font(.callout)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    videoLinkRow("See what you can build")
                 }
-                .frame(maxWidth: .infinity)
-                .padding(22)
             } leadingActions: {
                 EmptyView()
             } primaryAction: {
-                Button { model.continueFromVerify() } label: { Text("Continue") }
+                Button { model.finish(onClose: onClose) } label: { Text("Finish setup") }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
@@ -4269,42 +4399,20 @@ struct WizardRootView: View {
         }
     }
 
-
-    // MARK: 10. Done (#w9)
-
-    private var doneView: some View {
-        stepShell(
-            eyebrow: "Step 10 of 10",
-            title: sharedStoreIsDeferred ? "Your copilots are ready." : "That's it. You're ready.",
-            intro: sharedStoreIsDeferred
-                ? "Control Tower now lives quietly in your menu bar. Shared team integrations aren't connected on this Mac yet; your existing credentials remain in place."
-                : "Control Tower now lives quietly in your menu bar. When the icon is quiet, everything's current. And when you're added to a new department later, it'll show up there, ready when you are."
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("You have the tools. Now go change the world!")
-                    .font(.title3.weight(.bold))
-                    .foregroundColor(Color(nsColor: .labelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-                videoLinkRow("See what you can build with this")
-                if let body = doneProjectsCardBody {
-                    sectionCard("Your projects") {
-                        Text(body)
-                            .font(.callout)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        } leadingActions: {
-            EmptyView()
-        } primaryAction: {
-            Button { model.finish(onClose: onClose) } label: { Text("Let's go") }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+    private func completionReadyRow(_ title: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(Color(nsColor: .systemGreen))
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.callout)
+                .foregroundColor(Color(nsColor: .labelColor))
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), verified")
     }
 
-    /// Step 10's own four variants — the card is absent entirely for
+    /// Completion's project variants — the card is absent entirely for
     /// `.declined`, per the spec's own table.
     private var doneProjectsCardBody: String? {
         switch model.projectsStepOutcome {

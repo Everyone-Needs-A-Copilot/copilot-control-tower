@@ -19,6 +19,7 @@ for required in \
   "${CONTENTS}/Info.plist" \
   "${CONTENTS}/MacOS/Copilot Control Tower Admin" \
   "${RESOURCES}/ControlTower.icns" \
+  "${RESOURCES}/aviator-glyph.svg" \
   "${RESOURCES}/scripts/admin_bootstrap.sh" \
   "${RESOURCES}/bin/gh" \
   "${RESOURCES}/bin/jq"; do
@@ -27,6 +28,8 @@ for required in \
     exit 1
   fi
 done
+
+cmp assets/brand/aviator-glyph.svg "${RESOURCES}/aviator-glyph.svg"
 
 if ! rg -Fq '/usr/bin/curl' "${RESOURCES}/scripts/admin_bootstrap.sh"; then
   echo "packaged Admin engine does not carry the absolute macOS store probe" >&2

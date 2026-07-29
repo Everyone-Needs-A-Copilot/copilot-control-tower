@@ -337,18 +337,17 @@ enum LocalAdminSignal {
 /// or draw no brand image at all where the illustration is illegible at their
 /// size — see `ControlTowerGlyph`'s own doc comment and the call sites in
 /// `control-tower-tray.swift`/`wizard.swift`.) Never the generic `eyeglasses`
-/// SF Symbol as anything but a genuine last-resort fallback.
+/// SF Symbol or any other substitute.
 ///
-/// Resolves `src-tauri/icons/aviators.svg` repo-relative to the working
-/// directory (the launcher `cd`s to the repo root before exec, same convention
-/// `PublisherSetupModel.loadBrandIcon()` uses for `docs/10-reference/control-tower.svg`
-/// in `scripts/publisher_setup.swift`). Returns a **template** `NSImage` (every
+/// Resolves the packaged `aviator-glyph.svg` from `Bundle.main` first, then
+/// the canonical repo assets for an unbundled development binary. Returns a
+/// **template** `NSImage` (every
 /// non-transparent pixel becomes a tintable mask, regardless of the `#2D294E`
 /// fill baked into the SVG) sized to `targetHeight`, so the tray glyph's own
 /// caller tints it via `contentTintColor`/`.foregroundColor` (`.labelColor`).
-/// Falls back to the `eyeglasses` SF Symbol ONLY if the asset genuinely can't be
-/// resolved on disk (e.g. launched from an unexpected working directory) — a
-/// real last resort, not the default path.
+/// There is deliberately no substitute-symbol fallback: a missing asset may
+/// never silently replace the product's settled menu-bar identity. Packaging
+/// tests require the resource in every `.app`.
 ///
 /// Results are cached in-memory per requested height: this can be called from a
 /// SwiftUI view `body` (re-evaluated often) without re-reading the file from
@@ -368,19 +367,18 @@ enum AviatorGlyph {
     }
 
     private static func loadFresh(targetHeight: CGFloat) -> NSImage {
-        // Phase F: canonical brand assets moved to assets/brand/ (a
-        // repo-root asset dir shared by every surface, rather than a
-        // src-tauri/-scoped icons dir left over from the Tauri app this
-        // native rebuild supersedes). The old src-tauri/icons/aviators.svg
-        // path is kept as a fallback ONLY so a checkout mid-migration (or a
-        // build invoked from an unexpected working directory where only the
-        // old asset happens to be resolvable) still renders something real
-        // instead of falling all the way to the SF Symbol last resort.
+        var candidates: [URL] = []
+        if let bundled = Bundle.main.url(forResource: "aviator-glyph", withExtension: "svg") {
+            candidates.append(bundled)
+        }
+
+        // Unbundled development/selftest binaries run from the repository.
         let cwd = FileManager.default.currentDirectoryPath
         let primary = URL(fileURLWithPath: "assets/brand/aviator-glyph.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
         let legacyFallback = URL(fileURLWithPath: "src-tauri/icons/aviators.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        candidates.append(contentsOf: [primary, legacyFallback])
 
-        for url in [primary, legacyFallback] {
+        for url in candidates {
             if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
                 let aspect = svg.size.width / svg.size.height
                 svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
@@ -389,13 +387,11 @@ enum AviatorGlyph {
             }
         }
 
-        // Genuine last-resort fallback: neither SVG could be resolved at all.
-        let fallback = NSImage(
-            systemSymbolName: "eyeglasses",
-            accessibilityDescription: "Copilot Control Tower"
-        ) ?? NSImage()
-        fallback.isTemplate = true
-        return fallback
+        // A blank image is safer than showing the wrong identity. Production
+        // packaging fails before distribution if the bundled SVG is absent.
+        let missing = NSImage(size: NSSize(width: targetHeight * 1.6, height: targetHeight))
+        missing.isTemplate = true
+        return missing
     }
 }
 

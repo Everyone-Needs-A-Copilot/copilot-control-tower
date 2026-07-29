@@ -17,12 +17,33 @@ bash scripts/build-user.command --build-only >/dev/null
 for required in \
   "${PLIST}" \
   "${APP_BIN}" \
-  "${CONTENTS}/Resources/ControlTower.icns"; do
+  "${CONTENTS}/Resources/ControlTower.icns" \
+  "${CONTENTS}/Resources/aviator-glyph.svg"; do
   if [[ ! -e "${required}" ]]; then
     echo "missing User bundle artifact: ${required}" >&2
     exit 1
   fi
 done
+
+cmp assets/brand/aviator-glyph.svg "${CONTENTS}/Resources/aviator-glyph.svg"
+if rg -Fq 'systemSymbolName: "eyeglasses"' native/models.swift; then
+  echo "the menu-bar aviators loader regained a substitute icon" >&2
+  exit 1
+fi
+if [[ "$(rg -c 'button\.image = AviatorGlyph\.load' native/control-tower-tray.swift)" != "1" ]]; then
+  echo "the status item is not assigned exactly one aviators base image" >&2
+  exit 1
+fi
+if rg -q 'ProviderCard|Microsoft 365|Salesforce|Slack' native/wizard.swift; then
+  echo "the User wizard regained the speculative provider catalog" >&2
+  exit 1
+fi
+rg -Fq 'title: "Your connections"' native/wizard.swift
+rg -Fq 'No additional organization connections are available in Control Tower right now.' native/wizard.swift
+if ! sed -n '/func continueWithoutFailedProjects()/,/^    }/p' native/wizard.swift | rg -Fq 'beginVerify()'; then
+  echo "the project-failure continue action no longer advances to verification" >&2
+  exit 1
+fi
 
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${PLIST}")" == "com.everyoneneedsacopilot.controltower" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${PLIST}")" == "Copilot Control Tower" ]]

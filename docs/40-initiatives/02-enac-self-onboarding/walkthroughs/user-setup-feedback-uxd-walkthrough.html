@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User Setup feedback — UX walkthrough</title>
+  <style>
+    :root{color-scheme:light dark;--page:#f1f1f2;--panel:#fff;--field:#f6f6f7;--text:#232326;--muted:#686970;--line:#d7d7db;--accent:#3d5f9c;--warn:#8a5c12;--bad:#a53b3b}
+    [data-theme="dark"]{--page:#18181a;--panel:#242427;--field:#2c2c30;--text:#f1f1f2;--muted:#b1b1b7;--line:#47474c;--accent:#7ea1df;--warn:#dfb66d;--bad:#ef9292}
+    @media(prefers-color-scheme:dark){html[data-theme="auto"]{--page:#18181a;--panel:#242427;--field:#2c2c30;--text:#f1f1f2;--muted:#b1b1b7;--line:#47474c;--accent:#7ea1df;--warn:#dfb66d;--bad:#ef9292}}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--page);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    header,main{width:min(1180px,calc(100% - 32px));margin:auto}header{display:flex;gap:20px;align-items:flex-start;padding:28px 0 18px}h1{font-size:28px;line-height:1.15;margin:0}header p{margin:6px 0 0;color:var(--muted);max-width:72ch}.theme{margin-left:auto}
+    button,.nav a,.pager a{border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);padding:7px 10px;text-decoration:none;font:inherit}.nav{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:28px}.screen{margin:0 0 52px;scroll-margin-top:12px}.screen>h2{margin:0 0 6px}.comment{color:var(--muted);max-width:82ch;margin:0 0 13px}
+    .window{display:grid;grid-template-columns:225px 1fr;min-height:540px;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}.side{padding:18px 13px;border-right:1px solid var(--line)}.side b{display:block;margin:0 8px 13px}.side span{display:flex;justify-content:space-between;gap:8px;padding:7px 8px;border-radius:7px;color:var(--muted)}.side .active{background:var(--field);color:var(--text);font-weight:650}.side .done::after{content:"✓"}
+    .content{display:flex;flex-direction:column;padding:27px 34px}.eyebrow{font-size:11px;font-weight:750;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}h3{font-size:27px;line-height:1.15;margin:5px 0 8px}.lead{max-width:720px;color:var(--muted);margin:0 0 20px}.card{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:13px}.card h4{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 9px}.row{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:start;padding:10px 0}.row+.row{border-top:1px solid var(--line)}.row small,.sub{display:block;color:var(--muted)}.state{font-size:12px;font-weight:650}.ready{color:var(--text)}.warning{color:var(--warn)}.failure{color:var(--bad)}.check{font-weight:700}.row button{padding:5px 8px}.checkrow{grid-template-columns:24px 1fr}.checkrow input{margin-top:3px}.section-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:3px}.section-tools h4{margin:0}.links{display:flex;gap:10px}.links button{border:0;color:var(--accent);padding:2px;background:transparent}
+    .footer{margin-top:auto;padding-top:20px;display:flex;justify-content:space-between;gap:12px}.footer .right{display:flex;gap:8px}.primary{background:var(--accent);border-color:var(--accent);color:#fff}.plain{border-color:transparent;background:transparent;color:var(--muted)}.details{padding:9px 10px;background:var(--field);border-radius:8px;margin-top:7px}.summary{font-weight:650}.progress{height:7px;border-radius:99px;background:var(--field);overflow:hidden;margin:8px 0 14px}.progress span{display:block;width:48%;height:100%;background:var(--muted)}.pager{display:flex;justify-content:space-between;margin-top:9px}.pager a{border:0;background:transparent;color:var(--accent)}
+    .variants{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:12px}.variant{border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center}.tray{display:inline-flex;position:relative;width:74px;height:42px;align-items:center;justify-content:center;background:var(--field);border-radius:8px;margin-bottom:8px}.aviators{width:44px;height:22px}.aviators path{fill:currentColor}.badge{position:absolute;right:10px;bottom:5px;width:14px;height:14px;border:2px solid var(--panel);border-radius:50%;background:var(--muted);font-size:9px;line-height:10px;color:var(--panel);display:grid;place-items:center}.variant small{display:block;color:var(--muted)}
+    .skeleton{height:13px;border-radius:4px;background:var(--field);margin:8px 0}.skeleton.short{width:45%}.variants-note{color:var(--muted);font-size:13px;margin-top:12px}
+    @media(max-width:760px){.window{grid-template-columns:1fr}.side{display:none}.content{padding:22px}.variants{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:24px 1fr}.row>button,.row>.state{grid-column:2}.footer{flex-direction:column}.footer .right{justify-content:flex-end}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Show what is available. Explain what happens.</h1>
+      <p>Wireframe walkthrough for the corrected User Setup journey. All provider, project, failure, and health facts shown here represent typed CLI output; the app never infers them.</p>
+    </div>
+    <button class="theme" id="theme">Theme</button>
+  </header>
+  <main>
+    <nav class="nav" aria-label="Walkthrough screens">
+      <a href="#connections">1 Connections</a><a href="#connection-edge">2 Connection states</a><a href="#projects">3 Projects</a><a href="#blocked">4 Project reasons</a><a href="#running">5 Running</a><a href="#failure">6 Recovery</a><a href="#complete">7 Complete</a><a href="#aviators">8 Aviators</a>
+    </nav>
+
+    <section class="screen" id="connections">
+      <h2>1. Connections are facts, not a catalog</h2>
+      <p class="comment"><strong>Decision:</strong> rows exist only because the organization/connection contract returned them. There are no disabled examples and no “many more.”</p>
+      <div class="window">
+        <aside class="side"><b>Copilot Control Tower</b><span class="done">Welcome</span><span class="done">Connect GitHub</span><span class="done">Your copilots</span><span class="done">Departments</span><span class="active">Your connections</span><span>Your projects</span><span>Set up</span><span>Final check</span></aside>
+        <div class="content">
+          <span class="eyebrow">Step 6 of 9</span><h3>Your connections</h3>
+          <p class="lead">These are the tools your organization has made available to your copilots. Ready connections work now. Available connections need you to sign in.</p>
+          <div class="card"><h4>Ready to use</h4>
+            <div class="row"><span class="check">✓</span><div><strong>GitHub</strong><small>Connected as pablitoalejo</small></div><span class="state ready">Ready</span></div>
+            <div class="row"><span class="check">✓</span><div><strong>Discord</strong><small>Ready through Everyone Needs A Copilot</small></div><span class="state ready">Ready</span></div>
+          </div>
+          <div class="card"><h4>Available to connect</h4>
+            <div class="row"><span>○</span><div><strong>Google Workspace</strong><small>Available through your organization. Connect your work account in Google.</small></div><button>Connect Google</button></div>
+          </div>
+          <div class="footer"><button>Back</button><div class="right"><button class="primary">Continue</button></div></div>
+        </div>
+      </div>
+      <div class="pager"><span></span><a href="#connection-edge">Next →</a></div>
+    </section>
+
+    <section class="screen" id="connection-edge">
+      <h2>2. Empty, loading, and unreadable are different</h2>
+      <p class="comment"><strong>Honesty:</strong> a successful empty report may say nothing is available. An unreadable report may not pretend the register is empty.</p>
+      <div class="window">
+        <aside class="side"><b>Connection-state variants</b><span class="active">Loading</span><span>Empty</span><span>Unreadable</span><span>Browser flow</span></aside>
+        <div class="content">
+          <span class="eyebrow">Required states</span><h3>Your connections</h3>
+          <div class="card"><h4>Loading</h4><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton short"></div></div>
+          <div class="card"><h4>Successful empty register</h4><p>Your organization has not made any connections available yet.</p></div>
+          <div class="card"><h4>Could not read the register</h4><p>Control Tower couldn't read which connections your organization provides.</p><div class="links"><button>Try again</button><button>Continue and check later</button></div></div>
+          <div class="card"><h4>Browser flow</h4><p><strong>Google Workspace</strong></p><p class="sub">Finish connecting in your browser.</p><button>Open browser again</button></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#connections">← Previous</a><a href="#projects">Next →</a></div>
+    </section>
+
+    <section class="screen" id="projects">
+      <h2>3. The project screen explains the whole choice</h2>
+      <p class="comment"><strong>Recognition over recall:</strong> the summary accounts for every project, and the instruction tells the person exactly what selection changes.</p>
+      <div class="window">
+        <aside class="side"><b>Copilot Control Tower</b><span class="done">Your connections</span><span class="active">Your projects</span><span>Set up</span><span>Final check</span></aside>
+        <div class="content">
+          <span class="eyebrow">Step 7 of 9</span><h3>Your projects</h3>
+          <p class="lead"><strong>53 projects found: 36 already set up, 14 available to set up, and 3 that can't be set up here.</strong><br>Select the projects you want Control Tower to set up. Projects that are already set up won't be changed.</p>
+          <div class="card">
+            <div class="section-tools"><h4>Available to set up · 3 selected</h4><div class="links"><button>Select all available</button><button>Clear selection</button></div></div>
+            <label class="row checkrow"><input type="checkbox" checked><span><strong>Finance reports</strong><small>Copilot can be added here.</small></span></label>
+            <label class="row checkrow"><input type="checkbox" checked><span><strong>Budget planning</strong><small>Copilot can be added here.</small></span></label>
+            <label class="row checkrow"><input type="checkbox" checked><span><strong>Admin Server</strong><small>Copilot can be added here.</small></span></label>
+          </div>
+          <div class="card"><h4>Already set up · 36</h4><p class="sub">Collapsed by default. Open to review; these projects will not change.</p></div>
+          <div class="footer"><button>Back</button><div class="right"><button class="plain">Continue without adding projects</button><button class="primary">Set up 3 selected projects</button></div></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#connection-edge">← Previous</a><a href="#blocked">Next →</a></div>
+    </section>
+
+    <section class="screen" id="blocked">
+      <h2>4. Unavailable projects say why</h2>
+      <p class="comment"><strong>No dead ends:</strong> a blocked row is not selectable. It carries the CLI's reason and one action only when the person can actually take it.</p>
+      <div class="window">
+        <aside class="side"><b>Your projects</b><span>Available to set up</span><span class="active">Can't be set up here</span><span>Already set up</span></aside>
+        <div class="content">
+          <span class="eyebrow">Project inventory</span><h3>3 can't be set up here</h3>
+          <p class="lead">These projects are not part of your selection. Nothing in them will be changed.</p>
+          <div class="card">
+            <div class="row"><span>!</span><div><strong>Archived payroll</strong><small>This folder does not contain a supported project. Nothing needs to be fixed.</small></div><span class="state">No action</span></div>
+            <div class="row"><span>!</span><div><strong>Quarter close</strong><small>Control Tower cannot open this folder with its current permission.</small></div><button>Choose folder again</button></div>
+            <div class="row"><span>!</span><div><strong>Shared templates</strong><small>Your organization manages this project. Ask your organization administrator to add Copilot.</small></div><button>Copy support details</button></div>
+          </div>
+          <div class="footer"><button>Back to project selection</button><div></div></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#projects">← Previous</a><a href="#running">Next →</a></div>
+    </section>
+
+    <section class="screen" id="running">
+      <h2>5. Setup reports only real work</h2>
+      <p class="comment"><strong>System status:</strong> the title holds still, the count describes named work, and only the row actually running is animated in the product.</p>
+      <div class="window">
+        <aside class="side"><b>Copilot Control Tower</b><span class="done">Your projects</span><span class="active">Set up</span><span>Final check</span></aside>
+        <div class="content">
+          <span class="eyebrow">Step 8 of 9</span><h3>Setting up your copilots</h3>
+          <p class="lead">This runs on its own. Keep this window open, or close it and let Control Tower finish from the aviators icon.</p>
+          <p class="summary">2 of 4 done.</p><div class="progress" aria-label="2 of 4 done"><span></span></div>
+          <div class="card">
+            <div class="row"><span>✓</span><div><strong>Your copilots on this Mac</strong><small>Set up.</small></div><span class="state">Done</span></div>
+            <div class="row"><span>✓</span><div><strong>Finance reports</strong><small>Copilot is ready in this project.</small></div><span class="state">Done</span></div>
+            <div class="row"><span>●</span><div><strong>Budget planning</strong><small>Working on it now.</small></div><span class="state">Working</span></div>
+            <div class="row"><span>○</span><div><strong>Admin Server</strong><small>Not started yet.</small></div><span class="state">Waiting</span></div>
+          </div>
+          <div class="footer"><span></span><button class="primary" disabled>Setting up…</button></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#blocked">← Previous</a><a href="#failure">Next →</a></div>
+    </section>
+
+    <section class="screen" id="failure">
+      <h2>6. A failure stops long enough to help</h2>
+      <p class="comment"><strong>Recovery:</strong> the app does not auto-advance. The failing row explains cause, preservation, and the next action supplied by the CLI.</p>
+      <div class="window">
+        <aside class="side"><b>Copilot Control Tower</b><span class="done">Your projects</span><span class="active">Set up</span><span>Final check</span></aside>
+        <div class="content">
+          <span class="eyebrow">Project setup needs a decision</span><h3>2 projects are set up. 1 still needs attention.</h3>
+          <p class="lead">Your copilots on this Mac are safe. Choose what to do with Admin Server before the final check.</p>
+          <div class="card"><h4>2 projects set up</h4><p class="sub">Finance reports and Budget planning are ready.</p></div>
+          <div class="card"><h4>Not set up</h4>
+            <div class="row"><span>!</span><div><strong>Admin Server</strong><small>Control Tower could not find a supported project file. Nothing in Admin Server changed.</small><div class="details">Choose a different project folder, or continue without this project.</div></div><span class="state failure">Not set up</span></div>
+            <div class="links"><button>Choose project folder</button><button>Copy details for support</button></div>
+          </div>
+          <div class="footer"><button>Back to project selection</button><div class="right"><button class="plain">Continue without Admin Server</button><button class="primary">Try Admin Server again</button></div></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#running">← Previous</a><a href="#complete">Next →</a></div>
+    </section>
+
+    <section class="screen" id="complete">
+      <h2>7. Verified truth becomes the finish</h2>
+      <p class="comment"><strong>Completion moment:</strong> warm and directional, but not theatrical. The verified result, remaining optional work, menu-bar behavior, and first next action are all visible.</p>
+      <div class="window">
+        <aside class="side"><b>Copilot Control Tower</b><span class="done">Your projects</span><span class="done">Set up</span><span class="active done">Final check</span></aside>
+        <div class="content">
+          <span class="eyebrow">Setup verified</span><h3>Your copilots are ready</h3>
+          <p class="lead">Control Tower verified this Mac. Here is what is ready and what happens next.</p>
+          <div class="card"><h4>Ready now</h4>
+            <div class="row"><span>✓</span><div><strong>Claude and Codex</strong><small>Your organization and personal setup are active.</small></div></div>
+            <div class="row"><span>✓</span><div><strong>2 selected projects</strong><small>Finance reports and Budget planning are ready.</small></div></div>
+            <div class="row"><span>✓</span><div><strong>GitHub</strong><small>Connected as pablitoalejo.</small></div></div>
+          </div>
+          <div class="card"><h4>Still to do</h4><p><strong>Admin Server</strong></p><p class="sub">You chose to continue without this project. Add it later from the aviators icon.</p></div>
+          <div class="card"><h4>What happens next</h4><p>Open Claude or Codex in a project and work normally. Control Tower keeps shared setup current from the aviators icon in your menu bar. If the icon gains a badge, open it for the one next action.</p></div>
+          <div class="footer"><button>Show what setup did</button><div class="right"><button class="plain">See what you can build</button><button class="primary">Finish setup</button></div></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#failure">← Previous</a><a href="#aviators">Next →</a></div>
+    </section>
+
+    <section class="screen" id="aviators">
+      <h2>8. One aviators silhouette, every status</h2>
+      <p class="comment"><strong>Identity invariant:</strong> only the status badge or template treatment varies. Every tile below embeds the same paths from <code>src-tauri/icons/aviators.svg</code>.</p>
+      <div class="window">
+        <aside class="side"><b>Menu-bar identity</b><span class="active">Status family</span><span>Source audit</span><span>Installed pixels</span></aside>
+        <div class="content">
+          <span class="eyebrow">Release acceptance</span><h3>The icon is always aviators</h3>
+          <p class="lead">Healthy is the quiet base mark. Every other state adds a small status badge without replacing the silhouette.</p>
+          <div class="variants">
+            <div class="variant"><div class="tray"><svg class="aviators" viewBox="0 0 487 243" aria-label="Aviators, quiet"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></svg></div><strong>Quiet</strong><small>No badge</small></div>
+            <div class="variant"><div class="tray"><svg class="aviators" viewBox="0 0 487 243" aria-label="Aviators, syncing"><use href="#aviator-shape"/></svg><span class="badge">↻</span></div><strong>Syncing</strong><small>Sync badge</small></div>
+            <div class="variant"><div class="tray"><svg class="aviators" viewBox="0 0 487 243" aria-label="Aviators, sign in"><use href="#aviator-shape"/></svg><span class="badge">K</span></div><strong>Sign in</strong><small>Key badge</small></div>
+            <div class="variant"><div class="tray"><svg class="aviators" viewBox="0 0 487 243" aria-label="Aviators, waiting"><use href="#aviator-shape"/></svg><span class="badge">◷</span></div><strong>Waiting</strong><small>Clock badge</small></div>
+            <div class="variant"><div class="tray"><svg class="aviators" viewBox="0 0 487 243" aria-label="Aviators, attention"><use href="#aviator-shape"/></svg><span class="badge">!</span></div><strong>Attention</strong><small>Alert badge</small></div>
+          </div>
+          <svg width="0" height="0" aria-hidden="true"><symbol id="aviator-shape" viewBox="0 0 487 243"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></symbol></svg>
+          <p class="variants-note">The application illustration may appear in the Dock, Finder, or welcome screen. It never replaces aviators in the macOS status item.</p>
+          <div class="footer"><button>Review source assignments</button><div class="right"><button class="primary">Inspect installed pixels</button></div></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#complete">← Previous</a><span></span></div>
+    </section>
+  </main>
+  <script>
+    const root=document.documentElement;
+    document.querySelector("#theme").onclick=()=>{root.dataset.theme=root.dataset.theme==="dark"?"auto":"dark"};
+  </script>
+</body>
+</html>

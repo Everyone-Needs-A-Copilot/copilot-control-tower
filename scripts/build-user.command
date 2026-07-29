@@ -112,6 +112,7 @@ mkdir -p "${APP_MACOS}" "${APP_RESOURCES}"
 cp packaging/macos/User-Info.plist "${APP_CONTENTS}/Info.plist"
 cp "${BIN}" "${APP_BIN}"
 cp src-tauri/icons/icon.icns "${APP_RESOURCES}/ControlTower.icns"
+cp assets/brand/aviator-glyph.svg "${APP_RESOURCES}/aviator-glyph.svg"
 chmod 755 "${APP_BIN}"
 if [[ -n "${CT_VENDORED_CC_PATH:-}" ]]; then
     cp -p "${CT_VENDORED_CC_PATH}" "${APP_RESOURCES}/cc"

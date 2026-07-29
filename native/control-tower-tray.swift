@@ -115,13 +115,14 @@ enum ProjectRowAction: Equatable {
 /// below, and so the "declined" muting logic in `PopoverContentView` and the
 /// count math here can never quietly drift apart.
 enum ProjectsNoticeRender {
-    /// "Can be set up" for the notice's own purposes is anything the CLI
-    /// still lets the person add with one action — the two actionable
-    /// `WorkspaceSummary` buckets. `ready`/`blocked` rows are never counted:
-    /// a `ready` row has nothing left to offer, and a `blocked` row is not
-    /// an offer at all (see `ProjectRowRender.Kind.keptAsIs`).
+    /// "Can be set up" means both a setup-needed state and a successful CLI
+    /// preflight. The summary buckets alone do not carry `can_apply_now`, so
+    /// counting them would turn known holds into misleading offers.
     static func actionableCount(_ report: WorkspacesReport) -> Int {
-        report.summary.setupAvailable + report.summary.activationRequired
+        report.workspaces.filter {
+            ($0.state == .setupAvailable || $0.state == .activationRequired)
+                && $0.canApplyNow
+        }.count
     }
 
     static func noticeText(count: Int) -> String {
@@ -183,8 +184,11 @@ enum ProjectRowRender {
         switch workspace.state {
         case .ready:
             return recentlySetUpNames.contains(workspace.name) ? .automaticallySetUp : .alreadySetUp
-        case .setupAvailable: return workspace.setupPolicy == .excluded ? .excluded : .canBeSetUp
-        case .activationRequired: return .needsFinishing
+        case .setupAvailable:
+            guard workspace.canApplyNow else { return .keptAsIs }
+            return workspace.setupPolicy == .excluded ? .excluded : .canBeSetUp
+        case .activationRequired:
+            return workspace.canApplyNow ? .needsFinishing : .keptAsIs
         case .blocked: return .keptAsIs
         }
     }
@@ -201,7 +205,7 @@ enum ProjectRowRender {
             // verbatim, never invented here.
             return workspace.undo.available ? "Set up automatically when you created it." : workspace.undo.detail
         case .excluded: return "Left alone at your request."
-        case .keptAsIs: return workspace.detail
+        case .keptAsIs: return workspace.applyBlockedDetail ?? workspace.detail
         }
     }
 
@@ -410,7 +414,7 @@ final class TrayModel: ObservableObject {
             // it happens." The same poll that already runs is what checks
             // for this (spec: "The check runs on the poll that already
             // exists, adding no process and no privilege").
-            let automatic = report.workspaces.filter { $0.setupPolicy == .automatic }
+            let automatic = report.workspaces.filter { $0.setupPolicy == .automatic && $0.canApplyNow }
             for workspace in automatic {
                 _ = await CliClient.shared.configureWorkspace(
                     path: workspace.path,
@@ -487,7 +491,7 @@ final class TrayModel: ObservableObject {
     /// underneath (the CLI's own `flock` on `copilot.lock` makes a second
     /// concurrent invocation safe, per `CLAUDE.md` invariant #2).
     func addProject(_ workspace: WorkspaceEntry) async {
-        guard !isAnyProjectAdding else { return }
+        guard !isAnyProjectAdding, workspace.canApplyNow else { return }
         projectRowActions[workspace.path] = .adding
         let generation = (projectAttemptGeneration[workspace.path] ?? 0) + 1
         projectAttemptGeneration[workspace.path] = generation
@@ -511,7 +515,7 @@ final class TrayModel: ObservableObject {
         guard projectAttemptGeneration[workspace.path] == generation else { return }
         if case .success(let report) = result,
            let updated = report.workspaces.first(where: { $0.path == workspace.path }),
-           updated.state != .blocked {
+           updated.state == .ready {
             lastWorkspaces = report
             projectRowActions[workspace.path] = nil
         } else {
@@ -567,23 +571,34 @@ final class TrayModel: ObservableObject {
     func addAllProjects() async {
         guard !isAnyProjectAdding else { return }
         let addable = (lastWorkspaces?.workspaces ?? []).filter {
-            $0.state == .setupAvailable || $0.state == .activationRequired
+            ($0.state == .setupAvailable || $0.state == .activationRequired)
+                && $0.canApplyNow
         }
         guard !addable.isEmpty else { return }
         for workspace in addable {
             projectRowActions[workspace.path] = .adding
         }
-        if case .success(let report) = await CliClient.shared.configureAllWorkspaces(apply: true) {
-            lastWorkspaces = report
-            for workspace in addable {
-                let stillBlocked = report.workspaces.first(where: { $0.path == workspace.path })?.state == .blocked
-                projectRowActions[workspace.path] = stillBlocked ? .failed : nil
-            }
-        } else {
-            for workspace in addable {
+
+        // The CLI's bulk verb targets setup-needed rows but its summary does
+        // not carry per-row `can_apply_now`. Apply only this already-filtered
+        // list, one typed result at a time, so a known hold elsewhere cannot
+        // be swept into the request.
+        for workspace in addable {
+            let result = await CliClient.shared.configureWorkspace(
+                path: workspace.path,
+                components: workspace.recommendedComponents,
+                shareWithProject: workspace.declaredComponents.isEmpty,
+                apply: true
+            )
+            if case .success(let report) = result,
+               let updated = report.workspaces.first(where: { $0.path == workspace.path }),
+               updated.state == .ready {
+                projectRowActions[workspace.path] = nil
+            } else {
                 projectRowActions[workspace.path] = .failed
             }
         }
+        await refresh()
     }
 
     /// **Choose folder…** / **Add another folder…**, reachable from both the
@@ -1246,6 +1261,7 @@ struct PopoverContentView: View {
                 let actionable = ProjectsNoticeRender.actionableCount(workspaces)
                 let ready = workspaces.workspaces.filter { $0.state == .ready }
                 let rest = workspaces.workspaces.filter { $0.state != .ready }
+                let needsReview = max(0, workspaces.summary.total - ready.count - actionable)
                 // Membership-only signal for "was this row set up
                 // automatically" (`ProjectRowRender.Kind.automaticallySetUp`'s
                 // own doc comment) — the CLI's own `recently_set_up` names,
@@ -1266,8 +1282,12 @@ struct PopoverContentView: View {
                             .buttonStyle(.bordered)
                     }
                 } else {
-                    Text("\(actionable) of \(workspaces.summary.total) can be set up.")
+                    Text(
+                        "\(workspaces.summary.total) projects: \(ready.count) ready, "
+                            + "\(actionable) available to set up now, and \(needsReview) need review."
+                    )
                         .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
 
                     if rest.isEmpty {
@@ -1277,12 +1297,14 @@ struct PopoverContentView: View {
                     } else {
                         HStack {
                             Spacer()
-                            Button("Add all") {
-                                Task { await model.addAllProjects() }
+                            if actionable > 0 {
+                                Button("Add all available") {
+                                    Task { await model.addAllProjects() }
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(Color(nsColor: .linkColor))
+                                .disabled(model.isAnyProjectAdding)
                             }
-                            .buttonStyle(.plain)
-                            .foregroundColor(Color(nsColor: .linkColor))
-                            .disabled(model.isAnyProjectAdding)
                         }
                         ScrollView {
                             VStack(alignment: .leading, spacing: 4) {
@@ -1397,7 +1419,7 @@ struct PopoverContentView: View {
                 .disabled(model.isAnyProjectAdding)
                 .help(model.isAnyProjectAdding ? "Finishing the last one first." : "")
             } else if kind == .keptAsIs {
-                Text("Kept as is")
+                Text("Needs review")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
@@ -2561,11 +2583,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Proves, offline: (1) `WorkspaceEntry`/`WorkspacesReport` decode the
     // new required `setup_policy`/`policy_detail`/`can_apply_now`/
     // `apply_blocked_detail`/`undo`/`discovery` fields instead of silently
-    // dropping them; (2) `WizardModel.preselectedProjectPaths(from:)`
-    // pre-selects exactly the setup-available and activation-required rows;
+    // dropping them; (2) project setup starts unselected and only rows with
+    // both an actionable state and `can_apply_now=true` are eligible;
     // (3) `WorkspaceRootsListReport` decodes `roots`+`candidates`; (4) the
-    // stage enum actually gained a real, correctly-positioned "Your
-    // projects" step (10 stages, `.projects` immediately before
+    // stage enum keeps a real, correctly-positioned "Your projects" step
+    // (9 stages, `.projects` immediately before
     // `.materialize`).
     private static func runProjectsStepSelftest() -> Bool {
         let workspacesJSON = """
@@ -2574,8 +2596,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "mode": "status",
           "result": "action-required",
           "workspaces": [
-            {"path": "/Users/x/Developer/convoco", "name": "convoco", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": false, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
-            {"path": "/Users/x/Developer/finished", "name": "finished", "project_id": null, "state": "activation-required", "detail": "Shared Copilot setup is present but is not active on this Mac.", "declared_components": ["claude"], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": false, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/Users/x/Developer/convoco", "name": "convoco", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/Users/x/Developer/finished", "name": "finished", "project_id": null, "state": "activation-required", "detail": "Shared Copilot setup is present but is not active on this Mac.", "declared_components": ["claude"], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": false, "apply_blocked_detail": "Existing project setup needs review before Copilot can add shared files. Nothing was changed.", "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
             {"path": "/Users/x/Developer/ready", "name": "ready", "project_id": null, "state": "ready", "detail": "Copilot is ready for this project.", "declared_components": ["claude"], "installed_components": ["claude"], "recommended_components": ["claude"], "personal_profile": {"state": "associated", "project_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "setup_policy": "not-offered", "policy_detail": "Copilot is already set up here, so there's nothing to ask.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": true, "detail": "Undo is available."}}
           ],
           "summary": {"ready": 1, "setup-available": 1, "activation-required": 1, "blocked": 0, "total": 3},
@@ -2588,14 +2610,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
         let workspaceDecodePass = report.workspaces[0].setupPolicy == .ask
-            && report.workspaces[0].canApplyNow == false
+            && report.workspaces[0].canApplyNow == true
             && report.workspaces[0].applyBlockedDetail == nil
+            && report.workspaces[1].canApplyNow == false
+            && report.workspaces[1].applyBlockedDetail != nil
             && report.workspaces[2].undo.available == true
         let discoveryPass = report.discovery?.state == .granted
             && report.discovery?.roots.first?.name == "Developer"
 
         let preselected = WizardModel.preselectedProjectPaths(from: report.workspaces)
-        let preselectPass = preselected == Set([report.workspaces[0].path, report.workspaces[1].path])
+        let actionable = WizardModel.actionableProjectPaths(from: report.workspaces)
+        let preselectPass = preselected.isEmpty
+            && actionable == Set([report.workspaces[0].path])
+            && WizardModel.projectSetupRequiresDecision(failureCount: 1)
+            && !WizardModel.projectSetupRequiresDecision(failureCount: 0)
 
         let rootsJSON = """
         {"schema_version": "1.0", "mode": "status", "result": "action-required", "roots": [], "candidates": [{"path": "/Users/x/Developer", "label": "Developer", "project_count": 3}]}
@@ -2608,7 +2636,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let rootsDecodePass = rootsReport.candidates?.first?.label == "Developer"
             && rootsReport.candidates?.first?.projectCount == 3
 
-        let stageOrderPass = WizardStage.allCases.count == 10
+        let stageOrderPass = WizardStage.allCases.count == 9
             && WizardStage.projects.rawValue == WizardStage.integrations.rawValue + 1
             && WizardStage.materialize.rawValue == WizardStage.projects.rawValue + 1
 
@@ -2640,10 +2668,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // task's `revertWorkspace` fix makes possible.
     private static func runTrayProjectsSelftest() -> Bool {
         let singularJSON = """
-        {"schema_version": "1.0", "mode": "status", "result": "action-required", "workspaces": [], "summary": {"ready": 0, "setup-available": 1, "activation-required": 0, "blocked": 0, "total": 1}}
+        {
+          "schema_version": "1.0", "mode": "status", "result": "action-required",
+          "workspaces": [
+            {"path": "/p/one", "name": "one", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}}
+          ],
+          "summary": {"ready": 0, "setup-available": 1, "activation-required": 0, "blocked": 0, "total": 1}
+        }
         """
         let pluralJSON = """
-        {"schema_version": "1.0", "mode": "status", "result": "action-required", "workspaces": [], "summary": {"ready": 3, "setup-available": 6, "activation-required": 3, "blocked": 0, "total": 12}}
+        {
+          "schema_version": "1.0", "mode": "status", "result": "action-required",
+          "workspaces": [
+            {"path": "/p/a", "name": "a", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/p/b", "name": "b", "project_id": null, "state": "activation-required", "detail": "Shared Copilot setup is present but is not active on this Mac.", "declared_components": ["claude"], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}},
+            {"path": "/p/c", "name": "c", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "ask", "policy_detail": "You'll be asked before anything is added here.", "can_apply_now": false, "apply_blocked_detail": "Existing project setup needs review. Nothing was changed.", "undo": {"available": false, "detail": "There's nothing here to undo yet."}}
+          ],
+          "summary": {"ready": 0, "setup-available": 2, "activation-required": 1, "blocked": 0, "total": 3}
+        }
         """
         guard let singularData = singularJSON.data(using: .utf8),
               let singularReport = try? selftestDecoder().decode(WorkspacesReport.self, from: singularData),
@@ -2656,8 +2698,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pluralCount = ProjectsNoticeRender.actionableCount(pluralReport)
         let noticePass = singularCount == 1
             && ProjectsNoticeRender.noticeText(count: singularCount) == "1 project can have your copilots. Nothing is added until you say so."
-            && pluralCount == 9
-            && ProjectsNoticeRender.noticeText(count: pluralCount) == "9 projects can have your copilots. Nothing is added until you say so."
+            && pluralCount == 2
+            && ProjectsNoticeRender.noticeText(count: pluralCount) == "2 projects can have your copilots. Nothing is added until you say so."
 
         let rowsJSON = """
         {
