@@ -13,6 +13,10 @@ superseded_by: null
 
 # CLI layer schema mismatch and Discord hook outage
 
+> For the current user-install pickup, release provenance, safe diagnostic
+> commands, and exact next steps, continue with
+> [`phase-6-v0.1.3-user-install-handoff.md`](../02-enac-self-onboarding/phases/phase-6-v0.1.3-user-install-handoff.md).
+
 | Field | Value |
 |---|---|
 | Date | 2026-07-28 |

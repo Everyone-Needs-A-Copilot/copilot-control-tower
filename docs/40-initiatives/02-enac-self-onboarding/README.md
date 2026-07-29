@@ -2,7 +2,7 @@
 initiative: 02-enac-self-onboarding
 title: ENAC Self-Onboarding — Dogfood the Ecosystem on Everyone Needs A Copilot
 status: active
-status_note: Live on ENAC's Mac — cli-copilot (and knowledge-copilot) split into public foundation + private -internal and pushed; the CLI tier-inheritance runtime (manifest + overlay loader + layered settings) and the fail-closed credential ladder shipped; all org secrets migrated to Infisical, only the Infisical bootstrap creds + Discord bridge token in keychain (owner-ratified "everything in Infisical, only the necessary in keychain"). Verified (887+15+92+33 tests, 0 fail-closed). Tier fully locked in + cut over (Phase 4+5, 2026-07-21): config inheritance, `copilot update` mirror-sync, and the full org-`.env` migration all shipped; the org mirror is now a clean git clone with no `.env` (foundation pinned `^0.3.0`→`v0.3.0`). Next: prove install + two-machine onboarding — phases/phase-6-ecosystem-install-and-onboarding-proof.md. Public flip still gated. Phase 6a (2026-07-25/27, unmerged/unpushed on both repos): closed a chain of wizard/CLI dead ends found while dogfooding Phase 6 — a collapsed Holding screen, a false-complete confirmation, the CLI refusing an existing working GitHub connection instead of adopting it, a structural sign-in deadlock on a fresh Mac, and the missing organization-name question; owner action still required — publish `Everyone-Needs-A-Copilot/copilot-bootstrap` — phases/phase-6-honest-setup-handoff.md.
+status_note: Tier runtime, credential ladder, and org-config cutover are live. Phase 6 software and release hardening produced signed/notarized Control Tower 0.1.3 with complete headless Detect and inert production Set up-to-Verify proof. The app is ready for the owner to replace 0.1.1 and run the real User Setup; that live apply and the separate cold second-machine proof remain open. Continue from phases/phase-6-v0.1.3-user-install-handoff.md.
 owner: Pablo Alejo
 created: 2026-07-16
 execution_context:
@@ -14,14 +14,16 @@ superseded_by: null
 # ENAC Self-Onboarding — Dogfood the Ecosystem on Everyone Needs A Copilot
 
 > Mode: Initiative
-> Status: **Tier runtime + credential ladder LIVE on ENAC's Mac**; foundations
-> split and pushed. Remaining to fully lock in: config inheritance,
-> `copilot update` mirror-sync, fan-out validation, then the gated public flip.
-> **Taking this over? Read this README, then
+> Status: **Tier runtime, credential ladder, and org-config cutover are live on
+> ENAC's Mac.** Control Tower 0.1.3 is published and release-proven. The owner's
+> real User Setup apply and the separate cold second-machine proof remain.
+> **Taking this over? Read
+> [`phases/phase-6-v0.1.3-user-install-handoff.md`](phases/phase-6-v0.1.3-user-install-handoff.md)
+> first for the current pickup, then
 > [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md)
 > (what's live) and
 > [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md)
-> (what's left). The Phase 1/2 runbooks remain the reference for the GitHub
+> (how the live tier was completed). The Phase 1/2 runbooks remain the reference for the GitHub
 > standup + fan-out mechanics.**
 
 ## Goal
@@ -128,8 +130,8 @@ service + 33 ladder tests; 0 fail-closed). Full record:
 | Phase 3 | **Tier runtime + credential ladder** — layered settings, overlay loader, fail-closed secret ladder, full secret migration to Infisical | Phase 1 | **Shipped + live on ENAC's Mac.** [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md) |
 | Phase 4 | **Lock the tier in fully** — config inheritance, `copilot update` mirror-sync, fan-out validation, cleanup | Phase 3 | **Done + live.** [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md) |
 | Phase 5 | **Org-config migration + cutover** — move all org config out of the gitignored `.env` (non-secret → committed overlay `config:`; secrets → Infisical/keychain); org mirror is now a clean git clone with no `.env` | Phase 4 | **Done + cut over live (2026-07-21).** Recorded in the `phase-5(…)` commits, WP-79, memory `phase-5-org-config-migration`. |
-| Phase 6 | **Ecosystem install + two-machine onboarding proof** — Admin provisions shared Claude/Codex layers; User Setup provisions user-owned personal layers; prove `personal (10) -> organization (30) -> foundation (40)` from a cold machine | Phase 5 | **Entry-ready — implementation and proof are the next work.** [`phases/phase-6-ecosystem-install-and-onboarding-proof.md`](phases/phase-6-ecosystem-install-and-onboarding-proof.md) |
-| Phase 6a | **Honest setup** — close the wizard/CLI dead ends dogfooding Phase 6 surfaced: a collapsed Holding screen, a false-complete confirmation, the CLI refusing an adoptable GitHub connection, a fresh-Mac sign-in deadlock, and the missing organization-name question | Phase 6 (found while dogfooding it, not a prerequisite to it) | **Code complete on both repos, unmerged and unpushed. Owner action still required** (publish the public `copilot-bootstrap` repo) before a fresh Mac can sign in at all. [`phases/phase-6-honest-setup-work-record.md`](phases/phase-6-honest-setup-work-record.md) (what changed and why) + [`phases/phase-6-honest-setup-handoff.md`](phases/phase-6-honest-setup-handoff.md) (state, blockers, how to resume) |
+| Phase 6 | **Ecosystem install + two-machine onboarding proof** — Admin provisions shared Claude/Codex layers; User Setup provisions user-owned personal layers; prove `personal (10) -> organization (30) -> foundation (40)` from a cold machine | Phase 5 | **In progress.** Signed/notarized User app 0.1.3 is published and release-proven; the owner's real apply and the cold second-machine proof remain. [`phases/phase-6-v0.1.3-user-install-handoff.md`](phases/phase-6-v0.1.3-user-install-handoff.md) |
+| Phase 6a | **Honest setup** — close the wizard/CLI dead ends dogfooding Phase 6 surfaced: a collapsed Holding screen, a false-complete confirmation, the CLI refusing an adoptable GitHub connection, a fresh-Mac sign-in deadlock, and the missing organization-name question | Phase 6 (found while dogfooding it, not a prerequisite to it) | **Superseded as a pickup by the 0.1.3 handoff.** Retain [`phases/phase-6-honest-setup-work-record.md`](phases/phase-6-honest-setup-work-record.md) and [`phases/phase-6-honest-setup-handoff.md`](phases/phase-6-honest-setup-handoff.md) as implementation history. |
 
 ## Decisions
 
@@ -168,15 +170,12 @@ config lives in the committed overlay, secrets in Infisical + keychain, and
 `copilot update` regenerates the org mirror from a clean git clone (foundation
 pinned `^0.3.0` → `v0.3.0`).
 
-**The next action** is Phase 6: implement and prove the ecosystem can be
-*installed and onboarded* — Admin Setup on this machine, User Setup on this
-machine, and a cold laptop that inherits the three-layer Claude and Codex stacks
-(V-5). The real gaps are on the new-machine path (product-aware resolution and
-materialization, personal provisioning, verified executable-content policy,
-manifest delivery, packaged CLI installer, scoped machine-identity provisioning,
-and on-device SSH-key generation), not the existing CLI tier runtime. The one-way **public flip**
-of the base repos stays gated until that proof is green. Hand-off:
-[`phases/phase-6-ecosystem-install-and-onboarding-proof.md`](phases/phase-6-ecosystem-install-and-onboarding-proof.md).
+**The next action** is for the owner to replace Control Tower 0.1.1 with the
+published 0.1.3 User app and run the real User Setup. The exact signed artifact
+already passed real read-only Detect on this Mac and the production Set up →
+Verify orchestration against an inert helper. After recording the live result,
+continue the separate cold-laptop inheritance proof (V-5). Current handoff:
+[`phases/phase-6-v0.1.3-user-install-handoff.md`](phases/phase-6-v0.1.3-user-install-handoff.md).
 
 The original **rename-redirect hazard** (creating a new repo with the old name
 silently re-points every consumer at the base skeleton) was navigated during the
