@@ -1728,6 +1728,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let env = ProcessInfo.processInfo.environment
 
+        // Production headless seam for exercising the exact Detect boundary
+        // without creating a status item or showing the wizard. This is not
+        // a second implementation of detection: it calls the same typed
+        // CliClient verb the wizard calls, which in turn launches the same
+        // bundle-relative cc helper through the same Process and schema gate.
+        // The mode is deliberately plan-only and has no apply counterpart.
+        if Array(CommandLine.arguments.dropFirst()) == ["--headless-detect"] {
+            Self.runHeadlessDetect()
+            return
+        }
+
         // SELFTEST HOOKS (harness contract, adopt-and-project-setup spec) —
         // in-binary, offline, no `CliClient`/`Process` spawn: each decodes a
         // hand-built fixture payload with the SAME `JSONDecoder` config
@@ -2211,6 +2222,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 print("SELFTEST firstRun=\(isFirstRun)")
                 exit(0)
             }
+        }
+    }
+
+    private static func runHeadlessDetect() {
+        Task {
+            let helperPath = CliLocator.locate()?.path ?? ""
+            let result = await CliClient.shared.ecosystemOnboardPlan(
+                products: ["claude", "codex"]
+            )
+            var payload: [String: Any] = [
+                "mode": "headless-detect",
+                "helper": helperPath,
+                "read_only": true,
+            ]
+            var passed = false
+
+            switch result {
+            case .success(let report):
+                payload["schema_version"] = report.schemaVersion
+                payload["result"] = report.result.rawValue
+                payload["org"] = report.org
+                payload["products"] = report.products
+
+                if let stage = report.stages.first(where: { $0.stage == "layer-manifest" }) {
+                    var stagePayload: [String: Any] = [
+                        "result": stage.result,
+                    ]
+                    if let action = stage.action {
+                        stagePayload["action"] = action
+                    }
+                    if let detail = stage.detail {
+                        stagePayload["detail"] = detail
+                    }
+                    payload["layer_manifest"] = stagePayload
+                    passed = !((stage.detail ?? "").contains(
+                        "The installed `copilot` command is unavailable."
+                    ))
+                } else {
+                    payload["error"] = "The onboarding report did not inspect the layer manifest."
+                }
+
+            case .failure(let error):
+                payload["error"] = String(describing: error)
+            }
+
+            payload["contract"] = passed ? "pass" : "fail"
+            do {
+                let data = try JSONSerialization.data(
+                    withJSONObject: payload,
+                    options: [.sortedKeys]
+                )
+                FileHandle.standardOutput.write(data)
+                FileHandle.standardOutput.write(Data("\n".utf8))
+            } catch {
+                FileHandle.standardError.write(
+                    Data("headless Detect could not encode its report\n".utf8)
+                )
+                exit(2)
+            }
+            exit(passed ? 0 : 1)
         }
     }
 

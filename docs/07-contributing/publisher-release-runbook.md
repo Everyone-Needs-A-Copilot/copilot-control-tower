@@ -313,6 +313,19 @@ runs Gatekeeper assessment, and emits a SHA-256 sidecar plus
 compatibility matrix, and the upstream helper notarization record under
 `dist/user-release/`.
 
+Before notarization, the same command runs the final app binary's production
+Detect seam without displaying the menu bar item or wizard:
+
+```bash
+./scripts/headless-detect.sh \
+  --app "build/Copilot Control Tower.app"
+```
+
+The runner preserves the signed-in user session, substitutes Finder's `PATH`,
+calls `--headless-detect`, and requires a read-only two-product report that
+actually inspected `layer-manifest`. A blocked user-state result remains honest
+JSON; a broken app/helper contract blocks the release.
+
 The result is a publisher-produced artifact suitable for admin/fleet testing.
 It is not, by itself, a complete `stable` self-update promotion until the
 update-manifest signing custody decision is resolved.

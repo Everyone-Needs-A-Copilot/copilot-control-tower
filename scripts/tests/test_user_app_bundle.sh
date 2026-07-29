@@ -72,6 +72,26 @@ if [[ "${tray_wait_output}" != *"SELFTEST trayWait join=pass add=pass undo=pass 
   exit 1
 fi
 
+# Exercise the production headless seam through the real app binary and the
+# same CliClient typed verb Detect uses. The mock owns ecosystem computation;
+# this assertion covers app location/spawn/schema/decode/reporting only.
+headless_detect_output="$(
+  CT_CLI_PATH="${REPO_ROOT}/src-tauri/fixtures/mock-cc" \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+    "${APP_BIN}" --headless-detect
+)"
+/usr/bin/python3 - "${headless_detect_output}" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+assert payload["mode"] == "headless-detect"
+assert payload["contract"] == "pass"
+assert payload["read_only"] is True
+assert payload["products"] == ["claude", "codex"]
+assert payload["layer_manifest"]["result"] == "changes-required"
+PY
+
 # The wizard's Set up step once faked its progress: a Swift-built label array
 # advanced by `cyclePhases`' own `Task.sleep`, running after the real call had
 # already returned. Progress must come from the CLI's reported stages, so keep

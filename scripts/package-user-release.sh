@@ -163,6 +163,10 @@ embedded_cc_sha="$(shasum -a 256 "${embedded_cc}" | awk '{print $1}')"
     die "embedded cc changed while building the app"
 scripts/verify-vendored-cc.sh --release "${embedded_cc}"
 
+echo "release: exercising the exact app Detect seam without UI"
+headless_detect_report="${stage_dir}/headless-detect.json"
+scripts/headless-detect.sh --app "${app_path}" > "${headless_detect_report}"
+
 version="$(plutil -extract CFBundleShortVersionString raw "${plist_path}")"
 build_number="$(plutil -extract CFBundleVersion raw "${plist_path}")"
 architecture="$(uname -m)"
@@ -219,6 +223,7 @@ cat > "${OUTPUT_DIR}/release-metadata.json" <<EOF
   "architecture": "${architecture}",
   "vendored_cc_version": "${vendored_cc_version}",
   "vendored_cc_sha256": "${vendored_cc_sha}",
+  "headless_detect": "passed",
   "developer_id_identity": "${CT_SIGN_IDENTITY}",
   "notarized": true,
   "stapled": true,
