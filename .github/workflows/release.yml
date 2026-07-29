@@ -58,6 +58,7 @@ jobs:
 
       - name: Verify native User app scenarios
         run: |
+          ./scripts/tests/test_headless_detect.sh
           ./scripts/tests/test_user_app_bundle.sh
           ./scripts/tests/smoke-scenarios.sh
 

@@ -1,7 +1,7 @@
 # M9 Stream-I (task 78) — winget default-locale manifest (en-US), the third
 # of the 3-file manifest shape (version / installer / locale).
 PackageIdentifier: EveryoneNeedsACopilot.ControlTower
-PackageVersion: 0.1.1
+PackageVersion: 0.1.2
 PackageLocale: en-US
 Publisher: Everyone Needs a Copilot
 PublisherUrl: https://everyoneneedsacopilot.dev

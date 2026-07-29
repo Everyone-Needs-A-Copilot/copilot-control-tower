@@ -38,6 +38,54 @@ bounded compatibility path for legacy `component` manifests, rejects
 contradictory dual declarations, and makes Discord hook shims fail open when the
 optional transport is unavailable.
 
+## 2026-07-29 follow-up: Finder Detect failure
+
+Control Tower 0.1.1 later reached `layer-manifest` and reported:
+
+```text
+The installed `copilot` command is unavailable.
+```
+
+This was a separate launch-environment defect with the same underlying process
+failure: a local terminal happened to supply state that the shipped app did not.
+The app correctly located its bundle-relative `cc` helper by absolute path, but
+that helper located its own `copilot` dependency only with `shutil.which`.
+Finder launches an app with `/usr/bin:/bin:/usr/sbin:/sbin`, so Homebrew's
+`/opt/homebrew/bin/copilot` disappeared even though it was installed and usable.
+
+Three testing gaps allowed this to ship:
+
+1. App tests replaced `cc` with a mock and therefore stopped at the app/CLI
+   boundary. They never exercised the bundled helper's dependencies.
+2. The upstream release probe erased the entire environment instead of changing
+   only `PATH`, then accepted any exit-0/exit-1 ecosystem report without
+   requiring the `layer-manifest` inspection.
+3. The branch producing `cc` had no CI job for its onboarding contracts.
+
+The repaired boundary follows one rule: `cc` owns machine inventory and
+resolves every direct dependency to a canonical absolute executable. Control
+Tower remains a parse-only client. Both the UI and the headless runner call the
+same `CliClient.ecosystemOnboardPlan` production verb; neither reimplements
+inventory.
+
+New controls:
+
+- `cc 1.7.10` centrally resolves `gh`, `copilot`, `claude`, and `codex` from
+  the current `PATH` followed by bounded user/Homebrew locations.
+- The upstream macOS release gate preserves the signed-in session, substitutes
+  Finder's `PATH`, covers both products, and requires a real layer-manifest
+  inspection.
+- Control Tower's production binary accepts `--headless-detect`, runs the exact
+  app Detect seam, prints JSON, and exits before creating UI.
+- `scripts/headless-detect.sh` runs that mode against any app bundle. The User
+  release pipeline runs it against the exact embedded, signed helper before
+  notarization.
+
+This is the required testing shape for future background operations: test the
+state engine directly, test the app's typed seam headlessly, then run the same
+headless command against the final packaged artifact. Opening the UI is a
+visual-product check, not the primary integration test.
+
 ## Causal chain
 
 1. Control Tower and the `cc` manifest authority wrote and validated
