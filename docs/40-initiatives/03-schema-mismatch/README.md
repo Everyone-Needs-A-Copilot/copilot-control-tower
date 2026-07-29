@@ -2,12 +2,12 @@
 initiative: 03-schema-mismatch
 title: CLI Layer Schema Mismatch and Discord Hook Outage
 status: complete
-status_note: Original remediation released in 0.1.1; Finder-path Detect follow-up released with signed/notarized cc 1.7.10 in Control Tower 0.1.2.
+status_note: Original remediation released in 0.1.1; Finder-path fix released in 0.1.2; complete headless first-run release gate shipped in notarized Control Tower 0.1.3.
 owner: Pablo Alejo
 created: 2026-07-28
 execution_context:
   prd: "Incident remediation tracked under tc task 170."
-  tasks: "tc tasks 171-174; release replacement is task 174."
+  tasks: "tc tasks 171-176; complete first-run proof and 0.1.3 release are task 176."
 superseded_by: null
 ---
 
@@ -16,7 +16,7 @@ superseded_by: null
 | Field | Value |
 |---|---|
 | Date | 2026-07-28 |
-| Status | Remediation released in Control Tower 0.1.1 |
+| Status | Remediation and complete first-run release gate shipped through Control Tower 0.1.3 |
 | Impact | Claude Code rejected every prompt at `UserPromptSubmit` |
 | Trigger | The aggregate layer manifest used `product: cli`, while CLI Copilot still filtered for `component: cli` |
 
@@ -114,6 +114,33 @@ Follow-up release evidence:
 - final artifact headless result:
   `contract=pass`, `read_only=true`, products `claude,codex`,
   `layer-manifest=changes-required/repair`.
+
+Confidence-gate release evidence:
+
+- Control Tower 0.1.3:
+  <https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/releases/tag/v0.1.3>;
+- exact app source and tag target:
+  `078adc18c76d4eace2ddab22f5cfabc0bf05dbd7`;
+- app/DMG notarization:
+  `e8b59eb8-f105-4b86-bc0c-8e14e16787f3` (`Accepted`);
+- uploaded DMG SHA-256:
+  `41f8c79472a43b21660efc143fa00b62b41a6caaa2d0c955391b5a3153423173`;
+- exact mounted-download Gatekeeper result:
+  `accepted`, source `Notarized Developer ID`;
+- exact mounted-download Detect result:
+  all three calls decoded, `contract=pass`, `read_only=true`,
+  `auth=authorized`, products `claude,codex`,
+  `layer-manifest=changes-required/repair`;
+- exact mounted-download isolated setup result:
+  `apply=ready`, `layer-manifest=applied`,
+  onboarding doctor `healthy`, verify-time doctor `healthy`;
+- engine verification:
+  onboarding transaction/rollback suite `41 passed`; non-optional `cc` suite
+  `1134 passed`;
+- Control Tower verification:
+  Rust unit tests `700 passed`, all fitness targets passed, app scenario
+  matrix `110 passed`, CLI seam, bundle, schema compatibility, helper
+  signature, notarization, staple, and Gatekeeper gates passed.
 
 ## Causal chain
 
