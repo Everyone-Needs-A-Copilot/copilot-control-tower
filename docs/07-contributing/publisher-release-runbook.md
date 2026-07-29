@@ -319,12 +319,23 @@ Detect seam without displaying the menu bar item or wizard:
 ```bash
 ./scripts/headless-detect.sh \
   --app "build/Copilot Control Tower.app"
+
+./scripts/headless-setup-transaction.sh \
+  --app "build/Copilot Control Tower.app"
 ```
 
 The runner preserves the signed-in user session, substitutes Finder's `PATH`,
-calls `--headless-detect`, and requires a read-only two-product report that
-actually inspected `layer-manifest`. A blocked user-state result remains honest
-JSON; a broken app/helper contract blocks the release.
+calls `--headless-detect`, and requires successful typed responses from every
+production call made by Detect: `auth status`, `doctor`, and the read-only
+two-product onboarding plan, including an actual `layer-manifest` inspection.
+A blocked user-state result remains honest JSON; an unreadable response or a
+broken app/helper contract blocks the release.
+
+The setup-transaction runner uses the inert fixture helper, not the bundled
+real helper. It exercises the production `WizardModel`'s Set up -> Verify
+tail, requires the exact two-product `--apply` argv, and requires the separate
+verify-time doctor call. This proves app orchestration and decoding without
+changing the publisher's or user's setup.
 
 The result is a publisher-produced artifact suitable for admin/fleet testing.
 It is not, by itself, a complete `stable` self-update promotion until the

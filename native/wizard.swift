@@ -1451,6 +1451,17 @@ final class WizardModel: ObservableObject {
                 }
                 return
             }
+            // A valid `auth status` envelope is not itself proof of a signed
+            // in account: `signed-out` is an ordinary, decodable state. Detect
+            // must never turn that into the false line "GitHub: signed in."
+            // Return to the existing device-flow screen, the same recovery
+            // used by the CLI's typed `signed-out` error.
+            guard status.state == .authorized else {
+                self.pollTask?.cancel()
+                self.phase = .connectGitHub
+                self.beginDeviceFlow()
+                return
+            }
             guard case .success(let doctor) = doctorResult else {
                 if case .failure(let error) = doctorResult {
                     self.routeCliError(error, origin: .detect)

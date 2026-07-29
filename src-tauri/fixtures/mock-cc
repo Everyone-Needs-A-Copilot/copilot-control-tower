@@ -293,6 +293,12 @@ auth_scenario="${CT_AUTH_SCENARIO:-${CC_AUTH_SCENARIO:-authorized}}"
 # --poll on the command line win over env vars / defaults. WS-A Stream-Z additions:
 # --project <path> / --fanout (for `update`), --all-projects (for `freshness`).
 args=("$@")
+# Optional test-only audit trail. This fixture never mutates product state,
+# but integration tests can ask it to record the exact argv received so a
+# passing decoder cannot hide that the wrong production verb was called.
+if [[ -n "${CT_MOCK_INVOCATION_LOG:-}" ]]; then
+  printf '%s\n' "$*" >>"${CT_MOCK_INVOCATION_LOG}"
+fi
 verb=""
 subverb=""
 arg3=""

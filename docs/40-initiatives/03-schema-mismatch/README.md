@@ -75,11 +75,19 @@ New controls:
 - The upstream macOS release gate preserves the signed-in session, substitutes
   Finder's `PATH`, covers both products, and requires a real layer-manifest
   inspection.
-- Control Tower's production binary accepts `--headless-detect`, runs the exact
-  app Detect seam, prints JSON, and exits before creating UI.
+- Control Tower's production binary accepts `--headless-detect`, runs all
+  three calls in the exact app Detect seam (`auth status`, `doctor`, and the
+  ecosystem onboarding plan), prints their typed results as JSON, and exits
+  before creating UI.
 - `scripts/headless-detect.sh` runs that mode against any app bundle. The User
   release pipeline runs it against the exact embedded, signed helper before
   notarization.
+- `scripts/headless-setup-transaction.sh` runs the production
+  `WizardModel` from Set up through Verify against the inert fixture helper,
+  and independently verifies that the exact apply and verify commands were
+  sent. The User release pipeline runs this against the same signed app while
+  guaranteeing that the bundled real helper and the user's files are not
+  touched.
 
 This is the required testing shape for future background operations: test the
 state engine directly, test the app's typed seam headlessly, then run the same

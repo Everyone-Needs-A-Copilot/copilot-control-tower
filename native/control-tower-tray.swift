@@ -1730,10 +1730,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Production headless seam for exercising the exact Detect boundary
         // without creating a status item or showing the wizard. This is not
-        // a second implementation of detection: it calls the same typed
-        // CliClient verb the wizard calls, which in turn launches the same
-        // bundle-relative cc helper through the same Process and schema gate.
-        // The mode is deliberately plan-only and has no apply counterpart.
+        // a second implementation of detection: it calls the same THREE
+        // typed CliClient verbs the wizard's `performDetect` calls, which in
+        // turn launch the same bundle-relative cc helper through the same
+        // Process and schema gate. The mode is deliberately plan-only and
+        // has no apply counterpart.
         if Array(CommandLine.arguments.dropFirst()) == ["--headless-detect"] {
             Self.runHeadlessDetect()
             return
@@ -1759,6 +1760,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if env["CT_SETUP_PROGRESS_SELFTEST"] == "1" {
             exit(Self.runSetupProgressSelftest() ? 0 : 1)
+        }
+        if env["CT_SETUP_TRANSACTION_SELFTEST"] == "1" {
+            // This proof executes the real WizardModel Set up -> Verify
+            // orchestration, including the production apply verb, so it is
+            // allowed only against the inert fixture helper. An arbitrary
+            // CT_CLI_PATH must never turn a selftest into a live mutation.
+            guard env["CT_ALLOW_INERT_SETUP_PROOF"] == "1",
+                  let override = env["CT_CLI_PATH"],
+                  URL(fileURLWithPath: override).lastPathComponent == "mock-cc"
+            else {
+                print("SELFTEST setupTransaction guard=fail")
+                exit(1)
+            }
+            Self.runSetupTransactionSelftest()
+            return
         }
         if env["CT_TRAY_WAIT_SELFTEST"] == "1" {
             exit(Self.runTrayWaitSelftest() ? 0 : 1)
@@ -2228,17 +2244,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static func runHeadlessDetect() {
         Task {
             let helperPath = CliLocator.locate()?.path ?? ""
-            let result = await CliClient.shared.ecosystemOnboardPlan(
+            async let authAsync = CliClient.shared.authStatus()
+            async let doctorAsync = CliClient.shared.doctor()
+            async let onboardAsync = CliClient.shared.ecosystemOnboardPlan(
                 products: ["claude", "codex"]
             )
+            let authResult = await authAsync
+            let doctorResult = await doctorAsync
+            let onboardResult = await onboardAsync
             var payload: [String: Any] = [
                 "mode": "headless-detect",
                 "helper": helperPath,
                 "read_only": true,
+                "calls": ["auth-status", "doctor", "onboard-plan"],
             ]
-            var passed = false
+            var passed = !helperPath.isEmpty
 
-            switch result {
+            switch authResult {
+            case .success(let status):
+                var authPayload: [String: Any] = [
+                    "schema_version": status.schemaVersion,
+                    "kind": status.kind,
+                    "status": status.state.rawValue,
+                ]
+                if let login = status.identity?.login {
+                    authPayload["login"] = login
+                }
+                if let scope = status.scope {
+                    authPayload["scope"] = scope
+                }
+                payload["auth"] = authPayload
+                if status.state != .authorized {
+                    passed = false
+                }
+            case .failure(let error):
+                payload["auth_error"] = String(describing: error)
+                passed = false
+            }
+
+            switch doctorResult {
+            case .success(let report):
+                payload["doctor"] = [
+                    "schema_version": report.schemaVersion,
+                    "status": report.status.rawValue,
+                    "score": report.score,
+                    "offline": report.offline,
+                ]
+            case .failure(let error):
+                payload["doctor_error"] = String(describing: error)
+                passed = false
+            }
+
+            switch onboardResult {
             case .success(let report):
                 payload["schema_version"] = report.schemaVersion
                 payload["result"] = report.result.rawValue
@@ -2256,15 +2313,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         stagePayload["detail"] = detail
                     }
                     payload["layer_manifest"] = stagePayload
-                    passed = !((stage.detail ?? "").contains(
+                    if (stage.detail ?? "").contains(
                         "The installed `copilot` command is unavailable."
-                    ))
+                    ) {
+                        passed = false
+                    }
                 } else {
                     payload["error"] = "The onboarding report did not inspect the layer manifest."
+                    passed = false
                 }
 
             case .failure(let error):
-                payload["error"] = String(describing: error)
+                payload["onboard_error"] = String(describing: error)
+                passed = false
             }
 
             payload["contract"] = passed ? "pass" : "fail"
@@ -2282,6 +2343,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 exit(2)
             }
             exit(passed ? 0 : 1)
+        }
+    }
+
+    /// Runs the exact asynchronous Set up tail without constructing UI:
+    /// `ecosystemOnboardApply` -> stage decode -> `doctor` -> verified.
+    /// The launch guard above restricts this to the inert `mock-cc` fixture;
+    /// `CT_MOCK_INVOCATION_LOG` independently proves the argv it received.
+    private static func runSetupTransactionSelftest() {
+        Task { @MainActor in
+            let model = WizardModel()
+            model.includeCodex = true
+            model.beginMaterialize()
+
+            let deadline = Date().addingTimeInterval(10)
+            while Date() < deadline {
+                switch model.phase {
+                case .verified:
+                    let manifest = model.lastOnboardStages.first {
+                        $0.stage == "layer-manifest"
+                    }
+                    let onboardDoctor = model.lastOnboardStages.first {
+                        $0.stage == "doctor"
+                    }
+                    let passed = model.lastOnboardResult == .ready
+                        && manifest?.result == "applied"
+                        && onboardDoctor?.result == "healthy"
+                    print(
+                        "SELFTEST setupTransaction "
+                            + "apply=\(model.lastOnboardResult?.rawValue ?? "missing") "
+                            + "layerManifest=\(manifest?.result ?? "missing") "
+                            + "onboardDoctor=\(onboardDoctor?.result ?? "missing") "
+                            + "verify=healthy"
+                    )
+                    exit(passed ? 0 : 1)
+                case .holding:
+                    print("SELFTEST setupTransaction apply=blocked holding=entered")
+                    exit(1)
+                default:
+                    break
+                }
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+            print("SELFTEST setupTransaction timeout=fail")
+            exit(1)
         }
     }
 

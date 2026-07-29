@@ -22,9 +22,9 @@ set -euo pipefail
 printf '%s\n' "$*" > "${CT_TEST_ARGS}"
 printf '%s\n' "${PATH}" > "${CT_TEST_PATH}"
 if [[ "${CT_TEST_CONTRACT:-pass}" == "pass" ]]; then
-    printf '%s\n' '{"contract":"pass","helper":"/tmp/cc","layer_manifest":{"result":"changes-required"},"mode":"headless-detect","org":"acme-co","products":["claude","codex"],"read_only":true,"result":"changes-required","schema_version":"1.0"}'
+    printf '%s\n' '{"auth":{"kind":"status","schema_version":"1.0","status":"authorized"},"calls":["auth-status","doctor","onboard-plan"],"contract":"pass","doctor":{"offline":false,"schema_version":"1.0","score":100,"status":"healthy"},"helper":"/tmp/cc","layer_manifest":{"result":"changes-required"},"mode":"headless-detect","org":"acme-co","products":["claude","codex"],"read_only":true,"result":"changes-required","schema_version":"1.0"}'
 else
-    printf '%s\n' '{"contract":"fail","error":"simulated failure","mode":"headless-detect","products":["claude","codex"],"read_only":true}'
+    printf '%s\n' '{"calls":["auth-status","doctor","onboard-plan"],"contract":"fail","error":"simulated failure","mode":"headless-detect","products":["claude","codex"],"read_only":true}'
 fi
 EOF
 chmod +x "${APP_BINARY}"
@@ -44,6 +44,9 @@ import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
 assert payload["contract"] == "pass"
 assert payload["read_only"] is True
+assert payload["calls"] == ["auth-status", "doctor", "onboard-plan"]
+assert payload["auth"]["status"] == "authorized"
+assert payload["doctor"]["status"] == "healthy"
 assert payload["products"] == ["claude", "codex"]
 PY
 

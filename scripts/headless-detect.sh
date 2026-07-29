@@ -3,9 +3,11 @@
 #
 # This launches the app executable with --headless-detect. The binary uses
 # its normal bundle-relative cc locator, Process boundary, schema gate, and
-# EcosystemOnboardReport decoder, then exits before creating a status item or
-# wizard window. Only PATH is replaced to match a Finder launch; the signed-in
-# user session, HOME, Keychain access, and launchd environment are preserved.
+# all three typed decoders used by the real Detect step (`auth status`,
+# `doctor`, and the ecosystem onboarding plan), then exits before creating a
+# status item or wizard window. Only PATH is replaced to match a Finder
+# launch; the signed-in user session, HOME, Keychain access, and launchd
+# environment are preserved.
 
 set -euo pipefail
 
@@ -86,10 +88,23 @@ if payload.get("mode") != "headless-detect":
     raise SystemExit("the app returned the wrong headless mode")
 if payload.get("read_only") is not True:
     raise SystemExit("the app did not confirm a read-only plan")
+if payload.get("calls") != ["auth-status", "doctor", "onboard-plan"]:
+    raise SystemExit("Detect did not execute its complete production call set")
 if payload.get("products") != ["claude", "codex"]:
     raise SystemExit("Detect did not inspect both supported products")
 if payload.get("contract") != "pass":
-    raise SystemExit(payload.get("error") or "the Detect contract failed")
+    error = (
+        payload.get("auth_error")
+        or payload.get("doctor_error")
+        or payload.get("onboard_error")
+        or payload.get("error")
+        or "the Detect contract failed"
+    )
+    raise SystemExit(error)
+if not isinstance(payload.get("auth"), dict):
+    raise SystemExit("Detect did not decode GitHub authentication status")
+if not isinstance(payload.get("doctor"), dict):
+    raise SystemExit("Detect did not decode the machine health report")
 if not isinstance(payload.get("layer_manifest"), dict):
     raise SystemExit("Detect did not inspect the layer manifest")
 PY

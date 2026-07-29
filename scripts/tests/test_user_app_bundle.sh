@@ -66,6 +66,14 @@ if [[ "${setup_progress_output}" != *"SELFTEST setupProgress neverStarted=pass d
   exit 1
 fi
 
+setup_transaction_output="$(
+  scripts/headless-setup-transaction.sh --app "${APP}"
+)"
+if [[ "${setup_transaction_output}" != *"SELFTEST setupTransaction apply=ready layerManifest=applied onboardDoctor=healthy verify=healthy"* ]]; then
+  echo "Setup transaction selftest failed: ${setup_transaction_output}" >&2
+  exit 1
+fi
+
 tray_wait_output="$(CT_TRAY_WAIT_SELFTEST=1 "${APP_BIN}")"
 if [[ "${tray_wait_output}" != *"SELFTEST trayWait join=pass add=pass undo=pass namedSpinner=pass"* ]]; then
   echo "Tray named-wait selftest failed: ${tray_wait_output}" >&2
@@ -88,9 +96,41 @@ payload = json.loads(sys.argv[1])
 assert payload["mode"] == "headless-detect"
 assert payload["contract"] == "pass"
 assert payload["read_only"] is True
+assert payload["calls"] == ["auth-status", "doctor", "onboard-plan"]
+assert payload["auth"]["status"] == "authorized"
+assert payload["doctor"]["status"] == "healthy"
 assert payload["products"] == ["claude", "codex"]
 assert payload["layer_manifest"]["result"] == "changes-required"
 PY
+
+# Every production Detect call is gating. A healthy onboarding plan must not
+# hide an unreadable auth or doctor response.
+if CT_CLI_PATH="${REPO_ROOT}/src-tauri/fixtures/mock-cc" \
+    CT_AUTH_SCENARIO=exit-2 \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+    "${APP_BIN}" --headless-detect >/dev/null 2>&1
+then
+  echo "headless Detect accepted an unreadable auth status" >&2
+  exit 1
+fi
+
+if CT_CLI_PATH="${REPO_ROOT}/src-tauri/fixtures/mock-cc" \
+    CT_AUTH_SCENARIO=signed-out \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+    "${APP_BIN}" --headless-detect >/dev/null 2>&1
+then
+  echo "headless Detect accepted a signed-out account" >&2
+  exit 1
+fi
+
+if CT_CLI_PATH="${REPO_ROOT}/src-tauri/fixtures/mock-cc" \
+    CT_FIXTURE=exit-2 \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+    "${APP_BIN}" --headless-detect >/dev/null 2>&1
+then
+  echo "headless Detect accepted an unreadable doctor/onboard response" >&2
+  exit 1
+fi
 
 # The wizard's Set up step once faked its progress: a Swift-built label array
 # advanced by `cyclePhases`' own `Task.sleep`, running after the real call had
