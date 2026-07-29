@@ -10,7 +10,7 @@
 # (PackageIdentifier, PackageVersion, DefaultLocale, ManifestType/Version)
 # — well-formed YAML, syntax-checkable, semantically unverified.
 PackageIdentifier: EveryoneNeedsACopilot.ControlTower
-PackageVersion: 0.1.6
+PackageVersion: 0.1.7
 DefaultLocale: en-US
 ManifestType: version
 ManifestVersion: 1.6.0

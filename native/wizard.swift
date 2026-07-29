@@ -5553,6 +5553,15 @@ final class WizardWindowController: NSWindowController {
         WizardSelftest.runIfRequested()
     }
 
+    /// Settings' explicit "Choose projects to set up…" route. This does not
+    /// reset the completed-first-run flag or replay Welcome; it opens the
+    /// existing project step, which performs its normal read-only load and
+    /// asks before every project write.
+    func reopenForProjects() {
+        model.enterProjectsStep()
+        show()
+    }
+
     /// Region 6's `connection-offer` notice (`native/control-tower-tray.swift`):
     /// reopens this SAME wizard singleton positioned at the onboarding
     /// question. If this session already answered it once (`Not now` from

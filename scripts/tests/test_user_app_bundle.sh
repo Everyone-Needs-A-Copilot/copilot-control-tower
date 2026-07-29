@@ -38,6 +38,16 @@ if rg -q 'ProviderCard|Microsoft 365|Salesforce|Slack' native/wizard.swift; then
   echo "the User wizard regained the speculative provider catalog" >&2
   exit 1
 fi
+if rg -Fq 'Inert placeholder: Settings' native/control-tower-tray.swift; then
+  echo "the native Settings entry point is inert again" >&2
+  exit 1
+fi
+rg -Fq 'native/user-settings.swift' scripts/build-user.command
+rg -Fq 'UserSettingsWindowController.shared.show()' native/control-tower-tray.swift
+if [[ "$(rg -Fc 'openSettings()' native/control-tower-tray.swift)" -lt "3" ]]; then
+  echo "popover and menu Settings entries no longer share one open path" >&2
+  exit 1
+fi
 rg -Fq 'title: "Your connections"' native/wizard.swift
 rg -Fq 'No additional organization connections are available in Control Tower right now.' native/wizard.swift
 if ! sed -n '/func continueWithoutFailedProjects()/,/^    }/p' native/wizard.swift | rg -Fq 'beginVerify()'; then
@@ -70,7 +80,7 @@ if [[ "${onboard_question_output}" != *"SELFTEST onboardQuestion repoRowDecode=p
 fi
 
 projects_step_output="$(CT_PROJECTS_STEP_SELFTEST=1 "${APP_BIN}")"
-if [[ "${projects_step_output}" != *"SELFTEST projectsStep workspaceDecode=pass discovery=pass preselect=pass rootsDecode=pass stageOrder=pass"* ]]; then
+if [[ "${projects_step_output}" != *"SELFTEST projectsStep workspaceDecode=pass discovery=pass preselect=pass rootsDecode=pass stageOrder=pass settingsSummary=pass"* ]]; then
   echo "Your projects step selftest failed: ${projects_step_output}" >&2
   exit 1
 fi

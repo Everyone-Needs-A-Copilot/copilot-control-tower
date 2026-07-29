@@ -33,6 +33,7 @@ SOURCES=(
     native/cli-dtos.swift
     native/render-state.swift
     native/wizard.swift
+    native/user-settings.swift
     native/control-tower-tray.swift
     native/admin.swift
     native/admin-support.swift

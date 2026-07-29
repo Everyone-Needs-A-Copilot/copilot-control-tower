@@ -870,6 +870,7 @@ private struct JoinRow: View {
 
 struct PopoverContentView: View {
     @ObservedObject var model: TrayModel
+    let onOpenSettings: () -> Void
     @State private var showingWhatChanged = false
     @State private var showingProjectDrillIn = false
     /// The projects list (adopt-and-project-setup spec, "Menu bar: Your
@@ -1076,7 +1077,7 @@ struct PopoverContentView: View {
                 }
 
                 Button("Settings…") {
-                    // Inert placeholder: Settings (S3) is not built this phase.
+                    onOpenSettings()
                 }
                 .buttonStyle(.borderless)
 
@@ -1590,7 +1591,12 @@ final class StatusBarController: NSObject {
     private func configurePopover() {
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = NSHostingController(rootView: PopoverContentView(model: model))
+        popover.contentViewController = NSHostingController(
+            rootView: PopoverContentView(
+                model: model,
+                onOpenSettings: { [weak self] in self?.openSettings() }
+            )
+        )
     }
 
     // MARK: Refresh (initial launch, popover open, and the poll timer)
@@ -1728,7 +1734,12 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func showSettingsMenuAction() {
-        // Inert placeholder: Settings (S3) is not built this phase.
+        openSettings()
+    }
+
+    func openSettings() {
+        popover.performClose(nil)
+        UserSettingsWindowController.shared.show()
     }
 
     #if CT_ADMIN_BUILD
@@ -2208,6 +2219,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             WizardWindowController.shared.show()
         }
 
+        // Screenshot/smoke seam for the native post-onboarding Settings
+        // window. It exercises the same controller both production entry
+        // points call and performs only Settings' read-only status verbs.
+        if env["CT_OPEN_SETTINGS"] == "1" {
+            controller.openSettings()
+        }
+
         if isFirstRun {
             // Best-effort login-item registration, once, first-run only.
             // Failure (e.g. this ad-hoc `swiftc`-built binary isn't a signed
@@ -2640,13 +2658,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && WizardStage.projects.rawValue == WizardStage.integrations.rawValue + 1
             && WizardStage.materialize.rawValue == WizardStage.projects.rawValue + 1
 
-        let passed = workspaceDecodePass && discoveryPass && preselectPass && rootsDecodePass && stageOrderPass
+        let settingsSummary = UserSettingsRender.projectSummary(report)
+        let settingsSummaryPass = settingsSummary
+            == UserSettingsProjectSummary(total: 3, ready: 1, actionable: 1, needsReview: 1)
+
+        let passed = workspaceDecodePass && discoveryPass && preselectPass && rootsDecodePass
+            && stageOrderPass && settingsSummaryPass
         print(
             "SELFTEST projectsStep workspaceDecode=\(workspaceDecodePass ? "pass" : "fail") "
                 + "discovery=\(discoveryPass ? "pass" : "fail") "
                 + "preselect=\(preselectPass ? "pass" : "fail") "
                 + "rootsDecode=\(rootsDecodePass ? "pass" : "fail") "
-                + "stageOrder=\(stageOrderPass ? "pass" : "fail")"
+                + "stageOrder=\(stageOrderPass ? "pass" : "fail") "
+                + "settingsSummary=\(settingsSummaryPass ? "pass" : "fail")"
         )
         return passed
     }
@@ -2920,9 +2944,9 @@ struct ControlTowerTrayApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        // A window-less scene: `Settings` never auto-shows a window at
-        // launch, so combined with `.accessory` above, this app presents as
-        // pure `NSStatusItem` menu-bar presence only.
+        // The real post-onboarding Settings window is owned explicitly by
+        // `UserSettingsWindowController`, so this placeholder Scene never
+        // auto-shows a second window at launch.
         Settings {
             EmptyView()
         }
