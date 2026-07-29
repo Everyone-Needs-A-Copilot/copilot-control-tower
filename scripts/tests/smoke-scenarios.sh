@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S37) for both
+# smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S41) for both
 # native binaries, driven entirely by the mock CLI
 # (`src-tauri/fixtures/mock-cc`) and the SELFTEST contract:
 #
@@ -60,7 +60,10 @@
 #                                           landed, then (only on a
 #                                           `no-company-app` hold) `SELFTEST
 #                                           orgUseADifferentOrg phase=<...>
-#                                           field=<...>`), exit 0.
+#                                           field=<...>`; or, when
+#                                           CT_SELFTEST_STEP=auth-reuse,
+#                                           `SELFTEST authReuse=<reused|
+#                                           deviceFlow|holding>`), exit 0.
 #
 # Each scenario prints its own PASS/FAIL lines; the suite exits non-zero if
 # any assertion failed anywhere. Pass `--only <id>` to run a single scenario
@@ -855,8 +858,60 @@ scenario_S37() {
         CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO=authorized CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=org-question
     rm -rf "${home}"
     assert_exit_zero "${id} (CT_AUTH_SCENARIO=authorized, org never required)"
-    assert_contains "${id}" "SELFTEST orgPhase=connectGitHub"
+    assert_contains "${id}" "SELFTEST orgPhase=detect"
     assert_not_contains "${id}" "orgPhase=orgQuestion"
+}
+
+# ==========================================================================
+# Scenarios S38..S41 — reuse the existing GitHub authorization
+#
+# These drive the REAL Welcome -> GitHub transition and pair its state with
+# the mock CLI's exact argv audit trail. This catches both behavioral halves:
+# an authorized Keychain-backed session skips `auth login`; a genuinely
+# signed-out session still gets a device code. Unreadable status results hold
+# fail-closed and must never be mistaken for signed-out.
+# ==========================================================================
+
+auth_reuse_scenario() {
+    local id="$1" auth_scenario="$2" expected_state="$3"
+    local home invocation_log
+    home="$(fresh_home)"
+    invocation_log="$(mktemp "${TMPDIR:-/tmp}/ct-auth-reuse-log.XXXXXX")"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO="${auth_scenario}" \
+        CT_MOCK_INVOCATION_LOG="${invocation_log}" \
+        CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=auth-reuse
+    LAST_OUTPUT="${LAST_OUTPUT}"$'\n'"SELFTEST invocationLog:"$'\n'"$(<"${invocation_log}")"
+    rm -rf "${home}"
+    rm -f "${invocation_log}"
+
+    assert_exit_zero "${id} (${auth_scenario})"
+    assert_contains "${id} (${auth_scenario})" "SELFTEST authReuse=${expected_state}"
+    assert_contains "${id} (${auth_scenario})" "auth status --json"
+}
+
+scenario_S38() {
+    should_run S38 || return 0
+    auth_reuse_scenario S38 authorized reused
+    assert_not_contains "S38 (authorized)" "auth login"
+}
+
+scenario_S39() {
+    should_run S39 || return 0
+    auth_reuse_scenario S39 pending deviceFlow
+    assert_contains "S39 (signed-out)" "auth login --json"
+}
+
+scenario_S40() {
+    should_run S40 || return 0
+    auth_reuse_scenario S40 exit-2 holding
+    assert_not_contains "S40 (status exit-2)" "auth login"
+}
+
+scenario_S41() {
+    should_run S41 || return 0
+    auth_reuse_scenario S41 status-not-valid-json holding
+    assert_not_contains "S41 (malformed status)" "auth login"
 }
 
 # ==========================================================================
@@ -968,6 +1023,10 @@ scenario_S34
 scenario_S35
 scenario_S36
 scenario_S37
+scenario_S38
+scenario_S39
+scenario_S40
+scenario_S41
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

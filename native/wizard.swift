@@ -1023,6 +1023,7 @@ final class WizardModel: ObservableObject {
     @Published var projectsFolderBlockedDetail: String?
     private var hasLoadedProjectsStep = false
 
+    private var authStatusTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
     private var materializeInFlight = false
 
@@ -1215,7 +1216,35 @@ final class WizardModel: ObservableObject {
 
     func getStarted() {
         phase = .connectGitHub
-        beginDeviceFlow()
+        pollTask?.cancel()
+        deviceFlow = DeviceFlowState(status: .pending)
+        authStatusTask?.cancel()
+        authStatusTask = Task { [weak self] in
+            guard let self else { return }
+            let result = await CliClient.shared.authStatus()
+            guard !Task.isCancelled else { return }
+            self.authStatusTask = nil
+
+            switch result {
+            case .success(let status):
+                if status.state == .authorized {
+                    // The CLI's offline-safe status verdict is backed by
+                    // the existing Keychain credential. Reuse it and skip
+                    // the device ceremony; Detect independently reads the
+                    // verdict again as part of its normal trust gate.
+                    self.authorizedLogin = status.identity?.login
+                    self.deviceFlow.status = .authorized
+                    self.runDetect()
+                } else {
+                    self.beginDeviceFlow()
+                }
+            case .failure(let error):
+                // An unreadable credential store is not the same thing as
+                // signed out. Hold visibly instead of starting a fresh
+                // login and potentially replacing a valid connection.
+                self.handleConnectGitHubError(error, attemptedOrg: nil)
+            }
+        }
     }
 
     // MARK: Connect GitHub (#w2) — device flow
@@ -1246,6 +1275,8 @@ final class WizardModel: ObservableObject {
     /// persisted") — never before, and never for the `nil`/no-organization
     /// case, since there is nothing new to persist there.
     private func beginDeviceFlow(org: String?) {
+        authStatusTask?.cancel()
+        authStatusTask = nil
         pollTask?.cancel()
         lastAttemptedOrg = org
         deviceFlow = DeviceFlowState(status: .pending)
@@ -1416,6 +1447,8 @@ final class WizardModel: ObservableObject {
     }
 
     func backToWelcome() {
+        authStatusTask?.cancel()
+        authStatusTask = nil
         pollTask?.cancel()
         phase = .welcome
     }
@@ -5486,6 +5519,11 @@ enum WizardSelftest {
     }
 
     private static func run() async {
+        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "auth-reuse" {
+            await runAuthReuseSelftest()
+            exit(0)
+        }
+
         // CT_SELFTEST_STEP=org-question — the §2.1.1 organization question
         // and its `org-required`/`org-not-found`/`no-company-app`/
         // `network-unavailable` routing (org-question copy spec §2.1.1/§6).
@@ -5763,8 +5801,56 @@ enum WizardSelftest {
         case .connectGitHub: return "connectGitHub"
         case .orgQuestion: return "orgQuestion"
         case .holding: return "holding"
+        case .detecting, .replanningAfterDecision, .detected, .onboardQuestion: return "detect"
         default: return "other"
         }
+    }
+
+    // MARK: CT_SELFTEST_STEP=auth-reuse — existing GitHub connection
+
+    /// Waits for `getStarted()` to make its first trustworthy authorization
+    /// decision. The test stops at the decision boundary: Detect may keep
+    /// progressing after a reused session, while a signed-out session stops
+    /// once the real device code has arrived.
+    @MainActor
+    private static func waitForAuthReuseDecision(_ model: WizardModel) async {
+        for _ in 0..<50 {
+            if model.authorizedLogin != nil || model.deviceFlow.userCode != nil {
+                return
+            }
+            if case .holding = model.phase { return }
+            if case .orgQuestion = model.phase { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+
+    /// Drives the real Welcome -> GitHub transition so the shell harness can
+    /// pair the resulting state with `CT_MOCK_INVOCATION_LOG` and prove both
+    /// halves of the contract: reuse an authorized session without invoking
+    /// `auth login`, but initiate device flow when status is signed out.
+    @MainActor
+    private static func runAuthReuseSelftest() async {
+        let model = WizardModel()
+        model.getStarted()
+        await waitForAuthReuseDecision(model)
+
+        if model.authorizedLogin != nil {
+            print("SELFTEST authReuse=reused login=\(model.authorizedLogin ?? "none") phase=\(orgPhaseToken(model.phase))")
+            return
+        }
+        if model.deviceFlow.userCode != nil {
+            print("SELFTEST authReuse=deviceFlow phase=\(orgPhaseToken(model.phase))")
+            return
+        }
+        if case .holding(let info) = model.phase {
+            print("SELFTEST authReuse=holding variant=\(holdingVariantToken(info.variant)) phase=\(orgPhaseToken(model.phase))")
+            return
+        }
+        if case .orgQuestion = model.phase {
+            print("SELFTEST authReuse=orgQuestion phase=orgQuestion")
+            return
+        }
+        print("SELFTEST authReuse=timeout phase=\(orgPhaseToken(model.phase))")
     }
 
     /// Polls a real `WizardModel` instance until whatever it's currently

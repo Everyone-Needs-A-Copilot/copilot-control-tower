@@ -169,8 +169,10 @@
 # --poll/ceremony concept): driven by the SAME $CT_AUTH_SCENARIO/$CC_AUTH_SCENARIO/
 # --scenario selection as above. "authorized" -> `{"schema_version":"1.0","kind":"status","status":"authorized","identity":{"login":"octocat"}}`;
 # every other scenario name (including the default-unset case) -> `{"schema_version":"1.0","kind":"status","status":"signed-out"}`.
-# `exit-2` still simulates the env-error path. Exit code: always 0 (status is never a
-# terminal-failure concept the way poll is — signed-out is a normal, renderable state).
+# `status-not-valid-json` emits a malformed status body for fail-closed consumer tests.
+# `exit-2` still simulates the env-error path. Exit code: always 0 except `exit-2`
+# (status is never a terminal-failure concept the way poll is — signed-out is a normal,
+# renderable state).
 #
 # --- layers [join] (WS-A Stream-Z, D7.1 proposed contract addition) -------------------
 # Fixture selection for `layers` (list) — the SAME $CT_FIXTURE/$CC_FIXTURE/--fixture
@@ -862,7 +864,9 @@ PY
       # by the SAME scenario selection as the ceremony/poll forms: only
       # "authorized" renders a signed-in identity, every other scenario name
       # (including the default-unset case) is an honest "signed-out".
-      if [ "$auth_scenario" = "authorized" ]; then
+      if [ "$auth_scenario" = "status-not-valid-json" ]; then
+        printf '%s\n' '{"schema_version":"1.0","kind":"status","status":'
+      elif [ "$auth_scenario" = "authorized" ]; then
         printf '%s\n' '{"schema_version":"1.0","kind":"status","status":"authorized","identity":{"login":"octocat"}}'
       else
         printf '%s\n' '{"schema_version":"1.0","kind":"status","status":"signed-out"}'

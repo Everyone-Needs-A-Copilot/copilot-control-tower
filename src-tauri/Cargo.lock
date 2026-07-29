@@ -559,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "copilot-control-tower"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "copilot-control-tower",
  "core-foundation",
