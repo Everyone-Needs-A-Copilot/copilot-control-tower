@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "source_commit": "b0288d778db77f46ea6e35cca3feeb8c98c56f46",
+  "bundle_identifier": "com.everyoneneedsacopilot.controltower",
+  "version": "0.1.5",
+  "build_number": "6",
+  "architecture": "arm64",
+  "vendored_cc_version": "1.7.11",
+  "vendored_cc_sha256": "4470880bfe8e10179a32dff664a81ee1151e04269dc149d193dc6016b90622cf",
+  "headless_detect": "passed",
+  "developer_id_identity": "Developer ID Application: Pablo Alejo Jr (3SYGVX2HB8)",
+  "notarized": true,
+  "stapled": true,
+  "gatekeeper_verified": true,
+  "dmg_sha256": "c6b490e501f635e3da1e2a9b84473eb2e0a12bfc694880e5c3c07cb50549feb1",
+  "dmg": "Copilot-Control-Tower_0.1.5_arm64.dmg"
+}
