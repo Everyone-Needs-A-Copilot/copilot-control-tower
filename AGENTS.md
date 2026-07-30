@@ -110,4 +110,7 @@ Passing QA verdicts must be evidence-bound. Valid artifact markers include
 
 ## Project-Specific Rules
 
-Add project-specific rules here.
+- Every change to the application must end with a new release. Do not stop at
+  source implementation or local QA: increment the appropriate app version,
+  build from immutable pushed source, sign/notarize/staple the macOS artifact,
+  verify the install artifact, and publish the release and its provenance.

@@ -29,9 +29,10 @@ The preferred concept is **verified project aftercare**:
 2. It classifies each component independently.
 3. Mechanical, reversible work is offered directly.
 4. Semantic reconciliation receives a generated integration plan and prompt.
-5. Control Tower launches an external Claude Code or Codex session, copies the
-   prompt, or prepares an owner handoff.
-6. The CLI re-verifies the project afterward.
+5. Control Tower launches a visible Terminal session for Claude Code or Codex,
+   copies the prompt, or prepares an owner handoff.
+6. Control Tower observes the launch lifecycle without interpreting assistant
+   output, then asks the CLI to re-verify the project afterward.
 7. Project-specific customization remains a visible positive fact.
 
 Control Tower coordinates this process. It does not manage project contents and
@@ -93,8 +94,15 @@ decision and offers “Resume guided integration” after the owner decides.
 
 ### Could not verify
 
-The project is not marked ready. The UI states what could not be checked and
-offers a retry only when retry can change the outcome.
+The project is not marked ready. The UI renders the exact component-level
+evidence that could not be proven and offers a retry only when retry can change
+the outcome.
+
+When the CLI cannot safely produce an integration plan, it may instead return a
+read-only diagnostic payload. Control Tower can launch that payload in a visible
+Codex or Claude Code Terminal session. The session may inspect and explain the
+mismatch; it may not change project files. Its outcome must return to CLI
+classification before any guided write route is offered.
 
 ## Frontstage/backstage map
 
@@ -104,8 +112,8 @@ offers a retry only when retry can change the outcome.
 | Classify | Ready, safe finish, or guided integration | Renders exact result | Returns structured reason, actor, action | — |
 | Safe finish | Exact additions and preservation | Invokes declared action | Applies and records bounded changes | — |
 | Guided plan | Detected, required, preserve, verify | Renders plan | Generates structured prompt and verification command | — |
-| Launch/handoff | Open, copy, or prepare owner request | Opens external tool or copies package | Supplies prompt payload | — |
-| Integrate | Work happens in the project | Observes return | — | Understands and edits project-local semantics |
+| Launch/handoff | Open a visible Terminal session, copy, or prepare owner request | Starts the selected assistant in the project and reports process lifecycle | Supplies prompt or diagnostic payload | — |
+| Integrate | Work happens visibly in the project | Reports running/ended; does not interpret assistant text | — | Understands and edits project-local semantics |
 | Verify | Passed, decision needed, or could not verify | Invokes and renders | Verifies the complete project contract | Reports work/decision |
 
 ## Generated prompt contract
@@ -125,6 +133,23 @@ The prompt payload must contain:
 The app may display, copy, or pass through this payload. It does not compose the
 technical judgment.
 
+## Read-only diagnostic payload
+
+For `could-not-verify`, the CLI may provide a separate diagnostic payload
+containing:
+
+- project identity and path;
+- capability summary;
+- component-level recognized and missing evidence;
+- mismatch, unreadable, missing, or boundary reason;
+- explicit read-only constraint;
+- prohibited project writes;
+- the authoritative verification command;
+- the return route for reclassification.
+
+The app may display or pass through this payload. It must not derive one from raw
+evidence or silently convert diagnosis into an integration plan.
+
 ## Actor routing
 
 | Situation | Competent actor | Experience |
@@ -137,7 +162,10 @@ technical judgment.
 
 ## Failure and recovery
 
-- External app is unavailable: keep the generated prompt and offer Copy.
+- External assistant is unavailable: name it, state that nothing changed, keep
+  the generated payload, and offer the other installed assistant, Copy, or Retry.
+- Terminal launch succeeds but cannot be observed: report the uncertainty and
+  require an explicit Check project action rather than inferring completion.
 - Agent exits without verification: project remains “Integration incomplete.”
 - Verification finds missing requirements: reopen the plan with only remaining
   items.

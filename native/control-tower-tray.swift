@@ -218,6 +218,7 @@ enum WorkspaceContractSelftestFixture {
             }
             return item
         }
+        row["diagnostic"] = NSNull()
 
         if classification == .safeFinish {
             let action: [String: Any] = [
@@ -268,6 +269,19 @@ enum WorkspaceContractSelftestFixture {
             row["plan_available"] = false
             row["integration_plan"] = NSNull()
             row["can_apply_now"] = false
+            if classification == .couldNotVerify {
+                row["diagnostic"] = [
+                    "id": "sha256:" + String(repeating: "4", count: 64),
+                    "inspection_id": inspectionId,
+                    "mode": "read-only",
+                    "prompt": [
+                        "version": "1",
+                        "text": "Diagnose this project in READ-ONLY mode. Do not create, edit, rename, move, or delete project files.",
+                    ],
+                    "verification": verification,
+                    "stop_conditions": ["Stop before any project write."],
+                ]
+            }
         }
     }
 }
@@ -406,10 +420,10 @@ enum ProjectRowRender {
     /// since — "no Undo control at all, never a disabled one").
     static func controlLabel(for workspace: WorkspaceEntry, recentlySetUpNames: Set<String> = []) -> String? {
         switch kind(for: workspace, recentlySetUpNames: recentlySetUpNames) {
-        case .safeFinish, .excluded: return "Review safe finish"
-        case .guidedIntegration: return "Review plan"
-        case .ownerDecision: return "Review handoff"
-        case .couldNotVerify: return "Verify again"
+        case .safeFinish, .excluded: return "Review"
+        case .guidedIntegration: return "Review setup"
+        case .ownerDecision: return "Review decision"
+        case .couldNotVerify: return "Review evidence"
         case .automaticallySetUp: return workspace.undo.available ? "Undo" : nil
         case .alreadySetUp: return "View details"
         case .keptAsIs: return nil
@@ -417,24 +431,33 @@ enum ProjectRowRender {
     }
 }
 
-/// Opens an installed coding assistant with the project folder after putting
-/// the CLI-generated prompt on the pasteboard. Bundle identifiers and folder
-/// document opening are the only launch contract used here; no shell command
-/// or guessed deep-link payload is assembled.
+/// Opens an installed coding assistant in a visible Terminal session with the
+/// CLI-generated prompt. The app quotes only the project/temp paths and passes
+/// the prompt through a private temporary file, so prompt text is never parsed
+/// as shell syntax. Assistant output is not interpreted; returning to Control
+/// Tower invokes authoritative `cc workspace verify`.
 enum ProjectIntegrationLauncher {
+    enum LaunchResult {
+        case openedInTerminal
+        case assistantUnavailable
+        case terminalUnavailable
+    }
+
     enum Assistant {
         case codex
         case claudeCode
 
-        var bundleIdentifiers: [String] {
+        var command: String {
             switch self {
-            case .codex:
-                return ["com.openai.codex"]
-            case .claudeCode:
-                return [
-                    "com.anthropic.claude-code",
-                    "com.anthropic.claude-code-url-handler",
-                ]
+            case .codex: return "codex"
+            case .claudeCode: return "claude"
+            }
+        }
+
+        var displayName: String {
+            switch self {
+            case .codex: return "Codex"
+            case .claudeCode: return "Claude Code"
             }
         }
     }
@@ -450,21 +473,101 @@ enum ProjectIntegrationLauncher {
         _ assistant: Assistant,
         projectPath: String,
         prompt: String
-    ) -> Bool {
+    ) -> LaunchResult {
         _ = copy(prompt)
-        guard let applicationURL = assistant.bundleIdentifiers.lazy.compactMap({
-            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0)
-        }).first else {
+        guard commandIsAvailable(assistant.command) else {
+            return .assistantUnavailable
+        }
+
+        let promptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("control-tower-\(UUID().uuidString).prompt")
+        do {
+            try Data(prompt.utf8).write(to: promptURL, options: [.atomic])
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: promptURL.path
+            )
+        } catch {
+            return .terminalUnavailable
+        }
+
+        let project = shellQuote(projectPath)
+        let promptFile = shellQuote(promptURL.path)
+        let assistantCommand: String
+        switch assistant {
+        case .codex:
+            assistantCommand = "codex -C \(project) \"$(/bin/cat \(promptFile))\""
+        case .claudeCode:
+            assistantCommand = "cd \(project) && claude \"$(/bin/cat \(promptFile))\""
+        }
+        let command = """
+        /usr/bin/clear; \
+        echo 'Copilot Control Tower — guided setup'; \
+        echo 'Project: \(projectPath.replacingOccurrences(of: "'", with: ""))'; \
+        echo 'Assistant: \(assistant.displayName)'; \
+        echo ''; \
+        \(assistantCommand); \
+        ct_status=$?; \
+        /bin/rm -f \(promptFile); \
+        echo ''; \
+        if [ $ct_status -eq 0 ]; then \
+          echo 'Guided session ended. Return to Control Tower for independent verification.'; \
+        else \
+          echo 'Guided session ended with a problem. Return to Control Tower to review it.'; \
+        fi
+        """
+        let source = """
+        tell application "Terminal"
+            activate
+            do script \(appleScriptLiteral(command))
+        end tell
+        """
+        var error: NSDictionary?
+        guard NSAppleScript(source: source)?.executeAndReturnError(&error) != nil else {
+            try? FileManager.default.removeItem(at: promptURL)
+            return .terminalUnavailable
+        }
+        return .openedInTerminal
+    }
+
+    static func bringTerminalForward() {
+        if let terminal = NSRunningApplication
+            .runningApplications(withBundleIdentifier: "com.apple.Terminal")
+            .first {
+            terminal.activate(options: [.activateAllWindows])
+        } else {
+            NSWorkspace.shared.open(
+                URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
+            )
+        }
+    }
+
+    static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+
+    static func appleScriptLiteral(_ value: String) -> String {
+        "\""
+            + value
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+            + "\""
+    }
+
+    private static func commandIsAvailable(_ command: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-lic", "command -v -- \(command) >/dev/null 2>&1"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
             return false
         }
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        NSWorkspace.shared.open(
-            [URL(fileURLWithPath: projectPath, isDirectory: true)],
-            withApplicationAt: applicationURL,
-            configuration: configuration
-        )
-        return true
     }
 }
 
@@ -900,22 +1003,60 @@ final class TrayModel: ObservableObject {
             : "The prompt couldn't be copied. Nothing in the project was changed."
     }
 
+    func copyProjectDiagnosticReport(_ workspace: WorkspaceEntry) {
+        let copied = ProjectIntegrationLauncher.copy(
+            ProjectTriageRender.diagnosticReport(workspace)
+        )
+        projectIntegrationMessage = copied
+            ? "Diagnostic report copied. It contains the exact evidence Control Tower received; nothing in the project was changed."
+            : "The diagnostic report couldn't be copied. Nothing in the project was changed."
+    }
+
+    func bringTerminalForward() {
+        ProjectIntegrationLauncher.bringTerminalForward()
+    }
+
     func openIntegrationAssistant(
         _ assistant: ProjectIntegrationLauncher.Assistant,
         workspace: WorkspaceEntry
     ) {
         guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
-        let opened = ProjectIntegrationLauncher.open(
+        let result = ProjectIntegrationLauncher.open(
             assistant,
             projectPath: workspace.path,
             prompt: prompt
         )
-        if opened {
+        switch result {
+        case .openedInTerminal:
             pendingProjectVerificationPath = workspace.path
+            projectIntegrationMessage = "\(assistant.displayName) is running in Terminal. Control Tower will verify the project when you return."
+        case .assistantUnavailable:
+            projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The guided prompt was copied, and nothing in the project was changed."
+        case .terminalUnavailable:
+            projectIntegrationMessage = "Terminal couldn't start the guided session. The prompt was copied, and nothing in the project was changed."
         }
-        projectIntegrationMessage = opened
-            ? "The project opened and its guided prompt was copied. Control Tower will verify it when you return."
-            : "That assistant couldn't be opened, but the guided prompt was copied."
+    }
+
+    func openDiagnosticAssistant(
+        _ assistant: ProjectIntegrationLauncher.Assistant,
+        workspace: WorkspaceEntry
+    ) {
+        guard let diagnostic = workspace.diagnostic,
+              diagnostic.mode == "read-only" else { return }
+        let result = ProjectIntegrationLauncher.open(
+            assistant,
+            projectPath: workspace.path,
+            prompt: diagnostic.prompt.text
+        )
+        switch result {
+        case .openedInTerminal:
+            pendingProjectVerificationPath = workspace.path
+            projectIntegrationMessage = "\(assistant.displayName) is diagnosing in read-only mode in Terminal. Nothing may change in the project; Control Tower will check the project when you return."
+        case .assistantUnavailable:
+            projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The read-only diagnostic prompt was copied, and nothing in the project was changed."
+        case .terminalUnavailable:
+            projectIntegrationMessage = "Terminal couldn't start the read-only diagnostic session. The prompt was copied, and nothing in the project was changed."
+        }
     }
 
     func verifyPendingProjectOnReturn() async {
@@ -1250,6 +1391,7 @@ struct PopoverContentView: View {
     let onOpenSettings: () -> Void
     @State private var showingWhatChanged = false
     @State private var showingProjectDrillIn = false
+    @State private var selectedProjectCategory: ProjectTriageCategory?
     /// The projects list (adopt-and-project-setup spec, "Menu bar: Your
     /// projects (drill-in)") — a SEPARATE top-level panel from `showingWhatChanged`'s
     /// own drill-in, reached only from the Region 6 notice's "Review
@@ -1636,24 +1778,21 @@ struct PopoverContentView: View {
             if let detail = model.projectIntegrationDetail {
                 projectIntegrationDetailView(detail)
             } else {
-                Button("‹ Back") {
-                    showingProjectsPanel = false
+                Button(selectedProjectCategory == nil ? "‹ Back" : "‹ All project results") {
+                    if selectedProjectCategory == nil {
+                        showingProjectsPanel = false
+                    } else {
+                        selectedProjectCategory = nil
+                    }
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
 
-                Text("Your projects")
+                Text(selectedProjectCategory?.title ?? "Your projects")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(Color(nsColor: .labelColor))
 
                 if let workspaces = model.lastWorkspaces {
-                    let actionable = ProjectsNoticeRender.actionableCount(workspaces)
-                    let ready = workspaces.workspaces.filter { $0.classification == .ready }
-                    let safe = workspaces.workspaces.filter { $0.classification == .safeFinish }
-                    let guided = workspaces.workspaces.filter {
-                        $0.classification == .guidedIntegration || $0.classification == .ownerDecision
-                    }
-                    let unavailable = workspaces.workspaces.filter { $0.classification == .couldNotVerify }
                     // Membership-only signal for "was this row set up
                     // automatically" (`ProjectRowRender.Kind.automaticallySetUp`'s
                     // own doc comment) — the CLI's own `recently_set_up` names,
@@ -1674,69 +1813,81 @@ struct PopoverContentView: View {
                                 .buttonStyle(.bordered)
                         }
                     } else {
-                        Text(
-                            "\(workspaces.classificationSummary.total) projects: "
-                                + "\(workspaces.classificationSummary.ready) ready, "
-                                + "\(workspaces.classificationSummary.safeFinish) can finish safely, "
-                                + "\(workspaces.classificationSummary.guidedIntegration) guided, "
-                                + "\(workspaces.classificationSummary.ownerDecision) waiting for an owner, and "
-                                + "\(workspaces.classificationSummary.couldNotVerify) couldn't be verified."
-                        )
+                        Text(ProjectTriageRender.summary(workspaces.workspaces))
                             .font(.caption)
                             .fixedSize(horizontal: false, vertical: true)
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
 
-                        if safe.isEmpty && guided.isEmpty && unavailable.isEmpty {
-                            Text("All \(workspaces.summary.total) of your projects are set up.")
-                                .font(.body)
-                                .foregroundColor(Color(nsColor: .labelColor))
-                        } else {
-                            HStack {
-                                Spacer()
-                                if actionable > 0 {
-                                    Button("Add all available") {
-                                        Task { await model.addAllProjects() }
-                                    }
-                                    .buttonStyle(.plain)
-                                    .foregroundColor(Color(nsColor: .linkColor))
-                                    .disabled(model.isAnyProjectAdding)
-                                }
-                            }
+                        if let category = selectedProjectCategory {
+                            let rows = ProjectTriageRender.workspaces(
+                                workspaces.workspaces,
+                                in: category
+                            )
+                            Text(category.shortMeaning)
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    if !safe.isEmpty {
-                                        projectGroupHeading("Can finish safely", count: safe.count)
-                                        ForEach(safe) { workspace in
-                                            projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
-                                        }
-                                    }
-                                    if !guided.isEmpty {
-                                        projectGroupHeading("Guided integration", count: guided.count)
-                                        ForEach(guided) { workspace in
-                                            projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
-                                        }
-                                    }
-                                    if !unavailable.isEmpty {
-                                        projectGroupHeading("Couldn't verify", count: unavailable.count)
-                                        ForEach(unavailable) { workspace in
-                                            projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
-                                        }
+                                    ForEach(rows) { workspace in
+                                        projectDrillInRow(
+                                            workspace,
+                                            recentlySetUpNames: recentlySetUpNames
+                                        )
                                     }
                                 }
                             }
-                            .frame(maxHeight: 220)
-                        }
+                            .frame(maxHeight: 260)
+                        } else {
+                            VStack(alignment: .leading, spacing: 5) {
+                                ForEach(ProjectTriageRender.nonEmptyCategories(workspaces.workspaces)) { category in
+                                    let count = ProjectTriageRender.workspaces(
+                                        workspaces.workspaces,
+                                        in: category
+                                    ).count
+                                    Button {
+                                        selectedProjectCategory = category
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: category.systemImage)
+                                                .frame(width: 16)
+                                                .accessibilityHidden(true)
+                                            VStack(alignment: .leading, spacing: 1) {
+                                                Text(category.title)
+                                                    .font(.caption.weight(.semibold))
+                                                Text(category.shortMeaning)
+                                                    .font(.caption2)
+                                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                            }
+                                            Spacer()
+                                            Text("\(count)")
+                                                .font(.callout.weight(.semibold))
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption2)
+                                                .accessibilityHidden(true)
+                                        }
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(8)
+                                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .accessibilityLabel(
+                                        "\(count), \(category.title), \(category.shortMeaning)"
+                                    )
+                                }
+                            }
 
-                        if !ready.isEmpty {
-                            DisclosureGroup("\(ready.count) already set up ›") {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    ForEach(ready) { workspace in
-                                        projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
-                                    }
-                                }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Come back whenever you want")
+                                    .font(.caption.weight(.semibold))
+                                Text("Project setup is always available here. Finish one or two projects now, or return later—unfinished routes stay under Your projects.")
+                                    .font(.caption2)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .padding(8)
+                            .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
 
                         HStack(spacing: 12) {
@@ -1756,14 +1907,6 @@ struct PopoverContentView: View {
             }
         }
         .padding(.horizontal, 12)
-    }
-
-    private func projectGroupHeading(_ title: String, count: Int) -> some View {
-        Text("\(title) · \(count)")
-            .font(.caption.weight(.semibold))
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            .padding(.top, 6)
-            .accessibilityLabel("\(title), \(count) projects")
     }
 
     private func projectDrillInRow(_ workspace: WorkspaceEntry, recentlySetUpNames: Set<String>) -> some View {
@@ -1836,10 +1979,8 @@ struct PopoverContentView: View {
                 Button(label) {
                     Task {
                         switch kind {
-                        case .safeFinish, .excluded, .guidedIntegration, .ownerDecision, .alreadySetUp:
+                        case .safeFinish, .excluded, .guidedIntegration, .ownerDecision, .couldNotVerify, .alreadySetUp:
                             await model.loadProjectIntegrationDetail(workspace)
-                        case .couldNotVerify:
-                            await model.verifyProjectIntegration(workspace)
                         case .automaticallySetUp, .keptAsIs:
                             break
                         }
@@ -1873,6 +2014,32 @@ struct PopoverContentView: View {
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
+
+                if workspace.classification == .guidedIntegration {
+                    projectNextStep(
+                        title: "\(workspace.name) needs a coding assistant",
+                        detail: "Review the plan, then run it in a visible Terminal session. Control Tower will verify Claude and Codex independently when you return."
+                    )
+                } else if workspace.classification == .ownerDecision {
+                    projectNextStep(
+                        title: "The project owner needs to decide",
+                        detail: "Copy or share the prepared handoff. Control Tower will not change this project without that decision."
+                    )
+                } else if workspace.classification == .ready {
+                    projectNextStep(
+                        title: "Nothing else is needed",
+                        detail: "Claude and Codex both passed authoritative verification. This project is ready."
+                    )
+                } else if workspace.classification == .couldNotVerify {
+                    projectNextStep(
+                        title: workspace.diagnostic == nil
+                            ? "Review what could not be confirmed"
+                            : "Start a read-only diagnostic session",
+                        detail: workspace.diagnostic == nil
+                            ? "Setup was found, but Control Tower could not prove that it matches the current integration contract. Nothing has been changed."
+                            : "A coding assistant can explain the mismatch using the helper's evidence. It cannot change project files."
+                    )
+                }
 
                 VStack(alignment: .leading, spacing: 5) {
                     ForEach(workspace.components, id: \.component.rawValue) { component in
@@ -1913,10 +2080,32 @@ struct PopoverContentView: View {
                 }
 
                 if workspace.classification == .couldNotVerify {
-                    Button("Verify again") {
-                        Task { await model.verifyProjectIntegration(workspace) }
+                    projectCouldNotConfirmEvidence(workspace)
+                    if workspace.diagnostic != nil {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Button("Diagnose in Codex") {
+                                model.openDiagnosticAssistant(.codex, workspace: workspace)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            Button("Diagnose in Claude Code") {
+                                model.openDiagnosticAssistant(.claudeCode, workspace: workspace)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
                     }
-                    .buttonStyle(.bordered)
+                    HStack {
+                        Button("Copy diagnostic report") {
+                            model.copyProjectDiagnosticReport(workspace)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Check again") {
+                            Task { await model.verifyProjectIntegration(workspace) }
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Use after the project setup changes.")
+                    }
                     .disabled(model.isAnyProjectAdding)
                 }
 
@@ -1932,6 +2121,67 @@ struct PopoverContentView: View {
         }
         .frame(maxHeight: 520)
         .accessibilityElement(children: .contain)
+    }
+
+    private func projectNextStep(title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: "arrow.right.circle.fill")
+                .foregroundColor(Color(nsColor: .linkColor))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func projectCouldNotConfirmEvidence(_ workspace: WorkspaceEntry) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(workspace.components, id: \.component.rawValue) { component in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(component.component == .claude ? "Claude" : "Codex")
+                        .font(.caption.weight(.semibold))
+                    if component.missingRequirements.isEmpty {
+                        Text("No missing requirement was reported.")
+                            .font(.caption2)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    } else {
+                        ForEach(component.missingRequirements, id: \.detail) { requirement in
+                            Text("• \(requirement.detail)")
+                                .font(.caption2)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    if let recognized = component.recognizedSetup,
+                       !recognized.evidence.isEmpty {
+                        DisclosureGroup("Setup Control Tower recognized") {
+                            VStack(alignment: .leading, spacing: 2) {
+                                ForEach(recognized.evidence, id: \.path) { evidence in
+                                    Text("\(evidence.path): \(evidence.detail)")
+                                        .font(.caption2)
+                                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+                        .font(.caption2.weight(.semibold))
+                    }
+                }
+                .padding(7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+        }
     }
 
     @ViewBuilder
@@ -1961,12 +2211,12 @@ struct PopoverContentView: View {
                 .font(.caption.weight(.semibold))
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Button("Open in Codex") {
+                    Button("Run in Codex") {
                         model.openIntegrationAssistant(.codex, workspace: workspace)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    Button("Open in Claude Code") {
+                    Button("Run in Claude Code") {
                         model.openIntegrationAssistant(.claudeCode, workspace: workspace)
                     }
                     .buttonStyle(.bordered)
@@ -2014,10 +2264,14 @@ struct PopoverContentView: View {
                         .foregroundColor(Color(nsColor: .systemRed))
                 }
             }
-            Text("Only the CLI can mark this project Ready.")
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            Button("Verify project") {
+            if model.pendingProjectVerificationPath == workspace.path {
+                Button("Bring Terminal forward") {
+                    model.bringTerminalForward()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            Button("Check project now") {
                 Task { await model.verifyProjectIntegration(workspace) }
             }
             .buttonStyle(.borderedProminent)
@@ -2068,10 +2322,10 @@ struct PopoverContentView: View {
     ) -> String {
         switch classification {
         case .ready: return "Ready"
-        case .safeFinish: return "Safe finish available"
-        case .guidedIntegration: return "Guided integration"
-        case .ownerDecision: return "Waiting for project owner"
-        case .couldNotVerify: return "Couldn't verify"
+        case .safeFinish: return "Can finish automatically"
+        case .guidedIntegration: return "Needs guided setup"
+        case .ownerDecision: return "Needs the project owner"
+        case .couldNotVerify: return "Couldn't confirm"
         }
     }
 
@@ -3331,15 +3585,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settingsSummaryPass = settingsSummary
             == UserSettingsProjectSummary(total: 3, ready: 1, actionable: 1, needsReview: 1)
 
+        let triagePass = ProjectTriageRender.nonEmptyCategories(report.workspaces)
+            == [.ready, .safeFinish, .guidedSetup]
+            && ProjectTriageRender.summary(report.workspaces)
+                == "1 is ready. 1 can finish automatically. 1 needs guided setup."
+            && ProjectTriageRender.pageSize == 6
+        let diagnostic = ProjectTriageRender.diagnosticReport(report.workspaces[1])
+        let diagnosticPass = diagnostic.contains("finished project integration report")
+            && diagnostic.contains("Nothing was changed by Control Tower.")
+            && diagnostic.contains("Check again after the project setup changes:")
+
         let passed = workspaceDecodePass && discoveryPass && preselectPass && rootsDecodePass
-            && stageOrderPass && settingsSummaryPass
+            && stageOrderPass && settingsSummaryPass && triagePass && diagnosticPass
         print(
             "SELFTEST projectsStep workspaceDecode=\(workspaceDecodePass ? "pass" : "fail") "
                 + "discovery=\(discoveryPass ? "pass" : "fail") "
                 + "preselect=\(preselectPass ? "pass" : "fail") "
                 + "rootsDecode=\(rootsDecodePass ? "pass" : "fail") "
                 + "stageOrder=\(stageOrderPass ? "pass" : "fail") "
-                + "settingsSummary=\(settingsSummaryPass ? "pass" : "fail")"
+                + "settingsSummary=\(settingsSummaryPass ? "pass" : "fail") "
+                + "triage=\(triagePass ? "pass" : "fail") "
+                + "diagnostic=\(diagnosticPass ? "pass" : "fail")"
         )
         return passed
     }
@@ -3435,15 +3701,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
         let rows = rowsReport.workspaces
-        let rowsPass = ProjectRowRender.controlLabel(for: rows[0]) == "Review safe finish"
+        let diagnosticPass = rows[4].diagnostic?.mode == "read-only"
+            && rows[4].diagnostic?.prompt.text.contains("Do not create, edit") == true
+            && rows[3].diagnostic == nil
+        let rowsPass = ProjectRowRender.controlLabel(for: rows[0]) == "Review"
             && ProjectRowRender.caption(for: rows[0]) == "Add only the missing Copilot integration files."
             && ProjectRowRender.kind(for: rows[1]) == .excluded
-            && ProjectRowRender.controlLabel(for: rows[1]) == "Review safe finish"
+            && ProjectRowRender.controlLabel(for: rows[1]) == "Review"
             && ProjectRowRender.caption(for: rows[1]) == "Left alone at your request."
-            && ProjectRowRender.controlLabel(for: rows[2]) == "Review safe finish"
+            && ProjectRowRender.controlLabel(for: rows[2]) == "Review"
             && ProjectRowRender.controlLabel(for: rows[3]) == "View details"
             && ProjectRowRender.kind(for: rows[3]) == .alreadySetUp
-            && ProjectRowRender.controlLabel(for: rows[4]) == "Verify again"
+            && ProjectRowRender.controlLabel(for: rows[4]) == "Review evidence"
             && ProjectRowRender.kind(for: rows[4]) == .couldNotVerify
             && ProjectRowRender.caption(for: rows[4]) == "This folder is not a project workspace."
         let ownerData = WorkspaceContractSelftestFixture.entry(
@@ -3457,9 +3726,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("SELFTEST trayProjects ownerDecode=fail")
             return false
         }
-        let routePass = ProjectRowRender.controlLabel(for: pluralReport.workspaces[2]) == "Review plan"
+        let routePass = ProjectRowRender.controlLabel(for: pluralReport.workspaces[2]) == "Review setup"
             && pluralReport.workspaces[2].integrationPlan?.prompt != nil
-            && ProjectRowRender.controlLabel(for: ownerRow) == "Review handoff"
+            && ProjectRowRender.controlLabel(for: ownerRow) == "Review decision"
             && ownerRow.integrationPlan?.ownerHandoff != nil
 
         // B3: `recentlySetUpNames` is the ONLY signal that distinguishes an
@@ -3502,14 +3771,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && revertReport.workspaces.first?.path == "/p/f"
             && revertReport.workspaces.first?.setupPolicy == .excluded
 
+        let launcherPass = ProjectIntegrationLauncher.shellQuote("/p/O'Brien")
+            == "'/p/O'\"'\"'Brien'"
+            && ProjectIntegrationLauncher.appleScriptLiteral("line 1\n\"line 2\"")
+                == "\"line 1\\n\\\"line 2\\\"\""
+
         let passed = noticePass && rowsPass && routePass
             && automaticPass && automaticNoticePass && revertDecodePass
+            && launcherPass && diagnosticPass
         print(
             "SELFTEST trayProjects notice=\(noticePass ? "pass" : "fail") "
                 + "rows=\(rowsPass ? "pass" : "fail") "
                 + "automatic=\(automaticPass ? "pass" : "fail") "
                 + "automaticNotice=\(automaticNoticePass ? "pass" : "fail") "
-                + "revert=\(revertDecodePass ? "pass" : "fail")"
+                + "revert=\(revertDecodePass ? "pass" : "fail") "
+                + "launcher=\(launcherPass ? "pass" : "fail") "
+                + "diagnostic=\(diagnosticPass ? "pass" : "fail")"
         )
         return passed
     }

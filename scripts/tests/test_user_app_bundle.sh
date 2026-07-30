@@ -80,13 +80,13 @@ if [[ "${onboard_question_output}" != *"SELFTEST onboardQuestion repoRowDecode=p
 fi
 
 projects_step_output="$(CT_PROJECTS_STEP_SELFTEST=1 "${APP_BIN}")"
-if [[ "${projects_step_output}" != *"SELFTEST projectsStep workspaceDecode=pass discovery=pass preselect=pass rootsDecode=pass stageOrder=pass settingsSummary=pass"* ]]; then
+if [[ "${projects_step_output}" != *"SELFTEST projectsStep workspaceDecode=pass discovery=pass preselect=pass rootsDecode=pass stageOrder=pass settingsSummary=pass triage=pass diagnostic=pass"* ]]; then
   echo "Your projects step selftest failed: ${projects_step_output}" >&2
   exit 1
 fi
 
 tray_projects_output="$(CT_TRAY_PROJECTS_SELFTEST=1 "${APP_BIN}")"
-if [[ "${tray_projects_output}" != *"SELFTEST trayProjects notice=pass rows=pass automatic=pass automaticNotice=pass revert=pass"* ]]; then
+if [[ "${tray_projects_output}" != *"SELFTEST trayProjects notice=pass rows=pass automatic=pass automaticNotice=pass revert=pass launcher=pass diagnostic=pass"* ]]; then
   echo "Tray projects drill-in selftest failed: ${tray_projects_output}" >&2
   exit 1
 fi

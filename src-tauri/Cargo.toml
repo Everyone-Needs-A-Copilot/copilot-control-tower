@@ -1,6 +1,6 @@
 [package]
 name = "copilot-control-tower"
-version = "0.1.9"
+version = "0.2.0"
 description = "Copilot Control Tower — always-on menu-bar face + supervisor over the copilot/cc CLI"
 authors = ["Everyone Needs a Copilot"]
 edition = "2021"

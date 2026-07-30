@@ -44,40 +44,45 @@ check_rg 05-01 "named four-copilot roster" '["Knowledge Copilot", "CLI Copilot",
 check_rg 05-02 "exact setup inventory remains CLI-authored" 'self.ecosystemInventory = onboard.inventory ?? []' native/wizard.swift critical
 check_rg 05-03 "progress uses a fixed real denominator" 'outcomes reported.' native/wizard.swift critical
 check_rg 05-04 "Mac readiness comes from post-setup Doctor" 'self.verifiedCopilotState = RenderState.from(doctor, joinable: nil)' native/wizard.swift critical
-check_rg 05-05 "projects use all five authoritative classifications" 'let owner = model.projectWorkspaces.filter { $0.classification == .ownerDecision }' native/wizard.swift critical
+check_rg 05-05 "projects use all five authoritative classifications" 'ProjectTriageCategory.allCases.filter' native/wizard.swift critical
 check_rg 05-06 "safe review shows preservation boundaries" 'wizardProjectContractPanel(' native/wizard.swift critical
-check_rg 05-07 "safe, guided, and owner routes stay distinct" 'case .ownerDecision: return "Review handoff"' native/wizard.swift critical
+check_rg 05-07 "safe, guided, and owner routes stay distinct" 'case .ownerDecision: return "Review decision"' native/wizard.swift critical
 check_rg 05-08 "safe write requires returned Ready classification" 'updated.classification == .ready' native/wizard.swift critical
 check_rg 05-09 "final screen reports authoritative project outcomes" 'wizardVerifiedProjectSummary' native/wizard.swift
 check_rg 05-10 "popover uses readable component status and layers" 'component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }' native/control-tower-tray.swift
-check_rg 05-11 "unresolved states retain reason and actor routes" 'case .couldNotVerify: return "Couldn'\''t verify"' native/wizard.swift critical
+check_rg 05-11 "unresolved states retain reason and actor routes" 'case .couldNotVerify: return "Couldn'\''t confirm"' native/wizard.swift critical
 check_rg 06-V "high-fidelity wizard uses native cards, hierarchy, and status labels" 'sectionCard("The four copilots")' native/wizard.swift
 
 # Walkthrough 07 / 08: project integration and aftercare.
 check_rg 07-01 "schema fixture covers all five project classifications" '"could-not-verify": 1' src-tauri/fixtures/workspaces/status-all-1.1.json critical
-check_rg 07-02 "project register groups by next action" 'wizardProjectGroup("Guided integration", workspaces: guided)' native/wizard.swift
+check_rg 07-02 "project register focuses one next-action category" 'wizardProjectCategoryList(category)' native/wizard.swift
 check_rg 07-03 "Ready details expose capability and evidence" 'wizardProjectEvidencePanel(workspace)' native/wizard.swift
-check_rg 07-04 "safe finish is review-first" 'return "Review safe finish"' native/control-tower-tray.swift critical
+check_rg 07-04 "safe finish is review-first" 'case .safeFinish, .excluded: return "Review"' native/control-tower-tray.swift critical
 check_rg 07-05 "safe finishing passes the opaque action id" 'actionId: action.id' native/wizard.swift critical
 check_rg 07-06 "one-sided integrations render per-component assessments" 'ForEach(workspace.components, id: \.component.rawValue)' native/control-tower-tray.swift
 check_rg 07-07 "guided route shows detected and preserved facts" 'projectPreservationRow("Detected", values: plan.detected)' native/control-tower-tray.swift
 check_rg 07-08 "deep specialization keeps capability counts visible" 'projectCapabilitySummary(workspace.capabilities)' native/control-tower-tray.swift
 check_rg 07-09 "mixed customization carries explicit stop conditions" 'plan.stopConditions + plan.verification.stopConditions' native/control-tower-tray.swift critical
 check_rg 07-10 "guided plan states Detected/Required/Preserve/Must not" 'wizardProjectFactRow("Must not", prohibited)' native/wizard.swift
-check_rg 07-11 "authorized author can open Codex or Claude Code" 'Button("Open in Claude Code")' native/wizard.swift
+check_rg 07-11 "authorized author can run Codex or Claude Code visibly" 'Button("Run in Claude Code")' native/wizard.swift
 check_rg 07-12 "full generated prompt is reviewable" 'DisclosureGroup("Full guided prompt")' native/wizard.swift
 check_rg 07-13 "non-owner gets copy and Share handoff actions" 'ShareLink(item: handoff)' native/control-tower-tray.swift
 check_rg 07-14 "returning from an assistant triggers CLI verification" 'model.verifyPendingProjectOnReturn()' native/wizard.swift critical
 check_rg 07-15 "verification remains authoritative and fail-closed" 'The project remains incomplete.' native/control-tower-tray.swift critical
 check_rg 07-16 "completed custom capability stays visible in register" 'wizardCapabilitySummary(workspace.capabilities)' native/wizard.swift
+check_rg 07-17 "unfinished project work remains available after setup" 'Every unfinished route stays available under Your projects in Copilot Control Tower' native/wizard.swift critical
+check_rg 07-18 "menu-bar aftercare repeats the durable return path" 'Project setup is always available here. Finish one or two projects now' native/control-tower-tray.swift critical
+check_rg 07-19 "could-not-confirm exposes exact diagnostic evidence" 'ProjectTriageRender.diagnosticReport(workspace)' native/control-tower-tray.swift critical
+check_rg 07-20 "guided setup launches a visible Terminal session" 'tell application "Terminal"' native/control-tower-tray.swift critical
+check_rg 07-21 "helper-authored read-only diagnosis launches visibly" 'Button("Diagnose in Claude Code")' native/wizard.swift critical
 check_rg 08-V "high-fidelity popover has readable status hierarchy" 'Text(component.worstSeverity == .pass ? "Ready"' native/control-tower-tray.swift
 
 # Exact embedded-helper boundary. These are critical and intentionally fail
 # against the stale packaged helper until a new upstream artifact is pinned.
-if [[ -x "${CC_PATH}" ]] && [[ "$("${CC_PATH}" --version 2>/dev/null)" == "cc version 1.7.12" ]]; then
-    pass PKG-01 "exact helper is version 1.7.12"
+if [[ -x "${CC_PATH}" ]] && [[ "$("${CC_PATH}" --version 2>/dev/null)" == "cc version 1.7.13" ]]; then
+    pass PKG-01 "exact helper is version 1.7.13"
 else
-    fail PKG-01 "exact helper is version 1.7.12" critical
+    fail PKG-01 "exact helper is version 1.7.13" critical
 fi
 
 workspace_help="$("${CC_PATH}" workspace --help 2>/dev/null || true)"

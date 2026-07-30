@@ -160,6 +160,157 @@ enum ProjectRowGroup: String {
     case keptAsIs
 }
 
+/// Presentation-only navigation for the five CLI-authored project
+/// classifications. The category never classifies a project; it only filters
+/// rows whose `WorkspaceEntry.classification` already came from `cc`.
+enum ProjectTriageCategory: String, CaseIterable, Identifiable {
+    case ready
+    case safeFinish
+    case guidedSetup
+    case ownerDecision
+    case couldNotConfirm
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ready: return "Ready"
+        case .safeFinish: return "Can finish automatically"
+        case .guidedSetup: return "Needs guided setup"
+        case .ownerDecision: return "Needs the project owner"
+        case .couldNotConfirm: return "Couldn't confirm"
+        }
+    }
+
+    var shortMeaning: String {
+        switch self {
+        case .ready: return "No action needed"
+        case .safeFinish: return "Review the exact additions first"
+        case .guidedSetup: return "A coding assistant can complete these"
+        case .ownerDecision: return "A named decision is required"
+        case .couldNotConfirm: return "Review what could not be proven"
+        }
+    }
+
+    var classification: WorkspaceIntegrationClassification {
+        switch self {
+        case .ready: return .ready
+        case .safeFinish: return .safeFinish
+        case .guidedSetup: return .guidedIntegration
+        case .ownerDecision: return .ownerDecision
+        case .couldNotConfirm: return .couldNotVerify
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .ready: return "checkmark.circle"
+        case .safeFinish: return "plus.circle"
+        case .guidedSetup: return "arrow.right.circle"
+        case .ownerDecision: return "person.crop.circle"
+        case .couldNotConfirm: return "questionmark.circle"
+        }
+    }
+}
+
+/// Pure copy/filter helpers shared by the wizard, menu-bar aftercare, and
+/// executable selftests. Every input fact is CLI-authored.
+enum ProjectTriageRender {
+    static let pageSize = 6
+
+    static func workspaces(
+        _ workspaces: [WorkspaceEntry],
+        in category: ProjectTriageCategory
+    ) -> [WorkspaceEntry] {
+        workspaces.filter { $0.classification == category.classification }
+    }
+
+    static func nonEmptyCategories(
+        _ workspaces: [WorkspaceEntry]
+    ) -> [ProjectTriageCategory] {
+        ProjectTriageCategory.allCases.filter {
+            !self.workspaces(workspaces, in: $0).isEmpty
+        }
+    }
+
+    static func summary(_ workspaces: [WorkspaceEntry]) -> String {
+        var sentences: [String] = []
+        let ready = self.workspaces(workspaces, in: .ready).count
+        let safe = self.workspaces(workspaces, in: .safeFinish).count
+        let guided = self.workspaces(workspaces, in: .guidedSetup).count
+        let owner = self.workspaces(workspaces, in: .ownerDecision).count
+        let unavailable = self.workspaces(workspaces, in: .couldNotConfirm).count
+
+        if ready > 0 {
+            sentences.append("\(ready) \(ready == 1 ? "is" : "are") ready.")
+        }
+        if safe > 0 {
+            sentences.append("\(safe) can finish automatically.")
+        }
+        if guided > 0 {
+            sentences.append("\(guided) \(guided == 1 ? "needs" : "need") guided setup.")
+        }
+        if owner > 0 {
+            sentences.append("\(owner) \(owner == 1 ? "needs" : "need") the project owner.")
+        }
+        if unavailable > 0 {
+            sentences.append("Control Tower couldn't confirm \(unavailable).")
+        }
+        return sentences.joined(separator: " ")
+    }
+
+    static func reason(_ workspace: WorkspaceEntry) -> String {
+        switch workspace.classification {
+        case .ready:
+            return "Claude and Codex passed authoritative verification."
+        case .safeFinish:
+            return workspace.safeAction?.detail ?? workspace.detail
+        case .guidedIntegration, .ownerDecision, .couldNotVerify:
+            let componentReasons = workspace.components.flatMap { component in
+                component.missingRequirements.map {
+                    "\(component.component == .claude ? "Claude" : "Codex"): \($0.detail)"
+                }
+            }
+            return componentReasons.first ?? workspace.detail
+        }
+    }
+
+    static func diagnosticReport(_ workspace: WorkspaceEntry) -> String {
+        var lines = [
+            "\(workspace.name) project integration report",
+            "",
+            workspace.detail,
+            "Nothing was changed by Control Tower.",
+            "",
+            "Capabilities: \(workspace.capabilities.instructions) instructions, "
+                + "\(workspace.capabilities.agents) agents, "
+                + "\(workspace.capabilities.skills) skills, "
+                + "\(workspace.capabilities.commands) commands, "
+                + "\(workspace.capabilities.plugins) plugins.",
+        ]
+        for component in workspace.components {
+            lines.append("")
+            lines.append(component.component == .claude ? "Claude" : "Codex")
+            if component.missingRequirements.isEmpty {
+                lines.append("- No missing requirement was reported.")
+            } else {
+                lines.append(contentsOf: component.missingRequirements.map { "- \($0.detail)" })
+            }
+            if let recognized = component.recognizedSetup {
+                lines.append(contentsOf: recognized.evidence.map {
+                    "- \($0.path): \($0.detail)"
+                })
+            }
+        }
+        if let command = workspace.components.first?.verification.command {
+            lines.append("")
+            lines.append("Check again after the project setup changes:")
+            lines.append(command.joined(separator: " "))
+        }
+        return lines.joined(separator: "\n")
+    }
+}
+
 /// Drives Verify's completion projects card per the spec's four body
 /// variants: set up (with or without a failure), skipped, or declined
 /// (card absent). `.notReached` only ever describes a wizard session that
@@ -989,6 +1140,10 @@ final class WizardModel: ObservableObject {
     /// already granted (the two states are mutually exclusive).
     @Published var projectsDeclineConfirmed = false
     @Published var selectedProjectPaths: Set<String> = []
+    /// `nil` is the Step 7 overview. A value means the person opened one
+    /// focused CLI-authored category. This is navigation state only; it is
+    /// never persisted or treated as project truth.
+    @Published var selectedProjectCategory: ProjectTriageCategory?
     @Published var projectsStepOutcome: ProjectsStepOutcome = .notReached
     /// Set only when one or more projects selected from a fresh, actionable
     /// CLI report still fail during configure. The Set up screen stays put
@@ -1087,6 +1242,32 @@ final class WizardModel: ObservableObject {
             )
         }
 
+        func visualProject(
+            _ name: String,
+            index: Int,
+            classification: WorkspaceIntegrationClassification
+        ) -> WorkspaceEntry {
+            let ready = classification == .ready
+            let state = ready ? "ready" : (classification == .couldNotVerify ? "blocked" : "setup-available")
+            let detail: String
+            switch classification {
+            case .ready:
+                detail = "Claude and Codex passed authoritative project verification."
+            case .guidedIntegration:
+                detail = "Project-owned instructions or capabilities need guided setup."
+            case .couldNotVerify:
+                detail = "Required project integration evidence could not be confirmed."
+            case .safeFinish:
+                detail = "Control Tower can add only the missing project integration files."
+            case .ownerDecision:
+                detail = "This project needs a decision from the person who manages its setup."
+            }
+            let json = """
+            {"path":"/p/\(index)-\(name)","name":"\(name)","project_id":null,"state":"\(state)","detail":"\(detail)","declared_components":["claude","codex"],"installed_components":["claude","codex"],"recommended_components":["claude","codex"],"personal_profile":{"state":"\(ready ? "associated" : "local-only")","project_id":null},"setup_policy":"\(ready ? "not-offered" : "ask")","policy_detail":"\(ready ? "Copilot is already set up here, so there is nothing to ask." : "Existing project setup is preserved until its route is completed.")","can_apply_now":false,"apply_blocked_detail":\(ready ? "null" : "\"Nothing was changed.\""),"undo":{"available":false,"detail":"There is nothing here to undo."}}
+            """
+            return workspace(json, classification: classification)
+        }
+
         let heldItem = inventoryItem(
             id: "device-ssh",
             scope: "machine",
@@ -1115,11 +1296,63 @@ final class WizardModel: ObservableObject {
                     from: Data(#"{"name":"Developer","path":"/Users/pablo/Developer","project_count":53}"#.utf8)
                 )
             ]
-            projectWorkspaces = [
-                workspace(#"{"path":"/p/ready","name":"already-ready","project_id":null,"state":"ready","detail":"Copilot is ready for this project.","declared_components":["claude","codex"],"installed_components":["claude","codex"],"recommended_components":["claude","codex"],"personal_profile":{"state":"associated","project_id":null},"setup_policy":"not-offered","policy_detail":"Copilot is already set up here, so there's nothing to ask.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There's nothing here to undo."}}"#, classification: .ready),
-                workspace(#"{"path":"/p/available","name":"available-project","project_id":null,"state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"ask","policy_detail":"You'll be asked before anything is added here.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There's nothing here to undo."}}"#, classification: .safeFinish),
-                workspace(#"{"path":"/p/review","name":"admin-server","project_id":null,"state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"ask","policy_detail":"You'll be asked before anything is added here.","can_apply_now":false,"apply_blocked_detail":"Existing project setup needs review before Copilot can add shared files. Nothing was changed.","undo":{"available":false,"detail":"There's nothing here to undo."}}"#, classification: .guidedIntegration),
+            let readyNames = [
+                "BM", "claude-copilot-private", "copilot-news", "knowledge-copilot",
+                "test-pilot", "financial-tracker", "investr-app", "revenue-projections",
+                "runway", "spanish-copilot", "sproutworks", "thoughts",
+                "tigers-toads-fl-weekend", "tigers-toads-weekend-2026", "tracker", "h1", "h2",
             ]
+            let guidedNames = [
+                "admin-server", "cli-copilot", "cli-copilot-internal", "codex-copilot",
+                "crm-automation-copilot", "drip-copilot", "flow", "lars-website",
+                "n8n-copilot", "preflight-copilot", "product-creation-copilot",
+                "project-copilot", "rfp-copilot", "the-collective", "transformation",
+                "workflow-copilot", "h3",
+            ]
+            let unconfirmedNames = [
+                "everyone-needs-knowledge-management", "claude-copilot", "convoco",
+                "convoco-policy-build", "convoco-site", "copilot-control-tower",
+                "force-readiness-assessment", "insights-copilot",
+                "knowledge-copilot-internal", "method-copilot", "pipeline-copilot",
+                "research-copilot", "saas-financial-model", "thought-leadership",
+                "voice-copilot", "job-finder", "Delphi", "clio", "hermes",
+            ]
+            projectWorkspaces =
+                readyNames.enumerated().map {
+                    visualProject($0.element, index: $0.offset, classification: .ready)
+                }
+                + guidedNames.enumerated().map {
+                    visualProject($0.element, index: 100 + $0.offset, classification: .guidedIntegration)
+                }
+                + unconfirmedNames.enumerated().map {
+                    visualProject($0.element, index: 200 + $0.offset, classification: .couldNotVerify)
+                }
+            selectedProjectCategory = nil
+            projectIntegrationDetail = nil
+            phase = .projects
+        case "projects-guided-detail", "projects-unconfirmed-detail", "projects-ready-detail":
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            projectRoots = [
+                try! decoder.decode(
+                    WorkspaceRootListEntry.self,
+                    from: Data(#"{"name":"Developer","path":"/Users/pablo/Developer","project_count":53}"#.utf8)
+                )
+            ]
+            let classification: WorkspaceIntegrationClassification =
+                name == "projects-guided-detail"
+                    ? .guidedIntegration
+                    : (name == "projects-unconfirmed-detail" ? .couldNotVerify : .ready)
+            let projectName =
+                classification == .guidedIntegration
+                    ? "admin-server"
+                    : (classification == .couldNotVerify ? "convoco" : "BM")
+            let detail = visualProject(projectName, index: 1, classification: classification)
+            projectWorkspaces = [detail]
+            selectedProjectCategory = ProjectTriageCategory.allCases.first {
+                $0.classification == classification
+            }
+            projectIntegrationDetail = detail
             phase = .projects
         case "project-failure":
             setupProgress.callRow.state = .done(detail: "Copilot on this Mac is ready.")
@@ -2103,6 +2336,10 @@ final class WizardModel: ObservableObject {
         guard case .success(let report) = await CliClient.shared.workspaces() else { return }
         self.projectWorkspaces = report.workspaces
         self.projectsSummary = report.summary
+        if let category = self.selectedProjectCategory,
+           ProjectTriageRender.workspaces(report.workspaces, in: category).isEmpty {
+            self.selectedProjectCategory = nil
+        }
         // A discovered project is never consent. Start with no selections;
         // the person chooses from rows the CLI says are safe to apply now.
         self.selectedProjectPaths = Self.preselectedProjectPaths(from: report.workspaces)
@@ -2130,13 +2367,20 @@ final class WizardModel: ObservableObject {
     func reviewProjectIntegration(_ workspace: WorkspaceEntry) {
         projectIntegrationDetail = workspace
         projectIntegrationMessage = nil
-        if workspace.planAvailable {
+        if workspace.planAvailable
+            || workspace.classification == .couldNotVerify
+            || workspace.classification == .ready {
             Task {
-                switch await CliClient.shared.workspaceIntegrationPlan(path: workspace.path) {
+                let result = workspace.planAvailable
+                    ? await CliClient.shared.workspaceIntegrationPlan(path: workspace.path)
+                    : await CliClient.shared.workspace(path: workspace.path)
+                switch result {
                 case .success(let report):
                     self.projectIntegrationDetail = report.workspaces.first ?? workspace
                 case .failure:
-                    self.projectIntegrationMessage = "The project plan hasn't come through yet. Nothing was changed."
+                    self.projectIntegrationMessage = workspace.planAvailable
+                        ? "The project plan hasn't come through yet. Nothing was changed."
+                        : "The latest project evidence hasn't come through yet. Nothing was changed."
                 }
             }
         }
@@ -2145,6 +2389,18 @@ final class WizardModel: ObservableObject {
     func dismissProjectIntegrationReview() {
         projectIntegrationDetail = nil
         projectIntegrationMessage = nil
+    }
+
+    func showProjectOverview() {
+        projectIntegrationDetail = nil
+        projectIntegrationMessage = nil
+        selectedProjectCategory = nil
+    }
+
+    func showProjectCategory(_ category: ProjectTriageCategory) {
+        projectIntegrationDetail = nil
+        projectIntegrationMessage = nil
+        selectedProjectCategory = category
     }
 
     func includeSafeProject(_ workspace: WorkspaceEntry) {
@@ -2160,21 +2416,58 @@ final class WizardModel: ObservableObject {
             : "The prompt couldn't be copied. Nothing in the project was changed."
     }
 
+    func copyProjectDiagnosticReport(_ workspace: WorkspaceEntry) {
+        projectIntegrationMessage = ProjectIntegrationLauncher.copy(
+            ProjectTriageRender.diagnosticReport(workspace)
+        )
+            ? "Diagnostic report copied. Use Check again after the project setup changes."
+            : "The diagnostic report couldn't be copied. Nothing in the project was changed."
+    }
+
+    func bringTerminalForward() {
+        ProjectIntegrationLauncher.bringTerminalForward()
+    }
+
     func openProjectIntegrationAssistant(
         _ assistant: ProjectIntegrationLauncher.Assistant,
         workspace: WorkspaceEntry
     ) {
         guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
-        let opened = ProjectIntegrationLauncher.open(
+        let result = ProjectIntegrationLauncher.open(
             assistant,
             projectPath: workspace.path,
             prompt: prompt
         )
-        if opened {
+        switch result {
+        case .openedInTerminal:
             pendingProjectVerificationPath = workspace.path
-            projectIntegrationMessage = "The project opened and its guided prompt was copied. Control Tower will verify it when you return."
-        } else {
-            projectIntegrationMessage = "That assistant couldn't be opened, but the guided prompt was copied."
+            projectIntegrationMessage = "\(assistant.displayName) is running in Terminal. Watch it there or continue setup; Control Tower will verify the project when you return."
+        case .assistantUnavailable:
+            projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The guided prompt was copied, and nothing in the project was changed."
+        case .terminalUnavailable:
+            projectIntegrationMessage = "Terminal couldn't start the guided session. The prompt was copied, and nothing in the project was changed."
+        }
+    }
+
+    func openProjectDiagnosticAssistant(
+        _ assistant: ProjectIntegrationLauncher.Assistant,
+        workspace: WorkspaceEntry
+    ) {
+        guard let diagnostic = workspace.diagnostic,
+              diagnostic.mode == "read-only" else { return }
+        let result = ProjectIntegrationLauncher.open(
+            assistant,
+            projectPath: workspace.path,
+            prompt: diagnostic.prompt.text
+        )
+        switch result {
+        case .openedInTerminal:
+            pendingProjectVerificationPath = workspace.path
+            projectIntegrationMessage = "\(assistant.displayName) is diagnosing in read-only mode in Terminal. Nothing may change in the project; Control Tower will check the project when you return."
+        case .assistantUnavailable:
+            projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The read-only diagnostic prompt was copied, and nothing in the project was changed."
+        case .terminalUnavailable:
+            projectIntegrationMessage = "Terminal couldn't start the read-only diagnostic session. The prompt was copied, and nothing in the project was changed."
         }
     }
 
@@ -2272,6 +2565,7 @@ final class WizardModel: ObservableObject {
                 self.projectWorkspaces = []
                 self.projectsSummary = nil
                 self.selectedProjectPaths = []
+                self.selectedProjectCategory = nil
             } else {
                 await self.loadProjectWorkspaces()
             }
@@ -3072,6 +3366,11 @@ struct WizardRootView: View {
     /// it` — unlike the Holding sheets above, closing it never re-checks
     /// anything: it just returns focus to the field on the SAME screen.
     @State private var showsOrgHelpSheet = false
+    /// Presentation-only list controls for Step 7. The selected category
+    /// itself lives on `WizardModel` so sidebar review preserves the route;
+    /// search and pagination are ephemeral and never affect CLI truth.
+    @State private var projectSearchText = ""
+    @State private var projectPage = 0
     /// Copy spec §7: "focus moves to the title on entering Holding." Scoped
     /// to the Holding phase only (`h1View`...`h7View`, `honestIncompleteView`
     /// — see `StepShell.focusTitle`) — the wizard's other nine steps have no
@@ -3097,6 +3396,10 @@ struct WizardRootView: View {
         .task { model.start() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.verifyPendingProjectOnReturn()
+        }
+        .onChange(of: model.selectedProjectCategory) { _ in
+            projectSearchText = ""
+            projectPage = 0
         }
         .sheet(isPresented: $showsInstallSheet) {
             InstallHelperSheet {
@@ -3980,24 +4283,33 @@ struct WizardRootView: View {
     private var projectsView: some View {
         stepShell(
             eyebrow: "Step 7 of 9",
-            title: "Where do you keep your projects?",
-            intro: "If you build things on this Mac, Control Tower can set your copilots up inside each project too. Choose the one folder where your projects live. Control Tower looks only inside that folder, and never anywhere else on this Mac."
+            title: projectsStepTitle,
+            intro: projectsStepIntro
         ) {
             if model.projectsLoading && model.projectRoots.isEmpty && model.projectWorkspaces.isEmpty {
-                VStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Checking only the folders you selected…")
+                        .font(.callout.weight(.semibold))
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Checking your projects")
+                    Text("Control Tower is checking Claude and Codex setup. You can continue when the results are ready.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
                     ForEach(0..<3, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(Color(nsColor: .controlBackgroundColor))
-                            .frame(height: 40)
+                            .frame(height: 72)
                     }
                 }
-                .accessibilityHidden(true)
             } else {
                 VStack(alignment: .leading, spacing: 20) {
                     projectsFolderCard
                     if !model.projectRoots.isEmpty {
                         projectsListCard
                     }
+                    projectsDeferredAftercareNote
                 }
             }
         } leadingActions: {
@@ -4007,13 +4319,89 @@ struct WizardRootView: View {
             Button { model.continueFromProjects() } label: {
                 Text(
                     model.selectedProjectPaths.isEmpty
-                        ? "Continue without projects"
-                        : "Set up \(model.selectedProjectPaths.count) selected"
+                        ? "Continue setup"
+                        : "Set up \(model.selectedProjectPaths.count) and continue"
                 )
             }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
+                .help("Unfinished project work stays available from Control Tower.")
         }
+    }
+
+    private var projectsStepTitle: String {
+        if let detail = model.projectIntegrationDetail {
+            switch detail.classification {
+            case .ready: return "\(detail.name) is ready"
+            case .safeFinish: return "\(detail.name) can finish automatically"
+            case .guidedIntegration: return "\(detail.name) needs a coding assistant"
+            case .ownerDecision: return "\(detail.name) needs its project owner"
+            case .couldNotVerify: return "Control Tower couldn't confirm \(detail.name)"
+            }
+        }
+        if let category = model.selectedProjectCategory {
+            return category.title
+        }
+        if !model.projectWorkspaces.isEmpty {
+            return "\(model.projectWorkspaces.count) projects found"
+        }
+        return "Where do you keep your projects?"
+    }
+
+    private var projectsStepIntro: String {
+        if let detail = model.projectIntegrationDetail {
+            switch detail.classification {
+            case .ready:
+                return "Claude and Codex passed authoritative verification. Nothing else is needed."
+            case .safeFinish:
+                return "Review the exact additions and preservation boundaries before including this project."
+            case .guidedIntegration:
+                return "This project has its own instructions or tools. Run the CLI-generated plan in a visible Terminal session, then Control Tower will verify the result independently."
+            case .ownerDecision:
+                return "The helper found a decision only the project owner can make. Nothing has been changed."
+            case .couldNotVerify:
+                return "Setup was found, but the helper could not prove that it matches the current Claude and Codex contract. Nothing has been changed."
+            }
+        }
+        if let category = model.selectedProjectCategory {
+            switch category {
+            case .ready:
+                return "These projects already passed Claude and Codex verification. Review them only if you want reassurance."
+            case .safeFinish:
+                return "The helper found bounded, reversible work. Choose only the projects you want to finish during this setup."
+            case .guidedSetup:
+                return "These projects have their own instructions or tools. A coding assistant can complete them while preserving what is already there."
+            case .ownerDecision:
+                return "Each project needs one named decision before guided setup can continue."
+            case .couldNotConfirm:
+                return "Control Tower found setup, but could not prove that it matches the current contract. Review the exact evidence before deciding what to do."
+            }
+        }
+        if !model.projectWorkspaces.isEmpty {
+            return ProjectTriageRender.summary(model.projectWorkspaces)
+        }
+        return "If you build things on this Mac, Control Tower can set your copilots up inside each project too. Choose the folder where your projects live. Control Tower looks only inside folders you approve."
+    }
+
+    private var projectsDeferredAftercareNote: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "clock.arrow.circlepath")
+                .foregroundColor(Color(nsColor: .linkColor))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Do as much or as little project setup as you want now")
+                    .font(.callout.weight(.semibold))
+                Text("Set up one or two projects, or continue right away. Every unfinished route stays available under Your projects in Copilot Control Tower, so you can come back later.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private var projectsFolderCard: some View {
@@ -4094,72 +4482,206 @@ struct WizardRootView: View {
     }
 
     private var projectsListCard: some View {
-        let safe = model.projectWorkspaces.filter { $0.classification == .safeFinish }
-        let guided = model.projectWorkspaces.filter { $0.classification == .guidedIntegration }
-        let owner = model.projectWorkspaces.filter { $0.classification == .ownerDecision }
-        let unverified = model.projectWorkspaces.filter { $0.classification == .couldNotVerify }
-        let ready = model.projectWorkspaces.filter { $0.classification == .ready }
-
-        return sectionCard("Projects I found") {
-            VStack(alignment: .leading, spacing: 12) {
-                if let detail = model.projectIntegrationDetail {
-                    wizardProjectIntegrationDetail(detail)
-                } else if model.projectWorkspaces.isEmpty {
-                    Text("No projects in that folder yet. Any new one you create will get your copilots automatically.")
+        Group {
+            if let detail = model.projectIntegrationDetail {
+                wizardProjectIntegrationDetail(detail)
+            } else if model.projectWorkspaces.isEmpty {
+                sectionCard("No projects found") {
+                    Text("Control Tower checked the folders above and did not find projects with Claude or Codex setup. Choose another folder, or continue setup and add one later.")
                         .font(.callout)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(
-                            "\(model.projectWorkspaces.count) projects found · "
-                                + "\(ready.count) ready · \(safe.count) safe finish · "
-                                + "\(guided.count) guided · \(owner.count) owner decision · "
-                                + "\(unverified.count) couldn't verify"
-                        )
-                            .font(.callout.weight(.semibold))
-                            .foregroundColor(Color(nsColor: .labelColor))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text("Control Tower uses the setup helper's five classifications. Safe work is reviewed before selection; guided and owner routes never write project files.")
-                            .font(.caption)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if !safe.isEmpty {
-                        wizardProjectGroup("Safe finish", workspaces: safe)
-                    }
-                    if !guided.isEmpty {
-                        wizardProjectGroup("Guided integration", workspaces: guided)
-                    }
-                    if !owner.isEmpty {
-                        wizardProjectGroup("Waiting for project owner", workspaces: owner)
-                    }
-                    if !unverified.isEmpty {
-                        wizardProjectGroup("Couldn't verify", workspaces: unverified)
-                    }
-                    if !ready.isEmpty {
-                        wizardProjectGroup("Ready", workspaces: ready)
-                    }
                 }
+            } else if let category = model.selectedProjectCategory {
+                wizardProjectCategoryList(category)
+            } else {
+                wizardProjectOverview
             }
         }
     }
 
-    private func wizardProjectGroup(_ title: String, workspaces: [WorkspaceEntry]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(title.uppercased())
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Spacer()
-                Text("\(workspaces.count)")
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+    private var wizardProjectOverview: some View {
+        let categories = ProjectTriageRender.nonEmptyCategories(model.projectWorkspaces)
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(ProjectTriageRender.summary(model.projectWorkspaces))
+                .font(.callout.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(
+                    "\(model.projectWorkspaces.count) projects found. "
+                        + ProjectTriageRender.summary(model.projectWorkspaces)
+                )
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 10),
+                    GridItem(.flexible(), spacing: 10),
+                    GridItem(.flexible(), spacing: 10),
+                ],
+                spacing: 10
+            ) {
+                ForEach(categories) { category in
+                    wizardProjectCategoryCard(category)
+                }
             }
-            ForEach(Array(workspaces.enumerated()), id: \.element.id) { index, workspace in
-                if index > 0 { Divider() }
-                wizardProjectRow(workspace)
+
+            DisclosureGroup("How this is classified") {
+                VStack(alignment: .leading, spacing: 7) {
+                    ForEach(ProjectTriageCategory.allCases) { category in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: category.systemImage)
+                                .foregroundColor(wizardProjectCategoryColor(category))
+                                .frame(width: 16)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(category.title)
+                                    .font(.caption.weight(.semibold))
+                                Text(category.shortMeaning)
+                                    .font(.caption2)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            }
+                        }
+                    }
+                }
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        }
+    }
+
+    private func wizardProjectCategoryCard(
+        _ category: ProjectTriageCategory
+    ) -> some View {
+        let workspaces = ProjectTriageRender.workspaces(model.projectWorkspaces, in: category)
+        return Button {
+            model.showProjectCategory(category)
+        } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack {
+                    Image(systemName: category.systemImage)
+                        .foregroundColor(wizardProjectCategoryColor(category))
+                        .accessibilityHidden(true)
+                    Spacer()
+                    Text("\(workspaces.count)")
+                        .font(.title2.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .labelColor))
+                }
+                Text(category.title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(category.shortMeaning)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                if category == .safeFinish {
+                    let selected = workspaces.filter {
+                        model.selectedProjectPaths.contains($0.path)
+                    }.count
+                    if selected > 0 {
+                        Text("\(selected) selected")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(Color(nsColor: .systemGreen))
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            "\(workspaces.count), \(category.title), \(category.shortMeaning)"
+        )
+        .accessibilityHint("Shows only projects in this category.")
+    }
+
+    private func wizardProjectCategoryList(
+        _ category: ProjectTriageCategory
+    ) -> some View {
+        let all = ProjectTriageRender.workspaces(model.projectWorkspaces, in: category)
+        let filtered = projectSearchText.isEmpty
+            ? all
+            : all.filter {
+                $0.name.localizedCaseInsensitiveContains(projectSearchText)
+                    || ProjectTriageRender.reason($0)
+                        .localizedCaseInsensitiveContains(projectSearchText)
+            }
+        let pageCount = max(1, Int(ceil(Double(filtered.count) / Double(ProjectTriageRender.pageSize))))
+        let currentPage = min(projectPage, pageCount - 1)
+        let start = min(currentPage * ProjectTriageRender.pageSize, filtered.count)
+        let end = min(start + ProjectTriageRender.pageSize, filtered.count)
+        let pageRows = Array(filtered[start..<end])
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Button("‹ All project results") {
+                model.showProjectOverview()
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(all.count) \(all.count == 1 ? "project" : "projects")")
+                    .font(.callout.weight(.semibold))
+                Spacer()
+                if category == .safeFinish {
+                    let selected = all.filter {
+                        model.selectedProjectPaths.contains($0.path)
+                    }.count
+                    if selected > 0 {
+                        Text("\(selected) selected for this setup")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemGreen))
+                    }
+                }
+            }
+
+            TextField("Search these \(all.count) projects", text: $projectSearchText)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Search \(category.title) projects")
+
+            if filtered.isEmpty {
+                Text("No projects in this category match “\(projectSearchText)”.")
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .padding(.vertical, 18)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(pageRows.enumerated()), id: \.element.id) { index, workspace in
+                        if index > 0 { Divider() }
+                        wizardProjectRow(workspace)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                HStack {
+                    Text("Showing \(start + 1)–\(end) of \(filtered.count)")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .accessibilityLabel(
+                            "Showing projects \(start + 1) through \(end) of \(filtered.count)"
+                        )
+                    Spacer()
+                    Button("Previous") {
+                        projectPage = max(0, currentPage - 1)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(currentPage == 0)
+                    Button("Next") {
+                        projectPage = min(pageCount - 1, currentPage + 1)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(currentPage >= pageCount - 1)
+                }
             }
         }
     }
@@ -4176,24 +4698,18 @@ struct WizardRootView: View {
                             .foregroundColor(Color(nsColor: .systemGreen))
                     }
                 }
-                Text(workspace.detail)
+                Text(ProjectTriageRender.reason(workspace))
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
-                if workspace.classification == .ready {
-                    Text(wizardCapabilitySummary(workspace.capabilities))
-                        .font(.caption2)
-                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(wizardCapabilitySummary(workspace.capabilities))
+                    .font(.caption2)
+                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             Button(wizardProjectControlLabel(workspace.classification)) {
-                if workspace.classification == .couldNotVerify {
-                    model.verifyProjectIntegration(workspace)
-                } else {
-                    model.reviewProjectIntegration(workspace)
-                }
+                model.reviewProjectIntegration(workspace)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -4204,17 +4720,36 @@ struct WizardRootView: View {
 
     private func wizardProjectControlLabel(_ classification: WorkspaceIntegrationClassification) -> String {
         switch classification {
-        case .safeFinish: return "Review safe finish"
-        case .guidedIntegration: return "Review plan"
-        case .ownerDecision: return "Review handoff"
-        case .couldNotVerify: return "Verify again"
+        case .safeFinish: return "Review"
+        case .guidedIntegration: return "Review setup"
+        case .ownerDecision: return "Review decision"
+        case .couldNotVerify: return "Review evidence"
         case .ready: return "View details"
+        }
+    }
+
+    private func wizardProjectCategoryColor(
+        _ category: ProjectTriageCategory
+    ) -> Color {
+        switch category {
+        case .ready:
+            return Color(nsColor: .systemGreen)
+        case .safeFinish, .guidedSetup:
+            return Color(nsColor: .linkColor)
+        case .ownerDecision, .couldNotConfirm:
+            return Color(nsColor: .secondaryLabelColor)
         }
     }
 
     private func wizardProjectIntegrationDetail(_ workspace: WorkspaceEntry) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Button("‹ All projects") { model.dismissProjectIntegrationReview() }
+            Button(
+                model.selectedProjectCategory == nil
+                    ? "‹ All project results"
+                    : "‹ Back to \(model.selectedProjectCategory?.title.lowercased() ?? "projects")"
+            ) {
+                model.dismissProjectIntegrationReview()
+            }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
             HStack {
@@ -4236,6 +4771,10 @@ struct WizardRootView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if let action = workspace.safeAction {
+                wizardProjectNextStep(
+                    title: "Review the exact additions",
+                    detail: "Control Tower can add only the missing integration files. Nothing is selected until you include this project."
+                )
                 wizardProjectContractPanel(
                     detected: action.willPreserve.map(\.detail),
                     required: action.willAdd.map(\.detail),
@@ -4250,6 +4789,17 @@ struct WizardRootView: View {
             }
 
             if let plan = workspace.integrationPlan {
+                if workspace.classification == .guidedIntegration {
+                    wizardProjectNextStep(
+                        title: "\(workspace.name) needs a coding assistant",
+                        detail: "Review what was found, then run the guided setup in a visible Terminal session. Control Tower will verify Claude and Codex independently when you return."
+                    )
+                } else if workspace.classification == .ownerDecision {
+                    wizardProjectNextStep(
+                        title: "The project owner needs to decide",
+                        detail: "Review the exact conflict below, then copy or share the prepared handoff. Control Tower will not change this project without that decision."
+                    )
+                }
                 wizardProjectContractPanel(
                     detected: plan.detected,
                     required: plan.missing,
@@ -4264,9 +4814,9 @@ struct WizardRootView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     HStack {
-                        Button("Open in Codex") { model.openProjectIntegrationAssistant(.codex, workspace: workspace) }
+                        Button("Run in Codex") { model.openProjectIntegrationAssistant(.codex, workspace: workspace) }
                             .buttonStyle(.borderedProminent)
-                        Button("Open in Claude Code") { model.openProjectIntegrationAssistant(.claudeCode, workspace: workspace) }
+                        Button("Run in Claude Code") { model.openProjectIntegrationAssistant(.claudeCode, workspace: workspace) }
                             .buttonStyle(.bordered)
                         Button("Copy prompt") { model.copyProjectIntegrationPrompt(workspace) }
                             .buttonStyle(.bordered)
@@ -4277,22 +4827,139 @@ struct WizardRootView: View {
                         .buttonStyle(.bordered)
                 }
                 wizardProjectVerificationPanel(plan.verification, stopConditions: plan.stopConditions)
-                Button("Verify project") { model.verifyProjectIntegration(workspace) }
-                    .buttonStyle(.borderedProminent)
+                if model.pendingProjectVerificationPath == workspace.path {
+                    HStack {
+                        Button("Bring Terminal forward") { model.bringTerminalForward() }
+                            .buttonStyle(.bordered)
+                        Button("Check project now") { model.verifyProjectIntegration(workspace) }
+                            .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    Button("Check project now") { model.verifyProjectIntegration(workspace) }
+                        .buttonStyle(.bordered)
+                }
             }
 
             if workspace.classification == .ready {
+                wizardProjectNextStep(
+                    title: "Nothing else is needed",
+                    detail: "Claude and Codex both passed authoritative verification. This project is ready."
+                )
                 wizardProjectEvidencePanel(workspace)
             }
             if workspace.classification == .couldNotVerify {
-                Button("Verify again") { model.verifyProjectIntegration(workspace) }
+                wizardProjectNextStep(
+                    title: workspace.diagnostic == nil
+                        ? "Review what could not be confirmed"
+                        : "Start a read-only diagnostic session",
+                    detail: workspace.diagnostic == nil
+                        ? "Control Tower found project setup, but could not prove that it matches the current Claude and Codex integration contract. Nothing has been changed."
+                        : "A coding assistant can explain the mismatch using the helper's evidence. It cannot change project files; only Control Tower can reclassify the project afterward."
+                )
+                wizardProjectCouldNotConfirmEvidence(workspace)
+                if workspace.diagnostic != nil {
+                    HStack {
+                        Button("Diagnose in Codex") {
+                            model.openProjectDiagnosticAssistant(.codex, workspace: workspace)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Diagnose in Claude Code") {
+                            model.openProjectDiagnosticAssistant(.claudeCode, workspace: workspace)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                HStack {
+                    Button("Copy diagnostic report") {
+                        model.copyProjectDiagnosticReport(workspace)
+                    }
                     .buttonStyle(.borderedProminent)
+                    Button("Check again") { model.verifyProjectIntegration(workspace) }
+                        .buttonStyle(.bordered)
+                        .help("Use after the project setup changes.")
+                }
             }
             if let message = model.projectIntegrationMessage {
-                Text(message)
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .accessibilityHidden(true)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+        }
+    }
+
+    private func wizardProjectNextStep(
+        title: String,
+        detail: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: "arrow.right.circle.fill")
+                .foregroundColor(Color(nsColor: .linkColor))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                Text(detail)
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func wizardProjectCouldNotConfirmEvidence(
+        _ workspace: WorkspaceEntry
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(workspace.components, id: \.component.rawValue) { component in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(component.component == .claude ? "Claude" : "Codex")
+                        .font(.caption.weight(.semibold))
+                    if component.missingRequirements.isEmpty {
+                        Text("No missing requirement was reported.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    } else {
+                        ForEach(component.missingRequirements, id: \.detail) { requirement in
+                            Text("• \(requirement.detail)")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    if let recognized = component.recognizedSetup,
+                       !recognized.evidence.isEmpty {
+                        DisclosureGroup("Setup Control Tower recognized") {
+                            VStack(alignment: .leading, spacing: 3) {
+                                ForEach(recognized.evidence, id: \.path) { evidence in
+                                    Text("\(evidence.path): \(evidence.detail)")
+                                        .font(.caption2)
+                                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                                        .textSelection(.enabled)
+                                }
+                            }
+                            .padding(.top, 3)
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                }
+                .padding(9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
     }
@@ -4357,9 +5024,9 @@ struct WizardRootView: View {
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
-            Text("Only the setup helper can mark this project Ready.")
-                .font(.caption2)
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            Text("Project setup preserved and verified.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
         }
     }
 
@@ -4370,10 +5037,10 @@ struct WizardRootView: View {
     private func wizardProjectClassificationTitle(_ classification: WorkspaceIntegrationClassification) -> String {
         switch classification {
         case .ready: return "Ready"
-        case .safeFinish: return "Safe finish"
-        case .guidedIntegration: return "Guided integration"
-        case .ownerDecision: return "Waiting for project owner"
-        case .couldNotVerify: return "Couldn't verify"
+        case .safeFinish: return "Can finish automatically"
+        case .guidedIntegration: return "Needs guided setup"
+        case .ownerDecision: return "Needs the project owner"
+        case .couldNotVerify: return "Couldn't confirm"
         }
     }
 

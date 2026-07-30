@@ -5,19 +5,31 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the release-completion record as of 2026-07-30.** The previous
+> **This is the 0.2.0 release-candidate record as of 2026-07-30.** The previous
 > handoff remains implementation and release history. The checked-in package
-> now embeds the separately signed and Apple-notarized cc 1.7.12 universal
+> now embeds the separately signed and Apple-notarized cc 1.7.13 universal
 > helper and passes the walkthrough acceptance gate.
+
+> **Owner-review closeout, 2026-07-30:** the installed Step 7 experience exposed
+> a continuous 53-project register, unclear category language, dead-end assistant
+> launch controls, and generic couldn't-verify recovery. Task `tc` 195 revises
+> walkthroughs 07 and 08 around focused triage, visible guided execution, and
+> exact evidence; task `tc` 196 implements that experience in the native wizard
+> and menu-bar aftercare. Current source passes the revised 38-assertion gate.
+> The signed 0.1.9 release facts below remain historical truth and do not imply
+> that release artifact contains this later source implementation.
 
 Date: 2026-07-30
 Primary repository: `copilot-control-tower`
 Branch: `app-build`
 CLI repository: `claude-copilot`
 CLI branch: `feat/adopt-and-project-setup`
-Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193
-Status: release-ready; signed and notarized Control Tower 0.1.9 passed
+Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197
+Historical release status: signed and notarized Control Tower 0.1.9 passed
 clean-install and installed-artifact verification
+
+Current source status: revised Step 7 implementation and aftercare are complete
+and verified; 0.2.0 release packaging is in progress under task 197
 
 ## Start Here
 
@@ -121,8 +133,9 @@ identical to the CLI repository's frozen fixture.
 4. Control Tower decodes the frozen contract and renders its facts directly. It
    does not reproduce classification or semantic inspection logic.
 5. Safe-finish, guided-integration, owner-decision, and could-not-verify routes
-   have explicit controls. External assistant actions open the selected project
-   folder and copy the CLI-generated prompt.
+   have explicit controls. Guided actions open a visible Terminal session in
+   the selected project and run the CLI-generated prompt with Codex or Claude
+   Code; uncertain projects receive a helper-authored read-only diagnostic.
 6. Only CLI verification can transition a project to Ready.
 7. Representative live projects were inspected read-only; classification did
    not mutate their working trees.
@@ -157,15 +170,19 @@ The executable matrix is:
 
 Measured results:
 
-- checked-in release package with the signed and notarized universal cc 1.7.12:
+- current source implementation with the checked-in cc 1.7.13 package:
+  **38/38, 100%, zero critical failures**;
+- production User app bundle, project-integration contract, in-binary triage,
+  diagnostic, Terminal-launch quoting, and clean-home lifecycle tests: pass;
+- checked-in release package with the signed and notarized universal cc 1.7.13:
   **33/33, 100%, zero critical failures**;
 - clean-home lifecycle: `safe-finish → finish → Ready → verify`, plus
   independent guided-integration and owner-decision routes;
-- the release helper is cc 1.7.12 from signed foundation snapshot `v5.13.14`,
+- the release helper is cc 1.7.13 from signed foundation snapshot `v5.13.15`,
   accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
   SHA-256 in `packaging/cc/PINNED_SHA256`.
 
-## Release Closure
+## Historical 0.1.9 Release Closure
 
 The release boundary is closed:
 

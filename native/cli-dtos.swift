@@ -790,6 +790,15 @@ struct WorkspaceIntegrationPlan: Decodable {
     let stopConditions: [String]
 }
 
+struct WorkspaceDiagnostic: Decodable {
+    let id: String
+    let inspectionId: String
+    let mode: String
+    let prompt: WorkspacePlanText
+    let verification: WorkspaceVerification
+    let stopConditions: [String]
+}
+
 struct WorkspaceComponentAssessment: Decodable {
     let component: WorkspaceComponentName
     let expected: Bool
@@ -840,6 +849,9 @@ struct WorkspaceEntry: Decodable, Identifiable {
     let safeAction: WorkspaceSafeAction?
     let planAvailable: Bool
     let integrationPlan: WorkspaceIntegrationPlan?
+    /// Optional for backward compatibility with cc 1.7.12. Newer helpers
+    /// supply this only for a detail-scoped could-not-verify result.
+    let diagnostic: WorkspaceDiagnostic?
 }
 
 struct WorkspaceSummary: Decodable {

@@ -12,8 +12,8 @@ aftercare before moving to the Admin experience.
 | 04 | [User Setup feedback — UI](04-user-setup-feedback-uids-walkthrough.html) | The corresponding high-fidelity User Setup treatment. |
 | 05 | [Truthful setup and recovery — UX](05-truthful-setup-recovery-uxd-walkthrough.html) | The complete four-Copilot inventory and recovery model. |
 | 06 | [Truthful setup and recovery — UI](06-truthful-setup-recovery-uids-walkthrough.html) | The high-fidelity setup, verification, and steady-state experience. |
-| 07 | [Project integration aftercare — UX](07-project-integration-aftercare-uxd-walkthrough.html) | Safe finishing, guided integration, owner handoff, and verification. |
-| 08 | [Project integration aftercare — UI](08-project-integration-aftercare-uids-walkthrough.html) | The high-fidelity project-aftercare experience using real project shapes. |
+| 07 | [Step 7 project triage and aftercare — UX](07-project-integration-aftercare-uxd-walkthrough.html) | Focused project categories, guided execution, exact couldn't-confirm evidence, and recovery. |
+| 08 | [Step 7 project triage and aftercare — UI](08-project-integration-aftercare-uids-walkthrough.html) | The high-fidelity, one-category-at-a-time Step 7 experience grounded in the observed 53-project inventory. |
 | 09 | [Admin zero-terminal readiness — UX](09-admin-zero-terminal-uxd-walkthrough.html) | Automatic readiness checks and owner-correct recovery. |
 | 10 | [Admin form placeholders — UI](10-admin-form-placeholders-uids-walkthrough.html) | Form guidance for organization and infrastructure values. |
 | 11 | [Admin completion and departments — UX](11-admin-completion-departments-uxd-walkthrough.html) | Completion, department inventory, duplicate refusal, and addition. |
