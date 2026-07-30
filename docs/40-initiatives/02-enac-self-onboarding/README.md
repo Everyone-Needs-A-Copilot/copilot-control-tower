@@ -2,7 +2,7 @@
 initiative: 02-enac-self-onboarding
 title: ENAC Self-Onboarding — Dogfood the Ecosystem on Everyone Needs A Copilot
 status: active
-status_note: Tier runtime, credential ladder, and org-config cutover are live. Phase 6 software and release hardening produced signed/notarized Control Tower 0.1.3 with complete headless Detect and inert production Set up-to-Verify proof. The app is ready for the owner to replace 0.1.1 and run the real User Setup; that live apply and the separate cold second-machine proof remain open. Continue from phases/phase-6-v0.1.3-user-install-handoff.md.
+status_note: Tier runtime, credential ladder, and org-config cutover are live. Control Tower 0.1.7 dogfooding exposed incomplete four-Copilot and project classification. The truthful setup and project-aftercare designs are complete; implementation should begin with the richer CLI workspace contract. Continue from phases/phase-6-project-integration-aftercare-handoff.md.
 owner: Pablo Alejo
 created: 2026-07-16
 execution_context:
@@ -15,10 +15,11 @@ superseded_by: null
 
 > Mode: Initiative
 > Status: **Tier runtime, credential ladder, and org-config cutover are live on
-> ENAC's Mac.** Control Tower 0.1.3 is published and release-proven. The owner's
-> real User Setup apply and the separate cold second-machine proof remain.
+> ENAC's Mac.** Control Tower 0.1.7 dogfooding exposed incomplete four-Copilot
+> and project classification. The corrective experience is designed; the richer
+> CLI contract and app rendering remain to be implemented.
 > **Taking this over? Read
-> [`phases/phase-6-v0.1.3-user-install-handoff.md`](phases/phase-6-v0.1.3-user-install-handoff.md)
+> [`phases/phase-6-project-integration-aftercare-handoff.md`](phases/phase-6-project-integration-aftercare-handoff.md)
 > first for the current pickup, then
 > [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md)
 > (what's live) and
@@ -175,7 +176,7 @@ published 0.1.3 User app and run the real User Setup. The exact signed artifact
 already passed real read-only Detect on this Mac and the production Set up →
 Verify orchestration against an inert helper. After recording the live result,
 continue the separate cold-laptop inheritance proof (V-5). Current handoff:
-[`phases/phase-6-v0.1.3-user-install-handoff.md`](phases/phase-6-v0.1.3-user-install-handoff.md).
+[`phases/phase-6-project-integration-aftercare-handoff.md`](phases/phase-6-project-integration-aftercare-handoff.md).
 
 The original **rename-redirect hazard** (creating a new repo with the old name
 silently re-points every consumer at the base skeleton) was navigated during the

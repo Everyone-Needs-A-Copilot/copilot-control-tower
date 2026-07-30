@@ -1,4 +1,13 @@
-# Handoff — Truthful Setup and Project Integration Aftercare
+# Phase 6 — Truthful setup and project integration aftercare handoff
+
+> Initiative: [`02-enac-self-onboarding`](../README.md)
+>
+> Previous handoff:
+> [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
+>
+> **This is the continuation source of truth as of 2026-07-30.** The previous
+> handoff remains implementation and release history. Start here for the current
+> truthful-setup and project-integration work.
 
 Date: 2026-07-30
 Primary repository: `copilot-control-tower`
@@ -125,7 +134,7 @@ Do not implement the candidate `31/11/11` grouping as hard-coded app logic.
 $codex-copilot:protocol
 
 Continue the truthful setup and project integration work from:
-docs/HANDOFF-PROJECT-INTEGRATION-AFTERCARE.md
+docs/40-initiatives/02-enac-self-onboarding/phases/phase-6-project-integration-aftercare-handoff.md
 
 Read the handoff, SOUL.md, the architecture guiding principles, and numbered
 walkthroughs 05 through 08 before changing code. Begin by inspecting and designing
