@@ -17,7 +17,7 @@ CLI repository: `claude-copilot`
 CLI branch: `feat/adopt-and-project-setup`
 Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193
 Status: source implementation and packaged-helper QA complete; signed Control
-Tower 0.1.8 packaging and installed-artifact verification remain
+Tower 0.1.9 packaging and installed-artifact verification remain
 
 ## Start Here
 
@@ -170,7 +170,7 @@ Measured results:
 The helper release boundary is closed. The remaining release-owner steps are:
 
 1. commit and push this exact Control Tower source;
-2. tag the source as 0.1.8;
+2. tag the source as 0.1.9;
 3. build, Developer-ID sign, Apple-notarize, and staple the app and DMG from
    that pushed ref;
 4. reinstall from the produced DMG and rerun the clean-home lifecycle against

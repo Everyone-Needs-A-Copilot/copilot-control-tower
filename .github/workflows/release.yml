@@ -51,7 +51,9 @@ jobs:
         run: ./scripts/verify-vendored-cc.sh --release packaging/cc/cc
 
       - name: Verify packaged cross-version schema compatibility
-        run: ./scripts/tests/test_schema_compatibility_release_gate.sh
+        run: |
+          ./scripts/tests/test_schema_compatibility_release_gate.sh
+          ./scripts/tests/test_notarization_order.sh
 
       - name: plutil -lint watchdog plist
         run: plutil -lint packaging/launchd/com.everyoneneedsacopilot.controltower.plist

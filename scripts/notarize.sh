@@ -1,5 +1,5 @@
 #!/bin/bash
-# M4 Stream-D / S7 — notarytool submit + staple, both .app and .dmg
+# M4 Stream-D / S7 — notarytool submit + staple for one .app or .dmg
 # (architecture.md §7, release-and-versioning.md §2 step 2, ADR-M4-002's
 # "staple is verified offline before promote").
 #
@@ -24,12 +24,23 @@
 #                                 (mounted from a CI secret at runtime, never
 #                                 committed to this repo)
 #
-# Usage: notarize.sh "/path/to/Copilot Control Tower.app" "/path/to/Copilot Control Tower.dmg"
+# Usage:
+#   notarize.sh app "/path/to/Copilot Control Tower.app"
+#   notarize.sh dmg "/path/to/Copilot Control Tower.dmg"
 
 set -euo pipefail
 
-APP_PATH="${1:?usage: notarize.sh /path/to/App.app /path/to/App.dmg}"
-DMG_PATH="${2:?usage: notarize.sh /path/to/App.app /path/to/App.dmg}"
+MODE="${1:-}"
+ARTIFACT_PATH="${2:-}"
+
+if [[ "${MODE}" != "app" && "${MODE}" != "dmg" ]]; then
+    echo "error: first argument must be app or dmg" >&2
+    exit 1
+fi
+if [[ -z "${ARTIFACT_PATH}" ]]; then
+    echo "error: artifact path is required" >&2
+    exit 1
+fi
 
 notary_auth_args=()
 if [[ -n "${CT_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
@@ -44,32 +55,46 @@ else
     exit 1
 fi
 
-if [[ ! -d "${APP_PATH}" ]]; then
-    echo "error: app bundle not found at ${APP_PATH}" >&2
-    exit 1
-fi
-if [[ ! -f "${DMG_PATH}" ]]; then
-    echo "error: dmg not found at ${DMG_PATH}" >&2
-    exit 1
-fi
+submit_path="${ARTIFACT_PATH}"
+scratch=""
+cleanup() {
+    if [[ -n "${scratch}" ]]; then
+        rm -rf "${scratch}"
+    fi
+}
+trap cleanup EXIT
 
-echo "submitting ${DMG_PATH} for notarization (--wait)..."
-xcrun notarytool submit "${DMG_PATH}" "${notary_auth_args[@]}" --wait
+case "${MODE}" in
+    app)
+        if [[ ! -d "${ARTIFACT_PATH}" ]]; then
+            echo "error: app bundle not found at ${ARTIFACT_PATH}" >&2
+            exit 1
+        fi
+        command -v ditto >/dev/null 2>&1 || {
+            echo "error: ditto is required but was not found" >&2
+            exit 1
+        }
+        scratch="$(mktemp -d "${TMPDIR:-/tmp}/control-tower-app-notary.XXXXXX")"
+        submit_path="${scratch}/$(basename "${ARTIFACT_PATH}").zip"
+        ditto -c -k --keepParent "${ARTIFACT_PATH}" "${submit_path}"
+        ;;
+    dmg)
+        if [[ ! -f "${ARTIFACT_PATH}" ]]; then
+            echo "error: dmg not found at ${ARTIFACT_PATH}" >&2
+            exit 1
+        fi
+        ;;
+esac
 
-# Staple BOTH the .app (for a direct, un-DMG'd copy — e.g. what the updater
-# downloads and stages) and the .dmg (for the manual-download path) — this
-# is what lets the watchdog verify the staged bundle is stapled OFFLINE
-# before promoting (ADR-M4-002, release-and-versioning.md §2 step 4): no
-# dependency on reaching Apple's notarization CDN at swap time, which is
-# what makes an air-gapped/proxy fleet on an internal mirror safe to
-# auto-update.
-echo "stapling ${APP_PATH}..."
-xcrun stapler staple "${APP_PATH}"
+echo "submitting ${ARTIFACT_PATH} for notarization (--wait)..."
+xcrun notarytool submit "${submit_path}" "${notary_auth_args[@]}" --wait
 
-echo "stapling ${DMG_PATH}..."
-xcrun stapler staple "${DMG_PATH}"
+# The app must be stapled before the DMG payload is assembled. Otherwise the
+# copied app has no offline ticket even though the outer DMG is stapled.
+echo "stapling ${ARTIFACT_PATH}..."
+xcrun stapler staple "${ARTIFACT_PATH}"
 
-echo "verifying staple offline on ${APP_PATH}..."
-xcrun stapler validate "${APP_PATH}"
+echo "verifying staple offline on ${ARTIFACT_PATH}..."
+xcrun stapler validate "${ARTIFACT_PATH}"
 
-echo "notarized + stapled: ${APP_PATH}, ${DMG_PATH}"
+echo "notarized + stapled: ${ARTIFACT_PATH}"

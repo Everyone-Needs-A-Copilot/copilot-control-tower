@@ -171,6 +171,9 @@ echo "release: exercising the exact app Set up -> Verify orchestration without l
 headless_setup_report="${stage_dir}/headless-setup-transaction.txt"
 scripts/headless-setup-transaction.sh --app "${app_path}" > "${headless_setup_report}"
 
+echo "release: notarizing and stapling the app before assembling the DMG"
+scripts/notarize.sh app "${app_path}"
+
 version="$(plutil -extract CFBundleShortVersionString raw "${plist_path}")"
 build_number="$(plutil -extract CFBundleVersion raw "${plist_path}")"
 architecture="$(uname -m)"
@@ -193,8 +196,8 @@ hdiutil create \
 
 codesign --sign "${CT_SIGN_IDENTITY}" --timestamp --force "${unsigned_dmg}"
 
-echo "release: notarizing and stapling"
-scripts/notarize.sh "${app_path}" "${unsigned_dmg}"
+echo "release: notarizing and stapling the DMG"
+scripts/notarize.sh dmg "${unsigned_dmg}"
 
 xcrun stapler validate "${app_path}"
 xcrun stapler validate "${unsigned_dmg}"
