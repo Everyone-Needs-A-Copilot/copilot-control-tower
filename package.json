@@ -1,7 +1,7 @@
 {
   "name": "copilot-control-tower",
   "private": true,
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "description": "Copilot Control Tower — always-on menu-bar face + supervisor over the copilot/cc CLI. Thin skin: no UI framework.",
   "scripts": {

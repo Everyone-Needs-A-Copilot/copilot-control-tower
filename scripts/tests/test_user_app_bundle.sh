@@ -92,7 +92,7 @@ if [[ "${tray_projects_output}" != *"SELFTEST trayProjects notice=pass rows=pass
 fi
 
 setup_progress_output="$(CT_SETUP_PROGRESS_SELFTEST=1 "${APP_BIN}")"
-if [[ "${setup_progress_output}" != *"SELFTEST setupProgress neverStarted=pass distinctWorking=pass realResults=pass blockedDetail=pass countLine=pass noCountBelowTwo=pass noDenominator=pass"* ]]; then
+if [[ "${setup_progress_output}" != *"SELFTEST setupProgress neverStarted=pass distinctWorking=pass realResults=pass blockedDetail=pass countLine=pass fixedDenominator=pass noDenominator=pass"* ]]; then
   echo "Setup progress selftest failed: ${setup_progress_output}" >&2
   exit 1
 fi

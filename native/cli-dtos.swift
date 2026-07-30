@@ -645,6 +645,163 @@ struct WorkspaceUndo: Decodable {
     let detail: String
 }
 
+enum WorkspaceIntegrationClassification: String, Decodable {
+    case ready
+    case safeFinish = "safe-finish"
+    case guidedIntegration = "guided-integration"
+    case ownerDecision = "owner-decision"
+    case couldNotVerify = "could-not-verify"
+}
+
+enum WorkspaceResponsibleActor: String, Decodable {
+    case none
+    case cli
+    case projectAuthor = "project-author"
+    case projectOwner = "project-owner"
+    case ecosystemOwner = "ecosystem-owner"
+    case person
+}
+
+enum WorkspaceComponentName: String, Decodable {
+    case claude
+    case codex
+}
+
+struct WorkspaceExpectedContract: Decodable {
+    let id: String
+    let version: String
+}
+
+enum WorkspaceEvidenceKind: String, Decodable {
+    case marker
+    case manifest
+    case frameworkFile = "framework-file"
+    case projectFile = "project-file"
+    case link
+    case lockRecord = "lock-record"
+}
+
+enum WorkspaceEvidenceState: String, Decodable {
+    case verified
+    case missing
+    case mismatch
+    case unreadable
+}
+
+struct WorkspaceEvidence: Decodable {
+    let kind: WorkspaceEvidenceKind
+    let path: String
+    let state: WorkspaceEvidenceState
+    let detail: String
+}
+
+struct WorkspaceRecognizedSetup: Decodable {
+    let variantId: String
+    let version: String
+    let evidence: [WorkspaceEvidence]
+}
+
+struct WorkspaceMissingRequirement: Decodable {
+    let id: String
+    let detail: String
+}
+
+struct WorkspaceVerification: Decodable {
+    let command: [String]
+    let expected: String
+    let stopConditions: [String]
+}
+
+enum WorkspaceArtifactKind: String, Decodable {
+    case instruction
+    case agent
+    case skill
+    case command
+    case plugin
+    case config
+    case manifest
+    case projectFile = "project-file"
+}
+
+struct WorkspaceArtifact: Decodable {
+    let kind: WorkspaceArtifactKind
+    let path: String
+    let detail: String
+}
+
+enum WorkspaceSafeActionKind: String, Decodable {
+    case adoptExisting = "adopt-existing"
+    case addMissing = "add-missing"
+    case repairKnown = "repair-known"
+    case composite
+}
+
+struct WorkspaceSafeAction: Decodable {
+    let id: String
+    let inspectionId: String
+    let kind: WorkspaceSafeActionKind
+    let components: [WorkspaceComponentName]
+    let detail: String
+    let applyVerb: String
+    let willAdd: [WorkspaceArtifact]
+    let willPreserve: [WorkspaceArtifact]
+    let willNotChange: [WorkspaceArtifact]
+    let verification: WorkspaceVerification
+}
+
+struct WorkspaceInspection: Decodable {
+    let id: String
+    let contractId: String
+    let contractVersion: String
+    let scope: String
+    let complete: Bool
+}
+
+struct WorkspaceCapabilities: Decodable {
+    let instructions: Int
+    let agents: Int
+    let skills: Int
+    let commands: Int
+    let plugins: Int
+    let integrationPaths: [String]
+}
+
+struct WorkspacePreservation: Decodable {
+    let mustPreserve: [WorkspaceArtifact]
+    let prohibitedActions: [String]
+}
+
+struct WorkspacePlanText: Decodable {
+    let version: String
+    let text: String
+}
+
+struct WorkspaceIntegrationPlan: Decodable {
+    let id: String
+    let inspectionId: String
+    let responsibleActor: WorkspaceResponsibleActor
+    let detected: [String]
+    let missing: [String]
+    let preserve: [String]
+    let prohibited: [String]
+    let prompt: WorkspacePlanText?
+    let ownerHandoff: WorkspacePlanText?
+    let verification: WorkspaceVerification
+    let stopConditions: [String]
+}
+
+struct WorkspaceComponentAssessment: Decodable {
+    let component: WorkspaceComponentName
+    let expected: Bool
+    let expectedContract: WorkspaceExpectedContract
+    let classification: WorkspaceIntegrationClassification
+    let recognizedSetup: WorkspaceRecognizedSetup?
+    let missingRequirements: [WorkspaceMissingRequirement]
+    let responsibleActor: WorkspaceResponsibleActor
+    let safeAction: WorkspaceSafeAction?
+    let verification: WorkspaceVerification
+}
+
 struct WorkspaceEntry: Decodable, Identifiable {
     var id: String { path }
     let path: String
@@ -671,6 +828,18 @@ struct WorkspaceEntry: Decodable, Identifiable {
     let canApplyNow: Bool
     let applyBlockedDetail: String?
     let undo: WorkspaceUndo
+    /// Authoritative schema-1.1 integration facts. Control Tower renders
+    /// these values and passes opaque action/plan ids back to `cc`; it never
+    /// derives a classification from paths, counts, or component evidence.
+    let classification: WorkspaceIntegrationClassification
+    let responsibleActor: WorkspaceResponsibleActor
+    let inspection: WorkspaceInspection
+    let components: [WorkspaceComponentAssessment]
+    let capabilities: WorkspaceCapabilities
+    let preservation: WorkspacePreservation
+    let safeAction: WorkspaceSafeAction?
+    let planAvailable: Bool
+    let integrationPlan: WorkspaceIntegrationPlan?
 }
 
 struct WorkspaceSummary: Decodable {
@@ -684,6 +853,23 @@ struct WorkspaceSummary: Decodable {
         case ready, blocked, total
         case setupAvailable = "setup-available"
         case activationRequired = "activation-required"
+    }
+}
+
+struct WorkspaceClassificationSummary: Decodable {
+    let ready: Int
+    let safeFinish: Int
+    let guidedIntegration: Int
+    let ownerDecision: Int
+    let couldNotVerify: Int
+    let total: Int
+
+    enum CodingKeys: String, CodingKey {
+        case ready, total
+        case safeFinish = "safe-finish"
+        case guidedIntegration = "guided-integration"
+        case ownerDecision = "owner-decision"
+        case couldNotVerify = "could-not-verify"
     }
 }
 
@@ -747,6 +933,7 @@ struct WorkspacesReport: Decodable {
     let result: WorkspaceReportResult
     let workspaces: [WorkspaceEntry]
     let summary: WorkspaceSummary
+    let classificationSummary: WorkspaceClassificationSummary
     let actions: [WorkspaceAction]?
     /// `cc workspace --all --json` only — whether this Mac has a projects
     /// folder granted at all, so the menu bar can offer the grant instead of

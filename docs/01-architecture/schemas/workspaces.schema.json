@@ -1,131 +1,1110 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/workspaces.schema.json",
-  "title": "Workspace activation report",
-  "description": "Read-only status, explicit configure results (including bulk `--apply-all`), and undo (`revert`) for bounded Git workspace discovery. A shared declaration is never installation proof.",
+  "$id": "https://everyoneneedsacopilot.com/schemas/claude-copilot/workspaces.schema.json",
+  "$comment": "SOURCE OF TRUTH for the additive cc workspace 1.1 project-integration contract. Control Tower may vendor this schema after upstream implementation and QA are complete.",
+  "title": "cc workspace --json project-integration report",
+  "description": "A fail-closed project integration report. Version 1.1 retains the version 1.0 workspace projection while adding authoritative per-component classification, evidence, preservation constraints, immutable safe actions, and detail-only guided plans.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "mode", "result", "workspaces"],
-  "$comment": "`summary`/`discovery`/`recently_set_up` are present on `cc workspace --all|--project [--json]` and on `configure`/`configure --apply-all`, all of which route through the CLI's `build_workspaces_report()`/`_report()` helpers. `cc workspace revert --project <path> [--apply] --json` builds its own report BY HAND and carries none of the three -- only `workspaces` (always exactly one entry) plus its own `revert` object. native/cli-dtos.swift decodes that verb's report as a SEPARATE, narrower type (`WorkspaceRevertReport`) for exactly this reason, rather than requiring fields this schema's own `revert` verb never sends.",
+  "required": [
+    "schema_version",
+    "mode",
+    "result",
+    "workspaces",
+    "summary",
+    "classification_summary"
+  ],
   "properties": {
-    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
-    "mode": { "enum": ["status", "plan", "apply"] },
-    "result": { "enum": ["ready", "action-required", "applied", "blocked"] },
+    "schema_version": {
+      "const": "1.1"
+    },
+    "mode": {
+      "enum": ["status", "plan", "apply", "finish", "verify"]
+    },
+    "result": {
+      "enum": ["ready", "action-required", "applied", "blocked"]
+    },
     "workspaces": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "path", "name", "project_id", "state", "detail",
-          "declared_components", "installed_components", "recommended_components", "personal_profile",
-          "setup_policy", "policy_detail", "can_apply_now", "apply_blocked_detail", "undo"
-        ],
-        "properties": {
-          "path": { "type": "string" },
-          "name": { "type": "string" },
-          "project_id": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
-          "state": { "enum": ["ready", "setup-available", "activation-required", "blocked"] },
-          "detail": { "type": "string" },
-          "declared_components": { "$ref": "#/$defs/components" },
-          "installed_components": { "$ref": "#/$defs/components" },
-          "recommended_components": { "$ref": "#/$defs/components" },
-          "personal_profile": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["state", "project_id"],
-            "properties": {
-              "state": { "enum": ["associated", "available", "local-only"] },
-              "project_id": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" }
-            }
-          },
-          "setup_policy": {
-            "enum": ["ask", "automatic", "excluded", "not-offered"],
-            "description": "Whether the app must ask before setting this project up. `automatic` means a project created since its root was approved, with nothing of the person's to protect and no decision only they can make -- the app applies it silently, the same way it already associates a ready project's private profile (see `recently_set_up` below for how this becomes discoverable after the fact). `excluded` is set by `revert`."
-          },
-          "policy_detail": { "type": "string" },
-          "can_apply_now": {
-            "type": "boolean",
-            "description": "False before the copilots this project's setup would copy from exist on this Mac (e.g. during first-run onboarding, before Set up has run). Chooses the wizard's checkbox grammar vs. the menu bar's immediate Add grammar."
-          },
-          "apply_blocked_detail": { "type": ["string", "null"], "description": "Required alongside `can_apply_now: false`; null otherwise." },
-          "undo": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["available", "detail"],
-            "properties": {
-              "available": { "type": "boolean" },
-              "detail": { "type": "string" }
-            }
-          }
-        }
+        "$ref": "#/$defs/workspace"
       }
     },
     "summary": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["ready", "setup-available", "activation-required", "blocked", "total"],
-      "properties": {
-        "ready": { "type": "integer", "minimum": 0 },
-        "setup-available": { "type": "integer", "minimum": 0 },
-        "activation-required": { "type": "integer", "minimum": 0 },
-        "blocked": { "type": "integer", "minimum": 0 },
-        "total": { "type": "integer", "minimum": 0 }
-      }
+      "$ref": "#/$defs/legacySummary"
+    },
+    "classification_summary": {
+      "$ref": "#/$defs/classificationSummary"
     },
     "actions": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "scope", "status", "detail"],
-        "properties": {
-          "id": { "enum": ["activate-components", "share-project-setup", "associate-personal"] },
-          "scope": { "enum": ["project", "personal"] },
-          "status": { "enum": ["planned", "applied"] },
-          "detail": { "type": "string" }
-        }
+        "$ref": "#/$defs/legacyAction"
       }
     },
-    "discovery": { "$ref": "#/$defs/discovery" },
+    "discovery": {
+      "$ref": "#/$defs/discovery"
+    },
     "recently_set_up": {
       "type": "array",
-      "description": "The 'Projects set up for you' record: one past-tense sentence per project the CLI set up automatically in the last 168h (newest first), purged of a project immediately once `revert` undoes it. Absent on the `configure`/`approve-root`/etc. reports that don't route through `build_workspaces_report()`; present (possibly `[]`) on `cc workspace --all|--project --json`. Drives BOTH the one-time 'New projects get your copilots automatically now' notice (shown once, ever) and the past-tense 'Projects set up for you' group in What changed -- the app holds no equivalent state itself across launches.",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["name", "detail"],
         "properties": {
-          "name": { "type": "string" },
-          "detail": { "type": "string", "description": "The full rendered sentence, e.g. \"Set your copilots up in Convoco.\" -- never assembled from `name` by the app." }
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1
+          }
         }
-      }
-    },
-    "revert": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["removed", "kept", "detail"],
-      "description": "`cc workspace revert --project <path> --json`: what was removed and what was kept.",
-      "properties": {
-        "removed": { "$ref": "#/$defs/components" },
-        "kept": { "$ref": "#/$defs/components" },
-        "detail": { "type": "string" }
       }
     }
   },
   "$defs": {
-    "components": {
-      "type": "array",
-      "uniqueItems": true,
-      "items": { "enum": ["claude", "codex"] }
+    "opaqueId": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "componentName": {
+      "enum": ["claude", "codex"]
+    },
+    "classification": {
+      "enum": [
+        "ready",
+        "safe-finish",
+        "guided-integration",
+        "owner-decision",
+        "could-not-verify"
+      ]
+    },
+    "responsibleActor": {
+      "enum": [
+        "none",
+        "cli",
+        "project-author",
+        "project-owner",
+        "ecosystem-owner",
+        "person"
+      ]
+    },
+    "legacySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ready",
+        "setup-available",
+        "activation-required",
+        "blocked",
+        "total"
+      ],
+      "properties": {
+        "ready": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "setup-available": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activation-required": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "classificationSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ready",
+        "safe-finish",
+        "guided-integration",
+        "owner-decision",
+        "could-not-verify",
+        "total"
+      ],
+      "properties": {
+        "ready": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "safe-finish": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "guided-integration": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "owner-decision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "could-not-verify": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "personalProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "project_id"],
+      "properties": {
+        "state": {
+          "enum": ["associated", "available", "local-only"]
+        },
+        "project_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "undo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "detail"],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "inspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "contract_id",
+        "contract_version",
+        "scope",
+        "complete"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "contract_id": {
+          "const": "project-integration"
+        },
+        "contract_version": {
+          "const": "1"
+        },
+        "scope": {
+          "enum": ["summary", "detail"]
+        },
+        "complete": {
+          "const": true
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "state", "detail"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "marker",
+            "manifest",
+            "framework-file",
+            "project-file",
+            "link",
+            "lock-record"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A repository-relative path. Evidence never carries file contents."
+        },
+        "state": {
+          "enum": ["verified", "missing", "mismatch", "unreadable"]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "recognizedSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variant_id", "version", "evidence"],
+      "properties": {
+        "variant_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "missingRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "detail"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "expected", "stop_conditions"],
+      "properties": {
+        "command": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "expected": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stop_conditions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "detail"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "instruction",
+            "agent",
+            "skill",
+            "command",
+            "plugin",
+            "config",
+            "manifest",
+            "project-file"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "safeAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "inspection_id",
+        "kind",
+        "components",
+        "detail",
+        "apply_verb",
+        "will_add",
+        "will_preserve",
+        "will_not_change",
+        "verification"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "inspection_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "kind": {
+          "enum": [
+            "adopt-existing",
+            "add-missing",
+            "repair-known",
+            "composite"
+          ]
+        },
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/componentName"
+          }
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        },
+        "apply_verb": {
+          "const": "finish"
+        },
+        "will_add": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "will_preserve": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "will_not_change": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "verification": {
+          "$ref": "#/$defs/verification"
+        }
+      }
+    },
+    "componentAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component",
+        "expected",
+        "expected_contract",
+        "classification",
+        "recognized_setup",
+        "missing_requirements",
+        "responsible_actor",
+        "safe_action",
+        "verification"
+      ],
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/componentName"
+        },
+        "expected": {
+          "type": "boolean"
+        },
+        "expected_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "version"],
+          "properties": {
+            "id": {
+              "const": "project-integration"
+            },
+            "version": {
+              "const": "1"
+            }
+          }
+        },
+        "classification": {
+          "$ref": "#/$defs/classification"
+        },
+        "recognized_setup": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/recognizedSetup"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "missing_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/missingRequirement"
+          }
+        },
+        "responsible_actor": {
+          "$ref": "#/$defs/responsibleActor"
+        },
+        "safe_action": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/safeAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verification": {
+          "$ref": "#/$defs/verification"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "ready"
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": {
+              "recognized_setup": {
+                "$ref": "#/$defs/recognizedSetup"
+              },
+              "missing_requirements": {
+                "maxItems": 0
+              },
+              "responsible_actor": {
+                "const": "none"
+              },
+              "safe_action": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "safe-finish"
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": {
+              "missing_requirements": {
+                "minItems": 1
+              },
+              "responsible_actor": {
+                "const": "cli"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "enum": [
+                  "guided-integration",
+                  "owner-decision",
+                  "could-not-verify"
+                ]
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": {
+              "missing_requirements": {
+                "minItems": 1
+              },
+              "safe_action": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instructions",
+        "agents",
+        "skills",
+        "commands",
+        "plugins",
+        "integration_paths"
+      ],
+      "properties": {
+        "instructions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skills": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "commands": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "plugins": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "integration_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "preservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["must_preserve", "prohibited_actions"],
+      "properties": {
+        "must_preserve": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "prohibited_actions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "overwrite-project-instructions",
+              "delete-project-capabilities",
+              "rename-project-capabilities",
+              "flatten-project-model",
+              "modify-verified-component",
+              "follow-external-symlink",
+              "trust-assistant-self-report",
+              "skip-verification"
+            ]
+          }
+        }
+      }
+    },
+    "planText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "text"],
+      "properties": {
+        "version": {
+          "const": "1"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "integrationPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "inspection_id",
+        "responsible_actor",
+        "detected",
+        "missing",
+        "preserve",
+        "prohibited",
+        "prompt",
+        "owner_handoff",
+        "verification",
+        "stop_conditions"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "inspection_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "responsible_actor": {
+          "$ref": "#/$defs/responsibleActor"
+        },
+        "detected": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "missing": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "preserve": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "prohibited": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "prompt": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/planText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner_handoff": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/planText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verification": {
+          "$ref": "#/$defs/verification"
+        },
+        "stop_conditions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "name",
+        "project_id",
+        "state",
+        "detail",
+        "declared_components",
+        "installed_components",
+        "recommended_components",
+        "personal_profile",
+        "setup_policy",
+        "policy_detail",
+        "can_apply_now",
+        "apply_blocked_detail",
+        "undo",
+        "classification",
+        "responsible_actor",
+        "inspection",
+        "components",
+        "capabilities",
+        "preservation",
+        "safe_action",
+        "plan_available",
+        "integration_plan"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "ready",
+            "setup-available",
+            "activation-required",
+            "blocked"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        },
+        "declared_components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/componentName"
+          }
+        },
+        "installed_components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/componentName"
+          }
+        },
+        "recommended_components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/componentName"
+          }
+        },
+        "personal_profile": {
+          "$ref": "#/$defs/personalProfile"
+        },
+        "setup_policy": {
+          "enum": ["not-offered", "excluded", "automatic", "ask"]
+        },
+        "policy_detail": {
+          "type": "string",
+          "minLength": 1
+        },
+        "can_apply_now": {
+          "type": "boolean"
+        },
+        "apply_blocked_detail": {
+          "type": ["string", "null"]
+        },
+        "undo": {
+          "$ref": "#/$defs/undo"
+        },
+        "classification": {
+          "$ref": "#/$defs/classification"
+        },
+        "responsible_actor": {
+          "$ref": "#/$defs/responsibleActor"
+        },
+        "inspection": {
+          "$ref": "#/$defs/inspection"
+        },
+        "components": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "required": ["component"],
+                "properties": {
+                  "component": {
+                    "const": "claude"
+                  }
+                }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "required": ["component"],
+                "properties": {
+                  "component": {
+                    "const": "codex"
+                  }
+                }
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ],
+          "items": {
+            "$ref": "#/$defs/componentAssessment"
+          }
+        },
+        "capabilities": {
+          "$ref": "#/$defs/capabilities"
+        },
+        "preservation": {
+          "$ref": "#/$defs/preservation"
+        },
+        "safe_action": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/safeAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plan_available": {
+          "type": "boolean"
+        },
+        "integration_plan": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/integrationPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "ready"
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "ready"
+              },
+              "responsible_actor": {
+                "const": "none"
+              },
+              "can_apply_now": {
+                "const": false
+              },
+              "safe_action": {
+                "type": "null"
+              },
+              "plan_available": {
+                "const": false
+              },
+              "integration_plan": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "safe-finish"
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "enum": ["setup-available", "activation-required"]
+              },
+              "responsible_actor": {
+                "const": "cli"
+              },
+              "can_apply_now": {
+                "const": true
+              },
+              "safe_action": {
+                "$ref": "#/$defs/safeAction"
+              },
+              "plan_available": {
+                "const": false
+              },
+              "integration_plan": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "enum": ["guided-integration", "owner-decision"]
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "blocked"
+              },
+              "can_apply_now": {
+                "const": false
+              },
+              "safe_action": {
+                "type": "null"
+              },
+              "plan_available": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "could-not-verify"
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "blocked"
+              },
+              "can_apply_now": {
+                "const": false
+              },
+              "safe_action": {
+                "type": "null"
+              },
+              "plan_available": {
+                "const": false
+              },
+              "integration_plan": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "enum": ["guided-integration", "owner-decision"]
+              },
+              "inspection": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "const": "detail"
+                  }
+                },
+                "required": ["scope"]
+              }
+            },
+            "required": ["classification", "inspection"]
+          },
+          "then": {
+            "properties": {
+              "integration_plan": {
+                "$ref": "#/$defs/integrationPlan"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "inspection": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "const": "summary"
+                  }
+                },
+                "required": ["scope"]
+              }
+            },
+            "required": ["inspection"]
+          },
+          "then": {
+            "properties": {
+              "integration_plan": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "legacyAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scope", "status", "detail"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "enum": ["project", "personal"]
+        },
+        "status": {
+          "enum": ["planned", "applied"]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     },
     "discovery": {
       "type": "object",
       "additionalProperties": false,
       "required": ["state", "roots"],
-      "description": "Whether this Mac has a projects folder granted, so the menu bar can offer the grant instead of silently returning nothing.",
       "properties": {
-        "state": { "enum": ["granted", "not-granted", "declined"] },
+        "state": {
+          "enum": ["granted", "not-granted", "declined"]
+        },
         "roots": {
           "type": "array",
           "items": {
@@ -133,8 +1112,14 @@
             "additionalProperties": false,
             "required": ["name", "path"],
             "properties": {
-              "name": { "type": "string", "description": "What the app renders." },
-              "path": { "type": "string", "description": "Only ever passed back to the CLI; never rendered." }
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         }

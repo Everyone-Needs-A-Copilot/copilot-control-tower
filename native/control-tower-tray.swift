@@ -87,6 +87,191 @@ enum NamedWaitRender {
 
 // MARK: - Region 6, projects notice + drill-in (adopt-and-project-setup spec)
 
+/// Test-only fixture upgrader used by the executable's existing offline
+/// SELFTEST seams. Callers name the expected authoritative classification;
+/// this helper does not infer it from legacy row state.
+enum WorkspaceContractSelftestFixture {
+    static func entry(
+        _ legacyJSON: String,
+        classification: WorkspaceIntegrationClassification
+    ) -> Data {
+        var row = try! JSONSerialization.jsonObject(
+            with: Data(legacyJSON.utf8)
+        ) as! [String: Any]
+        decorate(&row, classification: classification)
+        return try! JSONSerialization.data(withJSONObject: row)
+    }
+
+    static func report(
+        _ legacyJSON: String,
+        classifications: [WorkspaceIntegrationClassification]
+    ) -> Data {
+        var report = try! JSONSerialization.jsonObject(
+            with: Data(legacyJSON.utf8)
+        ) as! [String: Any]
+        var rows = report["workspaces"] as! [[String: Any]]
+        precondition(rows.count == classifications.count)
+        for index in rows.indices {
+            decorate(&rows[index], classification: classifications[index])
+        }
+        report["schema_version"] = "1.1"
+        report["workspaces"] = rows
+        let readyCount = classifications.filter { $0 == .ready }.count
+        let safeCount = classifications.filter { $0 == .safeFinish }.count
+        let guidedCount = classifications.filter { $0 == .guidedIntegration }.count
+        let ownerCount = classifications.filter { $0 == .ownerDecision }.count
+        let unavailableCount = classifications.filter { $0 == .couldNotVerify }.count
+        let classificationSummary: [String: Int] = [
+            "ready": readyCount,
+            "safe-finish": safeCount,
+            "guided-integration": guidedCount,
+            "owner-decision": ownerCount,
+            "could-not-verify": unavailableCount,
+            "total": classifications.count,
+        ]
+        report["classification_summary"] = classificationSummary
+        return try! JSONSerialization.data(withJSONObject: report)
+    }
+
+    private static func decorate(
+        _ row: inout [String: Any],
+        classification: WorkspaceIntegrationClassification
+    ) {
+        let path = row["path"] as? String ?? "/p/example"
+        let inspectionId = "sha256:" + String(repeating: "1", count: 64)
+        let actionId = "sha256:" + String(repeating: "2", count: 64)
+        let planId = "sha256:" + String(repeating: "3", count: 64)
+        let actor: WorkspaceResponsibleActor
+        switch classification {
+        case .ready: actor = .none
+        case .safeFinish: actor = .cli
+        case .guidedIntegration: actor = .projectAuthor
+        case .ownerDecision: actor = .projectOwner
+        case .couldNotVerify: actor = .person
+        }
+        row["classification"] = classification.rawValue
+        row["responsible_actor"] = actor.rawValue
+        row["inspection"] = [
+            "id": inspectionId,
+            "contract_id": "project-integration",
+            "contract_version": "1",
+            "scope": "detail",
+            "complete": true,
+        ]
+        row["capabilities"] = [
+            "instructions": 2,
+            "agents": 3,
+            "skills": 2,
+            "commands": 1,
+            "plugins": 1,
+            "integration_paths": ["CLAUDE.md", "AGENTS.md"],
+        ]
+        let preserved: [[String: Any]] = [[
+            "kind": "instruction",
+            "path": "CLAUDE.md",
+            "detail": "Preserve the project's own instructions.",
+        ]]
+        row["preservation"] = [
+            "must_preserve": preserved,
+            "prohibited_actions": [
+                "overwrite-project-instructions",
+                "delete-project-capabilities",
+                "trust-assistant-self-report",
+                "skip-verification",
+            ],
+        ]
+        let verification: [String: Any] = [
+            "command": ["cc", "workspace", "verify", "--project", path, "--json"],
+            "expected": "Claude, Codex, and the project classify ready.",
+            "stop_conditions": ["Stop if evidence changed."],
+        ]
+        let recognized: [String: Any] = [
+            "variant_id": "selftest-tracked-lock-v1",
+            "version": "1",
+            "evidence": [[
+                "kind": "lock-record",
+                "path": "copilot.lock.json",
+                "state": "verified",
+                "detail": "Recorded evidence matches.",
+            ]],
+        ]
+        row["components"] = ["claude", "codex"].map { component in
+            var item: [String: Any] = [
+                "component": component,
+                "expected": true,
+                "expected_contract": [
+                    "id": "project-integration",
+                    "version": "1",
+                ],
+                "classification": classification.rawValue,
+                "recognized_setup": classification == .ready ? recognized : NSNull(),
+                "missing_requirements": classification == .ready ? [] : [[
+                    "id": "selftest-requirement",
+                    "detail": "Complete the declared integration route.",
+                ]],
+                "responsible_actor": actor.rawValue,
+                "safe_action": NSNull(),
+                "verification": verification,
+            ]
+            if classification == .safeFinish {
+                item["responsible_actor"] = WorkspaceResponsibleActor.cli.rawValue
+            }
+            return item
+        }
+
+        if classification == .safeFinish {
+            let action: [String: Any] = [
+                "id": actionId,
+                "inspection_id": inspectionId,
+                "kind": "add-missing",
+                "components": ["claude", "codex"],
+                "detail": "Add only the missing Copilot integration files.",
+                "apply_verb": "finish",
+                "will_add": [[
+                    "kind": "manifest",
+                    "path": "copilot.lock.json",
+                    "detail": "Record verified component evidence.",
+                ]],
+                "will_preserve": preserved,
+                "will_not_change": preserved,
+                "verification": verification,
+            ]
+            row["safe_action"] = action
+            row["plan_available"] = false
+            row["integration_plan"] = NSNull()
+            row["can_apply_now"] = true
+        } else if classification == .guidedIntegration || classification == .ownerDecision {
+            row["safe_action"] = NSNull()
+            row["plan_available"] = true
+            row["can_apply_now"] = false
+            row["integration_plan"] = [
+                "id": planId,
+                "inspection_id": inspectionId,
+                "responsible_actor": actor.rawValue,
+                "detected": ["Project-specific instructions are present."],
+                "missing": ["Connect both expected Copilot entry points."],
+                "preserve": ["Preserve the project's own instructions."],
+                "prohibited": ["Do not overwrite project instructions."],
+                "prompt": [
+                    "version": "1",
+                    "text": "Integrate this project while preserving its own behavior.",
+                ],
+                "owner_handoff": [
+                    "version": "1",
+                    "text": "This project needs its owner. Nothing has been changed.",
+                ],
+                "verification": verification,
+                "stop_conditions": ["Stop for an unresolved owner decision."],
+            ]
+        } else {
+            row["safe_action"] = NSNull()
+            row["plan_available"] = false
+            row["integration_plan"] = NSNull()
+            row["can_apply_now"] = false
+        }
+    }
+}
+
 /// One project row's transient, session-local UI state while `TrayModel.
 /// addProject(_:)`/`addAllProjects()`/`undoProject(_:)` is in flight — never
 /// persisted, never read back from the CLI (`nil` in `TrayModel.
@@ -107,6 +292,8 @@ enum ProjectRowAction: Equatable {
     case undoFailed
     /// `undoing`'s own silence-path pair to `stalled` above.
     case undoStalled
+    case loadingPlan
+    case verifying
 }
 
 /// Pure: the Region 6 notice's count and copy. A `static`, instance-free
@@ -120,8 +307,7 @@ enum ProjectsNoticeRender {
     /// counting them would turn known holds into misleading offers.
     static func actionableCount(_ report: WorkspacesReport) -> Int {
         report.workspaces.filter {
-            ($0.state == .setupAvailable || $0.state == .activationRequired)
-                && $0.canApplyNow
+            $0.classification == .safeFinish && $0.canApplyNow
         }.count
     }
 
@@ -156,8 +342,10 @@ enum RecentlySetUpRender {
 /// requires it (`excluded` — "Undone", re-offering `Add`).
 enum ProjectRowRender {
     enum Kind: Equatable {
-        case canBeSetUp
-        case needsFinishing
+        case safeFinish
+        case guidedIntegration
+        case ownerDecision
+        case couldNotVerify
         case alreadySetUp
         /// A `ready` project the CLI's top-level `recently_set_up` record
         /// names by `name` (B3, adopt-and-project-setup spec, "Automatic
@@ -181,22 +369,26 @@ enum ProjectRowRender {
     }
 
     static func kind(for workspace: WorkspaceEntry, recentlySetUpNames: Set<String> = []) -> Kind {
-        switch workspace.state {
+        switch workspace.classification {
         case .ready:
             return recentlySetUpNames.contains(workspace.name) ? .automaticallySetUp : .alreadySetUp
-        case .setupAvailable:
-            guard workspace.canApplyNow else { return .keptAsIs }
-            return workspace.setupPolicy == .excluded ? .excluded : .canBeSetUp
-        case .activationRequired:
-            return workspace.canApplyNow ? .needsFinishing : .keptAsIs
-        case .blocked: return .keptAsIs
+        case .safeFinish:
+            return workspace.setupPolicy == .excluded ? .excluded : .safeFinish
+        case .guidedIntegration:
+            return .guidedIntegration
+        case .ownerDecision:
+            return .ownerDecision
+        case .couldNotVerify:
+            return .couldNotVerify
         }
     }
 
     static func caption(for workspace: WorkspaceEntry, recentlySetUpNames: Set<String> = []) -> String {
         switch kind(for: workspace, recentlySetUpNames: recentlySetUpNames) {
-        case .canBeSetUp: return "Copilot can be set up here."
-        case .needsFinishing: return "Set up here already, but not active on this Mac yet."
+        case .safeFinish: return workspace.safeAction?.detail ?? workspace.detail
+        case .guidedIntegration: return "Guided integration will preserve this project's own setup."
+        case .ownerDecision: return "Waiting for the person who manages this project's setup."
+        case .couldNotVerify: return workspace.detail
         case .alreadySetUp: return "Already set up."
         case .automaticallySetUp:
             // Spec, "Undo": "Unavailable: 'You've changed these files
@@ -209,16 +401,70 @@ enum ProjectRowRender {
         }
     }
 
-    /// `nil` means the row carries no control at all (`alreadySetUp`,
-    /// `keptAsIs`, or an `automaticallySetUp` row whose files were edited
+    /// `nil` means the row carries no control at all (`keptAsIs`, or an
+    /// `automaticallySetUp` row whose files were edited
     /// since — "no Undo control at all, never a disabled one").
     static func controlLabel(for workspace: WorkspaceEntry, recentlySetUpNames: Set<String> = []) -> String? {
         switch kind(for: workspace, recentlySetUpNames: recentlySetUpNames) {
-        case .canBeSetUp, .excluded: return "Add"
-        case .needsFinishing: return "Finish setup"
+        case .safeFinish, .excluded: return "Review safe finish"
+        case .guidedIntegration: return "Review plan"
+        case .ownerDecision: return "Review handoff"
+        case .couldNotVerify: return "Verify again"
         case .automaticallySetUp: return workspace.undo.available ? "Undo" : nil
-        case .alreadySetUp, .keptAsIs: return nil
+        case .alreadySetUp: return "View details"
+        case .keptAsIs: return nil
         }
+    }
+}
+
+/// Opens an installed coding assistant with the project folder after putting
+/// the CLI-generated prompt on the pasteboard. Bundle identifiers and folder
+/// document opening are the only launch contract used here; no shell command
+/// or guessed deep-link payload is assembled.
+enum ProjectIntegrationLauncher {
+    enum Assistant {
+        case codex
+        case claudeCode
+
+        var bundleIdentifiers: [String] {
+            switch self {
+            case .codex:
+                return ["com.openai.codex"]
+            case .claudeCode:
+                return [
+                    "com.anthropic.claude-code",
+                    "com.anthropic.claude-code-url-handler",
+                ]
+            }
+        }
+    }
+
+    @discardableResult
+    static func copy(_ text: String) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
+    }
+
+    static func open(
+        _ assistant: Assistant,
+        projectPath: String,
+        prompt: String
+    ) -> Bool {
+        _ = copy(prompt)
+        guard let applicationURL = assistant.bundleIdentifiers.lazy.compactMap({
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0)
+        }).first else {
+            return false
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.open(
+            [URL(fileURLWithPath: projectPath, isDirectory: true)],
+            withApplicationAt: applicationURL,
+            configuration: configuration
+        )
+        return true
     }
 }
 
@@ -331,6 +577,15 @@ final class TrayModel: ObservableObject {
     /// never fires again on any future launch); cleared by
     /// `dismissAutomaticSetupNotice()` once the person acts on it.
     @Published private(set) var showAutomaticSetupNotice = false
+    /// A single-project schema-1.1 detail response. Summary polling omits
+    /// generated prompt/handoff text by contract, so the UI fetches this
+    /// only after the person opens a guided route.
+    @Published private(set) var projectIntegrationDetail: WorkspaceEntry?
+    @Published private(set) var projectIntegrationMessage: String?
+    /// Set only when Control Tower successfully opens an external assistant.
+    /// Returning to the app consumes this path and asks `cc` to verify the
+    /// complete project contract; the assistant's own report is never trusted.
+    @Published private(set) var pendingProjectVerificationPath: String?
 
     /// Concurrently calls `doctor()` + `layers()` (steady-state verdict +
     /// Region 3's join candidates) and `authStatus()` + `freshnessAllProjects()`
@@ -416,12 +671,13 @@ final class TrayModel: ObservableObject {
             // exists, adding no process and no privilege").
             let automatic = report.workspaces.filter { $0.setupPolicy == .automatic && $0.canApplyNow }
             for workspace in automatic {
-                _ = await CliClient.shared.configureWorkspace(
-                    path: workspace.path,
-                    components: workspace.recommendedComponents,
-                    shareWithProject: workspace.declaredComponents.isEmpty,
-                    apply: true
-                )
+                if let action = workspace.safeAction {
+                    _ = await CliClient.shared.finishWorkspace(
+                        path: workspace.path,
+                        actionId: action.id,
+                        apply: true
+                    )
+                }
             }
             if !automatic.isEmpty, case .success(let refreshed) = await CliClient.shared.workspaces() {
                 // Re-read rather than assemble a report locally — the CLI
@@ -470,7 +726,10 @@ final class TrayModel: ObservableObject {
     /// renamed to `isAnyProjectBusy`) to keep this a minimal, additive
     /// change to an already-established name.
     var isAnyProjectAdding: Bool {
-        projectRowActions.values.contains(.adding) || projectRowActions.values.contains(.undoing)
+        projectRowActions.values.contains(.adding)
+            || projectRowActions.values.contains(.undoing)
+            || projectRowActions.values.contains(.loadingPlan)
+            || projectRowActions.values.contains(.verifying)
     }
 
     /// One `addProject(_:)`/`undoProject(_:)` attempt per project path, so a
@@ -491,7 +750,10 @@ final class TrayModel: ObservableObject {
     /// underneath (the CLI's own `flock` on `copilot.lock` makes a second
     /// concurrent invocation safe, per `CLAUDE.md` invariant #2).
     func addProject(_ workspace: WorkspaceEntry) async {
-        guard !isAnyProjectAdding, workspace.canApplyNow else { return }
+        guard !isAnyProjectAdding,
+              workspace.classification == .safeFinish,
+              workspace.canApplyNow,
+              let action = workspace.safeAction else { return }
         projectRowActions[workspace.path] = .adding
         let generation = (projectAttemptGeneration[workspace.path] ?? 0) + 1
         projectAttemptGeneration[workspace.path] = generation
@@ -505,18 +767,20 @@ final class TrayModel: ObservableObject {
         }
         defer { watchdog.cancel() }
 
-        let shouldShare = workspace.declaredComponents.isEmpty
-        let result = await CliClient.shared.configureWorkspace(
+        let result = await CliClient.shared.finishWorkspace(
             path: workspace.path,
-            components: workspace.recommendedComponents,
-            shareWithProject: shouldShare,
+            actionId: action.id,
             apply: true
         )
         guard projectAttemptGeneration[workspace.path] == generation else { return }
         if case .success(let report) = result,
            let updated = report.workspaces.first(where: { $0.path == workspace.path }),
-           updated.state == .ready {
+           updated.classification == .ready {
             lastWorkspaces = report
+            if projectIntegrationDetail?.path == workspace.path {
+                projectIntegrationDetail = updated
+                projectIntegrationMessage = "Verified Ready. Claude, Codex, and the preserved project contract passed."
+            }
             projectRowActions[workspace.path] = nil
         } else {
             projectRowActions[workspace.path] = .failed
@@ -571,8 +835,9 @@ final class TrayModel: ObservableObject {
     func addAllProjects() async {
         guard !isAnyProjectAdding else { return }
         let addable = (lastWorkspaces?.workspaces ?? []).filter {
-            ($0.state == .setupAvailable || $0.state == .activationRequired)
+            $0.classification == .safeFinish
                 && $0.canApplyNow
+                && $0.safeAction != nil
         }
         guard !addable.isEmpty else { return }
         for workspace in addable {
@@ -584,21 +849,121 @@ final class TrayModel: ObservableObject {
         // list, one typed result at a time, so a known hold elsewhere cannot
         // be swept into the request.
         for workspace in addable {
-            let result = await CliClient.shared.configureWorkspace(
+            guard let action = workspace.safeAction else { continue }
+            let result = await CliClient.shared.finishWorkspace(
                 path: workspace.path,
-                components: workspace.recommendedComponents,
-                shareWithProject: workspace.declaredComponents.isEmpty,
+                actionId: action.id,
                 apply: true
             )
             if case .success(let report) = result,
                let updated = report.workspaces.first(where: { $0.path == workspace.path }),
-               updated.state == .ready {
+               updated.classification == .ready {
                 projectRowActions[workspace.path] = nil
             } else {
                 projectRowActions[workspace.path] = .failed
             }
         }
         await refresh()
+    }
+
+    /// Fetches the bounded detail payload before exposing prompt or handoff
+    /// actions. A stale/changed project naturally returns a fresh plan.
+    func loadProjectIntegrationDetail(_ workspace: WorkspaceEntry) async {
+        guard !isAnyProjectAdding else { return }
+        projectRowActions[workspace.path] = .loadingPlan
+        projectIntegrationMessage = nil
+        let result = workspace.planAvailable
+            ? await CliClient.shared.workspaceIntegrationPlan(path: workspace.path)
+            : await CliClient.shared.workspace(path: workspace.path)
+        projectRowActions[workspace.path] = nil
+        switch result {
+        case .success(let report):
+            projectIntegrationDetail = report.workspaces.first
+            if projectIntegrationDetail?.integrationPlan == nil {
+                projectIntegrationMessage = "This project no longer has a guided plan. Its current result is shown below."
+            }
+        case .failure:
+            projectIntegrationMessage = "The project plan hasn't come through yet. Nothing was changed."
+        }
+    }
+
+    func dismissProjectIntegrationDetail() {
+        projectIntegrationDetail = nil
+        projectIntegrationMessage = nil
+    }
+
+    func copyIntegrationPrompt(_ workspace: WorkspaceEntry) {
+        guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
+        let copied = ProjectIntegrationLauncher.copy(prompt)
+        projectIntegrationMessage = copied
+            ? "Integration prompt copied. The project is still incomplete until verification passes."
+            : "The prompt couldn't be copied. Nothing in the project was changed."
+    }
+
+    func openIntegrationAssistant(
+        _ assistant: ProjectIntegrationLauncher.Assistant,
+        workspace: WorkspaceEntry
+    ) {
+        guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
+        let opened = ProjectIntegrationLauncher.open(
+            assistant,
+            projectPath: workspace.path,
+            prompt: prompt
+        )
+        if opened {
+            pendingProjectVerificationPath = workspace.path
+        }
+        projectIntegrationMessage = opened
+            ? "The project opened and its guided prompt was copied. Control Tower will verify it when you return."
+            : "That assistant couldn't be opened, but the guided prompt was copied."
+    }
+
+    func verifyPendingProjectOnReturn() async {
+        guard let path = pendingProjectVerificationPath else { return }
+        pendingProjectVerificationPath = nil
+        guard let workspace = (lastWorkspaces?.workspaces ?? []).first(where: { $0.path == path })
+                ?? (projectIntegrationDetail?.path == path ? projectIntegrationDetail : nil) else { return }
+        await verifyProjectIntegration(workspace)
+    }
+
+    /// Copies the CLI-authored owner package and asks the CLI to remember an
+    /// opaque incomplete hold. Neither operation changes the project or marks
+    /// it Ready.
+    func prepareOwnerHandoff(_ workspace: WorkspaceEntry) async {
+        guard let plan = workspace.integrationPlan,
+              let handoff = plan.ownerHandoff?.text else { return }
+        let copied = ProjectIntegrationLauncher.copy(handoff)
+        if copied {
+            _ = await CliClient.shared.holdWorkspaceIntegration(
+                path: workspace.path,
+                planId: plan.id
+            )
+            projectIntegrationMessage = "Project-owner handoff copied. Nothing in the project was changed."
+        } else {
+            projectIntegrationMessage = "The handoff couldn't be copied. Nothing in the project was changed."
+        }
+    }
+
+    func verifyProjectIntegration(_ workspace: WorkspaceEntry) async {
+        guard !isAnyProjectAdding else { return }
+        projectRowActions[workspace.path] = .verifying
+        projectIntegrationMessage = "Verifying the complete project contract…"
+        let result = await CliClient.shared.verifyWorkspace(path: workspace.path)
+        projectRowActions[workspace.path] = nil
+        switch result {
+        case .success(let report):
+            if let updated = report.workspaces.first {
+                projectIntegrationDetail = updated
+                if updated.classification == .ready {
+                    projectIntegrationMessage = "Verified Ready. Claude and Codex both passed."
+                    await refresh()
+                } else {
+                    projectIntegrationMessage = updated.detail
+                }
+            }
+        case .failure:
+            projectIntegrationMessage = "Verification hasn't come through yet. The project remains incomplete."
+        }
     }
 
     /// **Choose folder…** / **Add another folder…**, reachable from both the
@@ -800,13 +1165,25 @@ private struct ComponentTreeRow: View {
     let component: ComponentView
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(component.component)
-                .font(.body)
-                .foregroundColor(Color(nsColor: .labelColor))
-            Spacer(minLength: 8)
-            ForEach(Layer.allCases) { layer in
-                LayerDot(layer: layer, layerView: component.layers.first(where: { $0.layer == layer }))
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(component.component)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                Spacer(minLength: 8)
+                Text(component.worstSeverity == .pass ? "Ready" : component.worstSeverity == .warn ? "Needs review" : "Needs attention")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: component.worstSeverity == .pass ? .systemGreen : .secondaryLabelColor))
+            }
+            Text(component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }.joined(separator: " · "))
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+            if let detail = component.layers.first(where: { $0.severity != .pass })?.detail {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .accessibilityElement(children: .combine)
@@ -877,7 +1254,12 @@ struct PopoverContentView: View {
     /// projects (drill-in)") — a SEPARATE top-level panel from `showingWhatChanged`'s
     /// own drill-in, reached only from the Region 6 notice's "Review
     /// projects", using the exact same back-and-drill-in grammar.
+    #if CT_VISUAL_TEST_BUILD
+    @State private var showingProjectsPanel =
+        ProcessInfo.processInfo.environment["CT_VISUAL_PROJECTS_PANEL"] == "1"
+    #else
     @State private var showingProjectsPanel = false
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -924,6 +1306,9 @@ struct PopoverContentView: View {
         .frame(width: 360, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .background(VisualEffectBackground())
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await model.verifyPendingProjectOnReturn() }
+        }
     }
 
     // MARK: Region 1 — status header. `HeaderView.sentence` verbatim, except
@@ -1248,103 +1633,137 @@ struct PopoverContentView: View {
 
     private var projectsDrillInRegion: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button("‹ Back") {
-                showingProjectsPanel = false
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            if let detail = model.projectIntegrationDetail {
+                projectIntegrationDetailView(detail)
+            } else {
+                Button("‹ Back") {
+                    showingProjectsPanel = false
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
 
-            Text("Your projects")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(Color(nsColor: .labelColor))
+                Text("Your projects")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
 
-            if let workspaces = model.lastWorkspaces {
-                let actionable = ProjectsNoticeRender.actionableCount(workspaces)
-                let ready = workspaces.workspaces.filter { $0.state == .ready }
-                let rest = workspaces.workspaces.filter { $0.state != .ready }
-                let needsReview = max(0, workspaces.summary.total - ready.count - actionable)
-                // Membership-only signal for "was this row set up
-                // automatically" (`ProjectRowRender.Kind.automaticallySetUp`'s
-                // own doc comment) — the CLI's own `recently_set_up` names,
-                // never inferred any other way.
-                let recentlySetUpNames = Set((workspaces.recentlySetUp ?? []).map(\.name))
-
-                if workspaces.workspaces.isEmpty {
-                    if workspaces.discovery?.state == .granted {
-                        Text("No projects in that folder yet. Any new one you create will get your copilots automatically.")
-                            .font(.body)
-                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                    } else {
-                        Text("Control Tower isn't watching any folder yet. Choose the folder where you keep your projects and it will set your copilots up there.")
-                            .font(.body)
-                            .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Choose folder…") { model.chooseProjectsFolder() }
-                            .buttonStyle(.bordered)
+                if let workspaces = model.lastWorkspaces {
+                    let actionable = ProjectsNoticeRender.actionableCount(workspaces)
+                    let ready = workspaces.workspaces.filter { $0.classification == .ready }
+                    let safe = workspaces.workspaces.filter { $0.classification == .safeFinish }
+                    let guided = workspaces.workspaces.filter {
+                        $0.classification == .guidedIntegration || $0.classification == .ownerDecision
                     }
-                } else {
-                    Text(
-                        "\(workspaces.summary.total) projects: \(ready.count) ready, "
-                            + "\(actionable) available to set up now, and \(needsReview) need review."
-                    )
-                        .font(.caption)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    let unavailable = workspaces.workspaces.filter { $0.classification == .couldNotVerify }
+                    // Membership-only signal for "was this row set up
+                    // automatically" (`ProjectRowRender.Kind.automaticallySetUp`'s
+                    // own doc comment) — the CLI's own `recently_set_up` names,
+                    // never inferred any other way.
+                    let recentlySetUpNames = Set((workspaces.recentlySetUp ?? []).map(\.name))
 
-                    if rest.isEmpty {
-                        Text("All \(workspaces.summary.total) of your projects are set up.")
-                            .font(.body)
-                            .foregroundColor(Color(nsColor: .labelColor))
+                    if workspaces.workspaces.isEmpty {
+                        if workspaces.discovery?.state == .granted {
+                            Text("No projects in that folder yet. Any new one you create will get your copilots automatically.")
+                                .font(.body)
+                                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                        } else {
+                            Text("Control Tower isn't watching any folder yet. Choose the folder where you keep your projects and it will set your copilots up there.")
+                                .font(.body)
+                                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Choose folder…") { model.chooseProjectsFolder() }
+                                .buttonStyle(.bordered)
+                        }
                     } else {
-                        HStack {
-                            Spacer()
-                            if actionable > 0 {
-                                Button("Add all available") {
-                                    Task { await model.addAllProjects() }
+                        Text(
+                            "\(workspaces.classificationSummary.total) projects: "
+                                + "\(workspaces.classificationSummary.ready) ready, "
+                                + "\(workspaces.classificationSummary.safeFinish) can finish safely, "
+                                + "\(workspaces.classificationSummary.guidedIntegration) guided, "
+                                + "\(workspaces.classificationSummary.ownerDecision) waiting for an owner, and "
+                                + "\(workspaces.classificationSummary.couldNotVerify) couldn't be verified."
+                        )
+                            .font(.caption)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+
+                        if safe.isEmpty && guided.isEmpty && unavailable.isEmpty {
+                            Text("All \(workspaces.summary.total) of your projects are set up.")
+                                .font(.body)
+                                .foregroundColor(Color(nsColor: .labelColor))
+                        } else {
+                            HStack {
+                                Spacer()
+                                if actionable > 0 {
+                                    Button("Add all available") {
+                                        Task { await model.addAllProjects() }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(Color(nsColor: .linkColor))
+                                    .disabled(model.isAnyProjectAdding)
                                 }
+                            }
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if !safe.isEmpty {
+                                        projectGroupHeading("Can finish safely", count: safe.count)
+                                        ForEach(safe) { workspace in
+                                            projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
+                                        }
+                                    }
+                                    if !guided.isEmpty {
+                                        projectGroupHeading("Guided integration", count: guided.count)
+                                        ForEach(guided) { workspace in
+                                            projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
+                                        }
+                                    }
+                                    if !unavailable.isEmpty {
+                                        projectGroupHeading("Couldn't verify", count: unavailable.count)
+                                        ForEach(unavailable) { workspace in
+                                            projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 220)
+                        }
+
+                        if !ready.isEmpty {
+                            DisclosureGroup("\(ready.count) already set up ›") {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ForEach(ready) { workspace in
+                                        projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
+                                    }
+                                }
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        }
+
+                        HStack(spacing: 12) {
+                            Button("Add another folder…") { model.chooseProjectsFolder() }
                                 .buttonStyle(.plain)
                                 .foregroundColor(Color(nsColor: .linkColor))
-                                .disabled(model.isAnyProjectAdding)
-                            }
-                        }
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(rest) { workspace in
-                                    projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
+                            if let firstRoot = workspaces.discovery?.roots.first {
+                                Button("Stop watching this folder") {
+                                    Task { await model.stopWatchingProjectsRoot(path: firstRoot.path) }
                                 }
+                                .buttonStyle(.plain)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
                             }
-                        }
-                        .frame(maxHeight: 220)
-                    }
-
-                    if !ready.isEmpty {
-                        DisclosureGroup("\(ready.count) already set up ›") {
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(ready) { workspace in
-                                    projectDrillInRow(workspace, recentlySetUpNames: recentlySetUpNames)
-                                }
-                            }
-                        }
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    }
-
-                    HStack(spacing: 12) {
-                        Button("Add another folder…") { model.chooseProjectsFolder() }
-                            .buttonStyle(.plain)
-                            .foregroundColor(Color(nsColor: .linkColor))
-                        if let firstRoot = workspaces.discovery?.roots.first {
-                            Button("Stop watching this folder") {
-                                Task { await model.stopWatchingProjectsRoot(path: firstRoot.path) }
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         }
                     }
                 }
             }
         }
         .padding(.horizontal, 12)
+    }
+
+    private func projectGroupHeading(_ title: String, count: Int) -> some View {
+        Text("\(title) · \(count)")
+            .font(.caption.weight(.semibold))
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            .padding(.top, 6)
+            .accessibilityLabel("\(title), \(count) projects")
     }
 
     private func projectDrillInRow(_ workspace: WorkspaceEntry, recentlySetUpNames: Set<String>) -> some View {
@@ -1356,6 +1775,8 @@ struct PopoverContentView: View {
         case .stalled: caption = NamedWaitRender.projectHasNotComeThrough(workspace.name)
         case .undoFailed: caption = "Couldn't undo that right now. Nothing was changed."
         case .undoStalled: caption = NamedWaitRender.projectUndoHasNotComeThrough(workspace.name)
+        case .loadingPlan: caption = "Preparing the guided plan…"
+        case .verifying: caption = "Verifying Claude and Codex…"
         case .undoing, nil: caption = ProjectRowRender.caption(for: workspace, recentlySetUpNames: recentlySetUpNames)
         }
 
@@ -1380,7 +1801,7 @@ struct PopoverContentView: View {
     @ViewBuilder
     private func projectDrillInRowControl(_ workspace: WorkspaceEntry, localAction: ProjectRowAction?, recentlySetUpNames: Set<String>) -> some View {
         switch localAction {
-        case .adding, .undoing:
+        case .adding, .undoing, .loadingPlan, .verifying:
             CTNamedWaitSpinner(subject: workspace.name)
                 .frame(width: 14, height: 14)
         case .failed, .stalled:
@@ -1413,7 +1834,16 @@ struct PopoverContentView: View {
                 // caption already carries the CLI's honest reason.
             } else if let label = ProjectRowRender.controlLabel(for: workspace, recentlySetUpNames: recentlySetUpNames) {
                 Button(label) {
-                    Task { await model.addProject(workspace) }
+                    Task {
+                        switch kind {
+                        case .safeFinish, .excluded, .guidedIntegration, .ownerDecision, .alreadySetUp:
+                            await model.loadProjectIntegrationDetail(workspace)
+                        case .couldNotVerify:
+                            await model.verifyProjectIntegration(workspace)
+                        case .automaticallySetUp, .keptAsIs:
+                            break
+                        }
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -1424,6 +1854,239 @@ struct PopoverContentView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
+        }
+    }
+
+    private func projectIntegrationDetailView(_ workspace: WorkspaceEntry) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Button("‹ All projects") {
+                    model.dismissProjectIntegrationDetail()
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+
+                Text(projectIntegrationTitle(workspace.classification))
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(projectIntegrationColor(workspace.classification))
+                Text(workspace.detail)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(workspace.components, id: \.component.rawValue) { component in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(component.component == .claude ? "Claude" : "Codex")
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Text(projectIntegrationTitle(component.classification))
+                                .font(.caption)
+                                .foregroundColor(projectIntegrationColor(component.classification))
+                        }
+                    }
+                    Divider()
+                    Text(projectCapabilitySummary(workspace.capabilities))
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(8)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                if let action = workspace.safeAction {
+                    projectPreservationPanel(
+                        willAdd: action.willAdd.map(\.detail),
+                        willPreserve: action.willPreserve.map(\.detail),
+                        willNotChange: action.willNotChange.map(\.detail)
+                    )
+                    Button("Finish safely") {
+                        Task { await model.addProject(workspace) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.isAnyProjectAdding)
+                }
+
+                if let plan = workspace.integrationPlan {
+                    projectGuidedPlanView(workspace, plan: plan)
+                }
+
+                if workspace.classification == .couldNotVerify {
+                    Button("Verify again") {
+                        Task { await model.verifyProjectIntegration(workspace) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isAnyProjectAdding)
+                }
+
+                if let message = model.projectIntegrationMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel("Project integration update: \(message)")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: 520)
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private func projectGuidedPlanView(
+        _ workspace: WorkspaceEntry,
+        plan: WorkspaceIntegrationPlan
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            projectPreservationRow("Detected", values: plan.detected)
+            projectPreservationPanel(
+                willAdd: plan.missing,
+                willPreserve: plan.preserve,
+                willNotChange: plan.prohibited
+            )
+
+            if let prompt = plan.prompt?.text {
+                DisclosureGroup("Show full prompt") {
+                    ScrollView {
+                        Text(prompt)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(6)
+                    }
+                    .frame(maxHeight: 150)
+                }
+                .font(.caption.weight(.semibold))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Button("Open in Codex") {
+                        model.openIntegrationAssistant(.codex, workspace: workspace)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    Button("Open in Claude Code") {
+                        model.openIntegrationAssistant(.claudeCode, workspace: workspace)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    Button("Copy prompt") {
+                        model.copyIntegrationPrompt(workspace)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if plan.ownerHandoff != nil {
+                HStack {
+                    Button("Copy project-owner handoff") {
+                        Task { await model.prepareOwnerHandoff(workspace) }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    if let handoff = plan.ownerHandoff?.text {
+                        ShareLink(item: handoff) {
+                            Text("Share handoff…")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+            }
+
+            Divider()
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Verification")
+                    .font(.caption.weight(.semibold))
+                Text(plan.verification.expected)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                Text(plan.verification.command.joined(separator: " "))
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                let stopConditions = plan.stopConditions + plan.verification.stopConditions
+                if !stopConditions.isEmpty {
+                    Text("Stop if: \(stopConditions.joined(separator: " · "))")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .systemRed))
+                }
+            }
+            Text("Only the CLI can mark this project Ready.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Button("Verify project") {
+                Task { await model.verifyProjectIntegration(workspace) }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.isAnyProjectAdding)
+            .accessibilityHint("Re-inspects both Claude and Codex; it does not trust the external assistant's report.")
+        }
+    }
+
+    private func projectPreservationPanel(
+        willAdd: [String],
+        willPreserve: [String],
+        willNotChange: [String]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            projectPreservationRow("Will add", values: willAdd)
+            projectPreservationRow("Will preserve", values: willPreserve)
+            projectPreservationRow("Will not change", values: willNotChange)
+        }
+        .padding(8)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func projectPreservationRow(_ label: String, values: [String]) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .frame(width: 82, alignment: .leading)
+            Text(values.isEmpty ? "Nothing" : values.joined(separator: " · "))
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func projectCapabilitySummary(_ capabilities: WorkspaceCapabilities) -> String {
+        [
+            "\(capabilities.instructions) instructions",
+            "\(capabilities.agents) agents",
+            "\(capabilities.skills) skills",
+            "\(capabilities.commands) commands",
+            "\(capabilities.plugins) plugins",
+        ].joined(separator: " · ")
+    }
+
+    private func projectIntegrationTitle(
+        _ classification: WorkspaceIntegrationClassification
+    ) -> String {
+        switch classification {
+        case .ready: return "Ready"
+        case .safeFinish: return "Safe finish available"
+        case .guidedIntegration: return "Guided integration"
+        case .ownerDecision: return "Waiting for project owner"
+        case .couldNotVerify: return "Couldn't verify"
+        }
+    }
+
+    private func projectIntegrationColor(
+        _ classification: WorkspaceIntegrationClassification
+    ) -> Color {
+        switch classification {
+        case .ready:
+            return Color(nsColor: .systemGreen)
+        case .safeFinish, .guidedIntegration:
+            return Color(nsColor: .linkColor)
+        case .ownerDecision:
+            return Color(nsColor: .secondaryLabelColor)
+        case .couldNotVerify:
+            return Color(nsColor: .systemRed)
         }
     }
 
@@ -2622,8 +3285,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "discovery": {"state": "granted", "roots": [{"name": "Developer", "path": "/Users/x/Developer"}]}
         }
         """
-        guard let workspacesData = workspacesJSON.data(using: .utf8),
-              let report = try? selftestDecoder().decode(WorkspacesReport.self, from: workspacesData) else {
+        let workspacesData = WorkspaceContractSelftestFixture.report(
+            workspacesJSON,
+            classifications: [.safeFinish, .guidedIntegration, .ready]
+        )
+        guard let report = try? selftestDecoder().decode(
+            WorkspacesReport.self,
+            from: workspacesData
+        ) else {
             print("SELFTEST projectsStep workspaceDecode=fail")
             return false
         }
@@ -2711,9 +3380,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "summary": {"ready": 0, "setup-available": 2, "activation-required": 1, "blocked": 0, "total": 3}
         }
         """
-        guard let singularData = singularJSON.data(using: .utf8),
-              let singularReport = try? selftestDecoder().decode(WorkspacesReport.self, from: singularData),
-              let pluralData = pluralJSON.data(using: .utf8),
+        let singularData = WorkspaceContractSelftestFixture.report(
+            singularJSON,
+            classifications: [.safeFinish]
+        )
+        let pluralData = WorkspaceContractSelftestFixture.report(
+            pluralJSON,
+            classifications: [.safeFinish, .safeFinish, .guidedIntegration]
+        )
+        guard let singularReport = try? selftestDecoder().decode(WorkspacesReport.self, from: singularData),
               let pluralReport = try? selftestDecoder().decode(WorkspacesReport.self, from: pluralData) else {
             print("SELFTEST trayProjects noticeDecode=fail")
             return false
@@ -2743,23 +3418,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "recently_set_up": [{"name": "f", "detail": "Set your copilots up in f."}, {"name": "g", "detail": "Set your copilots up in g."}]
         }
         """
-        guard let rowsData = rowsJSON.data(using: .utf8),
-              let rowsReport = try? selftestDecoder().decode(WorkspacesReport.self, from: rowsData) else {
+        let rowsData = WorkspaceContractSelftestFixture.report(
+            rowsJSON,
+            classifications: [
+                .safeFinish,
+                .safeFinish,
+                .safeFinish,
+                .ready,
+                .couldNotVerify,
+                .ready,
+                .ready,
+            ]
+        )
+        guard let rowsReport = try? selftestDecoder().decode(WorkspacesReport.self, from: rowsData) else {
             print("SELFTEST trayProjects rowsDecode=fail")
             return false
         }
         let rows = rowsReport.workspaces
-        let rowsPass = ProjectRowRender.controlLabel(for: rows[0]) == "Add"
-            && ProjectRowRender.caption(for: rows[0]) == "Copilot can be set up here."
+        let rowsPass = ProjectRowRender.controlLabel(for: rows[0]) == "Review safe finish"
+            && ProjectRowRender.caption(for: rows[0]) == "Add only the missing Copilot integration files."
             && ProjectRowRender.kind(for: rows[1]) == .excluded
-            && ProjectRowRender.controlLabel(for: rows[1]) == "Add"
+            && ProjectRowRender.controlLabel(for: rows[1]) == "Review safe finish"
             && ProjectRowRender.caption(for: rows[1]) == "Left alone at your request."
-            && ProjectRowRender.controlLabel(for: rows[2]) == "Finish setup"
-            && ProjectRowRender.controlLabel(for: rows[3]) == nil
+            && ProjectRowRender.controlLabel(for: rows[2]) == "Review safe finish"
+            && ProjectRowRender.controlLabel(for: rows[3]) == "View details"
             && ProjectRowRender.kind(for: rows[3]) == .alreadySetUp
-            && ProjectRowRender.controlLabel(for: rows[4]) == nil
-            && ProjectRowRender.kind(for: rows[4]) == .keptAsIs
+            && ProjectRowRender.controlLabel(for: rows[4]) == "Verify again"
+            && ProjectRowRender.kind(for: rows[4]) == .couldNotVerify
             && ProjectRowRender.caption(for: rows[4]) == "This folder is not a project workspace."
+        let ownerData = WorkspaceContractSelftestFixture.entry(
+            #"{"path":"/p/owner","name":"owner","project_id":null,"state":"blocked","detail":"This project needs its owner.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"not-offered","policy_detail":"Nothing was changed.","can_apply_now":false,"apply_blocked_detail":"Nothing was changed.","undo":{"available":false,"detail":"There's nothing here to undo yet."}}"#,
+            classification: .ownerDecision
+        )
+        guard let ownerRow = try? selftestDecoder().decode(
+            WorkspaceEntry.self,
+            from: ownerData
+        ) else {
+            print("SELFTEST trayProjects ownerDecode=fail")
+            return false
+        }
+        let routePass = ProjectRowRender.controlLabel(for: pluralReport.workspaces[2]) == "Review plan"
+            && pluralReport.workspaces[2].integrationPlan?.prompt != nil
+            && ProjectRowRender.controlLabel(for: ownerRow) == "Review handoff"
+            && ownerRow.integrationPlan?.ownerHandoff != nil
 
         // B3: `recentlySetUpNames` is the ONLY signal that distinguishes an
         // ordinary `ready` row (`rows[3]`, "d", above — absent from
@@ -2788,8 +3489,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let revertJSON = """
         {"schema_version": "1.0", "mode": "apply", "result": "applied", "workspaces": [{"path": "/p/f", "name": "f", "project_id": null, "state": "setup-available", "detail": "Copilot can be set up for this project.", "declared_components": [], "installed_components": [], "recommended_components": ["claude"], "personal_profile": {"state": "local-only", "project_id": null}, "setup_policy": "excluded", "policy_detail": "You asked me not to set this project up again.", "can_apply_now": true, "apply_blocked_detail": null, "undo": {"available": false, "detail": "There's nothing here to undo yet."}}], "revert": {"removed": ["claude"], "kept": [], "detail": "Removed. Your own files were left alone, and I won't set this project up again unless you ask."}}
         """
-        guard let revertData = revertJSON.data(using: .utf8),
-              let revertReport = try? selftestDecoder().decode(WorkspaceRevertReport.self, from: revertData) else {
+        let revertData = WorkspaceContractSelftestFixture.report(
+            revertJSON,
+            classifications: [.safeFinish]
+        )
+        guard let revertReport = try? selftestDecoder().decode(WorkspaceRevertReport.self, from: revertData) else {
             print("SELFTEST trayProjects revertDecode=fail")
             return false
         }
@@ -2798,7 +3502,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && revertReport.workspaces.first?.path == "/p/f"
             && revertReport.workspaces.first?.setupPolicy == .excluded
 
-        let passed = noticePass && rowsPass && automaticPass && automaticNoticePass && revertDecodePass
+        let passed = noticePass && rowsPass && routePass
+            && automaticPass && automaticNoticePass && revertDecodePass
         print(
             "SELFTEST trayProjects notice=\(noticePass ? "pass" : "fail") "
                 + "rows=\(rowsPass ? "pass" : "fail") "
@@ -2819,8 +3524,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // results — a "blocked" stage becomes `.couldNotFinish` carrying the
     // engine's own detail, an ordinary stage becomes `.done`, and a stage
     // the report never mentions at all becomes `.neverReported`, never
-    // silently `.notStarted` forever; (3) `countLine` counts only rows that
-    // are really `.done`, never below two total rows; (4) the one
+    // silently `.notStarted` forever; (3) `countLine` has a fixed denominator
+    // and counts every terminal CLI outcome, including non-success; (4) the one
     // background-sweep sentence this file renders carries no digit at all
     // (P3's own rule: never a denominator it doesn't have). No `Task.sleep`
     // and no timer of any kind appears anywhere in this function — every
@@ -2867,28 +3572,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         var counted = SetupProgressState()
         counted.callRow.state = .done(detail: "Done.")
+        counted.stageRows = WizardModel.resolveStageRows(from: stages)
         counted.projectRows = [
             SetupRow(id: "/p/a", title: "a", state: .done(detail: "Copilot is ready for this project.")),
             SetupRow(id: "/p/b", title: "b", state: .working(startedAt: Date())),
         ]
-        // The call row is itself one of the rows on screen, so a `.done` call
-        // row counts toward the numerator alongside the finished project —
-        // two of the three visible rows are done here.
-        let countLinePass = counted.countLine == "2 of 3 done."
-        let noCountBelowTwoPass = SetupProgressState().countLine == nil
+        // The call, all six named stages, and both approved projects were on
+        // screen from the start. Seven have terminal reports; one project is
+        // still working.
+        let countLinePass = counted.countLine == "8 of 9 outcomes reported."
+        let fixedDenominatorPass = SetupProgressState().countLine == "0 of 7 outcomes reported."
 
         let backgroundNote = "Also checking your other projects in the background. You don't have to wait for that."
         let noDenominatorPass = !backgroundNote.contains(where: { $0.isNumber })
 
         let passed = neverStartedPass && distinctFromWorkingPass && realResultsPass
-            && blockedDetailPass && countLinePass && noCountBelowTwoPass && noDenominatorPass
+            && blockedDetailPass && countLinePass && fixedDenominatorPass && noDenominatorPass
         print(
             "SELFTEST setupProgress neverStarted=\(neverStartedPass ? "pass" : "fail") "
                 + "distinctWorking=\(distinctFromWorkingPass ? "pass" : "fail") "
                 + "realResults=\(realResultsPass ? "pass" : "fail") "
                 + "blockedDetail=\(blockedDetailPass ? "pass" : "fail") "
                 + "countLine=\(countLinePass ? "pass" : "fail") "
-                + "noCountBelowTwo=\(noCountBelowTwoPass ? "pass" : "fail") "
+                + "fixedDenominator=\(fixedDenominatorPass ? "pass" : "fail") "
                 + "noDenominator=\(noDenominatorPass ? "pass" : "fail")"
         )
         return passed

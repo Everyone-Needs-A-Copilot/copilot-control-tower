@@ -274,21 +274,22 @@ struct SetupProgressState: Equatable {
     /// would promise something that isn't happening.
     var isFanningOut = false
 
-    /// `N of M done.` — the spec's own rule: only meaningful with two or
-    /// more rows (the call row plus at least one project row), and only
-    /// while the run is alive; the caller hides the count line entirely
-    /// when this is `nil`. The numerator only ever rises (counts `.done`
-    /// rows only); the denominator is every row on screen — the call row
-    /// plus the projects the person already approved — fixed the moment the
-    /// run starts, so the count can never outgrow what was shown.
+    /// A fixed, real denominator across the call, its named CLI-reported
+    /// stages, and approved projects. The numerator counts terminal reports,
+    /// not elapsed time and not only successes: a deferred, failed, or
+    /// unreported row is still an honest outcome. The six stage rows exist
+    /// before the call starts, so the denominator never changes mid-run.
     var countLine: String? {
-        let rows = [callRow] + projectRows
-        guard rows.count >= 2 else { return nil }
-        let done = rows.filter {
-            if case .done = $0.state { return true }
-            return false
+        let rows = [callRow] + stageRows + projectRows
+        let reported = rows.filter {
+            switch $0.state {
+            case .done, .deferred, .couldNotFinish, .neverReported:
+                return true
+            case .notStarted, .working:
+                return false
+            }
         }.count
-        return "\(done) of \(rows.count) done."
+        return "\(reported) of \(rows.count) outcomes reported."
     }
 }
 
@@ -916,6 +917,9 @@ final class WizardModel: ObservableObject {
     }
 
     @Published var detectLines: [String] = []
+    @Published var detectedCopilotState: RenderState?
+    @Published var verifiedCopilotState: RenderState?
+    @Published var verifiedWorkspacesReport: WorkspacesReport?
     @Published var ecosystemInventory: [EcosystemInventoryItem] = []
     @Published var ecosystemInventorySummary: EcosystemInventorySummary?
     @Published var adoptionRollbackPaths: [String] = []
@@ -992,6 +996,14 @@ final class WizardModel: ObservableObject {
     /// continues without those projects.
     @Published var projectSetupNeedsDecision = false
     @Published var failedProjectPaths: Set<String> = []
+    /// Schema-1.1 project detail selected from the first-run project register.
+    /// This is always a CLI-authored row; the wizard never derives a plan.
+    @Published var projectIntegrationDetail: WorkspaceEntry?
+    @Published var projectIntegrationMessage: String?
+    /// Set only after an external assistant successfully opens. The next
+    /// activation of Control Tower consumes this value and asks the CLI to
+    /// verify again; assistant self-report never changes project status.
+    @Published private(set) var pendingProjectVerificationPath: String?
     /// "An unusable folder shows the CLI's blocked sentence next to the
     /// picker and keeps the step usable" (spec, Step 7's failure/recovery
     /// row) — this step never routes to Holding on its own; a bad folder
@@ -1060,10 +1072,19 @@ final class WizardModel: ObservableObject {
             return try! decoder.decode(EcosystemOnboardStage.self, from: data)
         }
 
-        func workspace(_ json: String) -> WorkspaceEntry {
+        func workspace(
+            _ json: String,
+            classification: WorkspaceIntegrationClassification
+        ) -> WorkspaceEntry {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try! decoder.decode(WorkspaceEntry.self, from: Data(json.utf8))
+            return try! decoder.decode(
+                WorkspaceEntry.self,
+                from: WorkspaceContractSelftestFixture.entry(
+                    json,
+                    classification: classification
+                )
+            )
         }
 
         let heldItem = inventoryItem(
@@ -1095,9 +1116,9 @@ final class WizardModel: ObservableObject {
                 )
             ]
             projectWorkspaces = [
-                workspace(#"{"path":"/p/ready","name":"already-ready","project_id":null,"state":"ready","detail":"Copilot is ready for this project.","declared_components":["claude","codex"],"installed_components":["claude","codex"],"recommended_components":["claude","codex"],"personal_profile":{"state":"associated","project_id":null},"setup_policy":"not-offered","policy_detail":"Copilot is already set up here, so there's nothing to ask.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There's nothing here to undo."}}"#),
-                workspace(#"{"path":"/p/available","name":"available-project","project_id":null,"state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"ask","policy_detail":"You'll be asked before anything is added here.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There's nothing here to undo."}}"#),
-                workspace(#"{"path":"/p/review","name":"admin-server","project_id":null,"state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"ask","policy_detail":"You'll be asked before anything is added here.","can_apply_now":false,"apply_blocked_detail":"Existing project setup needs review before Copilot can add shared files. Nothing was changed.","undo":{"available":false,"detail":"There's nothing here to undo."}}"#),
+                workspace(#"{"path":"/p/ready","name":"already-ready","project_id":null,"state":"ready","detail":"Copilot is ready for this project.","declared_components":["claude","codex"],"installed_components":["claude","codex"],"recommended_components":["claude","codex"],"personal_profile":{"state":"associated","project_id":null},"setup_policy":"not-offered","policy_detail":"Copilot is already set up here, so there's nothing to ask.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There's nothing here to undo."}}"#, classification: .ready),
+                workspace(#"{"path":"/p/available","name":"available-project","project_id":null,"state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"ask","policy_detail":"You'll be asked before anything is added here.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There's nothing here to undo."}}"#, classification: .safeFinish),
+                workspace(#"{"path":"/p/review","name":"admin-server","project_id":null,"state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"ask","policy_detail":"You'll be asked before anything is added here.","can_apply_now":false,"apply_blocked_detail":"Existing project setup needs review before Copilot can add shared files. Nothing was changed.","undo":{"available":false,"detail":"There's nothing here to undo."}}"#, classification: .guidedIntegration),
             ]
             phase = .projects
         case "project-failure":
@@ -1515,6 +1536,7 @@ final class WizardModel: ObservableObject {
                 }
                 return
             }
+            self.detectedCopilotState = RenderState.from(doctor, joinable: nil)
             guard case .success(let onboard) = onboardResult else {
                 if case .failure(let error) = onboardResult {
                     self.routeCliError(error, origin: .detect)
@@ -2099,9 +2121,104 @@ final class WizardModel: ObservableObject {
     /// not permission to ignore `can_apply_now`.
     static func actionableProjectPaths(from workspaces: [WorkspaceEntry]) -> Set<String> {
         Set(workspaces.filter {
-            ($0.state == .setupAvailable || $0.state == .activationRequired)
+            $0.classification == .safeFinish
                 && $0.canApplyNow
+                && $0.safeAction != nil
         }.map(\.path))
+    }
+
+    func reviewProjectIntegration(_ workspace: WorkspaceEntry) {
+        projectIntegrationDetail = workspace
+        projectIntegrationMessage = nil
+        if workspace.planAvailable {
+            Task {
+                switch await CliClient.shared.workspaceIntegrationPlan(path: workspace.path) {
+                case .success(let report):
+                    self.projectIntegrationDetail = report.workspaces.first ?? workspace
+                case .failure:
+                    self.projectIntegrationMessage = "The project plan hasn't come through yet. Nothing was changed."
+                }
+            }
+        }
+    }
+
+    func dismissProjectIntegrationReview() {
+        projectIntegrationDetail = nil
+        projectIntegrationMessage = nil
+    }
+
+    func includeSafeProject(_ workspace: WorkspaceEntry) {
+        guard Self.actionableProjectPaths(from: [workspace]).contains(workspace.path) else { return }
+        selectedProjectPaths.insert(workspace.path)
+        dismissProjectIntegrationReview()
+    }
+
+    func copyProjectIntegrationPrompt(_ workspace: WorkspaceEntry) {
+        guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
+        projectIntegrationMessage = ProjectIntegrationLauncher.copy(prompt)
+            ? "Integration prompt copied. This project remains incomplete until CLI verification passes."
+            : "The prompt couldn't be copied. Nothing in the project was changed."
+    }
+
+    func openProjectIntegrationAssistant(
+        _ assistant: ProjectIntegrationLauncher.Assistant,
+        workspace: WorkspaceEntry
+    ) {
+        guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
+        let opened = ProjectIntegrationLauncher.open(
+            assistant,
+            projectPath: workspace.path,
+            prompt: prompt
+        )
+        if opened {
+            pendingProjectVerificationPath = workspace.path
+            projectIntegrationMessage = "The project opened and its guided prompt was copied. Control Tower will verify it when you return."
+        } else {
+            projectIntegrationMessage = "That assistant couldn't be opened, but the guided prompt was copied."
+        }
+    }
+
+    func prepareProjectOwnerHandoff(_ workspace: WorkspaceEntry) {
+        guard let plan = workspace.integrationPlan,
+              let handoff = plan.ownerHandoff?.text else { return }
+        let copied = ProjectIntegrationLauncher.copy(handoff)
+        guard copied else {
+            projectIntegrationMessage = "The handoff couldn't be copied. Nothing in the project was changed."
+            return
+        }
+        Task {
+            _ = await CliClient.shared.holdWorkspaceIntegration(
+                path: workspace.path,
+                planId: plan.id
+            )
+            self.projectIntegrationMessage = "Project-owner handoff copied. Nothing in the project was changed."
+        }
+    }
+
+    func verifyProjectIntegration(_ workspace: WorkspaceEntry) {
+        projectIntegrationMessage = "Verifying Claude, Codex, and the preserved project contract…"
+        Task {
+            switch await CliClient.shared.verifyWorkspace(path: workspace.path) {
+            case .success(let report):
+                if let updated = report.workspaces.first {
+                    self.projectIntegrationDetail = updated
+                    self.projectIntegrationMessage = updated.classification == .ready
+                        ? "Verified Ready. Claude, Codex, and the project contract passed."
+                        : updated.detail
+                    await self.loadProjectWorkspaces()
+                }
+            case .failure:
+                self.projectIntegrationMessage = "Verification hasn't come through. The project remains incomplete."
+            }
+        }
+    }
+
+    func verifyPendingProjectOnReturn() {
+        guard let path = pendingProjectVerificationPath else { return }
+        pendingProjectVerificationPath = nil
+        guard let workspace = projectWorkspaces.first(where: { $0.path == path })
+                ?? (projectIntegrationDetail?.path == path ? projectIntegrationDetail : nil) else { return }
+        verifyProjectIntegration(workspace)
     }
 
     func chooseProjectsFolder() {
@@ -2216,7 +2333,7 @@ final class WizardModel: ObservableObject {
     /// there is more than the default org layer to reconcile across. Every
     /// row in `setupProgress` is set only from that call's own real result
     /// (`WizardModel.resolveStageRows(from:)`) or from each project's own
-    /// real `configureWorkspace` outcome (`applySelectedProjects` below) —
+    /// real `finishWorkspace` outcome (`applySelectedProjects` below) —
     /// nothing here is ever paced by a sleep (see the progress-and-waiting
     /// spec's own architecture decision, "Advancing the count by elapsed
     /// time... is precisely what is being removed").
@@ -2331,12 +2448,22 @@ final class WizardModel: ObservableObject {
             }
 
             setupProgress.projectRows[index].state = .working(startedAt: Date())
-            let result = await CliClient.shared.configureWorkspace(
-                path: workspace.path, components: workspace.recommendedComponents, shareWithProject: false, apply: true
+            guard let action = workspace.safeAction else {
+                failures += 1
+                failedProjectPaths.insert(workspace.path)
+                setupProgress.projectRows[index].state = .couldNotFinish(
+                    detail: "The setup helper did not provide a safe action for this project, so Control Tower made no change."
+                )
+                continue
+            }
+            let result = await CliClient.shared.finishWorkspace(
+                path: workspace.path,
+                actionId: action.id,
+                apply: true
             )
             if case .success(let report) = result,
                let updated = report.workspaces.first(where: { $0.path == workspace.path }),
-               updated.state == .ready {
+               updated.classification == .ready {
                 succeeded += 1
                 setupProgress.projectRows[index].state = .done(detail: updated.detail)
             } else {
@@ -2393,8 +2520,16 @@ final class WizardModel: ObservableObject {
     func beginVerify() {
         phase = .verifying
         Task {
-            switch await CliClient.shared.doctor() {
+            async let doctorResult = CliClient.shared.doctor()
+            async let workspacesResult = CliClient.shared.workspaces()
+            let doctorOutcome = await doctorResult
+            let workspacesOutcome = await workspacesResult
+            if case .success(let report) = workspacesOutcome {
+                self.verifiedWorkspacesReport = report
+            }
+            switch doctorOutcome {
             case .success(let doctor):
+                self.verifiedCopilotState = RenderState.from(doctor, joinable: nil)
                 if doctor.status == .healthy {
                     self.phase = .verified
                 } else {
@@ -2960,6 +3095,9 @@ struct WizardRootView: View {
         .frame(minWidth: 820, idealWidth: 960, minHeight: 620, idealHeight: 720)
         .background(Color(nsColor: .windowBackgroundColor))
         .task { model.start() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.verifyPendingProjectOnReturn()
+        }
         .sheet(isPresented: $showsInstallSheet) {
             InstallHelperSheet {
                 showsInstallSheet = false
@@ -3333,15 +3471,28 @@ struct WizardRootView: View {
             intro: "Control Tower keeps the parts that are already right, safely moves or repairs recognized earlier setup, and leaves anything unfamiliar untouched."
         ) {
             if case .detecting = model.phase {
-                verifyingCard("Checking what's already here…")
+                VStack(alignment: .leading, spacing: 16) {
+                    verifyingCard("Checking what's already here…")
+                    sectionCard("The four copilots") {
+                        wizardCopilotRoster(nil, checking: true)
+                    }
+                }
             } else if case .replanningAfterDecision = model.phase {
                 // "One question first", Detect's own spec section: "the
                 // feedback is the shared progress card with **Checking what
                 // that means…**" — distinct copy from the first Detect pass
                 // above, same shared progress card.
-                verifyingCard("Checking what that means…")
+                VStack(alignment: .leading, spacing: 16) {
+                    verifyingCard("Checking what that means…")
+                    sectionCard("The four copilots") {
+                        wizardCopilotRoster(nil, checking: true)
+                    }
+                }
             } else {
                 VStack(alignment: .leading, spacing: 16) {
+                    sectionCard("The four copilots") {
+                        wizardCopilotRoster(model.detectedCopilotState)
+                    }
                     if !model.ecosystemInventory.isEmpty {
                         sectionCard("What Control Tower found") {
                             VStack(alignment: .leading, spacing: 0) {
@@ -3943,18 +4094,17 @@ struct WizardRootView: View {
     }
 
     private var projectsListCard: some View {
-        let canBeSetUp = model.projectWorkspaces.filter { $0.state == .setupAvailable && $0.canApplyNow }
-        let needsFinishing = model.projectWorkspaces.filter { $0.state == .activationRequired && $0.canApplyNow }
-        let alreadySetUp = model.projectWorkspaces.filter { $0.state == .ready }
-        let needsReview = model.projectWorkspaces.filter {
-            $0.state == .blocked
-                || (($0.state == .setupAvailable || $0.state == .activationRequired) && !$0.canApplyNow)
-        }
-        let actionable = canBeSetUp.count + needsFinishing.count
+        let safe = model.projectWorkspaces.filter { $0.classification == .safeFinish }
+        let guided = model.projectWorkspaces.filter { $0.classification == .guidedIntegration }
+        let owner = model.projectWorkspaces.filter { $0.classification == .ownerDecision }
+        let unverified = model.projectWorkspaces.filter { $0.classification == .couldNotVerify }
+        let ready = model.projectWorkspaces.filter { $0.classification == .ready }
 
         return sectionCard("Projects I found") {
             VStack(alignment: .leading, spacing: 12) {
-                if model.projectWorkspaces.isEmpty {
+                if let detail = model.projectIntegrationDetail {
+                    wizardProjectIntegrationDetail(detail)
+                } else if model.projectWorkspaces.isEmpty {
                     Text("No projects in that folder yet. Any new one you create will get your copilots automatically.")
                         .font(.callout)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -3962,152 +4112,268 @@ struct WizardRootView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(
-                            "\(model.projectWorkspaces.count) projects found: "
-                                + "\(alreadySetUp.count) already set up, "
-                                + "\(actionable) available to set up now, and "
-                                + "\(needsReview.count) need review."
+                            "\(model.projectWorkspaces.count) projects found · "
+                                + "\(ready.count) ready · \(safe.count) safe finish · "
+                                + "\(guided.count) guided · \(owner.count) owner decision · "
+                                + "\(unverified.count) couldn't verify"
                         )
-                            .font(.callout)
-                            .fontWeight(.semibold)
+                            .font(.callout.weight(.semibold))
                             .foregroundColor(Color(nsColor: .labelColor))
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(
-                            actionable > 0
-                                ? "Select only the projects you want Control Tower to set up. Projects already set up will not be changed."
-                                : "Nothing here can be safely set up automatically right now. Review the reasons below or continue without projects."
-                        )
-                        .font(.caption)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
+                        Text("Control Tower uses the setup helper's five classifications. Safe work is reviewed before selection; guided and owner routes never write project files.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    if actionable > 0 {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Available to set up")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                    .textCase(.uppercase)
-                                Spacer()
-                                Text("\(model.selectedProjectPaths.count) selected")
-                                    .font(.caption)
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                Button("Select all available") { model.selectAllProjects() }
-                                    .buttonStyle(.plain)
-                                    .foregroundColor(Color(nsColor: .linkColor))
-                                Button("Clear selection") { model.selectNoProjects() }
-                                    .buttonStyle(.plain)
-                                    .foregroundColor(Color(nsColor: .linkColor))
-                            }
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(canBeSetUp) { workspace in
-                                    projectRow(workspace, group: .canBeSetUp)
-                                    if workspace.id != canBeSetUp.last?.id || !needsFinishing.isEmpty { Divider() }
-                                }
-                                ForEach(needsFinishing) { workspace in
-                                    projectRow(workspace, group: .needsFinishing)
-                                    if workspace.id != needsFinishing.last?.id { Divider() }
-                                }
-                            }
-                        }
+                    if !safe.isEmpty {
+                        wizardProjectGroup("Safe finish", workspaces: safe)
                     }
-
-                    if !needsReview.isEmpty {
-                        DisclosureGroup("\(needsReview.count) need review") {
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(needsReview) { workspace in
-                                    projectRow(workspace, group: .keptAsIs)
-                                    if workspace.id != needsReview.last?.id { Divider() }
-                                }
-                            }
-                        }
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    if !guided.isEmpty {
+                        wizardProjectGroup("Guided integration", workspaces: guided)
                     }
-
-                    if !alreadySetUp.isEmpty {
-                        DisclosureGroup("\(alreadySetUp.count) already set up") {
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(alreadySetUp) { workspace in
-                                    projectRow(workspace, group: .alreadySetUp)
-                                    if workspace.id != alreadySetUp.last?.id { Divider() }
-                                }
-                            }
-                        }
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    if !owner.isEmpty {
+                        wizardProjectGroup("Waiting for project owner", workspaces: owner)
+                    }
+                    if !unverified.isEmpty {
+                        wizardProjectGroup("Couldn't verify", workspaces: unverified)
+                    }
+                    if !ready.isEmpty {
+                        wizardProjectGroup("Ready", workspaces: ready)
                     }
                 }
             }
         }
     }
 
-    private func projectRowCaption(_ workspace: WorkspaceEntry, group: ProjectRowGroup) -> String {
-        switch group {
-        case .canBeSetUp: return "Copilot can be set up here."
-        case .needsFinishing: return "Set up here already, but not active on this Mac yet."
-        case .alreadySetUp: return "Already set up."
-        case .keptAsIs: return workspace.applyBlockedDetail ?? workspace.detail
+    private func wizardProjectGroup(_ title: String, workspaces: [WorkspaceEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(title.uppercased())
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                Spacer()
+                Text("\(workspaces.count)")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            }
+            ForEach(Array(workspaces.enumerated()), id: \.element.id) { index, workspace in
+                if index > 0 { Divider() }
+                wizardProjectRow(workspace)
+            }
         }
     }
 
-    @ViewBuilder
-    private func projectRow(_ workspace: WorkspaceEntry, group: ProjectRowGroup) -> some View {
-        let caption = projectRowCaption(workspace, group: group)
-        switch group {
-        case .canBeSetUp, .needsFinishing:
-            Toggle(isOn: Binding(
-                get: { model.selectedProjectPaths.contains(workspace.path) },
-                set: { _ in model.toggleProjectSelection(workspace.path) }
-            )) {
+    private func wizardProjectRow(_ workspace: WorkspaceEntry) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(workspace.name)
+                        .font(.callout.weight(.semibold))
+                    if model.selectedProjectPaths.contains(workspace.path) {
+                        Text("SELECTED")
+                            .font(.caption2.weight(.bold))
+                            .foregroundColor(Color(nsColor: .systemGreen))
+                    }
+                }
+                Text(workspace.detail)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                if workspace.classification == .ready {
+                    Text(wizardCapabilitySummary(workspace.capabilities))
+                        .font(.caption2)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer()
+            Button(wizardProjectControlLabel(workspace.classification)) {
+                if workspace.classification == .couldNotVerify {
+                    model.verifyProjectIntegration(workspace)
+                } else {
+                    model.reviewProjectIntegration(workspace)
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func wizardProjectControlLabel(_ classification: WorkspaceIntegrationClassification) -> String {
+        switch classification {
+        case .safeFinish: return "Review safe finish"
+        case .guidedIntegration: return "Review plan"
+        case .ownerDecision: return "Review handoff"
+        case .couldNotVerify: return "Verify again"
+        case .ready: return "View details"
+        }
+    }
+
+    private func wizardProjectIntegrationDetail(_ workspace: WorkspaceEntry) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button("‹ All projects") { model.dismissProjectIntegrationReview() }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(workspace.name)
                         .font(.callout.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .labelColor))
-                    Text(caption)
+                    Text(wizardProjectClassificationTitle(workspace.classification))
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
-            }
-            .toggleStyle(.checkbox)
-            .padding(.vertical, 8)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(workspace.name), \(caption)")
-        case .alreadySetUp:
-            VStack(alignment: .leading, spacing: 2) {
-                Text(workspace.name)
-                    .font(.callout.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Text(caption)
+                Spacer()
+                Text(wizardCapabilitySummary(workspace.capabilities))
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(workspace.name), \(caption)")
-        case .keptAsIs:
-            HStack(alignment: .top) {
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundColor(Color(nsColor: .systemOrange))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(workspace.name)
-                        .font(.callout.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .labelColor))
-                    Text(caption)
-                        .font(.caption)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
+            Text(workspace.detail)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let action = workspace.safeAction {
+                wizardProjectContractPanel(
+                    detected: action.willPreserve.map(\.detail),
+                    required: action.willAdd.map(\.detail),
+                    preserve: action.willPreserve.map(\.detail),
+                    prohibited: action.willNotChange.map(\.detail)
+                )
+                Button(model.selectedProjectPaths.contains(workspace.path) ? "Selected for safe finish" : "Include this safe finish") {
+                    model.includeSafeProject(workspace)
                 }
-                Spacer()
-                Text("Needs review")
-                    .font(.caption.weight(.semibold))
+                .buttonStyle(.borderedProminent)
+                .disabled(model.selectedProjectPaths.contains(workspace.path))
+            }
+
+            if let plan = workspace.integrationPlan {
+                wizardProjectContractPanel(
+                    detected: plan.detected,
+                    required: plan.missing,
+                    preserve: plan.preserve,
+                    prohibited: plan.prohibited
+                )
+                if let prompt = plan.prompt?.text {
+                    DisclosureGroup("Full guided prompt") {
+                        Text(prompt)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    HStack {
+                        Button("Open in Codex") { model.openProjectIntegrationAssistant(.codex, workspace: workspace) }
+                            .buttonStyle(.borderedProminent)
+                        Button("Open in Claude Code") { model.openProjectIntegrationAssistant(.claudeCode, workspace: workspace) }
+                            .buttonStyle(.bordered)
+                        Button("Copy prompt") { model.copyProjectIntegrationPrompt(workspace) }
+                            .buttonStyle(.bordered)
+                    }
+                }
+                if plan.ownerHandoff != nil {
+                    Button("Copy project-owner handoff") { model.prepareProjectOwnerHandoff(workspace) }
+                        .buttonStyle(.bordered)
+                }
+                wizardProjectVerificationPanel(plan.verification, stopConditions: plan.stopConditions)
+                Button("Verify project") { model.verifyProjectIntegration(workspace) }
+                    .buttonStyle(.borderedProminent)
+            }
+
+            if workspace.classification == .ready {
+                wizardProjectEvidencePanel(workspace)
+            }
+            if workspace.classification == .couldNotVerify {
+                Button("Verify again") { model.verifyProjectIntegration(workspace) }
+                    .buttonStyle(.borderedProminent)
+            }
+            if let message = model.projectIntegrationMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func wizardProjectContractPanel(
+        detected: [String],
+        required: [String],
+        preserve: [String],
+        prohibited: [String]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            wizardProjectFactRow("Detected", detected)
+            wizardProjectFactRow("Required", required)
+            wizardProjectFactRow("Preserve", preserve)
+            wizardProjectFactRow("Must not", prohibited)
+        }
+        .padding(9)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func wizardProjectFactRow(_ label: String, _ values: [String]) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .frame(width: 64, alignment: .leading)
+            Text(values.isEmpty ? "Nothing" : values.joined(separator: " · "))
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func wizardProjectVerificationPanel(
+        _ verification: WorkspaceVerification,
+        stopConditions: [String]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Verification")
+                .font(.caption.weight(.semibold))
+            Text(verification.expected)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Text(verification.command.joined(separator: " "))
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+            let allStopConditions = stopConditions + verification.stopConditions
+            if !allStopConditions.isEmpty {
+                Text("Stop if: \(allStopConditions.joined(separator: " · "))")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .systemRed))
+            }
+        }
+    }
+
+    private func wizardProjectEvidencePanel(_ workspace: WorkspaceEntry) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Verified evidence")
+                .font(.caption.weight(.semibold))
+            ForEach(workspace.components, id: \.component.rawValue) { component in
+                Text("\(component.component == .claude ? "Claude" : "Codex"): \(wizardProjectClassificationTitle(component.classification))")
+                    .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
-            .padding(.vertical, 8)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(workspace.name), needs review, \(caption)")
+            Text("Only the setup helper can mark this project Ready.")
+                .font(.caption2)
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+        }
+    }
+
+    private func wizardCapabilitySummary(_ capabilities: WorkspaceCapabilities) -> String {
+        "\(capabilities.instructions) instructions · \(capabilities.agents) agents · \(capabilities.skills) skills · \(capabilities.commands) commands · \(capabilities.plugins) plugins"
+    }
+
+    private func wizardProjectClassificationTitle(_ classification: WorkspaceIntegrationClassification) -> String {
+        switch classification {
+        case .ready: return "Ready"
+        case .safeFinish: return "Safe finish"
+        case .guidedIntegration: return "Guided integration"
+        case .ownerDecision: return "Waiting for project owner"
+        case .couldNotVerify: return "Couldn't verify"
         }
     }
 
@@ -4329,8 +4595,7 @@ struct WizardRootView: View {
                     sectionCard("Ready now") {
                         VStack(alignment: .leading, spacing: 10) {
                             completionReadyRow("Your GitHub connection")
-                            completionReadyRow("Copilot on this Mac")
-                            completionReadyRow("Control Tower's setup check")
+                            wizardCopilotRoster(model.verifiedCopilotState)
                         }
                     }
 
@@ -4351,10 +4616,18 @@ struct WizardRootView: View {
 
                     if let body = doneProjectsCardBody {
                         sectionCard("Your projects") {
-                            Text(body)
-                                .font(.callout)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(body)
+                                    .font(.callout)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let report = model.verifiedWorkspacesReport {
+                                    Text(wizardVerifiedProjectSummary(report))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(Color(nsColor: .labelColor))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                         }
                     }
 
@@ -4410,6 +4683,63 @@ struct WizardRootView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title), verified")
+    }
+
+    private func wizardCopilotRoster(_ state: RenderState?, checking: Bool = false) -> some View {
+        let names = ["Knowledge Copilot", "CLI Copilot", "Claude Copilot", "Codex Copilot"]
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(names.enumerated()), id: \.element) { index, name in
+                let component = state?.components.first(where: {
+                    $0.component.lowercased().contains(name.replacingOccurrences(of: " Copilot", with: "").lowercased())
+                })
+                HStack(alignment: .top, spacing: 9) {
+                    Image(systemName: checking ? "circle.dotted" : component?.worstSeverity == .pass ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .foregroundColor(
+                            checking
+                                ? Color(nsColor: .secondaryLabelColor)
+                                : component?.worstSeverity == .pass
+                                    ? Color(nsColor: .systemGreen)
+                                    : Color(nsColor: .secondaryLabelColor)
+                        )
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(name)
+                            .font(.callout.weight(.semibold))
+                        Text(wizardCopilotStatus(name: name, component: component, checking: checking))
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 7)
+                if index < names.count - 1 { Divider() }
+            }
+        }
+    }
+
+    private func wizardCopilotStatus(
+        name: String,
+        component: ComponentView?,
+        checking: Bool
+    ) -> String {
+        if checking { return "Checking this Mac and its inherited layers…" }
+        if name == "Codex Copilot", !model.includeCodex { return "Not included by your choice." }
+        guard let component else { return "Not reported by the setup check." }
+        let verdict = component.worstSeverity == .pass
+            ? "Ready"
+            : component.worstSeverity == .warn ? "Needs review" : "Needs attention"
+        let layers = component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }.joined(separator: " · ")
+        return layers.isEmpty ? verdict : "\(verdict) · \(layers)"
+    }
+
+    private func wizardVerifiedProjectSummary(_ report: WorkspacesReport) -> String {
+        let ready = report.workspaces.filter { $0.classification == .ready }.count
+        let safe = report.workspaces.filter { $0.classification == .safeFinish }.count
+        let guided = report.workspaces.filter { $0.classification == .guidedIntegration }.count
+        let owner = report.workspaces.filter { $0.classification == .ownerDecision }.count
+        let unverified = report.workspaces.filter { $0.classification == .couldNotVerify }.count
+        return "\(report.workspaces.count) total · \(ready) ready · \(safe) safe finish · \(guided) guided · \(owner) owner decision · \(unverified) couldn't verify"
     }
 
     /// Completion's project variants — the card is absent entirely for

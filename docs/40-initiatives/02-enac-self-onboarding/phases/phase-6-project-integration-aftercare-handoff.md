@@ -5,16 +5,19 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the continuation source of truth as of 2026-07-30.** The previous
-> handoff remains implementation and release history. Start here for the current
-> truthful-setup and project-integration work.
+> **This is the release-candidate record as of 2026-07-30.** The previous
+> handoff remains implementation and release history. The checked-in package
+> now embeds the separately signed and Apple-notarized cc 1.7.12 universal
+> helper and passes the walkthrough acceptance gate.
 
 Date: 2026-07-30
 Primary repository: `copilot-control-tower`
 Branch: `app-build`
-Shared skill repository: `codex-copilot`
-Shared skill commit: `85acbbe949fe5c7235498d6ceab8c78c4ca1589c`
-Task lineage: `tc` 182 → 183 → 184 → 185
+CLI repository: `claude-copilot`
+CLI branch: `feat/adopt-and-project-setup`
+Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193
+Status: source implementation and packaged-helper QA complete; signed Control
+Tower 0.1.8 packaging and installed-artifact verification remain
 
 ## Start Here
 
@@ -78,10 +81,9 @@ These decisions follow `SOUL.md`: parse-never-compute, route by actor competence
 keep Bob out of technical decisions, and preserve projects as self-contained
 products.
 
-## Required CLI Contract
+## Implemented CLI Contract
 
-Implementation should begin with the CLI contract, not with app-side heuristics.
-Workspace inspection needs to return, per project and per Copilot component:
+Workspace inspection now returns, per project and per Copilot component:
 
 - expected contract and version;
 - recognized setup and evidence;
@@ -101,44 +103,78 @@ The complete service contract is in:
 - `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/project-integration-aftercare-analysis.md`
 - `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/truthful-setup-recovery-service-spec.md`
 
-## Recommended Next Work
+The frozen consumer contract is:
 
-1. Inspect the current CLI workspace/onboarding schemas and tests in the
-   `cli-copilot` repository.
-2. Design the richer, versioned JSON contract and fixtures before modifying
-   Control Tower.
-3. Implement fail-closed per-component classification in the CLI.
-4. Add safe-finish, generated-plan, owner-handoff, and verification verbs or
-   declared actions.
-5. Update Control Tower to render those facts and launch/copy the external prompt.
-6. Exercise the real representative projects above as acceptance fixtures without
-   mutating their working trees during classification.
-7. Rebuild the release only after CLI and app QA pass.
+- [`docs/01-architecture/schemas/workspaces.schema.json`](../../../01-architecture/schemas/workspaces.schema.json)
 
-Do not implement the candidate `31/11/11` grouping as hard-coded app logic.
+Its SHA-256 is
+`470a663277f77b0d60359103e1f206852f05c1b7392f3b5c31b1810b90c75c33`,
+identical to the CLI repository's frozen fixture.
+
+## Completed Implementation
+
+1. The CLI owns a closed, fail-closed five-state classification for each
+   project and each Claude/Codex component.
+2. Exact safe-finish actions are opaque, bounded, and independently verified.
+3. Guided plans carry preservation facts, prohibited actions, guarded prompts,
+   owner handoffs, persistent holds, and authoritative verification commands.
+4. Control Tower decodes the frozen contract and renders its facts directly. It
+   does not reproduce classification or semantic inspection logic.
+5. Safe-finish, guided-integration, owner-decision, and could-not-verify routes
+   have explicit controls. External assistant actions open the selected project
+   folder and copy the CLI-generated prompt.
+6. Only CLI verification can transition a project to Ready.
+7. Representative live projects were inspected read-only; classification did
+   not mutate their working trees.
 
 ## Completed Design and QA
 
 - Tasks 183 and 184 are complete with service, UX, UI, and QA work products.
 - Task 185 orders the walkthroughs, records the future naming convention, and
   produces this handoff.
+- Tasks 187 through 193 cover the architecture, frozen schema, classification,
+  safe finish, guided integration, representative-project QA, and Control Tower
+  consumer.
+- CLI QA passed 61 focused tests and the environment-excluded full suite with
+  1,186 passing tests. Read-only representative-project checks preserved every
+  pre-inspection fingerprint.
+- Control Tower QA passed the frozen-contract decoder, user-app bundle,
+  compatibility release gate, CLI seam smoke suite, and the 126-scenario matrix.
+- Live safe-finish and guided-integration popovers passed production-width visual
+  checks, including the full guided-plan drill-in.
 - The focused walkthroughs passed Chromium navigation, theme, responsive,
   no-external-request, no-console-error, Aviator-branding, and visual checks.
 - The shared UxD and UIDS skills now require
   `NN-<feature>-<stage>-walkthrough.html`, contiguous narrative ordering, adjacent
   UXD/UIDS pairs, a directory index, and reference updates when renumbering.
 
-## Copy Into the New Conversation
+## Walkthrough 05–08 Acceptance Gate
 
-```text
-$codex-copilot:protocol
+The executable matrix is:
 
-Continue the truthful setup and project integration work from:
-docs/40-initiatives/02-enac-self-onboarding/phases/phase-6-project-integration-aftercare-handoff.md
+- [`09-walkthrough-05-08-acceptance-matrix.md`](../walkthroughs/09-walkthrough-05-08-acceptance-matrix.md)
+- `scripts/tests/test_walkthrough_05_08_acceptance.sh`
 
-Read the handoff, SOUL.md, the architecture guiding principles, and numbered
-walkthroughs 05 through 08 before changing code. Begin by inspecting and designing
-the CLI workspace contract that will authoritatively classify complete, safely
-finishable, and guided-integration projects. Do not put project classification or
-semantic inspection logic in Control Tower.
-```
+Measured results:
+
+- checked-in release package with the signed and notarized universal cc 1.7.12:
+  **33/33, 100%, zero critical failures**;
+- clean-home lifecycle: `safe-finish → finish → Ready → verify`, plus
+  independent guided-integration and owner-decision routes;
+- the release helper is cc 1.7.12 from signed foundation snapshot `v5.13.14`,
+  accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
+  SHA-256 in `packaging/cc/PINNED_SHA256`.
+
+## Remaining Boundary
+
+The helper release boundary is closed. The remaining release-owner steps are:
+
+1. commit and push this exact Control Tower source;
+2. tag the source as 0.1.8;
+3. build, Developer-ID sign, Apple-notarize, and staple the app and DMG from
+   that pushed ref;
+4. reinstall from the produced DMG and rerun the clean-home lifecycle against
+   the embedded helper.
+
+Only after those installed-artifact checks pass may this phase be called
+release-ready.

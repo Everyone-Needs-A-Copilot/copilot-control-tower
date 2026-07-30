@@ -542,6 +542,54 @@ actor CliClient {
         await decodeVerb(["workspace", "--all", "--json"])
     }
 
+    /// One authoritative detail inspection. Unlike `workspaces()`'s bounded
+    /// summary rows, this may carry the generated prompt and owner handoff.
+    func workspace(path: String) async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb(["workspace", "--project", path, "--json"])
+    }
+
+    /// Preview or apply exactly the opaque safe action emitted by the same
+    /// project's latest inspection. The app never turns `will_add` into file
+    /// operations of its own.
+    func finishWorkspace(
+        path: String,
+        actionId: String,
+        apply: Bool
+    ) async -> Result<WorkspacesReport, CliError> {
+        var arguments = [
+            "workspace", "finish", "--project", path,
+            "--action-id", actionId,
+        ]
+        if apply {
+            arguments.append("--apply")
+        }
+        arguments.append("--json")
+        return await decodeVerb(arguments)
+    }
+
+    /// Re-inspect the complete Claude/Codex project contract. An external
+    /// assistant's success message is never an input to this call.
+    func verifyWorkspace(path: String) async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb(["workspace", "verify", "--project", path, "--json"])
+    }
+
+    /// Fetch the CLI-authored guided prompt and owner handoff for one project.
+    func workspaceIntegrationPlan(path: String) async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb(["workspace", "plan", "--project", path, "--json"])
+    }
+
+    /// Persist only an opaque machine-local incomplete owner-decision hold.
+    /// The CLI never writes the project or marks it Ready through this route.
+    func holdWorkspaceIntegration(
+        path: String,
+        planId: String
+    ) async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb([
+            "workspace", "hold", "--project", path,
+            "--plan-id", planId, "--apply", "--json",
+        ])
+    }
+
     func configureWorkspace(
         path: String,
         components: [String],
