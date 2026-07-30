@@ -5,10 +5,11 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the 0.2.0 release-completion record as of 2026-07-30.** The previous
+> **This is the 0.2.1 release-completion record as of 2026-07-30.** The previous
 > handoff remains implementation and release history. The checked-in package
-> now embeds the separately signed and Apple-notarized cc 1.7.13 universal
-> helper and passes the walkthrough acceptance gate.
+> now embeds the separately signed and Apple-notarized cc 1.7.14 universal
+> helper, exposes the complete four-component/four-tier ecosystem after setup,
+> and passes both the walkthrough and completed-setup acceptance gates.
 
 > **Owner-review closeout, 2026-07-30:** the installed Step 7 experience exposed
 > a continuous 53-project register, unclear category language, dead-end assistant
@@ -18,19 +19,27 @@
 > and menu-bar aftercare. Current source passes the revised 38-assertion gate.
 > The signed 0.1.9 release facts below remain historical truth and do not imply
 > that release artifact contains this later source implementation.
+>
+> **Completed-state closeout, 2026-07-30:** owner review found that the
+> post-setup window hid Foundation, Organization, Department, and Personal,
+> inferred readiness without proving all four Personal components, and reduced
+> project aftercare to a generic list. Task `tc` 198 adds the walkthroughs,
+> complete component/tier topology, truthful Personal recovery, and the same
+> focused project categories used during setup. “Personal” is the product term;
+> its backing GitHub repository is private.
 
 Date: 2026-07-30
 Primary repository: `copilot-control-tower`
 Branch: `app-build`
 CLI repository: `claude-copilot`
 CLI branch: `feat/adopt-and-project-setup`
-Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197
+Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197 → 198
 Historical release status: signed and notarized Control Tower 0.1.9 passed
 clean-install and installed-artifact verification
 
-Current release status: revised Step 7 implementation and aftercare are
-published in signed and notarized Control Tower 0.2.0; task 197 owns the
-release and artifact QA record
+Current release status: truthful completed setup and durable project aftercare
+are published in signed and notarized Control Tower 0.2.1; task 198 owns the
+design, implementation, release, and artifact QA record
 
 ## Start Here
 
@@ -38,13 +47,15 @@ Read the numbered walkthrough index:
 
 `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/README.md`
 
-The walkthroughs are intentionally ordered `01` through `12`. For the current
+The walkthroughs are intentionally ordered `01` through `14`. For the current
 setup and project-integration problem, concentrate on:
 
 1. `05-truthful-setup-recovery-uxd-walkthrough.html`
 2. `06-truthful-setup-recovery-uids-walkthrough.html`
 3. `07-project-integration-aftercare-uxd-walkthrough.html`
 4. `08-project-integration-aftercare-uids-walkthrough.html`
+5. `09-completed-setup-topology-uxd-walkthrough.html`
+6. `10-completed-setup-topology-uids-walkthrough.html`
 
 The UIDS walkthroughs are the high-fidelity experience. The UXD walkthroughs
 explain the interaction decisions behind them.
@@ -171,17 +182,62 @@ The executable matrix is:
 
 Measured results:
 
-- current source implementation with the checked-in cc 1.7.13 package:
+- current source implementation with the checked-in cc 1.7.14 package:
   **38/38, 100%, zero critical failures**;
 - production User app bundle, project-integration contract, in-binary triage,
   diagnostic, Terminal-launch quoting, and clean-home lifecycle tests: pass;
-- checked-in release package with the signed and notarized universal cc 1.7.13:
-  **33/33, 100%, zero critical failures**;
+- completed-setup acceptance gate, including fixed four-component topology,
+  four tiers, truthful incomplete readiness, Personal/private language,
+  same-view project aftercare, and return-later routing: pass;
+- exact signed and notarized 0.2.1 app binary topology and aftercare self-test:
+  pass;
 - clean-home lifecycle: `safe-finish → finish → Ready → verify`, plus
   independent guided-integration and owner-decision routes;
-- the release helper is cc 1.7.13 from signed foundation snapshot `v5.13.15`,
+- the release helper is cc 1.7.14 from signed foundation snapshot `v5.13.16`,
   accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
   SHA-256 in `packaging/cc/PINNED_SHA256`.
+
+## 0.2.1 Release Closure
+
+The truthful completed-setup release boundary is closed:
+
+- Control Tower tag `v0.2.1` resolves to source commit
+  `e3584557ebed3967632e7790ee391d0b257dbc75`.
+- The release app is version 0.2.1, build 12, with cc 1.7.14 pinned at
+  `6a7b9b5278b33ac96fb9bc9125dc715a016d3c0b71675fee1ebdfe85c92dcf07`.
+- The helper comes from signed foundation snapshot `v5.13.16`, whose snapshot
+  source commit is `566ed5007fe70e7258637b9d1c1b4b8fa581b6b0`; its release-tool source is
+  `507c97012e1e4ce27fc5d627afcb5327cceb9185`.
+- Apple accepted helper submission
+  `cec4033a-89d8-481f-b0dd-d5bc806831ce`, app submission
+  `085acf1f-e998-43f9-aeb5-df025138197d`, and DMG submission
+  `93f11320-d61d-4143-ae5c-7d719859ca7c`.
+- Both app and DMG are stapled and pass Gatekeeper. The final DMG SHA-256 is
+  `b20f7297a474319edf05dcb906f56c353dd93210b2205e74d9ec428f2532cc37`.
+- The exact tagged app passed its project topology/aftercare, onboarding
+  question, tray project, setup-progress, and named-wait binary self-tests.
+  The full source regression suite, schema compatibility gate, signed-helper
+  gate, 214-case Admin setup suite, 126-scenario matrix, and walkthrough
+  acceptance matrix at **38/38, 100%, zero critical failures** also passed.
+- Real-pixel QA against the owner's current setup correctly rendered
+  **2 of 4 Personal components ready**, Knowledge and CLI recovery, all four
+  tiers, and the 53-project Ready/Guided/Couldn't Confirm aftercare categories.
+- The app release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/releases/tag/v0.2.1`;
+  the helper release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/claude-copilot/releases/tag/v5.13.16`.
+- The exact checked-in release artifact is under
+  `release/control-tower-0.2.1-e358455/`.
+
+Installing the app remains read-only. It does not silently create repositories.
+When Personal setup is incomplete, **Finish Personal Setup** reopens the setup
+flow, where the user reviews and approves the plan that creates or reuses all
+four private Personal backing repositories. Project work may likewise be
+deferred and resumed from **Open project aftercare**.
+
+The app/CLI JSON schema remains 1.0. The aggregate onboarding report now requires
+the additive four-component set, and `controltower.compat.json` raises the
+helper floor to 1.7.14.
 
 ## 0.2.0 Release Closure
 
