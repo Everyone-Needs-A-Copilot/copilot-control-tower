@@ -6554,8 +6554,22 @@ final class WizardWindowController: NSWindowController {
     /// reset the completed-first-run flag or replay Welcome; it opens the
     /// existing project step, which performs its normal read-only load and
     /// asks before every project write.
-    func reopenForProjects() {
+    func reopenForProjects(category: ProjectTriageCategory? = nil) {
         model.enterProjectsStep()
+        if let category {
+            model.showProjectCategory(category)
+        } else {
+            model.showProjectOverview()
+        }
+        show()
+    }
+
+    /// Settings' "Finish Personal Setup" route. Re-run Detect so the helper
+    /// produces a fresh all-four-component plan; opening Settings itself
+    /// remains read-only and no repository is created until the person
+    /// reviews and runs the normal Set up transaction.
+    func reopenForPersonalSetup() {
+        model.runDetect()
         show()
     }
 

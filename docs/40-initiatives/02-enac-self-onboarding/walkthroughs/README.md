@@ -14,10 +14,12 @@ aftercare before moving to the Admin experience.
 | 06 | [Truthful setup and recovery — UI](06-truthful-setup-recovery-uids-walkthrough.html) | The high-fidelity setup, verification, and steady-state experience. |
 | 07 | [Step 7 project triage and aftercare — UX](07-project-integration-aftercare-uxd-walkthrough.html) | Focused project categories, guided execution, exact couldn't-confirm evidence, and recovery. |
 | 08 | [Step 7 project triage and aftercare — UI](08-project-integration-aftercare-uids-walkthrough.html) | The high-fidelity, one-category-at-a-time Step 7 experience grounded in the observed 53-project inventory. |
-| 09 | [Admin zero-terminal readiness — UX](09-admin-zero-terminal-uxd-walkthrough.html) | Automatic readiness checks and owner-correct recovery. |
-| 10 | [Admin form placeholders — UI](10-admin-form-placeholders-uids-walkthrough.html) | Form guidance for organization and infrastructure values. |
-| 11 | [Admin completion and departments — UX](11-admin-completion-departments-uxd-walkthrough.html) | Completion, department inventory, duplicate refusal, and addition. |
-| 12 | [Admin completion and departments — UI](12-admin-completion-departments-uids-walkthrough.html) | The final high-fidelity Admin completion and department experience. |
+| 09 | [Completed setup topology — UX](09-completed-setup-topology-uxd-walkthrough.html) | Honest machine-versus-ecosystem readiness, four-tier component disclosures, and shared project aftercare. |
+| 10 | [Completed setup topology — UI](10-completed-setup-topology-uids-walkthrough.html) | The high-fidelity completed home with Personal terminology and Step 7 category routes. |
+| 11 | [Admin zero-terminal readiness — UX](11-admin-zero-terminal-uxd-walkthrough.html) | Automatic readiness checks and owner-correct recovery. |
+| 12 | [Admin form placeholders — UI](12-admin-form-placeholders-uids-walkthrough.html) | Form guidance for organization and infrastructure values. |
+| 13 | [Admin completion and departments — UX](13-admin-completion-departments-uxd-walkthrough.html) | Completion, department inventory, duplicate refusal, and addition. |
+| 14 | [Admin completion and departments — UI](14-admin-completion-departments-uids-walkthrough.html) | The final high-fidelity Admin completion and department experience. |
 
 ## Naming Convention
 

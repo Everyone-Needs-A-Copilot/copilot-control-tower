@@ -599,6 +599,10 @@ struct EcosystemOnboardReport: Decodable {
     let result: OnboardResult
     let org: String
     let products: [String]
+    /// The complete CSE component set the aggregate transaction provisions.
+    /// This is intentionally distinct from `products`, which remains the
+    /// person's selected assistant runtimes (Claude and optionally Codex).
+    let components: [String]
     let stages: [EcosystemOnboardStage]
     let layers: [EcosystemOnboardLayer]
     let inventory: [EcosystemInventoryItem]?

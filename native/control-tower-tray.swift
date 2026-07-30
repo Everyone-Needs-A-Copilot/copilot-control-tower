@@ -3435,6 +3435,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "result": "changes-required",
           "org": "acme-co",
           "products": ["claude", "codex"],
+          "components": ["knowledge", "cli", "claude", "codex"],
           "stages": [],
           "layers": [],
           "inventory": [
@@ -3483,6 +3484,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "result": "changes-required",
           "org": "acme-co",
           "products": ["claude"],
+          "components": ["knowledge", "cli", "claude", "codex"],
           "stages": [],
           "layers": [],
           "inventory": [
@@ -3581,9 +3583,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && WizardStage.projects.rawValue == WizardStage.integrations.rawValue + 1
             && WizardStage.materialize.rawValue == WizardStage.projects.rawValue + 1
 
-        let settingsSummary = UserSettingsRender.projectSummary(report)
-        let settingsSummaryPass = settingsSummary
-            == UserSettingsProjectSummary(total: 3, ready: 1, actionable: 1, needsReview: 1)
+        let settingsAftercarePass = UserSettingsRender.projectCategories(report)
+            == [.ready, .safeFinish, .guidedSetup]
+
+        let personalJSON = """
+        {
+          "schema_version": "1.0",
+          "scope": "personal",
+          "owner": "octocat",
+          "mode": "plan",
+          "result": "changes-required",
+          "repositories": [
+            {"component": "knowledge", "role": "personal", "unit": null, "owner": "octocat", "name": "knowledge-copilot-private", "visibility": null, "state": "missing", "action": "create", "detail": "Repository does not exist and can be created privately.", "rank": 10, "package_state": "missing", "package_action": "seed", "package_detail": "Will be set up right after this space is created."},
+            {"component": "cli", "role": "personal", "unit": null, "owner": "octocat", "name": "cli-copilot-private", "visibility": null, "state": "missing", "action": "create", "detail": "Repository does not exist and can be created privately.", "rank": 10, "package_state": "missing", "package_action": "seed", "package_detail": "Will be set up right after this space is created."},
+            {"component": "claude", "role": "personal", "unit": null, "owner": "octocat", "name": "claude-copilot-private", "visibility": "private", "state": "existing-private", "action": "none", "detail": "Existing private repository will be reused.", "rank": 10, "package_state": "ready", "package_action": "none", "package_detail": "Already set up. Everything in here will be kept."},
+            {"component": "codex", "role": "personal", "unit": null, "owner": "octocat", "name": "codex-copilot-private", "visibility": "private", "state": "existing-private", "action": "none", "detail": "Existing private repository will be reused.", "rank": 10, "package_state": "ready", "package_action": "none", "package_detail": "Already set up. Everything in here will be kept."}
+          ],
+          "summary": {"existing": 2, "missing": 2, "created": 0, "blocked": 0}
+        }
+        """
+        let doctorJSON = """
+        {
+          "schema_version": "1.0",
+          "host": "test",
+          "score": 100,
+          "generated_at": null,
+          "status": "healthy",
+          "offline": false,
+          "checkers": [
+            {"id": "claude-foundation", "severity": "pass", "detail": "Foundation ready.", "repair": null, "destructive": false, "layer": "claude-foundation", "product": "claude", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "claude-org", "severity": "pass", "detail": "Organization ready.", "repair": null, "destructive": false, "layer": "claude-organization", "product": "claude", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "codex-foundation", "severity": "pass", "detail": "Foundation ready.", "repair": null, "destructive": false, "layer": "codex-foundation", "product": "codex", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "codex-org", "severity": "pass", "detail": "Organization ready.", "repair": null, "destructive": false, "layer": "codex-organization", "product": "codex", "local_sha": null, "remote_sha": null, "path": null, "escalate": null}
+          ],
+          "auth": []
+        }
+        """
+        let layersJSON = """
+        {"schema_version": "1.0", "host": "test", "layers": []}
+        """
+        let personalReport = personalJSON.data(using: .utf8).flatMap {
+            try? selftestDecoder().decode(OnboardReport.self, from: $0)
+        }
+        let doctorReport = doctorJSON.data(using: .utf8).flatMap {
+            try? selftestDecoder().decode(DoctorReport.self, from: $0)
+        }
+        let layersReport = layersJSON.data(using: .utf8).flatMap {
+            try? selftestDecoder().decode(LayersReport.self, from: $0)
+        }
+        let settingsComponents = UserSettingsRender.componentStatuses(
+            doctor: doctorReport,
+            personal: personalReport,
+            layers: layersReport
+        )
+        let settingsTopologyPass = settingsComponents.map(\.id)
+            == [.knowledge, .cli, .claude, .codex]
+            && settingsComponents.allSatisfy {
+                $0.tiers.map(\.label)
+                    == ["Foundation", "Organization", "Department", "Personal"]
+            }
+            && settingsComponents.first(where: { $0.id == .knowledge })?
+                .tiers.last?.kind == .needsSetup
+            && settingsComponents.first(where: { $0.id == .cli })?
+                .tiers.last?.kind == .needsSetup
+            && settingsComponents.first(where: { $0.id == .claude })?
+                .tiers.last?.kind == .ready
+            && settingsComponents.first(where: { $0.id == .codex })?
+                .tiers.last?.kind == .ready
+            && personalReport.map(UserSettingsRender.personalReadyCount) == 2
+            && personalReport.map(UserSettingsRender.personalNeedsAction) == true
 
         let triagePass = ProjectTriageRender.nonEmptyCategories(report.workspaces)
             == [.ready, .safeFinish, .guidedSetup]
@@ -3596,14 +3664,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && diagnostic.contains("Check again after the project setup changes:")
 
         let passed = workspaceDecodePass && discoveryPass && preselectPass && rootsDecodePass
-            && stageOrderPass && settingsSummaryPass && triagePass && diagnosticPass
+            && stageOrderPass && settingsAftercarePass && settingsTopologyPass
+            && triagePass && diagnosticPass
         print(
             "SELFTEST projectsStep workspaceDecode=\(workspaceDecodePass ? "pass" : "fail") "
                 + "discovery=\(discoveryPass ? "pass" : "fail") "
                 + "preselect=\(preselectPass ? "pass" : "fail") "
                 + "rootsDecode=\(rootsDecodePass ? "pass" : "fail") "
                 + "stageOrder=\(stageOrderPass ? "pass" : "fail") "
-                + "settingsSummary=\(settingsSummaryPass ? "pass" : "fail") "
+                + "settingsAftercare=\(settingsAftercarePass ? "pass" : "fail") "
+                + "settingsTopology=\(settingsTopologyPass ? "pass" : "fail") "
                 + "triage=\(triagePass ? "pass" : "fail") "
                 + "diagnostic=\(diagnosticPass ? "pass" : "fail")"
         )

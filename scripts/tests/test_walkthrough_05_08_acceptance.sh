@@ -79,10 +79,10 @@ check_rg 08-V "high-fidelity popover has readable status hierarchy" 'Text(compon
 
 # Exact embedded-helper boundary. These are critical and intentionally fail
 # against the stale packaged helper until a new upstream artifact is pinned.
-if [[ -x "${CC_PATH}" ]] && [[ "$("${CC_PATH}" --version 2>/dev/null)" == "cc version 1.7.13" ]]; then
-    pass PKG-01 "exact helper is version 1.7.13"
+if [[ -x "${CC_PATH}" ]] && [[ "$("${CC_PATH}" --version 2>/dev/null)" == "cc version 1.7.14" ]]; then
+    pass PKG-01 "exact helper is version 1.7.14"
 else
-    fail PKG-01 "exact helper is version 1.7.13" critical
+    fail PKG-01 "exact helper is version 1.7.14" critical
 fi
 
 workspace_help="$("${CC_PATH}" workspace --help 2>/dev/null || true)"
