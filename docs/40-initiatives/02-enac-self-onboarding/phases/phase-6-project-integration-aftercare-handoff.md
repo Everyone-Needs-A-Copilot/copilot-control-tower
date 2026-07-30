@@ -5,7 +5,7 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the 0.2.0 release-candidate record as of 2026-07-30.** The previous
+> **This is the 0.2.0 release-completion record as of 2026-07-30.** The previous
 > handoff remains implementation and release history. The checked-in package
 > now embeds the separately signed and Apple-notarized cc 1.7.13 universal
 > helper and passes the walkthrough acceptance gate.
@@ -28,8 +28,9 @@ Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 →
 Historical release status: signed and notarized Control Tower 0.1.9 passed
 clean-install and installed-artifact verification
 
-Current source status: revised Step 7 implementation and aftercare are complete
-and verified; 0.2.0 release packaging is in progress under task 197
+Current release status: revised Step 7 implementation and aftercare are
+published in signed and notarized Control Tower 0.2.0; task 197 owns the
+release and artifact QA record
 
 ## Start Here
 
@@ -181,6 +182,37 @@ Measured results:
 - the release helper is cc 1.7.13 from signed foundation snapshot `v5.13.15`,
   accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
   SHA-256 in `packaging/cc/PINNED_SHA256`.
+
+## 0.2.0 Release Closure
+
+The revised Step 7 release boundary is closed:
+
+- Control Tower tag `v0.2.0` resolves to source commit
+  `2cdb870dba05469a13d27a8304e3f38e757d4f1f`.
+- The release app is version 0.2.0, build 11, with cc 1.7.13 pinned at
+  `d391412655ccf5e319489c7730a818c9c0e053988d088fa839e7ed3cb5bc53f3`.
+- The helper comes from signed foundation snapshot `v5.13.15`, whose orphan
+  source commit is `bdaf99b4a20d0d79f78fc3607dcdc3472bfb6a63`.
+- Apple accepted helper submission
+  `9fab71bd-a901-4391-af80-e1503d133daf`, app submission
+  `48cfeadc-23a5-461f-8221-57f0ef2a4442`, and DMG submission
+  `d1a1aa79-f151-4b97-b8fb-c691f39274a9`.
+- Both app and DMG are stapled and pass Gatekeeper. The final DMG SHA-256 is
+  `57edfec6b8e753491d44b0c1549fe01b8b1f03cced4cabccd24ef08d3b54b837`.
+- A drag-installed copy passed project/tray/setup self-tests, real read-only
+  Detect, inert Set up → Verify, exact embedded-helper verification, and the
+  walkthrough acceptance matrix at **38/38, 100%, zero critical failures**.
+- The exact GitHub-downloaded DMG independently matched its checksum, validated
+  its staple, and passed Gatekeeper.
+- The app release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/releases/tag/v0.2.0`;
+  the helper release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/claude-copilot/releases/tag/v5.13.15`.
+- The exact checked-in release artifact is under
+  `release/control-tower-0.2.0-2cdb870/`.
+
+The app/CLI JSON schema remains 1.0. The diagnostic payload is additive and
+optional; `controltower.compat.json` raises the helper floor to 1.7.13.
 
 ## Historical 0.1.9 Release Closure
 

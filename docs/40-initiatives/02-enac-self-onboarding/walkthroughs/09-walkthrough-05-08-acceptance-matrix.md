@@ -44,7 +44,6 @@ uses `packaging/cc/cc`, which must remain the separately signed, notarized
 | CLEAN-01…02 | Clean-home classifications and `safe-finish → Ready → verify` | Executed helper against authoritative framework sources |
 
 Current source truth: the checked-in cc 1.7.13 package and revised native
-implementation pass **38/38 (100%)** with zero critical failures. The signed
-0.1.9 release artifact remains historical; the 0.2.0 source must not be
-described as released until its new signed install artifact is built and
-verified.
+implementation pass **38/38 (100%)** with zero critical failures. The signed,
+notarized, drag-installed 0.2.0 release artifact passed the same **38/38**
+matrix against its exact embedded helper. The 0.1.9 release remains historical.
