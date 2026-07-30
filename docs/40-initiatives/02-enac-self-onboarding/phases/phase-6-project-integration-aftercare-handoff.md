@@ -5,7 +5,7 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the release-candidate record as of 2026-07-30.** The previous
+> **This is the release-completion record as of 2026-07-30.** The previous
 > handoff remains implementation and release history. The checked-in package
 > now embeds the separately signed and Apple-notarized cc 1.7.12 universal
 > helper and passes the walkthrough acceptance gate.
@@ -16,8 +16,8 @@ Branch: `app-build`
 CLI repository: `claude-copilot`
 CLI branch: `feat/adopt-and-project-setup`
 Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193
-Status: source implementation and packaged-helper QA complete; signed Control
-Tower 0.1.9 packaging and installed-artifact verification remain
+Status: release-ready; signed and notarized Control Tower 0.1.9 passed
+clean-install and installed-artifact verification
 
 ## Start Here
 
@@ -165,16 +165,31 @@ Measured results:
   accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
   SHA-256 in `packaging/cc/PINNED_SHA256`.
 
-## Remaining Boundary
+## Release Closure
 
-The helper release boundary is closed. The remaining release-owner steps are:
+The release boundary is closed:
 
-1. commit and push this exact Control Tower source;
-2. tag the source as 0.1.9;
-3. build, Developer-ID sign, Apple-notarize, and staple the app and DMG from
-   that pushed ref;
-4. reinstall from the produced DMG and rerun the clean-home lifecycle against
-   the embedded helper.
+- Control Tower tag `v0.1.9` resolves to source commit
+  `441f87f054cdf2c5d7e6a17b67eee110c7a19f57`.
+- The release app is version 0.1.9, build 10, with the unchanged cc 1.7.12
+  helper pinned at
+  `8bc00f8c723ef903f37d39928167581872b0efadebed995556f118bd80994643`.
+- Apple accepted the app submission
+  `8dbe08c9-1ae6-40e1-acb2-423f453228c1` and DMG submission
+  `d95990dd-3c5e-4e6e-9ea9-f52ce9b6bb5b`.
+- The app is stapled before DMG assembly, so a drag-installed copy validates
+  its ticket offline. Both the installed app and outer DMG also pass
+  Gatekeeper assessment.
+- The final DMG SHA-256 is
+  `06ed5859814509d8560a1c2f5e59217e854eaedae0e8192ae38ed1a0423068f7`.
+- A clean drag-install from the final DMG passed the installed app's project,
+  setup-progress, named-wait, headless Detect, and Set up → Verify seams.
+- The installed helper passed the default lifecycle matrix at **33/33, 100%,
+  zero critical failures**.
+- The exact release artifact is stored under
+  `release/control-tower-0.1.9-441f87f/`.
 
-Only after those installed-artifact checks pass may this phase be called
-release-ready.
+The earlier immutable `v0.1.8` candidate was rejected—not rewritten—after
+clean-install QA found that its app ticket had been stapled after DMG assembly.
+The corrected 0.1.9 producer notarizes and staples the app first and has a
+regression gate for that ordering.
