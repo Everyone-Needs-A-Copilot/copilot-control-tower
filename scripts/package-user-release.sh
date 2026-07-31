@@ -157,6 +157,7 @@ CT_FORCE_REBUILD=1 CT_SKIP_ADHOC_SIGN=1 CT_VENDORED_CC_PATH="${vendored_cc}" \
 
 echo "release: applying Developer ID signature"
 scripts/sign.sh "${app_path}"
+scripts/verify-user-automation.sh "${app_path}"
 embedded_cc="${app_path}/Contents/Resources/cc"
 embedded_cc_sha="$(shasum -a 256 "${embedded_cc}" | awk '{print $1}')"
 [[ "${embedded_cc_sha}" == "${vendored_cc_sha}" ]] ||

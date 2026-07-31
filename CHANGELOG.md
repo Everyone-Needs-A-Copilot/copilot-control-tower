@@ -2,6 +2,43 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.2.2] - 2026-07-31
+
+### Fixed
+
+- **Run in Codex** and **Run in Claude Code** now open a visible Terminal
+  session in the selected project and start the installed assistant with the
+  complete CLI-generated prompt.
+- The app resolves each assistant to its absolute executable before opening
+  Terminal, avoiding Finder/Terminal `PATH` differences.
+- Terminal receives the command before it is brought forward, preventing a
+  separate empty startup window from hiding the guided session.
+- A missing project folder or denied Terminal automation permission now shows
+  a specific recovery message while keeping the copied prompt available.
+
+### Security
+
+- The signed User app now carries the Apple Events entitlement and purpose
+  string required by macOS to request Terminal automation permission. macOS
+  still requires the person's approval; Control Tower gains no Accessibility
+  or UI-scripting permission.
+- Guided prompts remain data in owner-only temporary files, while executable,
+  project, and prompt-file paths are shell-quoted. Independent `cc` project
+  verification remains the only way to mark a project Ready.
+
+### QA
+
+- The release gate now rejects a signed app that lacks either the Terminal
+  automation entitlement or its user-facing purpose string.
+- In-binary regression coverage verifies absolute assistant invocation,
+  project-directory handling, prompt-file safety, Terminal ordering, and
+  actionable Apple Events denial handling.
+
+### Rollback
+
+- Reinstall the signed `0.2.1` DMG to return to the previous release. Tags are
+  immutable; a defective `0.2.2` must be superseded, never moved.
+
 ## [0.2.1] - 2026-07-30
 
 ### Added

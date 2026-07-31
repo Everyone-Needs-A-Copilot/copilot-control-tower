@@ -17,7 +17,7 @@
 #                      tauri.conf.json.
 #   CT_ENTITLEMENTS    Optional. Defaults to
 #                      packaging/entitlements/controltower.entitlements.plist
-#                      (this repo's locked-down, exception-free entitlements
+#                      (this repo's reviewed, least-privilege entitlements
 #                      — see that file's own comment).
 #
 # ## Inside-out signing order
@@ -35,7 +35,7 @@
 # `tauri build` (tauri.conf sets the signing identity) already signs the app
 # during bundling, so this script receives an already-signed bundle. It
 # replaces the build-time signature to apply the hardened runtime and this repo's
-# locked-down entitlements as the signature that actually ships. Signing is
+# reviewed least-privilege entitlements as the signature that actually ships. Signing is
 # deliberately centralized here so the entitlements and runtime options are
 # the reviewed ones. The short `-f` codesign option means only "replace the
 # build-time signature with the release signature"; verification still runs

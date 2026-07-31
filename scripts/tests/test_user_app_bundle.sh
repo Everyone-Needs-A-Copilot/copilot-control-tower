@@ -61,6 +61,7 @@ fi
 [[ -x "${APP_BIN}" ]]
 
 codesign --verify --deep --strict "${APP}"
+scripts/verify-user-automation.sh "${APP}" >/dev/null
 
 # Pixel inspection builds can load deterministic wizard states, but the hook
 # must be compiled out of the User app people install.

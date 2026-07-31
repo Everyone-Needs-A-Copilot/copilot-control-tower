@@ -124,7 +124,9 @@ fi
 # bundle the user opens. The release pipeline disables this pass and applies
 # the Developer ID signature exactly once through scripts/sign.sh.
 if [[ "${CT_SKIP_ADHOC_SIGN:-0}" -eq 0 ]]; then
-    codesign --force --deep --sign - "${APP}" >/dev/null
+    codesign --force --deep --sign - \
+        --entitlements packaging/entitlements/controltower.entitlements.plist \
+        "${APP}" >/dev/null
 fi
 
 if [[ "${1:-}" == "--build-only" ]]; then

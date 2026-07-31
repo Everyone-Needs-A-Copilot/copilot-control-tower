@@ -75,6 +75,8 @@ check_rg 07-18 "menu-bar aftercare repeats the durable return path" 'Project set
 check_rg 07-19 "could-not-confirm exposes exact diagnostic evidence" 'ProjectTriageRender.diagnosticReport(workspace)' native/control-tower-tray.swift critical
 check_rg 07-20 "guided setup launches a visible Terminal session" 'tell application "Terminal"' native/control-tower-tray.swift critical
 check_rg 07-21 "helper-authored read-only diagnosis launches visibly" 'Button("Diagnose in Claude Code")' native/wizard.swift critical
+check_rg 07-22 "signed User app can request Terminal automation" 'scripts/verify-user-automation.sh "${app_path}"' scripts/package-user-release.sh critical
+check_rg 07-23 "guided assistants use resolved absolute executables" 'guard let executablePath = resolveExecutable(assistant.command)' native/control-tower-tray.swift critical
 check_rg 08-V "high-fidelity popover has readable status hierarchy" 'Text(component.worstSeverity == .pass ? "Ready"' native/control-tower-tray.swift
 
 # Exact embedded-helper boundary. These are critical and intentionally fail

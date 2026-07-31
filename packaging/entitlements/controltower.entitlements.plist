@@ -6,17 +6,23 @@
   forbids spawning `copilot`), hardened runtime... Userland-only
   entitlements — no admin, no privileged helper.").
 
-  Deliberately EMPTY of exceptions. This app is not sandboxed (App Sandbox
-  would forbid spawning the vendored `cc` child process, which is the whole
-  point of this app), but "not sandboxed" only means the sandbox entitlement
-  key is simply absent here — it does NOT mean hardened-runtime exceptions
-  are needed. No JIT, no unsigned executable memory, no disabled library
-  validation, no privileged helper: every hardened-runtime protection stays
-  at its default-secure setting. If a future capability genuinely needs one
-  of these relaxed, add it here explicitly and justify it in this comment —
-  never add an exception silently.
+  The User app sends one explicit, user-initiated Apple Event to Terminal to
+  open Claude Code or Codex with a CLI-generated project prompt. The Apple
+  Events entitlement does not bypass macOS privacy controls; it permits the
+  app to ask the user for Terminal automation access.
+
+  This app is not sandboxed (App Sandbox would forbid spawning the vendored
+  `cc` child process, which is the whole point of this app), but "not
+  sandboxed" only means the sandbox entitlement key is absent here. No JIT,
+  no unsigned executable memory, no disabled library validation, no
+  accessibility/UI-scripting access, no privileged helper: every other
+  hardened-runtime protection stays at its default-secure setting. If a
+  future capability genuinely needs one of these relaxed, add it here
+  explicitly and justify it in this comment — never add one silently.
 -->
 <plist version="1.0">
 <dict>
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
 </dict>
 </plist>

@@ -2444,6 +2444,10 @@ final class WizardModel: ObservableObject {
             projectIntegrationMessage = "\(assistant.displayName) is running in Terminal. Watch it there or continue setup; Control Tower will verify the project when you return."
         case .assistantUnavailable:
             projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The guided prompt was copied, and nothing in the project was changed."
+        case .projectUnavailable:
+            projectIntegrationMessage = "The project folder isn't available anymore. The guided prompt was copied, and nothing was changed."
+        case .automationPermissionDenied:
+            projectIntegrationMessage = "Control Tower needs permission to run guided setup in Terminal. Allow Terminal under System Settings → Privacy & Security → Automation, then try again. The prompt was copied, and nothing was changed."
         case .terminalUnavailable:
             projectIntegrationMessage = "Terminal couldn't start the guided session. The prompt was copied, and nothing in the project was changed."
         }
@@ -2466,6 +2470,10 @@ final class WizardModel: ObservableObject {
             projectIntegrationMessage = "\(assistant.displayName) is diagnosing in read-only mode in Terminal. Nothing may change in the project; Control Tower will check the project when you return."
         case .assistantUnavailable:
             projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The read-only diagnostic prompt was copied, and nothing in the project was changed."
+        case .projectUnavailable:
+            projectIntegrationMessage = "The project folder isn't available anymore. The read-only diagnostic prompt was copied, and nothing was changed."
+        case .automationPermissionDenied:
+            projectIntegrationMessage = "Control Tower needs permission to run the diagnosis in Terminal. Allow Terminal under System Settings → Privacy & Security → Automation, then try again. The prompt was copied, and nothing was changed."
         case .terminalUnavailable:
             projectIntegrationMessage = "Terminal couldn't start the read-only diagnostic session. The prompt was copied, and nothing in the project was changed."
         }

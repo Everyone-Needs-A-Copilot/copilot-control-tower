@@ -437,9 +437,11 @@ enum ProjectRowRender {
 /// as shell syntax. Assistant output is not interpreted; returning to Control
 /// Tower invokes authoritative `cc workspace verify`.
 enum ProjectIntegrationLauncher {
-    enum LaunchResult {
+    enum LaunchResult: Equatable {
         case openedInTerminal
         case assistantUnavailable
+        case projectUnavailable
+        case automationPermissionDenied
         case terminalUnavailable
     }
 
@@ -475,8 +477,15 @@ enum ProjectIntegrationLauncher {
         prompt: String
     ) -> LaunchResult {
         _ = copy(prompt)
-        guard commandIsAvailable(assistant.command) else {
+        guard let executablePath = resolveExecutable(assistant.command) else {
             return .assistantUnavailable
+        }
+        var projectIsDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: projectPath,
+            isDirectory: &projectIsDirectory
+        ), projectIsDirectory.boolValue else {
+            return .projectUnavailable
         }
 
         let promptURL = FileManager.default.temporaryDirectory
@@ -491,20 +500,51 @@ enum ProjectIntegrationLauncher {
             return .terminalUnavailable
         }
 
+        let command = launchCommand(
+            assistant,
+            executablePath: executablePath,
+            projectPath: projectPath,
+            promptPath: promptURL.path
+        )
+        let source = appleScriptSource(command: command)
+        var error: NSDictionary?
+        guard NSAppleScript(source: source)?.executeAndReturnError(&error) != nil else {
+            try? FileManager.default.removeItem(at: promptURL)
+            return launchFailure(forAppleScriptError: error)
+        }
+        return .openedInTerminal
+    }
+
+    static func launchFailure(forAppleScriptError error: NSDictionary?) -> LaunchResult {
+        let errorNumber = (error?["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue
+        return errorNumber == -1743 || errorNumber == -1744
+            ? .automationPermissionDenied
+            : .terminalUnavailable
+    }
+
+    /// Builds the exact command Terminal receives. Executable and file paths
+    /// are absolute and shell-quoted; prompt text remains data in a mode-0600
+    /// temporary file and is never parsed as shell syntax.
+    static func launchCommand(
+        _ assistant: Assistant,
+        executablePath: String,
+        projectPath: String,
+        promptPath: String
+    ) -> String {
+        let executable = shellQuote(executablePath)
         let project = shellQuote(projectPath)
-        let promptFile = shellQuote(promptURL.path)
+        let promptFile = shellQuote(promptPath)
         let assistantCommand: String
         switch assistant {
         case .codex:
-            assistantCommand = "codex -C \(project) \"$(/bin/cat \(promptFile))\""
+            assistantCommand = "\(executable) -C \(project) \"$(/bin/cat \(promptFile))\""
         case .claudeCode:
-            assistantCommand = "cd \(project) && claude \"$(/bin/cat \(promptFile))\""
+            assistantCommand = "cd \(project) && \(executable) \"$(/bin/cat \(promptFile))\""
         }
-        let command = """
-        /usr/bin/clear; \
+        return """
         echo 'Copilot Control Tower — guided setup'; \
-        echo 'Project: \(projectPath.replacingOccurrences(of: "'", with: ""))'; \
-        echo 'Assistant: \(assistant.displayName)'; \
+        echo \(shellQuote("Project: \(projectPath)")); \
+        echo \(shellQuote("Assistant: \(assistant.displayName)")); \
         echo ''; \
         \(assistantCommand); \
         ct_status=$?; \
@@ -516,18 +556,17 @@ enum ProjectIntegrationLauncher {
           echo 'Guided session ended with a problem. Return to Control Tower to review it.'; \
         fi
         """
-        let source = """
+    }
+
+    /// `do script` launches Terminal when needed and creates the command tab.
+    /// Activating afterward avoids showing a separate empty startup window.
+    static func appleScriptSource(command: String) -> String {
+        """
         tell application "Terminal"
-            activate
             do script \(appleScriptLiteral(command))
+            activate
         end tell
         """
-        var error: NSDictionary?
-        guard NSAppleScript(source: source)?.executeAndReturnError(&error) != nil else {
-            try? FileManager.default.removeItem(at: promptURL)
-            return .terminalUnavailable
-        }
-        return .openedInTerminal
     }
 
     static func bringTerminalForward() {
@@ -555,18 +594,27 @@ enum ProjectIntegrationLauncher {
             + "\""
     }
 
-    private static func commandIsAvailable(_ command: String) -> Bool {
+    static func resolveExecutable(_ command: String) -> String? {
         let process = Process()
+        let output = Pipe()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lic", "command -v -- \(command) >/dev/null 2>&1"]
-        process.standardOutput = FileHandle.nullDevice
+        process.arguments = ["-lic", "command -v -- \(shellQuote(command))"]
+        process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         do {
             try process.run()
             process.waitUntilExit()
-            return process.terminationStatus == 0
+            guard process.terminationStatus == 0 else { return nil }
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            guard let raw = String(data: data, encoding: .utf8) else { return nil }
+            let candidates = raw
+                .split(whereSeparator: \.isNewline)
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            return candidates.first {
+                $0.hasPrefix("/") && FileManager.default.isExecutableFile(atPath: $0)
+            }
         } catch {
-            return false
+            return nil
         }
     }
 }
@@ -1032,6 +1080,10 @@ final class TrayModel: ObservableObject {
             projectIntegrationMessage = "\(assistant.displayName) is running in Terminal. Control Tower will verify the project when you return."
         case .assistantUnavailable:
             projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The guided prompt was copied, and nothing in the project was changed."
+        case .projectUnavailable:
+            projectIntegrationMessage = "The project folder isn't available anymore. The guided prompt was copied, and nothing was changed."
+        case .automationPermissionDenied:
+            projectIntegrationMessage = "Control Tower needs permission to run guided setup in Terminal. Allow Terminal under System Settings → Privacy & Security → Automation, then try again. The prompt was copied, and nothing was changed."
         case .terminalUnavailable:
             projectIntegrationMessage = "Terminal couldn't start the guided session. The prompt was copied, and nothing in the project was changed."
         }
@@ -1054,6 +1106,10 @@ final class TrayModel: ObservableObject {
             projectIntegrationMessage = "\(assistant.displayName) is diagnosing in read-only mode in Terminal. Nothing may change in the project; Control Tower will check the project when you return."
         case .assistantUnavailable:
             projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The read-only diagnostic prompt was copied, and nothing in the project was changed."
+        case .projectUnavailable:
+            projectIntegrationMessage = "The project folder isn't available anymore. The read-only diagnostic prompt was copied, and nothing was changed."
+        case .automationPermissionDenied:
+            projectIntegrationMessage = "Control Tower needs permission to run the diagnosis in Terminal. Allow Terminal under System Settings → Privacy & Security → Automation, then try again. The prompt was copied, and nothing was changed."
         case .terminalUnavailable:
             projectIntegrationMessage = "Terminal couldn't start the read-only diagnostic session. The prompt was copied, and nothing in the project was changed."
         }
@@ -3841,10 +3897,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && revertReport.workspaces.first?.path == "/p/f"
             && revertReport.workspaces.first?.setupPolicy == .excluded
 
+        let codexLaunch = ProjectIntegrationLauncher.launchCommand(
+            .codex,
+            executablePath: "/opt/codex bin/codex",
+            projectPath: "/p/O'Brien",
+            promptPath: "/tmp/guided prompt"
+        )
+        let claudeLaunch = ProjectIntegrationLauncher.launchCommand(
+            .claudeCode,
+            executablePath: "/Users/test/.local/bin/claude",
+            projectPath: "/p/O'Brien",
+            promptPath: "/tmp/guided prompt"
+        )
+        let appleScript = ProjectIntegrationLauncher.appleScriptSource(command: codexLaunch)
+        let doScriptOffset = appleScript.range(of: "do script")?.lowerBound
+        let activateOffset = appleScript.range(of: "activate")?.lowerBound
+        let terminalOrderPass: Bool
+        if let doScriptOffset, let activateOffset {
+            terminalOrderPass = doScriptOffset < activateOffset
+        } else {
+            terminalOrderPass = false
+        }
         let launcherPass = ProjectIntegrationLauncher.shellQuote("/p/O'Brien")
             == "'/p/O'\"'\"'Brien'"
             && ProjectIntegrationLauncher.appleScriptLiteral("line 1\n\"line 2\"")
                 == "\"line 1\\n\\\"line 2\\\"\""
+            && codexLaunch.contains(
+                "'/opt/codex bin/codex' -C '/p/O'\"'\"'Brien' \"$(/bin/cat '/tmp/guided prompt')\""
+            )
+            && claudeLaunch.contains(
+                "cd '/p/O'\"'\"'Brien' && '/Users/test/.local/bin/claude' \"$(/bin/cat '/tmp/guided prompt')\""
+            )
+            && !codexLaunch.contains("/usr/bin/clear")
+            && terminalOrderPass
+            && ProjectIntegrationLauncher.launchFailure(
+                forAppleScriptError: ["NSAppleScriptErrorNumber": -1743]
+            ) == .automationPermissionDenied
+            && ProjectIntegrationLauncher.launchFailure(
+                forAppleScriptError: ["NSAppleScriptErrorNumber": -1744]
+            ) == .automationPermissionDenied
+            && ProjectIntegrationLauncher.launchFailure(
+                forAppleScriptError: ["NSAppleScriptErrorNumber": -2700]
+            ) == .terminalUnavailable
+            && ProjectIntegrationLauncher.resolveExecutable("sh") == "/bin/sh"
 
         let passed = noticePass && rowsPass && routePass
             && automaticPass && automaticNoticePass && revertDecodePass

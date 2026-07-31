@@ -38,12 +38,12 @@ uses `packaging/cc/cc`, which must remain the separately signed, notarized
 |---|---|---|
 | 05-01…05-11 | Named four-copilot roster; exact missing state; real denominator; post-setup Doctor verification; five project classifications; safe preservation review; distinct routes; truthful results; final outcome summary; readable popover; honest recovery | Native model/render assertions |
 | 06-V | High-fidelity wizard hierarchy | Native card/status hierarchy plus visual inspection |
-| 07-01…07-21 | Five classifications; focused category navigation; Ready capability/evidence; review-first safe finish; opaque action; per-component state; full guided contract; visible Terminal assistant choice; prompt preview; owner handoff; return verification; fail-closed outcomes; persistent capability visibility; durable return-later path; exact diagnostic evidence; helper-authored read-only diagnosis | Schema fixtures, native route assertions, clean helper lifecycle, real-pixel inspection |
+| 07-01…07-23 | Five classifications; focused category navigation; Ready capability/evidence; review-first safe finish; opaque action; per-component state; full guided contract; visible Terminal assistant choice; prompt preview; owner handoff; return verification; fail-closed outcomes; persistent capability visibility; durable return-later path; exact diagnostic evidence; helper-authored read-only diagnosis; signed Terminal automation permission; resolved absolute assistant paths | Schema fixtures, native route assertions, signed-bundle entitlement gate, clean helper lifecycle, real-pixel inspection |
 | 08-V | High-fidelity popover hierarchy | Readable status/layer hierarchy plus visual inspection |
 | PKG-01…02 | Exact embedded helper version and verbs | Executed helper boundary |
 | CLEAN-01…02 | Clean-home classifications and `safe-finish → Ready → verify` | Executed helper against authoritative framework sources |
 
 Current source truth: the checked-in cc 1.7.14 package and revised native
-implementation pass **38/38 (100%)** with zero critical failures. The signed,
-notarized 0.2.1 release artifact passed the same **38/38**
-matrix against its exact embedded helper. The 0.1.9 release remains historical.
+implementation pass **40/40 (100%)** with zero critical failures. The signed,
+notarized 0.2.2 release artifact must pass the same **40/40** matrix against
+its exact embedded helper. Earlier releases remain historical.
