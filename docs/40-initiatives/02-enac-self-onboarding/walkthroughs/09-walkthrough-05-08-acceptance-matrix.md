@@ -45,5 +45,5 @@ uses `packaging/cc/cc`, which must remain the separately signed, notarized
 
 Current source truth: the checked-in cc 1.7.14 package and revised native
 implementation pass **40/40 (100%)** with zero critical failures. The signed,
-notarized 0.2.2 release artifact must pass the same **40/40** matrix against
-its exact embedded helper. Earlier releases remain historical.
+notarized 0.2.2 release artifact passed the same **40/40** matrix against its
+exact embedded helper. Earlier releases remain historical.

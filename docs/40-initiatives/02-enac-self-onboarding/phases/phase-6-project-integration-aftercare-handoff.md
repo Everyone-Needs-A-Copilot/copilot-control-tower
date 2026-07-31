@@ -5,11 +5,12 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the 0.2.1 release-completion record as of 2026-07-30.** The previous
+> **This is the 0.2.2 release-completion record as of 2026-07-31.** The previous
 > handoff remains implementation and release history. The checked-in package
 > now embeds the separately signed and Apple-notarized cc 1.7.14 universal
 > helper, exposes the complete four-component/four-tier ecosystem after setup,
-> and passes both the walkthrough and completed-setup acceptance gates.
+> passes both the walkthrough and completed-setup acceptance gates, and can
+> launch guided Codex or Claude Code work in a visible Terminal session.
 
 > **Owner-review closeout, 2026-07-30:** the installed Step 7 experience exposed
 > a continuous 53-project register, unclear category language, dead-end assistant
@@ -27,19 +28,29 @@
 > complete component/tier topology, truthful Personal recovery, and the same
 > focused project categories used during setup. “Personal” is the product term;
 > its backing GitHub repository is private.
+>
+> **Guided-launch closeout, 2026-07-31:** owner testing found that **Run in
+> Claude Code** opened an empty Terminal and **Run in Codex** appeared to do
+> nothing. Task `tc` 199 traced this to the signed User app lacking the macOS
+> Apple Events entitlement and purpose string. Release 0.2.2 adds that signed
+> permission contract, resolves absolute assistant executables before launch,
+> sends the command before bringing Terminal forward, and gives exact recovery
+> guidance when the assistant, project folder, or Automation permission is
+> unavailable.
 
-Date: 2026-07-30
+Date: 2026-07-31
 Primary repository: `copilot-control-tower`
 Branch: `app-build`
 CLI repository: `claude-copilot`
 CLI branch: `feat/adopt-and-project-setup`
-Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197 → 198
+Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197 → 198 → 199
 Historical release status: signed and notarized Control Tower 0.1.9 passed
 clean-install and installed-artifact verification
 
-Current release status: truthful completed setup and durable project aftercare
-are published in signed and notarized Control Tower 0.2.1; task 198 owns the
-design, implementation, release, and artifact QA record
+Current release status: truthful completed setup, durable project aftercare,
+and working visible guided-assistant launch are published in signed and
+notarized Control Tower 0.2.2; task 199 owns the defect, implementation,
+release, and artifact QA record
 
 ## Start Here
 
@@ -183,19 +194,58 @@ The executable matrix is:
 Measured results:
 
 - current source implementation with the checked-in cc 1.7.14 package:
-  **38/38, 100%, zero critical failures**;
+  **40/40, 100%, zero critical failures**;
 - production User app bundle, project-integration contract, in-binary triage,
   diagnostic, Terminal-launch quoting, and clean-home lifecycle tests: pass;
 - completed-setup acceptance gate, including fixed four-component topology,
   four tiers, truthful incomplete readiness, Personal/private language,
   same-view project aftercare, and return-later routing: pass;
-- exact signed and notarized 0.2.1 app binary topology and aftercare self-test:
+- exact signed and notarized 0.2.2 app binary topology, aftercare, launcher,
+  signing-entitlement, and purpose-string self-tests:
   pass;
 - clean-home lifecycle: `safe-finish → finish → Ready → verify`, plus
   independent guided-integration and owner-decision routes;
 - the release helper is cc 1.7.14 from signed foundation snapshot `v5.13.16`,
   accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
   SHA-256 in `packaging/cc/PINNED_SHA256`.
+
+## 0.2.2 Release Closure
+
+The visible guided-assistant launch boundary is closed:
+
+- Control Tower tag `v0.2.2` resolves to source commit
+  `a769502f1feb4e379ba96fc5c46e36c08c216499`.
+- The release app is version 0.2.2, build 13, with unchanged cc 1.7.14 pinned at
+  `6a7b9b5278b33ac96fb9bc9125dc715a016d3c0b71675fee1ebdfe85c92dcf07`.
+- Apple accepted app submission
+  `6047bab9-ca81-4de5-8d0e-5188484a4638` and DMG submission
+  `9cabac2d-ce22-43da-87c6-d638c947ab19`. Both are stapled and pass
+  Gatekeeper.
+- The final DMG SHA-256 is
+  `e7e48e5042600bc2f80897049e7d83037bc5d961eb72f20551db0ec673bf68ce`.
+- The exact release app carries
+  `com.apple.security.automation.apple-events=true` and a non-empty
+  `NSAppleEventsUsageDescription`; the release pipeline rejects the app if
+  either requirement is absent.
+- A visible, harmless Terminal probe exercised both launch forms with a path
+  containing spaces and a multiline shell-looking prompt. Codex received the
+  selected project through `-C`; Claude Code ran from that directory; both
+  received the exact prompt; no prompt text executed as shell syntax.
+- The complete regression evidence includes 126/126 scenario checks and the
+  revised walkthrough matrix at **40/40, 100%, zero critical failures**.
+- The published GitHub release was downloaded after publication and all five
+  assets were byte-compared with the locally verified originals; the DMG
+  checksum passed again.
+- The release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/releases/tag/v0.2.2`.
+- The exact checked-in release artifacts are under
+  `release/control-tower-0.2.2-a769502/`.
+
+On the first guided launch, macOS may ask whether Copilot Control Tower may
+control Terminal. The user must choose **Allow**. If permission was denied,
+enable Terminal for Copilot Control Tower in **System Settings → Privacy &
+Security → Automation**, then retry. The fallback prompt remains copied, and
+only independent `cc workspace verify` can mark the project Ready.
 
 ## 0.2.1 Release Closure
 
