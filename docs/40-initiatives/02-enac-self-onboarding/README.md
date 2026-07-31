@@ -2,7 +2,7 @@
 initiative: 02-enac-self-onboarding
 title: ENAC Self-Onboarding — Dogfood the Ecosystem on Everyone Needs A Copilot
 status: active
-status_note: Tier runtime, credential ladder, and org-config cutover are live. Control Tower 0.1.7 dogfooding exposed incomplete four-Copilot and project classification. The truthful setup and project-aftercare designs are complete; implementation should begin with the richer CLI workspace contract. Continue from phases/phase-6-project-integration-aftercare-handoff.md.
+status_note: Control Tower 0.2.4 live setup is blocked by a confirmed repository-history and transaction-order defect. Continue from phases/phase-6-v0.2.4-live-setup-blocker-handoff.md and tc task 203.
 owner: Pablo Alejo
 created: 2026-07-16
 execution_context:
@@ -19,8 +19,9 @@ superseded_by: null
 > and project classification. The corrective experience is designed; the richer
 > CLI contract and app rendering remain to be implemented.
 > **Taking this over? Read
-> [`phases/phase-6-project-integration-aftercare-handoff.md`](phases/phase-6-project-integration-aftercare-handoff.md)
-> first for the current pickup, then
+> [`phases/phase-6-v0.2.4-live-setup-blocker-handoff.md`](phases/phase-6-v0.2.4-live-setup-blocker-handoff.md)
+> first for the current pickup, then the release-history
+> [`phases/phase-6-project-integration-aftercare-handoff.md`](phases/phase-6-project-integration-aftercare-handoff.md), then
 > [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md)
 > (what's live) and
 > [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md)
@@ -131,7 +132,7 @@ service + 33 ladder tests; 0 fail-closed). Full record:
 | Phase 3 | **Tier runtime + credential ladder** — layered settings, overlay loader, fail-closed secret ladder, full secret migration to Infisical | Phase 1 | **Shipped + live on ENAC's Mac.** [`phases/phase-3-tier-inheritance-and-secrets.md`](phases/phase-3-tier-inheritance-and-secrets.md) |
 | Phase 4 | **Lock the tier in fully** — config inheritance, `copilot update` mirror-sync, fan-out validation, cleanup | Phase 3 | **Done + live.** [`phases/phase-4-tier-completion-handoff.md`](phases/phase-4-tier-completion-handoff.md) |
 | Phase 5 | **Org-config migration + cutover** — move all org config out of the gitignored `.env` (non-secret → committed overlay `config:`; secrets → Infisical/keychain); org mirror is now a clean git clone with no `.env` | Phase 4 | **Done + cut over live (2026-07-21).** Recorded in the `phase-5(…)` commits, WP-79, memory `phase-5-org-config-migration`. |
-| Phase 6 | **Ecosystem install + two-machine onboarding proof** — Admin provisions shared Claude/Codex layers; User Setup provisions user-owned personal layers; prove `personal (10) -> organization (30) -> foundation (40)` from a cold machine | Phase 5 | **In progress.** Signed/notarized User app 0.1.3 is published and release-proven; the owner's real apply and the cold second-machine proof remain. [`phases/phase-6-v0.1.3-user-install-handoff.md`](phases/phase-6-v0.1.3-user-install-handoff.md) |
+| Phase 6 | **Ecosystem install + two-machine onboarding proof** — provision and visibly verify Foundation, Organization, entitled Department, and Personal for all four components | Phase 5 | **Blocked in live 0.2.4 apply.** The transaction misclassified a branch-diverged checkout, made Personal remote writes before the blocker, and the signed helper disagrees with source topology output. Continue with [`phases/phase-6-v0.2.4-live-setup-blocker-handoff.md`](phases/phase-6-v0.2.4-live-setup-blocker-handoff.md) and `tc` 203. |
 | Phase 6a | **Honest setup** — close the wizard/CLI dead ends dogfooding Phase 6 surfaced: a collapsed Holding screen, a false-complete confirmation, the CLI refusing an adoptable GitHub connection, a fresh-Mac sign-in deadlock, and the missing organization-name question | Phase 6 (found while dogfooding it, not a prerequisite to it) | **Superseded as a pickup by the 0.1.3 handoff.** Retain [`phases/phase-6-honest-setup-work-record.md`](phases/phase-6-honest-setup-work-record.md) and [`phases/phase-6-honest-setup-handoff.md`](phases/phase-6-honest-setup-handoff.md) as implementation history. |
 
 ## Decisions
@@ -140,6 +141,7 @@ service + 33 ladder tests; 0 fail-closed). Full record:
 - [ADR-002 — `-internal` naming convention (universal)](decisions/ADR-002-internal-naming-convention.md)
 - [ADR-003 — Dogfood ENAC directly, no Acme throwaway](decisions/ADR-003-dogfood-enac-directly.md)
 - [ADR-004 — Admin provisions shared layers; the user provisions the personal layer](decisions/ADR-004-admin-shared-user-personal-onboarding.md)
+- [ADR-005 — Visible ecosystem repositories are the user-facing source locations](decisions/ADR-005-visible-ecosystem-repositories.md)
 
 ## Validation Contract
 
@@ -171,12 +173,13 @@ config lives in the committed overlay, secrets in Infisical + keychain, and
 `copilot update` regenerates the org mirror from a clean git clone (foundation
 pinned `^0.3.0` → `v0.3.0`).
 
-**The next action** is for the owner to replace Control Tower 0.1.1 with the
-published 0.1.3 User app and run the real User Setup. The exact signed artifact
-already passed real read-only Detect on this Mac and the production Set up →
-Verify orchestration against an inert helper. After recording the live result,
-continue the separate cold-laptop inheritance proof (V-5). Current handoff:
-[`phases/phase-6-project-integration-aftercare-handoff.md`](phases/phase-6-project-integration-aftercare-handoff.md).
+**The next action is engineering recovery, not another owner retry.** Control
+Tower 0.2.4 is installed and its first live apply stopped on a false
+safe-fast-forward plan after creating two Personal GitHub repositories. Repair
+the transaction and signed-helper parity under `tc` 203, publish new immutable
+releases, then review a read-only sixteen-row plan before one live apply. Current
+handoff:
+[`phases/phase-6-v0.2.4-live-setup-blocker-handoff.md`](phases/phase-6-v0.2.4-live-setup-blocker-handoff.md).
 
 The original **rename-redirect hazard** (creating a new repo with the old name
 silently re-points every consumer at the base skeleton) was navigated during the

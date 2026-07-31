@@ -1,5 +1,12 @@
 # Phase 6 — Truthful setup and project integration aftercare handoff
 
+> **Live 0.2.4 correction:** the first owner-run apply exposed a clean but
+> branch-diverged `cli-copilot` checkout, a false safe-fast-forward plan, remote
+> Personal repository writes before that blocker, and a signed-helper/source
+> topology mismatch. This document is release history. Continue from
+> [`phase-6-v0.2.4-live-setup-blocker-handoff.md`](phase-6-v0.2.4-live-setup-blocker-handoff.md)
+> and `tc` task 203.
+
 > Initiative: [`02-enac-self-onboarding`](../README.md)
 >
 > Previous handoff:
