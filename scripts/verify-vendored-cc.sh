@@ -17,6 +17,19 @@
 # and can never pass `--release`.
 #
 # Usage: verify-vendored-cc.sh [--release] /path/to/Contents/Resources/cc
+#
+# G-6 (task 209): beyond the checksum/signature/notarization-evidence checks
+# below (all of which trust build-time metadata or a static artifact
+# property), this script also ACTUALLY RUNS the vendored binary's
+# `onboard --org ... --json` against a minimal, fully local Git fixture
+# (scripts/tests/fixtures/onboard-topology; never a live tree, never real
+# GitHub) and validates the emitted topology report against the canonical
+# schema (docs/01-architecture/schemas/onboard.schema.json) and its
+# `layers_state` typed-absence semantics -- not merely the static
+# `finder_onboard_probe: "passed"` flag recorded once at release-build time
+# in NOTARIZATION.json, which proves nothing about the exact binary being
+# verified right now. The full eight-history-state, sixteen-row contract
+# lives in the dedicated gate: scripts/tests/test_packaged_cc_topology_contract.sh.
 
 set -euo pipefail
 
@@ -25,6 +38,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PINNED_SHA_FILE="${REPO_ROOT}/packaging/cc/PINNED_SHA256"
 NOTARIZATION_FILE="${REPO_ROOT}/packaging/cc/NOTARIZATION.json"
 COMPAT_FILE="${REPO_ROOT}/controltower.compat.json"
+TOPOLOGY_FIXTURES="${REPO_ROOT}/scripts/tests/fixtures/onboard-topology"
+ONBOARD_SCHEMA="${REPO_ROOT}/docs/01-architecture/schemas/onboard.schema.json"
 
 RELEASE_MODE=false
 if [[ "${1:-}" == "--release" ]]; then
@@ -140,6 +155,50 @@ if not minimum <= version < maximum:
     )
 PY
     fi
+
+    echo "verifying onboard topology report against schema 2.0 (real run, minimal local fixture)..."
+    JSONSCHEMA_VENV="${REPO_ROOT}/.copilot/build-cache/jsonschema-venv"
+    if [[ ! -x "${JSONSCHEMA_VENV}/bin/python3" ]]; then
+        command -v uv >/dev/null 2>&1 || {
+            echo "error: uv is required to prepare the jsonschema validation venv" >&2
+            exit 1
+        }
+        uv venv --python 3.13 "${JSONSCHEMA_VENV}" >/dev/null
+        uv pip install --python "${JSONSCHEMA_VENV}/bin/python3" --quiet jsonschema >/dev/null
+    fi
+
+    topology_scratch="$(mktemp -d "${TMPDIR:-/tmp}/ct-verify-cc-topology.XXXXXX")"
+    trap 'rm -rf "${topology_scratch}"' EXIT
+    topology_repo_root="$("${TOPOLOGY_FIXTURES}/build-minimal-fixture.sh" "${topology_scratch}" | tail -1)"
+    topology_bin="${topology_scratch}/bin"
+    mkdir -p "${topology_bin}"
+    cp "${TOPOLOGY_FIXTURES}/gh-stub" "${topology_bin}/gh"
+    chmod +x "${topology_bin}/gh"
+    env \
+        HOME="${topology_scratch}/home" \
+        PATH="${topology_bin}:/usr/bin:/bin:/usr/sbin:/sbin" \
+        GIT_SSH_COMMAND="${TOPOLOGY_FIXTURES}/fake-ssh.sh" \
+        FAKE_SSH_REMOTES_DIR="${topology_scratch}/remotes" \
+        STUB_GH_OWNER="fixture-owner" \
+        STUB_GH_ORG="fixture-org" \
+        STUB_GH_HANDOFF_B64_FILE="${topology_scratch}/handoff.b64" \
+        STUB_GH_DEPARTMENT_UNIT="unused" \
+        "${CC_PATH}" onboard --org fixture-org --products claude,codex \
+            --repository-root "${topology_repo_root}" --json \
+        > "${topology_scratch}/report.json" 2>"${topology_scratch}/report.err" || true
+    "${JSONSCHEMA_VENV}/bin/python3" "${TOPOLOGY_FIXTURES}/assert_onboard_schema.py" \
+        --schema "${ONBOARD_SCHEMA}" \
+        --report "${topology_scratch}/report.json" \
+        --min-layers 12 ||
+        {
+            echo "error: vendored cc's onboard report does not validate against schema 2.0" >&2
+            echo "       (see docs/01-architecture/schemas/onboard.schema.json); stderr:" >&2
+            cat "${topology_scratch}/report.err" >&2
+            exit 1
+        }
+    rm -rf "${topology_scratch}"
+    trap - EXIT
+
     echo "vendored cc verified (verify-not-resign): ${CC_PATH}"
 else
     if $RELEASE_MODE; then

@@ -5,6 +5,17 @@
 # The app is forced to use the repository's inert mock-cc fixture. The fixture
 # records argv so this proof requires the real `onboard ... --apply --json`
 # and follow-up `doctor --json` calls, not merely a decodable canned response.
+#
+# G-6 (task 209): mock-cc proves the app sends the right commands and reacts
+# to a canned response -- it can never prove the topology CONTRACT those
+# commands rely on (sixteen rows, eight Git history states, ancestry-proven
+# fast-forwards) because it is inert by design. This script therefore keeps
+# mock-cc for the app-driving proof above unchanged, then adds a second,
+# independent leg that drives the exact PACKAGED cc binary (never mock-cc)
+# against a deterministic local Git fixture -- see
+# scripts/tests/test_packaged_cc_topology_contract.sh, which this delegates
+# to. Skip that leg with --skip-topology-leg (e.g. for a fast mock-only
+# smoke run); it is NOT skipped by default.
 
 set -euo pipefail
 
@@ -18,9 +29,15 @@ usage() {
 Usage: scripts/headless-setup-transaction.sh [options]
 
 Options:
-  --app PATH       App bundle to inspect. Defaults to build/Copilot Control Tower.app.
-  --mock-cc PATH   Inert mock helper. Defaults to src-tauri/fixtures/mock-cc.
-  -h, --help       Show this help.
+  --app PATH             App bundle to inspect. Defaults to build/Copilot Control Tower.app.
+  --mock-cc PATH         Inert mock helper. Defaults to src-tauri/fixtures/mock-cc.
+  --skip-topology-leg    Skip the real-packaged-binary topology-contract leg
+                         (scripts/tests/test_packaged_cc_topology_contract.sh).
+                         Run by default.
+  --cc-path PATH         Packaged cc binary for the topology leg. Defaults to
+                         building/reusing a fresh helper (see
+                         scripts/build-fresh-vendored-cc.sh).
+  -h, --help             Show this help.
 
 The command never invokes the app's bundled real cc helper and never opens UI.
 EOF
@@ -30,6 +47,9 @@ die() {
     echo "headless setup transaction: $*" >&2
     exit 2
 }
+
+SKIP_TOPOLOGY_LEG=false
+TOPOLOGY_CC_PATH=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -41,6 +61,15 @@ while [[ $# -gt 0 ]]; do
         --mock-cc)
             [[ $# -ge 2 ]] || die "--mock-cc requires a path"
             MOCK_CC="$2"
+            shift 2
+            ;;
+        --skip-topology-leg)
+            SKIP_TOPOLOGY_LEG=true
+            shift
+            ;;
+        --cc-path)
+            [[ $# -ge 2 ]] || die "--cc-path requires a path"
+            TOPOLOGY_CC_PATH="$2"
             shift 2
             ;;
         -h|--help)
@@ -92,3 +121,12 @@ rg -Fxq 'doctor --json' "${invocation_log}" ||
     die "the app did not perform the separate verify-time doctor call"
 
 cat "${output}"
+
+if [[ "${SKIP_TOPOLOGY_LEG}" == false ]]; then
+    echo "headless setup transaction: mock-cc leg green -- running the real-binary topology-contract leg..." >&2
+    if [[ -n "${TOPOLOGY_CC_PATH}" ]]; then
+        "${SCRIPT_DIR}/tests/test_packaged_cc_topology_contract.sh" --cc-path "${TOPOLOGY_CC_PATH}"
+    else
+        "${SCRIPT_DIR}/tests/test_packaged_cc_topology_contract.sh"
+    fi
+fi

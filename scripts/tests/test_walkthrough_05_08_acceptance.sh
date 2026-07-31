@@ -81,10 +81,64 @@ check_rg 08-V "high-fidelity popover has readable status hierarchy" 'Text(compon
 
 # Exact embedded-helper boundary. These are critical and intentionally fail
 # against the stale packaged helper until a new upstream artifact is pinned.
-if [[ -x "${CC_PATH}" ]] && [[ "$("${CC_PATH}" --version 2>/dev/null)" == "cc version 1.7.16" ]]; then
-    pass PKG-01 "exact helper is version 1.7.16"
+#
+# PKG-01a checks version SHAPE, not a hardcoded version string -- the pinned
+# artifact's version changes every release, so asserting "1.7.16" forever
+# would either go stale the moment release engineering re-pins, or (worse)
+# keep silently passing against an old artifact that happens to still say
+# 1.7.16. PKG-01b goes beyond --version entirely: it drives the exact
+# packaged binary, read-only, against a minimal local Git fixture (never a
+# live tree, never real GitHub -- see scripts/tests/fixtures/onboard-topology)
+# and asserts the emitted onboard topology report is real (a populated,
+# schema-2.0-valid `layers` array), not just a parseable --version string.
+# The full eight-history-state, sixteen-row contract (fast-forwardable vs.
+# dirty vs. divergent vs. wrong-origin, etc.) lives in the dedicated gate:
+# scripts/tests/test_packaged_cc_topology_contract.sh.
+if [[ -x "${CC_PATH}" ]] && [[ "$("${CC_PATH}" --version 2>/dev/null)" =~ ^cc\ version\ [0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    pass PKG-01a "exact helper reports a well-formed version"
 else
-    fail PKG-01 "exact helper is version 1.7.16" critical
+    fail PKG-01a "exact helper reports a well-formed version" critical
+fi
+
+TOPOLOGY_FIXTURES="${REPO_ROOT}/scripts/tests/fixtures/onboard-topology"
+JSONSCHEMA_VENV="${REPO_ROOT}/.copilot/build-cache/jsonschema-venv"
+pkg01b_ok=false
+if [[ -x "${CC_PATH}" ]]; then
+    if [[ ! -x "${JSONSCHEMA_VENV}/bin/python3" ]] && command -v uv >/dev/null 2>&1; then
+        uv venv --python 3.13 "${JSONSCHEMA_VENV}" >/dev/null 2>&1
+        uv pip install --python "${JSONSCHEMA_VENV}/bin/python3" --quiet jsonschema >/dev/null 2>&1
+    fi
+    if [[ -x "${JSONSCHEMA_VENV}/bin/python3" ]]; then
+        pkg01b_scratch="$(mktemp -d "${TMPDIR:-/tmp}/ct-pkg01b-topology.XXXXXX")"
+        pkg01b_repo_root="$("${TOPOLOGY_FIXTURES}/build-minimal-fixture.sh" "${pkg01b_scratch}" 2>/dev/null | tail -1)"
+        pkg01b_bin="${pkg01b_scratch}/bin"
+        mkdir -p "${pkg01b_bin}"
+        cp "${TOPOLOGY_FIXTURES}/gh-stub" "${pkg01b_bin}/gh"
+        chmod +x "${pkg01b_bin}/gh"
+        env \
+            HOME="${pkg01b_scratch}/home" \
+            PATH="${pkg01b_bin}:/usr/bin:/bin:/usr/sbin:/sbin" \
+            GIT_SSH_COMMAND="${TOPOLOGY_FIXTURES}/fake-ssh.sh" \
+            FAKE_SSH_REMOTES_DIR="${pkg01b_scratch}/remotes" \
+            STUB_GH_OWNER="fixture-owner" \
+            STUB_GH_ORG="fixture-org" \
+            STUB_GH_HANDOFF_B64_FILE="${pkg01b_scratch}/handoff.b64" \
+            STUB_GH_DEPARTMENT_UNIT="unused" \
+            "${CC_PATH}" onboard --org fixture-org --products claude,codex \
+                --repository-root "${pkg01b_repo_root}" --json \
+            > "${pkg01b_scratch}/report.json" 2>"${pkg01b_scratch}/report.err"
+        if "${JSONSCHEMA_VENV}/bin/python3" "${TOPOLOGY_FIXTURES}/assert_onboard_schema.py" \
+            --schema "${REPO_ROOT}/docs/01-architecture/schemas/onboard.schema.json" \
+            --report "${pkg01b_scratch}/report.json" \
+            --min-layers 12 >"${pkg01b_scratch}/assert.out" 2>&1; then
+            pkg01b_ok=true
+        fi
+    fi
+fi
+if [[ "${pkg01b_ok}" == true ]]; then
+    pass PKG-01b "exact helper emits a schema-2.0-valid populated topology report"
+else
+    fail PKG-01b "exact helper emits a schema-2.0-valid populated topology report" critical
 fi
 
 workspace_help="$("${CC_PATH}" workspace --help 2>/dev/null || true)"
