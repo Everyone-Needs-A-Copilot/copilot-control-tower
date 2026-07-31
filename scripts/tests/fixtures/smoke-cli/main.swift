@@ -273,10 +273,17 @@ case .success(let report):
     check("ecosystem onboard plan decodes", report.result == .changesRequired)
     check("ecosystem onboard plan discovers the organization", report.org == "acme-co")
     check("ecosystem onboard plan carries the complete transaction", report.stages.contains(where: { $0.stage == "device-ssh" }) && report.stages.contains(where: { $0.stage == "codex-plugin" }))
+    // Task 208/G-5: `layers_state` is now required and REPORTED here (a
+    // fully-populated topology row per layer, never a skeletal look-alike).
+    check("ecosystem onboard plan reports layers_state", report.layersState == .reported)
     check("ecosystem onboard plan carries six content-free layers", report.layers.count == 6)
     check("ecosystem layer ranks preserve personal, organization, foundation precedence", Set(report.layers.map(\.rank)) == Set([10, 30, 40]))
     check("ecosystem onboard plan carries adoption inventory", report.inventory?.count == 3)
     check("ecosystem onboard plan identifies reversible manifest repair", report.inventory?.first(where: { $0.id == "layer-manifest" })?.reversible == true)
+    // Task 211/G-4b: a plan never mutates, so its ledger is always empty
+    // and it never carries a `resume` hint (that field is blocked-only).
+    check("ecosystem onboard plan carries an empty ledger", report.completedActions.isEmpty)
+    check("ecosystem onboard plan carries no resume hint", report.resume == nil)
 case .failure(let error):
     check("ecosystem onboard plan decodes", false, "got \(error)")
 }
@@ -285,10 +292,69 @@ switch await CliClient.shared.ecosystemOnboardApply(products: ["claude", "codex"
 case .success(let report):
     check("ecosystem onboard apply decodes", report.result == .ready)
     check("ecosystem onboard apply finishes doctor", report.stages.last?.stage == "doctor")
+    check("ecosystem onboard apply reports layers_state", report.layersState == .reported)
     check("ecosystem onboard apply includes both products", Set(report.layers.map(\.product)) == Set(["claude", "codex"]))
     check("ecosystem onboard apply carries rollback evidence", report.stages.first(where: { $0.stage == "layer-manifest" })?.rollbackPath != nil)
+    // Task 211/G-4b: a successful apply's own ledger is non-empty (it DID
+    // create/register things) — this is the fixture proving the DTO
+    // actually carries `completed_actions` through to a real decode.
+    check("ecosystem onboard apply carries a non-empty ledger", !report.completedActions.isEmpty)
+    check("ecosystem onboard apply ledger entries decode as completed", report.completedActions.allSatisfy { $0.outcome == .completed })
 case .failure(let error):
     check("ecosystem onboard apply decodes", false, "got \(error)")
+}
+
+// MARK: - onboard schema 2.0: layers_state's two legal shapes, the
+// completed_actions/resume ledger on a blocked-with-progress report, and
+// SchemaGate's per-verb major (task 208/G-5, task 210/G-7, task 211/G-4b)
+
+setenv("CT_FIXTURE", "blocked-personal-packages-not-computed", 1)
+switch await CliClient.shared.ecosystemOnboardPlan(products: ["claude"]) {
+case .success(let report):
+    check("not-computed report decodes", true)
+    check("not-computed report's layers_state is honest", report.layersState == .notComputed)
+    check("not-computed report's layers is empty", report.layers.isEmpty)
+    check("not-computed report still carries a resume hint (blocked)", report.resume?.safeToRerun == true)
+case .failure(let error):
+    check("not-computed report decodes", false, "got \(error)")
+}
+
+// Registered under the PLAN-only named-fixture switch in `mock-cc` (same
+// convention every other H3/H4/H7 fixture uses — see that file's own
+// header comment on why `$fixture` is otherwise ignored under `--apply`),
+// so this is read via `ecosystemOnboardPlan`, not `ecosystemOnboardApply`,
+// even though the report body itself claims `"mode":"apply"` (the shape
+// this classifier would realistically see mid-materialize).
+setenv("CT_FIXTURE", "visible-repositories-review-blocked", 1)
+switch await CliClient.shared.ecosystemOnboardPlan(products: ["claude", "codex"]) {
+case .success(let report):
+    check("blocked-with-ledger report decodes", true)
+    check("blocked-with-ledger report is blocked", report.result == .blocked)
+    check("blocked-with-ledger report carries a non-empty ledger", report.completedActions.count == 3)
+    check(
+        "blocked-with-ledger report's ledger entries are all completed",
+        report.completedActions.allSatisfy { $0.outcome == .completed }
+    )
+    check("blocked-with-ledger report carries a resume hint", report.resume?.safeToRerun == true)
+    let reviewRow = report.layers.first { $0.action == "review" }
+    check("blocked-with-ledger report carries a review-action layer row", reviewRow?.syncState == "ahead")
+    check("blocked-with-ledger review row names the repository", reviewRow?.repositoryName == "codex-copilot-private")
+case .failure(let error):
+    check("blocked-with-ledger report decodes", false, "got \(error)")
+}
+
+// SchemaGate: `onboard` now requires major 2 (rejects the pre-task-208
+// helper contract); every other verb keeps accepting major 1 unchanged
+// (already proven above by the doctor/auth/layers assertions all
+// succeeding against their still-1.0 fixtures).
+setenv("CT_FIXTURE", "onboard-schema-v1-legacy", 1)
+switch await CliClient.shared.ecosystemOnboardPlan(products: ["claude"]) {
+case .success:
+    check("onboard schema_version 1.0 is rejected", false, "decoded successfully, expected .schemaOutOfRange failure")
+case .failure(let error):
+    let isSchemaOutOfRange: Bool
+    if case .schemaOutOfRange = error { isSchemaOutOfRange = true } else { isSchemaOutOfRange = false }
+    check("onboard schema_version 1.0 maps to CliError.schemaOutOfRange", isSchemaOutOfRange, "got \(error)")
 }
 
 // MARK: - workspace: invisible status then explicit setup apply

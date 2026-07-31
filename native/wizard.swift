@@ -588,6 +588,28 @@ struct HoldingInfo {
     /// organization` (H6/H7-self-serve's own leading action, §2.9's Diff 3)
     /// and gives it the value to return to the field with.
     var orgNameForReturn: String? = nil
+    /// Task 210/G-7: true (the default, and every non-onboard hold's only
+    /// value — H1/H2/H4/H5/H6/H7 never override it) unless a blocked
+    /// ecosystem report's own parsed facts say otherwise — `resume.safe_to_rerun`
+    /// combined with the blocked stage's own row `action`/`sync_state`
+    /// (`WizardModel.holdingInfo(forBlockedOnboard:)`). A Git-history
+    /// review row (ahead/diverged/diverged-identical/local-changes/
+    /// wrong-origin/unreadable) is never retryable regardless of
+    /// `safe_to_rerun` — that field answers "is retrying safe", never "will
+    /// retrying help" — so ONLY that classifier sets this `false`. Never
+    /// derived from prose/string-matching (parse-never-compute).
+    var retryable = true
+    /// Task 211/G-4b: the SAME `completed_actions` ledger from the report
+    /// that triggered this hold, captured once at hold-entry time (same
+    /// discipline as `stages`/`reviewItems` above). A "nothing was changed"
+    /// claim may render only when this is empty; see `HoldingInfo.hasCompletedWork`.
+    var completedActions: [CompletedAction] = []
+    /// Task 211/G-4b: the SAME `resume` hint, when the triggering report
+    /// carried one (only ever present on a `blocked` result). Its `detail`
+    /// is the safe-next-step line rendered alongside a non-empty ledger.
+    var resume: ResumeHint? = nil
+
+    var hasCompletedWork: Bool { !completedActions.isEmpty }
 
     var signature: HoldingSignature {
         HoldingSignature(variant: variant, origin: origin, stage: support?.stage, code: support?.code, message: support?.message)
@@ -699,7 +721,10 @@ extension HoldingInfo {
         schemaVersion: String? = nil,
         stage: String? = nil,
         result: String? = nil,
-        message: String? = nil
+        message: String? = nil,
+        retryable: Bool = true,
+        completedActions: [CompletedAction] = [],
+        resume: ResumeHint? = nil
     ) -> HoldingInfo {
         HoldingInfo(
             variant: .fault,
@@ -709,7 +734,10 @@ extension HoldingInfo {
             intro: intro,
             framedDetail: framedDetail,
             reviewItems: [],
-            support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date())
+            support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date()),
+            retryable: retryable,
+            completedActions: completedActions,
+            resume: resume
         )
     }
 
@@ -724,7 +752,9 @@ extension HoldingInfo {
         schemaVersion: String? = nil,
         stage: String? = nil,
         result: String? = nil,
-        message: String? = nil
+        message: String? = nil,
+        completedActions: [CompletedAction] = [],
+        resume: ResumeHint? = nil
     ) -> HoldingInfo {
         HoldingInfo(
             variant: .yours,
@@ -735,7 +765,9 @@ extension HoldingInfo {
             framedDetail: framedDetail,
             reviewItems: reviewItems,
             support: HoldingSupportInfo(schemaVersion: schemaVersion, stage: stage, result: result, code: nil, message: message, recordedAt: Date()),
-            stages: stages
+            stages: stages,
+            completedActions: completedActions,
+            resume: resume
         )
     }
 
@@ -1088,6 +1120,15 @@ final class WizardModel: ObservableObject {
     /// completion rule treats as failing (never assumed passing).
     @Published var lastOnboardResult: OnboardResult?
     @Published var lastOnboardStages: [EcosystemOnboardStage] = []
+    /// Task 211/G-4b: the SAME report's `completed_actions`/`resume`, kept
+    /// alongside `lastOnboardStages` for the one Verify-reached "here's
+    /// where that leaves you" screen that has no `HoldingInfo` of its own to
+    /// carry them (`WizardView`'s `honestIncompleteView(reachedFromDecision:
+    /// false, ...)` call site) — every OTHER `honestIncompleteView`/H3
+    /// screen reads these off its own `HoldingInfo` instead, captured at
+    /// hold-entry time the same way `HoldingInfo.stages` already is.
+    @Published var lastCompletedActions: [CompletedAction] = []
+    @Published var lastResume: ResumeHint? = nil
 
     // MARK: Holding (#w10)
 
@@ -1987,6 +2028,31 @@ final class WizardModel: ObservableObject {
         return (worksNow, notYet)
     }
 
+    /// Task 211/G-4b: the "what was created/changed" half of an honest
+    /// partial-apply screen — grouped sensibly into what's done (rendered
+    /// as-is) and what was undone (`rolled-back` entries prefixed "Undone:",
+    /// per the spec's own "Rolled-back entries render as undone"). Renders
+    /// each entry's own CLI-authored `summary` verbatim (already
+    /// plain-language prose, e.g. "Created the private GitHub repository
+    /// ..." — never a raw Git/stderr string, never a bare SHA — see
+    /// `CompletedAction`'s own doc comment in `native/cli-dtos.swift`) and
+    /// invents no new claim of its own. `failed` entries are intentionally
+    /// excluded: they did not complete, so they belong to "what remains"
+    /// (the blocked stage's own message / `resume.detail`), not to "what's
+    /// already done".
+    nonisolated static func groupedLedgerLines(_ actions: [CompletedAction]) -> (completed: [String], rolledBack: [String]) {
+        var completed: [String] = []
+        var rolledBack: [String] = []
+        for action in actions {
+            switch action.outcome {
+            case .completed: completed.append(action.summary)
+            case .rolledBack: rolledBack.append("Undone: \(action.summary)")
+            case .failed: continue
+            }
+        }
+        return (completed, rolledBack)
+    }
+
     /// Pure: maps the aggregate onboarding call's real `stages` onto
     /// `SetupProgressState.namedStages`' six fixed rows — no ordering
     /// knowledge, no invented result, matching every other parser in this
@@ -2038,6 +2104,39 @@ final class WizardModel: ObservableObject {
     /// token or count (`action == "review"`, `config == "held"`, `held >
     /// 0`), never by inferring anything from a prose string.
     nonisolated static func holdingInfo(forBlockedOnboard report: EcosystemOnboardReport, origin: WizardStage) -> HoldingInfo {
+        // Task 211/G-4b: every H3 branch below threads the SAME ledger
+        // through, so a "nothing changed" clause can never be asserted once
+        // this run actually completed a mutation. Task 210/G-7:
+        // `resumeRetryable` is `resume.safe_to_rerun` (defaulting true only
+        // because older/partial payloads may omit `resume` on a result this
+        // classifier's own caller already confirmed is `blocked` — never
+        // because the app assumes it) — the STARTING point for
+        // `retryable`, overridden to `false` ONLY by the one branch below
+        // whose block is a Git-history review row that cannot change on a
+        // bare retry regardless of what `resume` claims.
+        let resumeRetryable = report.resume?.safeToRerun ?? true
+        let completedActions = report.completedActions
+        let resume = report.resume
+
+        func h3(
+            title: String = "I couldn't finish one part of setup",
+            intro: String,
+            framedDetail: String? = nil,
+            stage: EcosystemOnboardStage,
+            retryable: Bool = resumeRetryable
+        ) -> HoldingInfo {
+            HoldingInfo.h3(
+                origin: origin,
+                title: title,
+                intro: intro,
+                framedDetail: framedDetail,
+                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail,
+                retryable: retryable,
+                completedActions: completedActions,
+                resume: resume
+            )
+        }
+
         guard let stage = report.stages.last(where: { $0.result == "blocked" }) else {
             // Defensive only — `performDetect`/`beginMaterialize` already
             // checked `report.result == .blocked` before calling this, so a
@@ -2046,7 +2145,10 @@ final class WizardModel: ObservableObject {
             return HoldingInfo.h3(
                 origin: origin,
                 intro: "Your organization's setup could not be confirmed safely.",
-                schemaVersion: report.schemaVersion
+                schemaVersion: report.schemaVersion,
+                retryable: resumeRetryable,
+                completedActions: completedActions,
+                resume: resume
             )
         }
 
@@ -2058,6 +2160,15 @@ final class WizardModel: ObservableObject {
         func framedIfPresentable(_ detail: String?) -> String? {
             guard let detail, HoldingInfo.isPresentable(detail) else { return nil }
             return detail
+        }
+        // Task 211/G-4b: the honest replacement for a "nothing was changed"
+        // clause — used ONLY when `completedActions` is non-empty, so the
+        // stop-clause never claims more than the ledger proves. The ledger
+        // itself (what was created/changed, what remains, the safe next
+        // step) renders as its own card in `h3View`/`honestIncompleteView`,
+        // never re-summarized here.
+        func stopClause(whenClean: String, whenPartial: String) -> String {
+            completedActions.isEmpty ? whenClean : whenPartial
         }
         let reviewItems = (report.inventory ?? []).filter { $0.action == "review" }
 
@@ -2071,14 +2182,17 @@ final class WizardModel: ObservableObject {
                     framedDetail: framedIfPresentable(stage.detail),
                     reviewItems: reviewItems,
                     stages: report.stages,
-                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail,
+                    completedActions: completedActions, resume: resume
                 )
             }
-            return HoldingInfo.h3(
-                origin: origin,
-                intro: "GitHub didn't confirm one of your own spaces, so I stopped before changing anything.",
+            return h3(
+                intro: stopClause(
+                    whenClean: "GitHub didn't confirm one of your own spaces, so I stopped before changing anything.",
+                    whenPartial: "GitHub didn't confirm one of your own spaces, so I stopped there."
+                ),
                 framedDetail: framedIfPresentable(stage.detail),
-                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                stage: stage
             )
 
         case "device-ssh":
@@ -2099,13 +2213,40 @@ final class WizardModel: ObservableObject {
                     intro: "This Mac already has a GitHub connection I didn't set up. I checked it, couldn't confirm it's safe to build on, and left it exactly as it is.",
                     reviewItems: reviewItems,
                     stages: report.stages,
-                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail,
+                    completedActions: completedActions, resume: resume
                 )
             }
-            return HoldingInfo.h3(
-                origin: origin,
-                intro: "I couldn't give this Mac its own key, so I stopped. Nothing that was already here was changed.",
-                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            return h3(
+                intro: stopClause(
+                    whenClean: "I couldn't give this Mac its own key, so I stopped. Nothing that was already here was changed.",
+                    whenPartial: "I couldn't give this Mac its own key, so I stopped there."
+                ),
+                stage: stage
+            )
+
+        // Task 210/G-7 (the closed Git-history classifier, claude-copilot
+        // task 204): a topology row this Mac cannot safely auto-repair —
+        // `ahead`/`diverged`/`diverged-identical`/`local-changes`/
+        // `wrong-origin`/`unreadable` — blocks this stage, one row at a
+        // time. NONE of those states change on a bare retry: only the
+        // repository's own owner, working directly in Git, can move it
+        // forward. This used to fall through to the generic `default` fault
+        // below (a misleading "couldn't confirm this part of setup, so I
+        // stopped" — the SAME shape as a transient failure, offering `Try
+        // again` for a block that cannot change). Names the specific
+        // repository and its state instead, and is deliberately never
+        // retryable, regardless of `resume.safe_to_rerun` — see `retryable`'s
+        // own doc comment on `HoldingInfo`.
+        case "visible-repositories":
+            let blockingLayer = report.layers.first { $0.action == "review" || $0.action == "choose-location" }
+            let repositoryPhrase = blockingLayer.map(Self.reviewRepositoryPhrase(for:))
+                ?? "One of your Copilot repositories is in a state I can't safely change automatically"
+            return h3(
+                intro: "\(repositoryPhrase). Resolve it in Git, then run setup again.",
+                framedDetail: framedIfPresentable(stage.detail),
+                stage: stage,
+                retryable: false
             )
 
         case "layer-manifest":
@@ -2116,17 +2257,20 @@ final class WizardModel: ObservableObject {
                     framedDetail: framedIfPresentable(stage.detail),
                     reviewItems: reviewItems,
                     stages: report.stages,
-                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail,
+                    completedActions: completedActions, resume: resume
                 )
             }
             // Not named in the spec's own gate table (only the `review`
             // case is) — defaults to the fault variant per the rule above.
             // NOT VERBATIM SPEC COPY (flagged in the implementation report):
             // no line was given for "layer-manifest blocked, not a review".
-            return HoldingInfo.h3(
-                origin: origin,
-                intro: "I couldn't confirm this part of setup, so I stopped before changing anything.",
-                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            return h3(
+                intro: stopClause(
+                    whenClean: "I couldn't confirm this part of setup, so I stopped before changing anything.",
+                    whenPartial: "I couldn't confirm this part of setup, so I stopped there."
+                ),
+                stage: stage
             )
 
         case "secret-store":
@@ -2139,11 +2283,7 @@ final class WizardModel: ObservableObject {
         case "codex-plugin":
             let materializeNotBlocked = report.stages.first(where: { $0.stage == "materialize" }).map { $0.result != "blocked" } ?? false
             let intro = "I couldn't finish adding Codex Copilot on this Mac." + (materializeNotBlocked ? " Everything else finished." : "")
-            return HoldingInfo.h3(
-                origin: origin,
-                intro: intro,
-                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
-            )
+            return h3(intro: intro, stage: stage)
 
         case "materialize":
             let held = stage.held ?? 0
@@ -2154,13 +2294,16 @@ final class WizardModel: ObservableObject {
                     intro: "Some of your own unsaved work is in the way of an update, so I left it alone. \(countSentence)",
                     reviewItems: reviewItems,
                     stages: report.stages,
-                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+                    schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail,
+                    completedActions: completedActions, resume: resume
                 )
             }
-            return HoldingInfo.h3(
-                origin: origin,
-                intro: "Setting things up on this Mac didn't finish. Nothing that was already here was changed.",
-                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            return h3(
+                intro: stopClause(
+                    whenClean: "Setting things up on this Mac didn't finish. Nothing that was already here was changed.",
+                    whenPartial: "Setting things up on this Mac didn't finish."
+                ),
+                stage: stage
             )
 
         default:
@@ -2168,11 +2311,41 @@ final class WizardModel: ObservableObject {
             // arrives as exit-2 `onboard-unavailable`, handled separately,
             // per the spec's own note) — a genuinely unrecognized stage id
             // still defaults to the fault variant, never a fabricated H4.
-            return HoldingInfo.h3(
-                origin: origin,
-                intro: "I couldn't confirm this part of setup, so I stopped before changing anything.",
-                schemaVersion: report.schemaVersion, stage: stage.stage, result: stage.result, message: stage.detail
+            return h3(
+                intro: stopClause(
+                    whenClean: "I couldn't confirm this part of setup, so I stopped before changing anything.",
+                    whenPartial: "I couldn't confirm this part of setup, so I stopped there."
+                ),
+                stage: stage
             )
+        }
+    }
+
+    /// Task 210/G-7: maps a blocked topology row's CLI-computed `sync_state`
+    /// (the closed Git-history classifier's own vocabulary — never a raw
+    /// Git/stderr string) onto a plain, specific sentence naming which
+    /// repository needs the owner's own Git resolution and what state it's
+    /// in. Parses ONLY `sync_state` and `repository_name`; invents nothing
+    /// else and never renders the CLI's raw `detail` here (that stays in
+    /// the support block's `Message:` line, same discipline as every other
+    /// H3 branch).
+    nonisolated static func reviewRepositoryPhrase(for layer: EcosystemOnboardLayer) -> String {
+        let name = (layer.repositoryName?.isEmpty == false) ? layer.repositoryName! : "One of your Copilot repositories"
+        switch layer.syncState {
+        case "ahead":
+            return "\(name) has local work the pinned version doesn't include"
+        case "diverged":
+            return "\(name)'s history has diverged from the pinned version, and the content is different"
+        case "diverged-identical":
+            return "\(name)'s history has diverged from the pinned version, though the content is the same"
+        case "local-changes":
+            return "\(name) has local changes that haven't been saved to GitHub yet"
+        case "wrong-origin":
+            return "\(name) is connected to a different GitHub repository than expected"
+        case "unreadable":
+            return "\(name) couldn't be read as a Git repository"
+        default:
+            return "\(name) is in a state I can't safely change automatically"
         }
     }
 
@@ -2706,6 +2879,8 @@ final class WizardModel: ObservableObject {
                 self.setupProgress.stageRows = Self.resolveStageRows(from: report.stages)
                 self.lastOnboardResult = report.result
                 self.lastOnboardStages = report.stages
+                self.lastCompletedActions = report.completedActions
+                self.lastResume = report.resume
             case .failure(let error):
                 self.materializeInFlight = false
                 self.routeCliError(error, origin: .materialize)
@@ -5475,6 +5650,8 @@ struct WizardRootView: View {
                 support: verifySupportInfo,
                 isRepeat: false,
                 hasAskRows: !model.onboardQuestionItems.isEmpty,
+                completedActions: model.lastCompletedActions,
+                resume: model.lastResume,
                 onTryAgain: { model.beginVerify() }
             )
         }
@@ -5594,6 +5771,8 @@ struct WizardRootView: View {
                 support: info.support,
                 isRepeat: info.isRepeat,
                 hasAskRows: !model.onboardQuestionItems.isEmpty,
+                completedActions: info.completedActions,
+                resume: info.resume,
                 onTryAgain: { model.tryAgainAfterHolding() }
             )
         } else {
@@ -5634,7 +5813,12 @@ struct WizardRootView: View {
     }
 
     /// H2 — can't read your setup. Content is the support disclosure and
-    /// nothing else (§1: no framed CLI line for a call-level failure).
+    /// nothing else (§1: no framed CLI line for a call-level failure). A
+    /// bare `CliError` carries no ledger/resume evidence of its own (it
+    /// never reached a decodable report), so `info.retryable` is always its
+    /// default `true` here — this is a genuine call-level failure, always
+    /// worth another try — but the primary still reads it rather than
+    /// hardcoding `Try again`, so H2 and H3 share one rule (task 210/G-7).
     private func h2View(_ info: HoldingInfo) -> some View {
         stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
             VStack(alignment: .leading, spacing: 16) {
@@ -5650,9 +5834,15 @@ struct WizardRootView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
         } primaryAction: {
-            Button { model.tryAgainAfterHolding() } label: { Text("Try again") }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+            if info.retryable {
+                Button { model.tryAgainAfterHolding() } label: { Text("Try again") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            } else {
+                Button { onClose() } label: { Text("Continue in the menu bar") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
         }
         .headerTint(info.variant.tint)
     }
@@ -5660,14 +5850,43 @@ struct WizardRootView: View {
     /// H3 — couldn't finish a part of setup. The framed CLI line appears
     /// only for the one gate (`personal-packages`, no review item) the spec
     /// marks "frame"; every other H3 gate's `framedDetail` is `nil`.
+    ///
+    /// Task 210/G-7: `Try again` renders ONLY when `info.retryable` — a
+    /// Git-history review block (the `visible-repositories` classifier,
+    /// `WizardModel.holdingInfo(forBlockedOnboard:)`) sets this `false`
+    /// because retrying cannot change it; every other H3 cause keeps the
+    /// prior unconditional `true`. When `false`, the primary falls back to
+    /// `Continue in the menu bar` (the same fallback H6 already uses when
+    /// it has no support disclosure to lead with) rather than an empty slot.
+    ///
+    /// Task 211/G-4b: a non-empty ledger renders its own card (what's
+    /// already done, and the safe next step from `resume`) — this is the
+    /// SAME screen four of the five now-conditional "nothing changed"
+    /// intros land on, so this is where that evidence actually needs to
+    /// show, not just where the false claim needed removing.
     private func h3View(_ info: HoldingInfo) -> some View {
-        stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
+        let ledger = WizardModel.groupedLedgerLines(info.completedActions)
+        return stepShell(eyebrow: info.eyebrow, title: info.title, intro: info.intro, focusTitle: $holdingTitleFocused) {
             VStack(alignment: .leading, spacing: 16) {
                 if info.isRepeat {
                     stillTheSameCaption
                 }
                 if let framedDetail = info.framedDetail {
                     FramedCliDetailView(detail: framedDetail)
+                }
+                if info.hasCompletedWork {
+                    sectionCard("What's already done") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(ledger.completed, id: \.self) { bulletRow($0) }
+                            ForEach(ledger.rolledBack, id: \.self) { bulletRow($0) }
+                            if let resume = info.resume {
+                                Text(resume.detail)
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
                 }
                 if let support = info.support {
                     HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
@@ -5678,9 +5897,15 @@ struct WizardRootView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
         } primaryAction: {
-            Button { model.tryAgainAfterHolding() } label: { Text("Try again") }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+            if info.retryable {
+                Button { model.tryAgainAfterHolding() } label: { Text("Try again") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            } else {
+                Button { onClose() } label: { Text("Continue in the menu bar") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
         }
         .headerTint(info.variant.tint)
     }
@@ -5773,15 +5998,28 @@ struct WizardRootView: View {
         support: HoldingSupportInfo?,
         isRepeat: Bool,
         hasAskRows: Bool,
+        completedActions: [CompletedAction] = [],
+        resume: ResumeHint? = nil,
         onTryAgain: @escaping () -> Void
     ) -> some View {
         let rows = WizardModel.honestCapabilityRows(stages: stages, includeCodex: includeCodex)
+        // Task 211/G-4b: a blanket "nothing was changed" claim is false the
+        // moment this run's own `completed_actions` ledger is non-empty —
+        // this screen used to assert it unconditionally. The alternative
+        // intro makes no claim of its own; the ledger card below (added
+        // only when non-empty) is what actually says what happened.
+        let hasCompletedWork = !completedActions.isEmpty
+        let ledger = WizardModel.groupedLedgerLines(completedActions)
         return stepShell(
             eyebrow: "SETUP ISN'T FINISHED",
             title: "Here's where that leaves you",
             intro: reachedFromDecision
                 ? "I left your own things exactly as they were. Setup stopped there, though, so some of this isn't set up yet."
-                : "Setup stopped partway, so some of this isn't set up yet. Nothing that was already on this Mac was changed.",
+                : (
+                    hasCompletedWork
+                        ? "Setup stopped partway, so some of this isn't set up yet. Here's what's already done, and what's next."
+                        : "Setup stopped partway, so some of this isn't set up yet. Nothing that was already on this Mac was changed."
+                ),
             focusTitle: $holdingTitleFocused
         ) {
             VStack(alignment: .leading, spacing: 16) {
@@ -5804,6 +6042,31 @@ struct WizardRootView: View {
                         ForEach(rows.notYet, id: \.self) { bulletRow($0) }
                     }
                 }
+                // Task 211/G-4b: what this run actually created or changed
+                // before it stopped — rendered from the CLI's own
+                // `completed_actions` ledger summaries (never a raw Git
+                // error, never a bare SHA), grouped into what's done and
+                // what was undone. Only appears when there is something to
+                // say; an empty ledger keeps the plain "nothing changed"
+                // footer below instead of an empty card.
+                if hasCompletedWork {
+                    sectionCard("What's already done") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(ledger.completed, id: \.self) { bulletRow($0) }
+                            ForEach(ledger.rolledBack, id: \.self) { bulletRow($0) }
+                            if let resume {
+                                Text(resume.detail)
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                // Never-destroy holds regardless of the ledger (this claim
+                // is about content the person ALREADY had before this run,
+                // which this app never touches either way, unlike the
+                // ledger-conditional intro above) — stays unconditional.
                 Text("Nothing you already had was changed, moved, or removed.")
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -6954,7 +7217,14 @@ enum WizardSelftest {
                 + " result=\(info.support?.result ?? "none") code=\(info.support?.code ?? "none")"
                 + " message=\(info.support?.message ?? "none")"
                 + " selfServeCommand=\(info.selfServeCommand ?? "none")"
+                // Task 210/G-7: whether `Try again` renders at all
+                // (`h2View`/`h3View`'s own gate). Task 211/G-4b:
+                // `completedActions` proves the ledger actually reached this
+                // classifier (never re-derived from `intro` prose, which is
+                // free-text and not meant for assertions).
+                + " retryable=\(info.retryable) completedActions=\(info.completedActions.count)"
         )
+        print("SELFTEST introLine=\(info.intro)")
         if let support = info.support {
             print("SELFTEST supportLines=\(HoldingInfo.supportLines(support).joined(separator: "|"))")
         } else {

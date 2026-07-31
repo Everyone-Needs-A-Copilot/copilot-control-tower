@@ -508,11 +508,16 @@ scenario_S18() {
 # S19 — H3: the SAME gate (`device-ssh`) blocked, but NOT classified as
 # held-for-you — the default fault variant, distinguished from S18b below
 # purely by the CLI's own `config`/`key` tokens on an otherwise
-# identically-shaped report.
+# identically-shaped report. Task 210/G-7 + task 211/G-4b: this fixture's
+# own `completed_actions` ledger is deliberately EMPTY, so this also proves
+# `retryable` stays `true` and the ORIGINAL clean-stop intro (the honest
+# claim, when nothing really did change) still renders unmodified.
 scenario_S19() {
     holding_scenario S19 blocked-device-ssh-fault \
         "holding=fault" \
-        "stage=device-ssh"
+        "stage=device-ssh" \
+        "retryable=true completedActions=0" \
+        "SELFTEST introLine=I couldn't give this Mac its own key, so I stopped. Nothing that was already here was changed."
 }
 
 # S18b — the genuinely-held case `Not now`/S18's dead end used to conflate
@@ -915,6 +920,47 @@ scenario_S41() {
 }
 
 # ==========================================================================
+# Scenarios S42/S43 — task 210 (G-7): `Try again` renders ONLY when the CLI
+# marks the block retryable; task 211 (G-4b): a "nothing changed" claim
+# renders ONLY when this run's own `completed_actions` ledger is empty.
+# Both derive strictly from the mock's own JSON (`resume.safe_to_rerun`,
+# `result`, and per-row `action`/`sync_state`) via the SAME
+# `WizardModel.holdingInfo(forBlockedOnboard:)` classifier S18-S23 already
+# exercise — never string-matched, never a second UI-only reading.
+# ==========================================================================
+
+# S42 — the closed Git-history classifier (claude-copilot task 204) blocks
+# on a `review`-action topology row (`codex-copilot-private` is `ahead`:
+# local commits GitHub doesn't have). This is the exact shape `Try again`
+# used to render for even though retrying can never change it — a Git
+# problem, not a setup problem. Proves: `retryable=false` (so `h3View`
+# never renders `Try again` for this block), the intro names the specific
+# repository and its state instead of a generic "couldn't confirm this
+# part of setup" line, and the non-empty ledger this run already completed
+# (a created repo, a generated+registered SSH key) reaches the classifier.
+scenario_S42() {
+    holding_scenario S42 visible-repositories-review-blocked \
+        "holding=fault" \
+        "stage=visible-repositories" \
+        "retryable=false completedActions=3" \
+        "SELFTEST introLine=codex-copilot-private has local work the pinned version doesn't include. Resolve it in Git, then run setup again."
+}
+
+# S43 — the SAME H3 device-ssh fault S19 exercises, but THIS run's ledger
+# is non-empty (a personal repository was already created before the
+# block). Proves the honest replacement intro renders instead of the false
+# "Nothing that was already here was changed." claim, while `retryable`
+# stays `true` (an ordinary transient stage fault, unlike S42's Git-history
+# block, is still worth another try).
+scenario_S43() {
+    holding_scenario S43 blocked-device-ssh-fault-with-ledger \
+        "holding=fault" \
+        "stage=device-ssh" \
+        "retryable=true completedActions=1" \
+        "SELFTEST introLine=I couldn't give this Mac its own key, so I stopped there."
+}
+
+# ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
 
@@ -1027,6 +1073,8 @@ scenario_S38
 scenario_S39
 scenario_S40
 scenario_S41
+scenario_S42
+scenario_S43
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

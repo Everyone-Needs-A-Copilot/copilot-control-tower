@@ -523,6 +523,60 @@ struct OnboardReport: Decodable {
     let summary: RepositoryPlanSummary
 }
 
+// MARK: - onboard schema 2.0 (task 208/G-5, task 210/G-7, task 211/G-4b) —
+// `layers_state`, the fully-required `ecosystemLayer` row shape (still
+// decoded with per-row optionals below, for backward tolerance — see
+// `EcosystemOnboardLayer`'s own doc comment), and the `completed_actions`
+// mutation ledger + `resume` hint. `SchemaGate` (`native/cli-client.swift`)
+// now rejects an `onboard` response below major 2 before any of this is
+// ever reached, so a report that DOES decode here is guaranteed to have
+// come from a helper that emits these fields — `layersState`/
+// `completedActions` are therefore REQUIRED (never optional/defaulted),
+// matching this file's own "a required field absent is a decode failure"
+// discipline. `resume` stays optional: the schema requires it only when
+// `result == "blocked"`, a cross-field rule Swift's `Decodable` cannot
+// express structurally, so a `blocked` report with no `resume` still
+// decodes (fail-open on this ONE non-security field, not fail-closed) —
+// `WizardModel.holdingInfo(forBlockedOnboard:)` treats an absent `resume`
+// the same as `safe_to_rerun: true` (retry stays offered by default,
+// per that classifier's own doc comment), never as a crash.
+
+enum EcosystemLayersState: String, Decodable {
+    case reported
+    case notComputed = "not-computed"
+}
+
+enum CompletedActionOutcome: String, Decodable {
+    case completed
+    case failed
+    case rolledBack = "rolled-back"
+}
+
+/// One `completed_actions` ledger row — a mutation the run actually
+/// completed, attempted, or rolled back, in the order it happened. Every
+/// field below is in the schema's `required` list; `additionalProperties:
+/// true` carries kind-specific extras (`url`, `from_sha`, `to_sha`,
+/// `backup_path`, ...) this app never renders (§"no raw Git error text on
+/// screen" — task 210) and Swift's synthesized `Decodable` already drops,
+/// same discipline as `Checker`'s own doc comment in this file's header.
+struct CompletedAction: Decodable {
+    let kind: String
+    let target: String
+    let outcome: CompletedActionOutcome
+    let summary: String
+}
+
+/// Only present when `result == "blocked"`. `safeToRerun` answers "will a
+/// retry be SAFE (never-destroy — it adopts rather than recreates)", never
+/// "will a retry actually get past this block" — that second question is
+/// answered by the blocked stage's own `layers`/row `action`/`sync_state`
+/// (a Git-history review row never changes on retry regardless of this
+/// flag). See `WizardModel.holdingInfo(forBlockedOnboard:)`, task 210/G-7.
+struct ResumeHint: Decodable {
+    let safeToRerun: Bool
+    let detail: String
+}
+
 struct EcosystemOnboardStage: Decodable {
     let stage: String
     let result: String
@@ -618,9 +672,26 @@ struct EcosystemOnboardReport: Decodable {
     /// person's selected assistant runtimes (Claude and optionally Codex).
     let components: [String]
     let stages: [EcosystemOnboardStage]
+    /// Discriminates `layers`' two legal shapes (task 208/G-5): `reported`
+    /// means topology was actually computed for this exit and `layers`
+    /// carries at least one fully-populated row; `not-computed` means this
+    /// exit returned before topology could be computed at all and `layers`
+    /// is `[]`. Read THIS field before ever branching on `layers.isEmpty` —
+    /// an empty array alone is never itself meaningful evidence of absence.
+    let layersState: EcosystemLayersState
     let layers: [EcosystemOnboardLayer]
     let inventory: [EcosystemInventoryItem]?
     let inventorySummary: EcosystemInventorySummary?
+    /// Every mutation this run actually completed, attempted, or rolled
+    /// back, in the order it happened — always present, possibly empty. A
+    /// "nothing was changed" claim may only ever be rendered when this is
+    /// empty (task 211/G-4b); see `WizardModel.hasCompletedWork(_:)` and
+    /// every Holding H3 branch that now threads this through.
+    let completedActions: [CompletedAction]
+    /// Present only when `result == "blocked"` (schema's own conditional
+    /// requirement — see this section's header comment on why this stays
+    /// optional rather than required).
+    let resume: ResumeHint?
 }
 
 // MARK: - workspace --all --json

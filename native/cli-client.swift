@@ -296,14 +296,37 @@ enum CliError: Error, Equatable {
 /// ever decoded or trusted (`cli-contract.md`'s "Requirements" section:
 /// "Control Tower declares a `min_schema`/`max_schema` range and gates BOTH
 /// directions — a CLI schema older than its floor is as fatal as one
-/// newer"). For this phase's frozen contract (every schema in
-/// `docs/01-architecture/schemas/` is major version 1, floor `1.0`) that
-/// range collapses to one rule: the major component must be exactly 1. A
-/// wider `min_schema`/`max_schema` range is a future-phase concern once a
-/// second major version actually exists to gate against.
+/// newer"). For most of this phase's frozen contract (every schema in
+/// `docs/01-architecture/schemas/` OTHER than `onboard.schema.json` is major
+/// version 1, floor `1.0`) that range collapses to one rule per verb: the
+/// major component must be exactly 1. A wider `min_schema`/`max_schema`
+/// range is a future-phase concern once a second major version actually
+/// exists to gate against for a given verb.
+///
+/// `onboard` is the one verb with its OWN accepted major (task 208/task 210,
+/// G-5/G-7): `onboard.schema.json` bumped 1.0 -> 2.0 (required `layers_state`,
+/// fully-populated `ecosystemLayer` rows, the `completed_actions`/`resume`
+/// ledger) — a helper still emitting the 1.x shape is now CONTRACT-INCOMPLETE
+/// for this app's rendering (task 210's retryable-vs-not classification, task
+/// 211's ledger rendering) and must be rejected, never silently decoded with
+/// the new fields absent.
 enum SchemaGate {
+    /// Retained for any existing external reference to "the" required
+    /// major — equal to `requiredMajor(forVerb:)`'s default (every verb
+    /// except `onboard`).
     static let requiredMajor = 1
     static let minSchema = "1.0"
+
+    /// The one accepted major version for `verb` (`args.first` from the
+    /// argv `decodeVerb` was called with — e.g. `"onboard"`, `"doctor"`,
+    /// `"layers"`). Never string-matches beyond the verb name itself; every
+    /// OTHER verb keeps the prior blanket major-1 gate unchanged.
+    static func requiredMajor(forVerb verb: String) -> Int {
+        switch verb {
+        case "onboard": return 2
+        default: return requiredMajor
+        }
+    }
 
     private struct VersionOnly: Decodable {
         let schemaVersion: String
@@ -312,7 +335,7 @@ enum SchemaGate {
     /// Decodes ONLY `schema_version` — never any other key of `data` — so a
     /// schema-out-of-range payload is rejected before any other (possibly
     /// security-relevant) field is ever trusted.
-    static func check(_ data: Data) -> Result<Void, CliError> {
+    static func check(_ data: Data, verb: String) -> Result<Void, CliError> {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         guard let versionOnly = try? decoder.decode(VersionOnly.self, from: data) else {
@@ -323,7 +346,7 @@ enum SchemaGate {
         guard parts.count >= 2, let major = parts.first else {
             return .failure(.schemaOutOfRange)
         }
-        guard major == requiredMajor else {
+        guard major == requiredMajor(forVerb: verb) else {
             return .failure(.schemaOutOfRange)
         }
         return .success(())
@@ -713,12 +736,14 @@ actor CliClient {
     }
 
     /// `runRaw` → exit==2 decodes ONLY the shared error envelope → `.exit2`;
-    /// otherwise `SchemaGate` first, then a real decode of `T` with
-    /// `.convertFromSnakeCase`. Exit 1 with a valid JSON body is a normal
-    /// business outcome (e.g. `doctor`'s "at least one checker failed") and
-    /// is decoded exactly like exit 0 — only exit 2 changes what shape is
-    /// trusted.
+    /// otherwise `SchemaGate` first (gated to `args.first`'s own accepted
+    /// major — see `SchemaGate.requiredMajor(forVerb:)`), then a real decode
+    /// of `T` with `.convertFromSnakeCase`. Exit 1 with a valid JSON body is
+    /// a normal business outcome (e.g. `doctor`'s "at least one checker
+    /// failed") and is decoded exactly like exit 0 — only exit 2 changes
+    /// what shape is trusted.
     private func decodeVerb<T: Decodable>(_ args: [String]) async -> Result<T, CliError> {
+        let verb = args.first ?? ""
         switch await runRaw(args) {
         case .failure(let error):
             return .failure(error)
@@ -741,7 +766,7 @@ actor CliClient {
                 return .failure(.exit2(code: "unknown", message: "no readable error body"))
             }
 
-            if case .failure(let gateError) = SchemaGate.check(raw.stdout) {
+            if case .failure(let gateError) = SchemaGate.check(raw.stdout, verb: verb) {
                 return .failure(gateError)
             }
 
