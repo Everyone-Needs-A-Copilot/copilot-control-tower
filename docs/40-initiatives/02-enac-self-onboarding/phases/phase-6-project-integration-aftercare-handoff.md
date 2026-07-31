@@ -5,7 +5,7 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the 0.2.3 release-candidate record as of 2026-07-31.** The previous
+> **This is the 0.2.3 release-completion record as of 2026-07-31.** The previous
 > handoff remains implementation and release history. The checked-in package
 > now embeds the separately signed and Apple-notarized cc 1.7.15 universal
 > helper. It repairs a recognized eight-layer existing machine to the complete
@@ -57,8 +57,9 @@ clean-install and installed-artifact verification
 
 Current release status: Control Tower 0.2.3 source and cc 1.7.15 passed the
 complete helper, application, migration, rollback, schema, Admin, scenario, and
-walkthrough gates. The final signed app/DMG publication and downloaded-artifact
-verification close task 201.
+walkthrough gates. The signed app and DMG are published, their downloaded
+assets match the verified originals byte for byte, and task 201 is closed by
+the release evidence below.
 
 ## Start Here
 
@@ -201,21 +202,65 @@ The executable matrix is:
 
 Measured results:
 
-- current source implementation with the checked-in cc 1.7.14 package:
+- current source implementation with the checked-in cc 1.7.15 package:
   **40/40, 100%, zero critical failures**;
 - production User app bundle, project-integration contract, in-binary triage,
   diagnostic, Terminal-launch quoting, and clean-home lifecycle tests: pass;
 - completed-setup acceptance gate, including fixed four-component topology,
   four tiers, truthful incomplete readiness, Personal/private language,
   same-view project aftercare, and return-later routing: pass;
-- exact signed and notarized 0.2.2 app binary topology, aftercare, launcher,
+- exact signed and notarized 0.2.3 app binary topology, aftercare, launcher,
   signing-entitlement, and purpose-string self-tests:
   pass;
 - clean-home lifecycle: `safe-finish → finish → Ready → verify`, plus
   independent guided-integration and owner-decision routes;
-- the release helper is cc 1.7.14 from signed foundation snapshot `v5.13.16`,
+- the release helper is cc 1.7.15 from signed foundation snapshot `v5.13.17`,
   accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
   SHA-256 in `packaging/cc/PINNED_SHA256`.
+
+## 0.2.3 Release Closure
+
+The complete four-component topology boundary is closed:
+
+- Control Tower tag `v0.2.3` resolves to source commit
+  `1ee07ec755b0bd59e8ee6d0b241dcf51ea448da0`.
+- The release app is version 0.2.3, build 14, with cc 1.7.15 pinned at
+  `8634c1f6d8c7d1e89789f78ff2767c22b499e3d7547aad1ab490ad1c90772d95`.
+- The helper release-tool source is
+  `f143a635a822ce4b871e4efef88f99d04002aadf`. Its signed foundation snapshot
+  is tag `v5.13.17` at commit
+  `292c751c04c2bbe425fb912157a0e666917a03aa`.
+- Apple accepted helper submission
+  `973bd88b-29e5-4daa-94f0-376f3cb93e7f`, app submission
+  `732f3266-69bd-4277-8146-5bd11ba922c1`, and DMG submission
+  `e4a136c3-184f-4404-a61f-0bbd35f2f564`.
+- Both app and DMG are stapled and pass Gatekeeper. The final DMG SHA-256 is
+  `a23c81f26d0afdd3836779af2f0a8a7b8151cbd7d135a420c49560517d9fe11c`.
+- Helper QA passed its complete test suite, including a real recognized
+  eight-layer to twelve-layer apply, byte-exact rollback, authored-repository
+  preservation, and atomic configuration-pointer coverage.
+- Application QA passed all Rust targets (700 core tests plus integration and
+  fitness targets), the 216-case Admin bootstrap suite, the 126-scenario suite,
+  and the walkthrough matrix at **40/40, 100%, zero critical failures**.
+- The exact signed app and a read-only mount of the final DMG passed code-sign,
+  Gatekeeper, embedded-helper, four-component topology, and headless setup
+  transaction checks.
+- All five GitHub release assets were downloaded after publication and matched
+  the locally verified originals byte for byte; the downloaded DMG checksum
+  passed again.
+- The app release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/releases/tag/v0.2.3`;
+  the helper release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/claude-copilot/releases/tag/v5.13.17`.
+- The exact checked-in release artifacts are under
+  `release/control-tower-0.2.3-1ee07ec/`.
+
+Installing 0.2.3 remains read-only. **Finish Personal Setup** is the explicit
+review-and-apply route. On a recognized existing eight-layer setup, it proposes
+the four missing Knowledge and CLI layers and preserves the user's authored
+repositories. After approval, Settings reports the complete Knowledge, CLI,
+Claude, and Codex Foundation, Organization, Department, and Personal topology
+from canonical helper evidence.
 
 ## 0.2.2 Release Closure
 
