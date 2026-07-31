@@ -141,6 +141,69 @@ enum UserSettingsRender {
         }
     }
 
+    static func topologyStatuses(
+        _ report: EcosystemOnboardReport,
+        doctor: DoctorReport? = nil
+    ) -> [UserSettingsComponentStatus] {
+        UserSettingsComponent.allCases.map { component in
+            let rows = report.layers
+                .filter { $0.product == component.rawValue }
+                .sorted { $0.rank > $1.rank }
+            let tiers = rows.map { row -> UserSettingsTierStatus in
+                let layer: Layer
+                switch row.role {
+                case "foundation": layer = .foundation
+                case "organization": layer = .org
+                case "department": layer = .dept
+                default: layer = .personal
+                }
+                let label = row.role == "department"
+                    ? (row.unit?.capitalized ?? "Department")
+                    : tierLabel(layer)
+                let action = row.action ?? "review"
+                let kind: UserSettingsTierKind
+                let state: String
+                switch action {
+                case "reuse":
+                    let verified = doctor?.checkers.contains {
+                        $0.product == component.rawValue
+                            && $0.layerRole == row.role
+                            && $0.severity == .pass
+                    } == true
+                    if row.syncState == "local-changes" {
+                        kind = .needsAttention
+                        state = "Local work preserved"
+                    } else if verified {
+                        kind = .ready
+                        state = "Ready"
+                    } else {
+                        kind = .needsAttention
+                        state = "Found, not verified"
+                    }
+                case "create": kind = .needsSetup; state = "Needs creation"
+                case "download": kind = .needsSetup; state = "Needs download"
+                case "initialize": kind = .needsSetup; state = "Needs initialization"
+                case "repair": kind = .needsAttention; state = "Needs update"
+                default: kind = .needsAttention; state = "Needs review"
+                }
+                return UserSettingsTierStatus(
+                    id: layer,
+                    label: label,
+                    state: state,
+                    detail: row.detail ?? "Control Tower could not explain this layer.",
+                    kind: kind
+                )
+            }
+            let ready = !tiers.isEmpty && tiers.allSatisfy { $0.kind == .ready }
+            return UserSettingsComponentStatus(
+                id: component,
+                overall: ready ? "Ready" : "Needs setup",
+                overallKind: ready ? .ready : .needsSetup,
+                tiers: tiers
+            )
+        }
+    }
+
     static func personalReadyCount(_ report: OnboardReport) -> Int {
         UserSettingsComponent.allCases.filter { component in
             personalStatus(component: component, report: report).kind == .ready
@@ -310,6 +373,7 @@ final class UserSettingsModel: ObservableObject {
     @Published private(set) var personalState: UserSettingsLoadState<OnboardReport> = .waiting
     @Published private(set) var layersState: UserSettingsLoadState<LayersReport> = .waiting
     @Published private(set) var projectsState: UserSettingsLoadState<WorkspacesReport> = .waiting
+    @Published private(set) var topologyState: UserSettingsLoadState<EcosystemOnboardReport> = .waiting
 
     private var isLoading = false
 
@@ -323,6 +387,7 @@ final class UserSettingsModel: ObservableObject {
         personalState = .loading
         layersState = .loading
         projectsState = .loading
+        topologyState = .loading
 
         Task {
             async let authResult = CliClient.shared.authStatus()
@@ -332,18 +397,21 @@ final class UserSettingsModel: ObservableObject {
             )
             async let layersResult = CliClient.shared.layers()
             async let projectsResult = CliClient.shared.workspaces()
+            async let topologyResult = CliClient.shared.ecosystemOnboardPlan(products: ["claude", "codex"])
 
             let auth = await authResult
             let doctor = await doctorResult
             let personal = await personalResult
             let layers = await layersResult
             let projects = await projectsResult
+            let topology = await topologyResult
 
             authState = auth.loadedState
             doctorState = doctor.loadedState
             personalState = personal.loadedState
             layersState = layers.loadedState
             projectsState = projects.loadedState
+            topologyState = topology.loadedState
             isLoading = false
         }
     }
@@ -389,43 +457,45 @@ struct UserSettingsView: View {
 
     @ViewBuilder
     private var setupHeader: some View {
-        switch model.personalState {
+        switch model.topologyState {
         case .waiting, .loading:
             VStack(alignment: .leading, spacing: 6) {
                 Text("Your setup")
                     .font(.largeTitle.weight(.semibold))
-                loadingRow("Checking your Personal setup…")
+                loadingRow("Checking every Copilot repository and layer…")
             }
         case .failed:
             VStack(alignment: .leading, spacing: 8) {
                 Text("Your setup")
                     .font(.largeTitle.weight(.semibold))
-                Text("Control Tower couldn't check whether Personal setup is complete.")
+                Text("Control Tower couldn't check whether the ecosystem is complete.")
                     .font(.title3.weight(.semibold))
                 Text("Nothing was changed, and Control Tower will not call the ecosystem ready without that report.")
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 Button("Try again") { model.load() }
                     .buttonStyle(.bordered)
             }
-        case .loaded(let personal):
-            let ready = UserSettingsRender.personalReadyCount(personal)
-            let needsAction = UserSettingsRender.personalNeedsAction(personal)
+        case .loaded(let topology):
+            let doctor = loaded(model.doctorState)
+            let statuses = UserSettingsRender.topologyStatuses(topology, doctor: doctor)
+            let ready = statuses.flatMap(\.tiers).filter { $0.kind == .ready }.count
+            let needsAction = ready != topology.layers.count
             VStack(alignment: .leading, spacing: 8) {
                 Text("Your setup")
                     .font(.largeTitle.weight(.semibold))
                 Text(needsAction
-                    ? "Your copilots work, but Personal setup is incomplete"
+                    ? "Your Copilot setup is incomplete"
                     : "Your ecosystem is ready")
                     .font(.title2.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
                 Text(needsAction
-                    ? "\(ready) of 4 Personal components are ready. Finish the others now or return here later."
-                    : "Knowledge, CLI, Claude, and Codex have verified Personal spaces. Department setup remains optional.")
+                    ? "\(ready) of \(topology.layers.count) expected layers are already in place. Finish the others now or return here later."
+                    : "Knowledge, CLI, Claude, and Codex have verified Foundation, Organization, Department, and Personal layers.")
                     .font(.body)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
                 if needsAction {
-                    Button("Finish Personal Setup", action: onFinishPersonalSetup)
+                    Button("Finish Copilot Setup", action: onFinishPersonalSetup)
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
                 }
@@ -435,19 +505,37 @@ struct UserSettingsView: View {
 
     @ViewBuilder
     private var copilotsContent: some View {
-        if case .loading = model.personalState {
+        if case .loading = model.topologyState {
             loadingRow("Checking Knowledge, CLI, Claude, and Codex…")
-        } else if case .waiting = model.personalState {
+        } else if case .waiting = model.topologyState {
             loadingRow("Checking Knowledge, CLI, Claude, and Codex…")
         } else {
-            let statuses = UserSettingsRender.componentStatuses(
-                doctor: loaded(model.doctorState),
-                personal: loaded(model.personalState),
-                layers: loaded(model.layersState)
-            )
+            let topology = loaded(model.topologyState)
+            let statuses = topology.map {
+                UserSettingsRender.topologyStatuses($0, doctor: loaded(model.doctorState))
+            } ?? []
             VStack(alignment: .leading, spacing: 10) {
-                Text("Each Copilot has the same four tiers. Personal is yours; its repository is private.")
+                if let root = topology?.stages.first(where: { $0.stage == "repository-location" })?.path {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Copilot repository folder")
+                            .font(.caption.weight(.semibold))
+                        Text(root)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                        Text("New Copilot repositories are created or downloaded here, beside the ones you already have.")
+                            .font(.caption2)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                    .padding(12)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                Text("Each Copilot shows Foundation, Organization, your joined Department, and Personal as separate evidence-backed layers.")
                     .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Personal is yours; its repository is private, but its checkout stays visible in your Copilot repository folder.")
+                    .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(statuses) { component in

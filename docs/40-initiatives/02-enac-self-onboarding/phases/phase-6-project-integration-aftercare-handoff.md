@@ -5,12 +5,12 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the 0.2.3 release-completion record as of 2026-07-31.** The previous
+> **This is the 0.2.4 release-candidate record as of 2026-07-31.** The previous
 > handoff remains implementation and release history. The checked-in package
-> now embeds the separately signed and Apple-notarized cc 1.7.15 universal
-> helper. It repairs a recognized eight-layer existing machine to the complete
-> twelve-layer Knowledge, CLI, Claude, and Codex topology without modifying
-> authored repositories, and renders canonical tier evidence after setup.
+> embeds the separately signed and Apple-notarized cc 1.7.16 universal helper.
+> It inventories and prepares the complete visible Knowledge, CLI, Claude, and
+> Codex topology without modifying authored repositories or treating a hidden
+> mirror as a user-visible checkout.
 
 > **Owner-review closeout, 2026-07-30:** the installed Step 7 experience exposed
 > a continuous 53-project register, unclear category language, dead-end assistant
@@ -45,21 +45,29 @@
 > CLI refs, onboarding builds all four product stacks, Knowledge and CLI remain
 > product-owned read-only mirrors, Doctor emits canonical `layer_role`, and the
 > app renders that role without interpreting arbitrary layer identifiers.
+>
+> **Visible repository and Department correction, 2026-07-31:** a live
+> diagnostic proved that 0.2.3 counted hidden mirrors and remote Personal
+> repositories as installed, omitted the active Accounting entitlement, and
+> exposed internal ranks instead of actionable repository evidence. Task `tc`
+> 202 supersedes the twelve-layer completion claim. The required topology on
+> this machine is sixteen visible layers: Foundation, Organization, Accounting,
+> and Personal for Knowledge, CLI, Claude, and Codex. ADR-005 makes the visible
+> checkout root part of the contract and forbids hidden-only Personal storage.
 
 Date: 2026-07-31
 Primary repository: `copilot-control-tower`
 Branch: `app-build`
 CLI repository: `claude-copilot`
 CLI branch: `feat/adopt-and-project-setup`
-Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197 → 198 → 199 → 200 → 201
+Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197 → 198 → 199 → 200 → 201 → 202
 Historical release status: signed and notarized Control Tower 0.1.9 passed
 clean-install and installed-artifact verification
 
-Current release status: Control Tower 0.2.3 source and cc 1.7.15 passed the
-complete helper, application, migration, rollback, schema, Admin, scenario, and
-walkthrough gates. The signed app and DMG are published, their downloaded
-assets match the verified originals byte for byte, and task 201 is closed by
-the release evidence below.
+Current release status: Control Tower 0.2.4 source and cc 1.7.16 are in final
+release verification. The helper is signed, universal, Apple-notarized, and
+pinned by exact SHA-256. The historical 0.2.3 closure remains below; the 0.2.4
+closure is recorded only after its app and DMG pass notarization and Gatekeeper.
 
 ## Start Here
 
@@ -202,7 +210,7 @@ The executable matrix is:
 
 Measured results:
 
-- current source implementation with the checked-in cc 1.7.15 package:
+- current source implementation with the checked-in cc 1.7.16 package:
   **40/40, 100%, zero critical failures**;
 - production User app bundle, project-integration contract, in-binary triage,
   diagnostic, Terminal-launch quoting, and clean-home lifecycle tests: pass;
@@ -214,7 +222,7 @@ Measured results:
   pass;
 - clean-home lifecycle: `safe-finish → finish → Ready → verify`, plus
   independent guided-integration and owner-decision routes;
-- the release helper is cc 1.7.15 from signed foundation snapshot `v5.13.17`,
+- the release helper is cc 1.7.16 from signed foundation snapshot `v5.13.18`,
   accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
   SHA-256 in `packaging/cc/PINNED_SHA256`.
 

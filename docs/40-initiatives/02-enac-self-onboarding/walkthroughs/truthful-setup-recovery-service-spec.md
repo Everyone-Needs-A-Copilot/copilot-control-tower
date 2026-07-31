@@ -10,7 +10,7 @@ Product lens: Quiet Instrument
 After installing Control Tower, a person who does not understand repositories,
 manifests, or project scaffolding can answer:
 
-1. Which copilots are ready on this Mac?
+1. Which Copilot repositories and layers are actually ready on this Mac?
 2. What is missing?
 3. What can Control Tower safely set up?
 4. Who will handle anything Control Tower cannot safely change?
@@ -25,7 +25,7 @@ person to interpret implementation details.
 
 | Situation | What the person sees | What Control Tower does |
 | --- | --- | --- |
-| Component is verified | “Ready” plus named layer roles | Renders facts returned by `cc` |
+| Component is verified | “Ready” plus named layer roles and visible location | Renders facts returned by `cc` |
 | Expected component is absent | “Missing” plus one setup action | Asks `cc` to set up only missing components |
 | Detail cannot be read | “Couldn’t verify” | Preserves the distinction between unknown and absent |
 | One project copilot can be added safely | “Safe to add” | Applies that component without touching the existing one |
@@ -42,21 +42,33 @@ circles.
 
 ### 2. Explain the inventory
 
-Every copilot row has a text result. Layer roles use human labels:
+One component inventory replaces the former duplicate “four copilots,” “what
+Control Tower found,” and rank list. Every expandable Copilot row contains the
+same four human layer labels:
 
-- Core
+- Foundation
 - Organization
 - Department, when applicable
-- This Mac
+- Personal
 
-An unavailable layer breakdown says “Layer details unavailable.” Unknown detail
-never looks like a missing installation.
+Each layer distinguishes five independent facts: the GitHub repository exists,
+the checkout is visible, the manifest is connected, the checkout is current,
+and the resolver verified it. A hidden mirror is never evidence that a
+repository is present. Internal rank numbers never appear in the interface.
 
-### 3. Complete missing personal setup
+The inventory names the visible repository folder. Existing components establish
+the default location when the match is unambiguous; otherwise the person chooses
+one. New Organization, Department, and Personal checkouts are created or
+downloaded beside the existing components. No Personal repository is kept only
+under `~/.copilot/mirrors`.
 
-If personal Knowledge or CLI is absent, the primary action is “Set up 2 missing
-spaces.” Supporting copy says the spaces are private and existing setup will be
-preserved. Technical repository names are not shown in the primary journey.
+### 3. Review the complete setup transaction
+
+The review states exactly what will be reused, created, downloaded, initialized,
+connected, synchronized, and verified. Repository names and the visible local
+destination are shown because they are the objects the person owns. Personal
+repositories are private. Existing working trees and local changes are
+preserved.
 
 ### 4. Verify before advancing
 
@@ -112,14 +124,21 @@ The service requires the following `cc` contract:
    manifest layer identifiers.
 2. `doctor` returns expected, present, and health facts for Knowledge, CLI,
    Claude, and Codex.
-3. Onboarding evaluates the complete four-component roster and fails closed when
-   an expected component is absent.
+3. Onboarding evaluates the complete four-component, entitled four-layer roster
+   and fails closed when an expected component is absent.
 4. Workspace preflight returns readiness, blocker, safe action, and responsible
    actor per component.
 5. Adoption is available only when existing content matches a recognized legacy
    layout exactly.
 6. Custom files are never overwritten.
 7. The app renders `cc` facts; it does not invent a second scanner.
+8. Setup accepts or infers one visible repository root, includes active
+   handoff-declared departments, and emits repository/local/connection/sync
+   evidence per layer.
+9. Apply uses visible checkouts as canonical sources, never resets a dirty
+   working tree, and only performs a clean fast-forward.
+10. “Ready” requires the complete expected roster, visible checkouts, manifest
+    connection, successful sync/materialization, and post-apply verification.
 
 ## Recovery rules
 

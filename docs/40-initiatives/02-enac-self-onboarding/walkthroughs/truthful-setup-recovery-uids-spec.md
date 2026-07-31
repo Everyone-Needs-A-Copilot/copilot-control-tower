@@ -63,9 +63,21 @@ Color is supplemental. Every colored state has a glyph and text label.
 
 - 28-point glyph or monogram.
 - Copilot name and plain-language summary.
-- Layer-role chips: Core, Organization, Department, This Mac.
+- Expandable layer rows: Foundation, Organization, named Department, Personal.
 - Trailing text status.
+- Layer rows show repository name, visible path, and plain-language action.
+- Green means evidence is complete; blue means Control Tower can create or
+  download; orange means update/preservation attention; red means blocked or
+  unreadable. Every state also has an icon and text.
 - Missing rows contain at most one primary setup action in the screen footer.
+
+### Repository location
+
+- A quiet folder card precedes the inventory.
+- Show the full selected path with text selection enabled.
+- Explain that new repositories appear beside existing ones.
+- A secondary “Choose another folder…” button remains available.
+- Never render a hidden mirror path as the person’s repository location.
 
 ### Project group
 

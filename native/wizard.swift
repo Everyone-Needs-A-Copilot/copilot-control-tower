@@ -1073,6 +1073,8 @@ final class WizardModel: ObservableObject {
     @Published var verifiedWorkspacesReport: WorkspacesReport?
     @Published var ecosystemInventory: [EcosystemInventoryItem] = []
     @Published var ecosystemInventorySummary: EcosystemInventorySummary?
+    @Published var ecosystemLayers: [EcosystemOnboardLayer] = []
+    @Published var copilotRepositoryRoot: String?
     @Published var adoptionRollbackPaths: [String] = []
     @Published var includeCodex = true
     @Published var departments: [DepartmentRow] = []
@@ -1741,7 +1743,11 @@ final class WizardModel: ObservableObject {
         Task {
             async let authAsync = CliClient.shared.authStatus()
             async let doctorAsync = CliClient.shared.doctor()
-            async let onboardAsync = CliClient.shared.ecosystemOnboardPlan(products: self.copilotProducts, adoptExisting: Array(self.adoptExisting))
+            async let onboardAsync = CliClient.shared.ecosystemOnboardPlan(
+                products: self.copilotProducts,
+                adoptExisting: Array(self.adoptExisting),
+                repositoryRoot: self.copilotRepositoryRoot
+            )
             let authResult = await authAsync
             let doctorResult = await doctorAsync
             let onboardResult = await onboardAsync
@@ -1778,6 +1784,9 @@ final class WizardModel: ObservableObject {
             }
             self.ecosystemInventory = onboard.inventory ?? []
             self.ecosystemInventorySummary = onboard.inventorySummary
+            self.ecosystemLayers = onboard.layers
+            self.copilotRepositoryRoot = onboard.stages.first(where: { $0.stage == "repository-location" })?.path
+                ?? onboard.layers.compactMap(\.localPath).first.map { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
 
             // "One question first" (adopt-and-project-setup spec, "Ask" row):
             // asked BEFORE the blocked-guard below, and only once per
@@ -1812,9 +1821,8 @@ final class WizardModel: ObservableObject {
             }
             lines.append("Organization: \(onboard.org).")
             lines.append("Personal spaces: checked against the signed-in GitHub account.")
-            for layer in onboard.layers {
-                let product = layer.product.prefix(1).uppercased() + String(layer.product.dropFirst())
-                lines.append("\(product): \(layer.role) setup, rank \(layer.rank).")
+            if let root = self.copilotRepositoryRoot {
+                lines.append("Copilot repositories: \(root).")
             }
             // The gh install/approve mechanics are not built yet (the spec's
             // own NB-13) — this line is honest static state, not a live
@@ -2534,6 +2542,19 @@ final class WizardModel: ObservableObject {
         approveProjectsRoot(path: url.path)
     }
 
+    func chooseCopilotRepositoryFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Use this folder"
+        panel.message = "Choose the visible folder where Knowledge, CLI, Claude, and Codex Copilot repositories should live."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        copilotRepositoryRoot = url.path
+        performDetect(replanning: true)
+    }
+
     func approveCandidateRoot(_ candidate: WorkspaceRootCandidate) {
         approveProjectsRoot(path: candidate.path)
     }
@@ -2666,7 +2687,11 @@ final class WizardModel: ObservableObject {
         setupProgress = progress
 
         Task {
-            switch await CliClient.shared.ecosystemOnboardApply(products: self.copilotProducts, adoptExisting: Array(self.adoptExisting)) {
+            switch await CliClient.shared.ecosystemOnboardApply(
+                products: self.copilotProducts,
+                adoptExisting: Array(self.adoptExisting),
+                repositoryRoot: self.copilotRepositoryRoot
+            ) {
             case .success(let report):
                 guard report.result == .ready else {
                     self.materializeInFlight = false
@@ -2675,6 +2700,7 @@ final class WizardModel: ObservableObject {
                 }
                 self.ecosystemInventory = report.inventory ?? self.ecosystemInventory
                 self.ecosystemInventorySummary = report.inventorySummary ?? self.ecosystemInventorySummary
+                self.ecosystemLayers = report.layers
                 self.adoptionRollbackPaths = report.stages.compactMap(\.rollbackPath)
                 self.setupProgress.callRow.state = .done(detail: "Done.")
                 self.setupProgress.stageRows = Self.resolveStageRows(from: report.stages)
@@ -3784,7 +3810,7 @@ struct WizardRootView: View {
             if case .detecting = model.phase {
                 VStack(alignment: .leading, spacing: 16) {
                     verifyingCard("Checking what's already here…")
-                    sectionCard("The four copilots") {
+                    sectionCard("Your Copilot setup") {
                         wizardCopilotRoster(nil, checking: true)
                     }
                 }
@@ -3795,77 +3821,184 @@ struct WizardRootView: View {
                 // above, same shared progress card.
                 VStack(alignment: .leading, spacing: 16) {
                     verifyingCard("Checking what that means…")
-                    sectionCard("The four copilots") {
+                    sectionCard("Your Copilot setup") {
                         wizardCopilotRoster(nil, checking: true)
                     }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 16) {
-                    sectionCard("The four copilots") {
-                        wizardCopilotRoster(model.detectedCopilotState)
-                    }
-                    if !model.ecosystemInventory.isEmpty {
-                        sectionCard("What Control Tower found") {
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(Array(model.ecosystemInventory.enumerated()), id: \.element.id) { index, item in
-                                    HStack(alignment: .top, spacing: 10) {
-                                        Image(systemName: inventoryGlyph(item.action))
-                                            .foregroundColor(inventoryColor(item.action))
-                                            .frame(width: 18)
-                                            .accessibilityHidden(true)
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            HStack {
-                                                Text(item.title)
-                                                    .font(.callout.weight(.semibold))
-                                                Spacer()
-                                                Text(inventoryActionLabel(item.action))
-                                                    .font(.caption.weight(.semibold))
-                                                    .foregroundColor(inventoryColor(item.action))
-                                            }
-                                            Text(item.detail)
-                                                .font(.caption)
-                                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                                .fixedSize(horizontal: false, vertical: true)
-                                            if item.reversible {
-                                                Text("A rollback copy is kept before anything moves or changes.")
-                                                    .font(.caption2)
-                                                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                                            }
-                                        }
-                                    }
-                                    .padding(.vertical, 9)
-                                    .accessibilityElement(children: .combine)
-                                    if index < model.ecosystemInventory.count - 1 {
-                                        Divider()
-                                    }
-                                }
+                    copilotRepositoryLocationCard
+                    sectionCard("Your Copilot setup") {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(topologySummary)
+                                .font(.callout)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.bottom, 8)
+                            ForEach(copilotTopologyComponents, id: \.id) { component in
+                                copilotTopologyDisclosure(component)
                             }
                         }
                     }
-                    sectionCard("How everything connects") {
-                        VStack(alignment: .leading, spacing: 11) {
-                            ForEach(model.detectLines, id: \.self) { line in
-                                HStack(alignment: .top, spacing: 9) {
-                                    Text("•")
-                                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                                    Text(line)
-                                        .font(.callout)
-                                        .foregroundColor(Color(nsColor: .labelColor))
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
-                    }
+                    Text("Review what Control Tower will keep, create, download, or update. Existing local work is preserved. Nothing is called Ready until every expected layer is visible, connected, synchronized, and verified.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         } leadingActions: {
             Button { model.phase = .connectGitHub } label: { Text("Back") }
                 .buttonStyle(.bordered)
         } primaryAction: {
-            Button { model.continueFromDetect() } label: { Text("Continue") }
+            Button { model.continueFromDetect() } label: { Text("Review setup") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(isDetecting)
+                .disabled(isDetecting || model.copilotRepositoryRoot == nil)
+        }
+    }
+
+    private struct CopilotTopologyComponent: Identifiable {
+        let id: String
+        let title: String
+        let symbol: String
+    }
+
+    private var copilotTopologyComponents: [CopilotTopologyComponent] {
+        [
+            .init(id: "knowledge", title: "Knowledge Copilot", symbol: "book.closed.fill"),
+            .init(id: "cli", title: "CLI Copilot", symbol: "terminal.fill"),
+            .init(id: "claude", title: "Claude Copilot", symbol: "sparkles"),
+            .init(id: "codex", title: "Codex Copilot", symbol: "chevron.left.forwardslash.chevron.right"),
+        ]
+    }
+
+    private var topologySummary: String {
+        let total = model.ecosystemLayers.count
+        let visible = model.ecosystemLayers.filter { $0.localState == "visible" }.count
+        let changes = model.ecosystemLayers.filter { ($0.action ?? "reuse") != "reuse" }.count
+        guard total > 0 else { return "Control Tower is waiting for a complete repository inventory." }
+        return "\(total) expected layers across four copilots. \(visible) are visible now; \(changes) need a setup action."
+    }
+
+    private var copilotRepositoryLocationCard: some View {
+        sectionCard("Your Copilot repository folder") {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "folder.fill")
+                    .foregroundColor(Color(nsColor: .controlAccentColor))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(model.copilotRepositoryRoot ?? "Choose a visible folder")
+                        .font(.callout.weight(.semibold))
+                        .textSelection(.enabled)
+                    Text("New Copilot repositories will be created or downloaded here, beside the ones you already have.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Button(model.copilotRepositoryRoot == nil ? "Choose folder…" : "Choose another folder…") {
+                    model.chooseCopilotRepositoryFolder()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func copilotTopologyDisclosure(_ component: CopilotTopologyComponent) -> some View {
+        let layers = model.ecosystemLayers
+            .filter { $0.product == component.id }
+            .sorted { $0.rank > $1.rank }
+        let needsAction = layers.contains { ($0.action ?? "review") != "reuse" }
+        return DisclosureGroup {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(layers, id: \.id) { layer in
+                    Divider()
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: topologyLayerSymbol(layer))
+                            .foregroundColor(topologyLayerColor(layer))
+                            .frame(width: 18)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(topologyRoleLabel(layer))
+                                    .font(.callout.weight(.semibold))
+                                Spacer()
+                                Text(topologyActionLabel(layer))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(topologyLayerColor(layer))
+                            }
+                            if let name = layer.repositoryName, !name.isEmpty {
+                                Text(name)
+                                    .font(.caption.monospaced())
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            }
+                            if let detail = layer.detail {
+                                Text(detail)
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: component.symbol)
+                    .foregroundColor(needsAction ? Color(nsColor: .controlAccentColor) : Color(nsColor: .systemGreen))
+                    .frame(width: 22)
+                Text(component.title)
+                    .font(.callout.weight(.semibold))
+                Spacer()
+                Text(needsAction ? "Needs setup" : "Found")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(needsAction ? Color(nsColor: .controlAccentColor) : Color(nsColor: .systemGreen))
+            }
+            .padding(.vertical, 9)
+        }
+    }
+
+    private func topologyRoleLabel(_ layer: EcosystemOnboardLayer) -> String {
+        switch layer.role {
+        case "foundation": return "Foundation"
+        case "organization": return "Organization"
+        case "department": return layer.unit?.capitalized ?? "Department"
+        case "personal": return "Personal"
+        default: return layer.role.capitalized
+        }
+    }
+
+    private func topologyActionLabel(_ layer: EcosystemOnboardLayer) -> String {
+        switch layer.action {
+        case "reuse": return layer.syncState == "local-changes" ? "Local work preserved" : "Found"
+        case "create": return "Will create"
+        case "download": return "Will download"
+        case "initialize": return "Will initialize"
+        case "repair": return "Will update"
+        case "choose-location": return "Choose folder"
+        default: return "Needs review"
+        }
+    }
+
+    private func topologyLayerSymbol(_ layer: EcosystemOnboardLayer) -> String {
+        switch layer.action {
+        case "reuse": return layer.syncState == "local-changes" ? "pencil.circle.fill" : "checkmark.circle.fill"
+        case "create": return "plus.circle.fill"
+        case "download": return "arrow.down.circle.fill"
+        case "initialize": return "shippingbox.circle.fill"
+        case "repair": return "arrow.triangle.2.circlepath.circle.fill"
+        case "choose-location": return "folder.badge.plus"
+        default: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func topologyLayerColor(_ layer: EcosystemOnboardLayer) -> Color {
+        switch layer.action {
+        case "reuse" where layer.syncState != "local-changes": return Color(nsColor: .systemGreen)
+        case "create", "download", "initialize": return Color(nsColor: .controlAccentColor)
+        case "repair", "reuse": return Color(nsColor: .systemOrange)
+        default: return Color(nsColor: .systemRed)
         }
     }
 

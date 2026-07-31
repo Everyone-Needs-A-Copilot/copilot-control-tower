@@ -29,7 +29,7 @@ Every consumed verb grows a **versioned `--json`** mode. All schemas carry a top
 | `copilot publish --json` **(control-tower-originated proposal, not yet in upstream WS-A scope — must be added upstream at freeze)** | `{schema_version, tier, result, conflict?, resolutions[], parked_ref?, escalated_to?, leak_scan}` | Author-side push of a writable org/dept tier. **CLI computes the merge**; the app only renders the chooser and passes back the choice. Conflict states: `auto-merged` / `needs-choice` / `parked-escalated`. See the subsection below. |
 | `copilot layers --json` **(proposed contract addition, D7.1, not yet in upstream WS-A scope)** | `{schema_version, layers:[{tier(org\|department), id, name, repo, entitled(bool), joined(bool), reason?}]}` | Entitlement discovery. Lists every department/org layer visible for the account context, whether the user is **entitled** (has GitHub repo access to it, per D3, the entitlement spine) and whether it is already **joined** (synced onto this machine). Entitlement is computed **CLI-side**; the app only renders the list. |
 | `copilot layers join <id> --json` **(proposed contract addition, D7.1)** | `{result(joined\|already-joined\|not-entitled\|error), tier, id, synced_lock_sha}` | Join action. Takes the user's pick of an entitled, not-yet-joined layer from the app-rendered list and syncs it onto the machine (equivalent to what `update` materializes for an already-joined layer). `not-entitled` is a normal, renderable outcome, not a crash. |
-| `cc onboard --scope personal [--components knowledge,cli,claude,codex] [--apply] --json` / `cc onboard --org <org\|auto> --products claude,codex [--apply] --json` **(Phase 6 implemented)** | Repository report plus aggregate `{stages,layers,inventory:[{id,scope,title,state,action,detail,source_path,destination_path,reversible}],inventory_summary}` (see [`schemas/onboard.schema.json`](schemas/onboard.schema.json)) | Default plan mode is read-only. Aggregate Apply performs a complete preflight before any mutation, reuses existing private repositories, creates only explicit-404 targets, adopts supported predecessor manifests, preserves unrelated products, and writes a rollback copy before migration/repair. Unfamiliar or conflicting state returns `review` and blocks the complete Apply. |
+| `cc onboard --scope personal [--components knowledge,cli,claude,codex] [--apply] --json` / `cc onboard --org <org\|auto> --products claude,codex [--repository-root <visible-path>] [--apply] --json` **(Phase 6 implemented)** | Repository report plus aggregate `{stages,layers:[{product,role,unit,repository_*,remote_state,local_path,local_state,connection_state,sync_state,action,detail}],inventory,inventory_summary}` (see [`schemas/onboard.schema.json`](schemas/onboard.schema.json)) | Default plan mode is read-only. Aggregate Apply performs a complete preflight before mutation, includes handoff-declared departments with active membership, creates/downloads repositories into one visible root, creates Personal remotes only after explicit 404, preserves working trees, and writes a rollback copy before manifest migration/repair. Unfamiliar or conflicting state returns `review` and blocks Apply. |
 | `cc workspace (--all\|--project <path>) --json` / `cc workspace configure --project <path> [--share-with-project] [--apply] --json` | `{schema_version,mode,result,workspaces:[{path,name,project_id,state,detail,declared_components,installed_components,recommended_components,personal_profile}],summary,actions?}` (see [`schemas/workspaces.schema.json`](schemas/workspaces.schema.json)) | Status is bounded and read-only. Configure repeats an all-product collision preflight, activates only missing component setup, and never treats the portable declaration as installation proof. Personal association stores only an opaque project id and product names outside the shared repo. |
 | `cc workspace approve-root --path <folder> [--apply] --json` | `{schema_version,mode,result,root:{name,state,detail}}` (see [`schemas/workspace-root.schema.json`](schemas/workspace-root.schema.json)) | One-time User Setup approval for bounded discovery. Refuses symlinked/unavailable roots and returns only the display name to the app. |
 
@@ -86,19 +86,23 @@ Codex registration, and doctor evidence. The `--products` option selects
 assistant runtimes (`claude`, `codex`); it does not narrow the ecosystem roster.
 Knowledge and CLI are always included alongside the selected runtimes.
 
-For ENAC, which has no departments, each of Knowledge, CLI, Claude, and Codex
-must report exactly `personal (10) -> organization (30) -> foundation (40)`.
-Knowledge and CLI synchronize into product-owned, read-only mirror trees for
-their native consumers. Their repositories are never flattened into the Claude
-or Codex materialization roots. Claude and Codex keep their allowlisted target
+For a person entitled to Accounting, each of Knowledge, CLI, Claude, and Codex
+must report exactly `personal (10) -> department (20) -> organization (30) ->
+foundation (40)`. Ranks remain internal precedence data and are never
+user-facing. Every repository has a visible checkout under
+`paths.repositories_root`; Personal is never present only under
+`~/.copilot/mirrors`. Knowledge and CLI remain separate products and are never
+flattened into the Claude or Codex materialization roots. Claude and Codex keep their allowlisted target
 maps (for example Codex user skills in `~/.agents/skills`, native personal
 agents in `~/.codex/agents`, and global instructions in `~/.codex/AGENTS.md`).
 Resolution keys are `(product, dimension, item)`; ranks compete only inside one
 product, so same-named capabilities coexist rather than shadow across products.
 
-After all four product stacks synchronize and `doctor` reports healthy, setup
-commits the manifest pointer and ordered Knowledge mirror paths in one atomic
-machine-config write. `doctor.checkers[].layer_role` is the canonical, closed
+After all four product stacks synchronize, `doctor` reports healthy, and the
+candidate produces a non-empty effective resolution, setup commits the manifest
+pointer, visible repository root, and ordered Knowledge checkout paths in one
+atomic machine-config write. Superseded hidden Personal checkouts are then
+moved intact out of the active mirror tree. `doctor.checkers[].layer_role` is the canonical, closed
 role (`foundation`, `organization`, `department`, or `personal`) that UI clients
 render. `checkers[].layer` remains an opaque manifest identifier and must not be
 parsed for role semantics.
@@ -109,7 +113,8 @@ role, rank, commit/tag, and health status, but never personal file contents,
 tokens, private keys, keychain values, or secret-store credentials.
 
 **Idempotency and recovery.** Re-running `cc onboard` verifies and repairs only
-missing or stale managed artifacts. It preserves dirty/user-owned content,
+missing or stale managed artifacts. It preserves every dirty visible checkout,
+permits only a clean fast-forward,
 reports held work, and provides a recovery action for every blocked stage. A
 partially completed Admin stage can be resumed by User Setup without repeating
 already-passing mutations.
@@ -118,7 +123,7 @@ already-passing mutations.
 `migrate`, `repair`, or `review`. A supported `component:` predecessor can be
 translated to `product:` and merged. A recognized eight-layer predecessor with
 managed CLI, Claude, and Codex stacks may be repaired additively to the complete
-twelve-layer roster. Before `migrate` or `repair`, the original manifest bytes
+twelve- or sixteen-layer roster. Before `migrate` or `repair`, the original manifest bytes
 are stored in a content-addressed local rollback directory; locally authored
 Knowledge and CLI repositories are never modified. `review` always stops the
 transaction before personal repository, SSH, store, or manifest mutation.

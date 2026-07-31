@@ -51,7 +51,7 @@ check_rg 05-08 "safe write requires returned Ready classification" 'updated.clas
 check_rg 05-09 "final screen reports authoritative project outcomes" 'wizardVerifiedProjectSummary' native/wizard.swift
 check_rg 05-10 "popover uses readable component status and layers" 'component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }' native/control-tower-tray.swift
 check_rg 05-11 "unresolved states retain reason and actor routes" 'case .couldNotVerify: return "Couldn'\''t confirm"' native/wizard.swift critical
-check_rg 06-V "high-fidelity wizard uses native cards, hierarchy, and status labels" 'sectionCard("The four copilots")' native/wizard.swift
+check_rg 06-V "high-fidelity wizard uses native cards, hierarchy, and status labels" 'sectionCard("Your Copilot setup")' native/wizard.swift
 
 # Walkthrough 07 / 08: project integration and aftercare.
 check_rg 07-01 "schema fixture covers all five project classifications" '"could-not-verify": 1' src-tauri/fixtures/workspaces/status-all-1.1.json critical
@@ -81,10 +81,10 @@ check_rg 08-V "high-fidelity popover has readable status hierarchy" 'Text(compon
 
 # Exact embedded-helper boundary. These are critical and intentionally fail
 # against the stale packaged helper until a new upstream artifact is pinned.
-if [[ -x "${CC_PATH}" ]] && [[ "$("${CC_PATH}" --version 2>/dev/null)" == "cc version 1.7.15" ]]; then
-    pass PKG-01 "exact helper is version 1.7.15"
+if [[ -x "${CC_PATH}" ]] && [[ "$("${CC_PATH}" --version 2>/dev/null)" == "cc version 1.7.16" ]]; then
+    pass PKG-01 "exact helper is version 1.7.16"
 else
-    fail PKG-01 "exact helper is version 1.7.15" critical
+    fail PKG-01 "exact helper is version 1.7.16" critical
 fi
 
 workspace_help="$("${CC_PATH}" workspace --help 2>/dev/null || true)"

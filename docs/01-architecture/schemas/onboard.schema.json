@@ -27,7 +27,7 @@
     "repository": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["component", "role", "unit", "owner", "name", "visibility", "state", "action", "detail"],
+      "required": ["component", "role", "unit", "owner", "name", "visibility", "state", "action", "detail", "rank", "package_state", "package_action", "package_detail", "decline_detail"],
       "properties": {
         "component": { "enum": ["knowledge", "cli", "claude", "codex"] },
         "role": { "enum": ["org", "organization", "department", "personal"] },
@@ -38,6 +38,10 @@
         "state": { "enum": ["existing-private", "missing", "created", "conflict-public", "unknown"] },
         "action": { "enum": ["none", "create", "blocked"] },
         "detail": { "type": "string", "minLength": 1 },
+        "rank": { "type": "integer", "minimum": 0 },
+        "package_state": { "type": "string", "minLength": 1 },
+        "package_action": { "type": "string", "minLength": 1 },
+        "package_detail": { "type": "string", "minLength": 1 },
         "decline_detail": { "type": "string" }
       }
     },
@@ -51,7 +55,8 @@
         "created": { "type": "integer", "minimum": 0 },
         "blocked": { "type": "integer", "minimum": 0 },
         "seeded": { "type": "integer", "minimum": 0 },
-        "held": { "type": "integer", "minimum": 0 }
+        "held": { "type": "integer", "minimum": 0 },
+        "adoptable": { "type": "integer", "minimum": 0 }
       }
     },
     "ecosystemReport": {
@@ -106,10 +111,10 @@
       "additionalProperties": false,
       "required": ["stage", "result"],
       "properties": {
-        "stage": { "enum": ["organization-handoff", "personal-packages", "device-ssh", "layer-manifest", "secret-store", "codex-plugin", "cli-sync", "materialize", "doctor"] },
+        "stage": { "enum": ["organization-handoff", "personal-packages", "repository-location", "visible-repositories", "device-ssh", "layer-manifest", "secret-store", "codex-plugin", "cli-sync", "materialize", "doctor", "resolve", "personal-repository-location"] },
         "result": { "type": "string", "minLength": 1 },
         "detail": { "type": "string", "minLength": 1 },
-        "action": { "enum": ["reuse", "create", "migrate", "repair", "review"] },
+        "action": { "enum": ["reuse", "create", "migrate", "repair", "review", "choose"] },
         "path": { "type": "string", "minLength": 1 },
         "rollback_path": { "type": "string", "minLength": 1 },
         "layers": { "type": "integer", "minimum": 0 },
@@ -132,7 +137,18 @@
         "id": { "type": "string", "minLength": 1 },
         "product": { "enum": ["knowledge", "cli", "claude", "codex"] },
         "role": { "enum": ["personal", "department", "organization", "foundation"] },
-        "rank": { "type": "integer", "minimum": 0 }
+        "rank": { "type": "integer", "minimum": 0 },
+        "unit": { "type": ["string", "null"] },
+        "repository_owner": { "type": "string" },
+        "repository_name": { "type": "string" },
+        "repository_visibility": { "type": ["string", "null"] },
+        "remote_state": { "type": "string" },
+        "local_path": { "type": ["string", "null"] },
+        "local_state": { "type": "string" },
+        "connection_state": { "type": "string" },
+        "sync_state": { "type": "string" },
+        "action": { "type": "string" },
+        "detail": { "type": "string" }
       }
     },
     "inventoryItem": {

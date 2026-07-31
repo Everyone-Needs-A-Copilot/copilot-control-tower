@@ -2,6 +2,41 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.2.4] - 2026-07-31
+
+### Fixed
+
+- Setup now includes active Department membership and plans the complete
+  Foundation, Organization, Department, and Personal topology for Knowledge,
+  CLI, Claude, and Codex.
+- A GitHub repository or hidden mirror no longer counts as a visible, connected,
+  synchronized layer. Personal repositories are created or downloaded into the
+  visible Copilot repository folder.
+- Returning Settings uses the same repository evidence and setup route as first
+  launch instead of claiming remote-only Personal setup is Ready.
+- Setup now blocks a Ready verdict when the connected topology resolves no
+  effective capabilities, and moves superseded hidden Personal checkouts out
+  of the active mirror tree without discarding their contents.
+- The embedded helper now extracts through a dedicated Control Tower cache
+  directory, avoiding startup stalls caused by an overloaded shared macOS
+  temporary directory.
+
+### Changed
+
+- The duplicate roster, inventory, and rank list is replaced by four expandable
+  component rows with per-layer repository names, visible locations, and exact
+  keep/create/download/initialize/update actions.
+- Setup can infer one existing component cluster or ask the person to choose a
+  visible folder. Existing working trees and local changes are preserved; only
+  clean fast-forwards are allowed.
+- The embedded helper requirement is now `cc 1.7.16`.
+
+### QA
+
+- Added sixteen-layer, Department-entitlement, visible-root inference,
+  non-empty-resolution, legacy-Personal migration, schema, native compile, and
+  live read-only machine-plan coverage.
+
 ## [0.2.3] - 2026-07-31
 
 ### Fixed

@@ -565,6 +565,17 @@ struct EcosystemOnboardLayer: Decodable {
     let product: String
     let role: String
     let rank: Int
+    let unit: String?
+    let repositoryOwner: String?
+    let repositoryName: String?
+    let repositoryVisibility: String?
+    let remoteState: String?
+    let localPath: String?
+    let localState: String?
+    let connectionState: String?
+    let syncState: String?
+    let action: String?
+    let detail: String?
 }
 
 /// A content-free adoption decision computed by `cc onboard`. The app never

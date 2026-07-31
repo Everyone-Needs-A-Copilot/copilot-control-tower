@@ -29,7 +29,7 @@ belongs behind “Review details,” not in Bob’s default path.
 
 The setup journey has four stable stages:
 
-1. This Mac
+1. Your Copilot setup
 2. Your projects
 3. Set up
 4. Final check
@@ -45,21 +45,33 @@ options. They do not affect the truthfulness model in this walkthrough.
 - Use determinate row completion when results return.
 - Do not show a success headline before the roster is complete.
 
-### 02 — Two missing spaces
+### 02 — One component-by-layer inventory
 
-- Show the actual diagnosed state: Claude and Codex are ready; personal
-  Knowledge and CLI spaces are missing.
-- Show text status before layer detail.
-- Primary action: “Set up 2 missing spaces.”
-- Supporting promise: private spaces; existing setup preserved.
+- Show Knowledge, CLI, Claude, and Codex as expandable component rows.
+- Inside each component, show Foundation, Organization, entitled Department,
+  and Personal.
+- Show repository existence, visible checkout, connection, sync, and
+  verification as separate states.
+- Never expose rank 10, 20, 30, or 40.
+- Primary action: “Review setup.”
 
-### 03 — Setup in progress
+### 03 — Visible repository folder
 
-- Show a real denominator: two named items.
+- Show the inferred or chosen repository folder above the inventory.
+- Explain that new components will be created or downloaded beside existing
+  components.
+- Offer “Choose another folder…” without hiding the current path.
+- If no unambiguous location exists, require a folder choice before review.
+
+### 04 — Setup review and progress
+
+- Summarize the exact transaction: reuse, create private, download,
+  initialize empty Department layers, connect, synchronize, and verify.
+- Show a real denominator made from named operations.
 - Completed and active rows use text, shape, and restrained color.
 - The window may close while work continues from the aviators icon.
 
-### 04 — This Mac is verified
+### 05 — This Mac is verified
 
 - Re-check all four components.
 - State that all four are ready only after verification.
@@ -129,12 +141,14 @@ options. They do not affect the truthfulness model in this walkthrough.
 
 ## Content rules
 
-- Prefer “This Mac” to “personal layer.”
-- Prefer “space” to “repository” in the primary journey.
+- Use “Personal” consistently for the layer and “private repository” for its
+  storage/privacy promise.
+- Show repository names and visible paths wherever placement or ownership is
+  part of the decision.
 - Prefer “existing setup” to “collision.”
 - Prefer “project owner” to “developer” when describing responsibility.
 - Every failure includes cause, preservation statement, and next actor.
-- Do not expose file paths unless the person opens support details.
+- Do not hide the selected repository root or layer checkout paths.
 
 ## Responsive behavior
 

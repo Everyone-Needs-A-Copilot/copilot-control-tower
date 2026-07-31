@@ -13,7 +13,7 @@
 # "perUser"` / `ALLUSERS=""` (never `"1"`) exactly; this manifest would be
 # a lie about the artifact if it claimed `machine` scope here.
 PackageIdentifier: EveryoneNeedsACopilot.ControlTower
-PackageVersion: 0.2.3
+PackageVersion: 0.2.4
 InstallerType: wix
 Scope: user
 Installers:
@@ -21,7 +21,7 @@ Installers:
     InstallerType: wix
     Scope: user
     # PLACEHOLDER — replace with the real published release asset URL.
-    InstallerUrl: https://github.com/everyoneneedsacopilot/copilot-control-tower/releases/download/v0.2.3/CopilotControlTower_0.2.3_x64.msi
+    InstallerUrl: https://github.com/everyoneneedsacopilot/copilot-control-tower/releases/download/v0.2.4/CopilotControlTower_0.2.4_x64.msi
     # PLACEHOLDER (64 zero-hex-chars) — replace with the real artifact's
     # SHA256 computed by the release pipeline; winget validation rejects
     # a manifest whose hash doesn't match the downloaded artifact, so this

@@ -330,6 +330,39 @@ enum SchemaGate {
     }
 }
 
+/// Gives the frozen helper a small, app-owned extraction directory instead of
+/// inheriting the session-wide macOS `TMPDIR`. PyInstaller's one-file runtime
+/// expands native modules before `cc` starts; a heavily populated or unhealthy
+/// shared temporary directory can otherwise stall before the CLI can emit its
+/// first JSON byte. This directory is runtime plumbing only—ecosystem
+/// repositories are never stored here.
+enum CliRuntimeEnvironment {
+    private static let cacheSubpath = "Library/Caches/com.everyoneneedsacopilot.controltower/cc-runtime"
+
+    static func childProcessEnvironment(
+        base: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
+    ) -> [String: String]? {
+        let home = base["HOME"] ?? NSHomeDirectory()
+        let runtimeDirectory = URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent(cacheSubpath, isDirectory: true)
+        do {
+            try fileManager.createDirectory(
+                at: runtimeDirectory,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+        } catch {
+            return nil
+        }
+
+        var environment = base
+        environment["TMPDIR"] = runtimeDirectory.path
+        environment["COPILOT_MANAGED_BY"] = "controltower"
+        return environment
+    }
+}
+
 // MARK: - The CLI client
 
 /// The single seam every CLI call in this app goes through. A plain `actor`
@@ -367,9 +400,14 @@ actor CliClient {
 
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
+                guard let childEnvironment = CliRuntimeEnvironment.childProcessEnvironment() else {
+                    continuation.resume(returning: .failure(.launchFailed))
+                    return
+                }
                 let process = Process()
                 process.executableURL = executableURL
                 process.arguments = args
+                process.environment = childEnvironment
 
                 let stdoutPipe = Pipe()
                 let stderrPipe = Pipe()
@@ -518,21 +556,24 @@ actor CliClient {
     /// doc comment on `adopt_existing`). Appended only when non-empty so an
     /// ordinary plan/apply call's argv is unchanged from before this flag
     /// existed.
-    func ecosystemOnboardPlan(products: [String], adoptExisting: [String] = []) async -> Result<EcosystemOnboardReport, CliError> {
-        await decodeVerb(onboardArguments(org: "auto", products: products, apply: false, adoptExisting: adoptExisting))
+    func ecosystemOnboardPlan(products: [String], adoptExisting: [String] = [], repositoryRoot: String? = nil) async -> Result<EcosystemOnboardReport, CliError> {
+        await decodeVerb(onboardArguments(org: "auto", products: products, apply: false, adoptExisting: adoptExisting, repositoryRoot: repositoryRoot))
     }
 
-    func ecosystemOnboardApply(products: [String], adoptExisting: [String] = []) async -> Result<EcosystemOnboardReport, CliError> {
-        await decodeVerb(onboardArguments(org: "auto", products: products, apply: true, adoptExisting: adoptExisting))
+    func ecosystemOnboardApply(products: [String], adoptExisting: [String] = [], repositoryRoot: String? = nil) async -> Result<EcosystemOnboardReport, CliError> {
+        await decodeVerb(onboardArguments(org: "auto", products: products, apply: true, adoptExisting: adoptExisting, repositoryRoot: repositoryRoot))
     }
 
-    private func onboardArguments(org: String, products: [String], apply: Bool, adoptExisting: [String]) -> [String] {
+    private func onboardArguments(org: String, products: [String], apply: Bool, adoptExisting: [String], repositoryRoot: String?) -> [String] {
         var arguments = ["onboard", "--org", org, "--products", products.joined(separator: ",")]
         if apply {
             arguments.append("--apply")
         }
         if !adoptExisting.isEmpty {
             arguments.append(contentsOf: ["--adopt-existing", adoptExisting.joined(separator: ",")])
+        }
+        if let repositoryRoot, !repositoryRoot.isEmpty {
+            arguments.append(contentsOf: ["--repository-root", repositoryRoot])
         }
         arguments.append("--json")
         return arguments

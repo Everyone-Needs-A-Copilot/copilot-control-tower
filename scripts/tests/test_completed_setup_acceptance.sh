@@ -27,7 +27,7 @@ assert_source "Personal checks request all components" \
     'components: UserSettingsComponent\.allCases\.map' \
     native/user-settings.swift
 assert_source "readiness remains truthful when Personal is incomplete" \
-    'Your copilots work, but Personal setup is incomplete' \
+    'Your Copilot setup is incomplete' \
     native/user-settings.swift
 assert_source "Personal and private are distinguished" \
     'Personal is yours; its repository is private' \

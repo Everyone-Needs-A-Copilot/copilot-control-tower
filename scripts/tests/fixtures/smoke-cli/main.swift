@@ -59,6 +59,30 @@ do {
 }
 try? FileManager.default.removeItem(at: locatorRoot)
 
+let runtimeHome = FileManager.default.temporaryDirectory
+    .appendingPathComponent("control-tower-runtime-home-\(UUID().uuidString)")
+if let childEnvironment = CliRuntimeEnvironment.childProcessEnvironment(
+    base: ["HOME": runtimeHome.path, "TMPDIR": "/an/untrusted/shared/tmp"]
+) {
+    let expectedRuntimeDirectory = runtimeHome
+        .appendingPathComponent(
+            "Library/Caches/com.everyoneneedsacopilot.controltower/cc-runtime",
+            isDirectory: true
+        )
+    check(
+        "cc receives a dedicated app-owned TMPDIR",
+        childEnvironment["TMPDIR"] == expectedRuntimeDirectory.path
+            && FileManager.default.fileExists(atPath: expectedRuntimeDirectory.path)
+    )
+    check(
+        "cc self-update remains owned by Control Tower",
+        childEnvironment["COPILOT_MANAGED_BY"] == "controltower"
+    )
+} else {
+    check("cc runtime environment can be created", false)
+}
+try? FileManager.default.removeItem(at: runtimeHome)
+
 setenv("CT_CLI_PATH", mockCC, 1)
 
 // MARK: - doctor: print badge + sentence for every corpus fixture
