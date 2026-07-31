@@ -5,7 +5,7 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the 0.2.4 release-candidate record as of 2026-07-31.** The previous
+> **This is the 0.2.4 release-completion record as of 2026-07-31.** The previous
 > handoff remains implementation and release history. The checked-in package
 > embeds the separately signed and Apple-notarized cc 1.7.16 universal helper.
 > It inventories and prepares the complete visible Knowledge, CLI, Claude, and
@@ -64,10 +64,10 @@ Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 →
 Historical release status: signed and notarized Control Tower 0.1.9 passed
 clean-install and installed-artifact verification
 
-Current release status: Control Tower 0.2.4 source and cc 1.7.16 are in final
-release verification. The helper is signed, universal, Apple-notarized, and
-pinned by exact SHA-256. The historical 0.2.3 closure remains below; the 0.2.4
-closure is recorded only after its app and DMG pass notarization and Gatekeeper.
+Current release status: Control Tower 0.2.4 and cc 1.7.16 are published. The
+helper, app, and DMG are signed and Apple-notarized; the app and DMG are stapled
+and pass Gatekeeper. All eleven downloaded release assets match the locally
+verified originals byte for byte.
 
 ## Start Here
 
@@ -225,6 +225,51 @@ Measured results:
 - the release helper is cc 1.7.16 from signed foundation snapshot `v5.13.18`,
   accepted by Apple notarization, universal for arm64 and x86_64, and pinned by
   SHA-256 in `packaging/cc/PINNED_SHA256`.
+
+## 0.2.4 Release Closure
+
+The visible, Department-aware ecosystem boundary is closed:
+
+- Control Tower tag `v0.2.4` resolves to source commit
+  `b84aa2b17d44012f679fb0dee9c97ef378114fea`.
+- The release app is version 0.2.4, build 15, with cc 1.7.16 pinned at
+  `487cec005e4ba8699b14b566ec12444f8f6e39c56d398586ca0180657ec7d201`.
+- The helper release-tool source is
+  `761c0dc83b57a8e064473eb70072f61242c5cde9`. Its signed foundation snapshot
+  is tag `v5.13.18` at commit
+  `2a2a6323d4fdf1c8cb5e9373096032fa84328830`.
+- Apple accepted helper submission
+  `95dc8fb8-8b96-4fc7-a78d-fec27aa07d25`, app submission
+  `cc3c8f13-55ab-4163-9f57-5db6adf19a5a`, and DMG submission
+  `9d9a39e4-7597-4c9a-a068-d1cfe54eab96`.
+- The app and DMG are stapled and pass Gatekeeper. The final DMG SHA-256 is
+  `d1040a0d97275dc76107a2303baec1ddce135659f6370170c02c57e7000e97ca`.
+- Helper QA passed the onboarding, update, resolver, Doctor, configuration,
+  sixteen-layer, Department-entitlement, visible-root, non-empty-resolution,
+  working-tree preservation, and legacy-Personal migration suites.
+- Application QA passed all Rust targets (700 core tests plus integration and
+  fitness targets), the 216-case Admin bootstrap suite, the 126-scenario suite,
+  schema and vendored-helper release gates, native User/Admin builds, project
+  aftercare gates, and the walkthrough matrix at **40/40, 100%, zero critical
+  failures**.
+- The exact signed app passed the project/topology binary self-test and a full
+  headless `Set up → Verify` transaction with its embedded helper.
+- All eleven helper and app release assets were downloaded after publication
+  and matched the locally verified originals byte for byte; both published
+  checksum files passed again.
+- The app release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/releases/tag/v0.2.4`;
+  the helper release is published at
+  `https://github.com/Everyone-Needs-A-Copilot/claude-copilot/releases/tag/v5.13.18`.
+- The exact checked-in release artifacts are under
+  `release/control-tower-0.2.4-b84aa2b/`.
+
+Installing 0.2.4 remains read-only. **Finish Copilot Setup** is the explicit
+review-and-apply route. It shows one visible repository folder and sixteen
+component-by-layer rows for this machine, distinguishes remote existence from
+local checkout and verification, includes the active Accounting entitlement,
+and never treats a hidden-only Personal mirror as complete. A person may finish
+the ecosystem now and return to individual project aftercare later.
 
 ## 0.2.3 Release Closure
 
