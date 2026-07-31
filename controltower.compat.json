@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
-  "app_version": "0.2.2",
+  "app_version": "0.2.3",
   "cc": {
-    "minimum_version": "1.7.14",
+    "minimum_version": "1.7.15",
     "maximum_exclusive_version": "2.0.0",
     "schema_version": {
       "minimum": "1.0",

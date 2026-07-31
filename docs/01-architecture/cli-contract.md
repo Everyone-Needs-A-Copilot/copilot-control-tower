@@ -81,16 +81,27 @@ The transaction has two explicit authority stages:
 The personal repository gate deliberately separates `plan` from `--apply`,
 resolves the owner from `gh api user`, and treats only an explicit HTTP 404 as
 absence. The aggregate transaction now coordinates that gate with device
-identity, manifest adoption, store provisioning, product-aware materialization,
-Codex registration, and doctor evidence.
+identity, manifest adoption, store provisioning, product-aware synchronization,
+Codex registration, and doctor evidence. The `--products` option selects
+assistant runtimes (`claude`, `codex`); it does not narrow the ecosystem roster.
+Knowledge and CLI are always included alongside the selected runtimes.
 
-For ENAC, which has no departments, every requested product must report exactly
-`personal (10) -> organization (30) -> foundation (40)`. Resolution keys are
-`(product, dimension, item)`; ranks compete only inside one product. Each product
-has an allowlisted target map (for example Codex user skills in
-`~/.agents/skills`, native personal agents in `~/.codex/agents`, and global
-instructions in `~/.codex/AGENTS.md`). Same-named Claude and Codex skills must
-coexist rather than shadow across products.
+For ENAC, which has no departments, each of Knowledge, CLI, Claude, and Codex
+must report exactly `personal (10) -> organization (30) -> foundation (40)`.
+Knowledge and CLI synchronize into product-owned, read-only mirror trees for
+their native consumers. Their repositories are never flattened into the Claude
+or Codex materialization roots. Claude and Codex keep their allowlisted target
+maps (for example Codex user skills in `~/.agents/skills`, native personal
+agents in `~/.codex/agents`, and global instructions in `~/.codex/AGENTS.md`).
+Resolution keys are `(product, dimension, item)`; ranks compete only inside one
+product, so same-named capabilities coexist rather than shadow across products.
+
+After all four product stacks synchronize and `doctor` reports healthy, setup
+commits the manifest pointer and ordered Knowledge mirror paths in one atomic
+machine-config write. `doctor.checkers[].layer_role` is the canonical, closed
+role (`foundation`, `organization`, `department`, or `personal`) that UI clients
+render. `checkers[].layer` remains an opaque manifest identifier and must not be
+parsed for role semantics.
 
 Production materialization remains fail-closed until executable remote content
 passes the ratified signature/policy check. Output may include repository owner,
@@ -105,12 +116,13 @@ already-passing mutations.
 
 **Adoption contract.** `inventory[].action` is one of `reuse`, `create`,
 `migrate`, `repair`, or `review`. A supported `component:` predecessor can be
-translated to `product:` and merged; products outside the requested
-Claude/Codex stacks are retained. Before `migrate` or `repair`, the original
-manifest bytes are stored in a content-addressed local rollback directory.
-`review` always stops the transaction before personal repository, SSH, store,
-or manifest mutation. Control Tower renders these actions and never computes
-compatibility itself.
+translated to `product:` and merged. A recognized eight-layer predecessor with
+managed CLI, Claude, and Codex stacks may be repaired additively to the complete
+twelve-layer roster. Before `migrate` or `repair`, the original manifest bytes
+are stored in a content-addressed local rollback directory; locally authored
+Knowledge and CLI repositories are never modified. `review` always stops the
+transaction before personal repository, SSH, store, or manifest mutation.
+Control Tower renders these actions and never computes compatibility itself.
 
 ## Concurrency (the double-write fix)
 

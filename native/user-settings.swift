@@ -93,19 +93,16 @@ enum UserSettingsRender {
             let foundation = checkerTier(
                 component: component,
                 layer: .foundation,
-                aliases: ["foundation"],
                 doctor: doctor
             )
             let organization = checkerTier(
                 component: component,
                 layer: .org,
-                aliases: ["org", "organization", "org-internal"],
                 doctor: doctor
             )
             let department = checkerTier(
                 component: component,
                 layer: .dept,
-                aliases: ["dept", "department"],
                 doctor: doctor,
                 absentKind: layers == nil ? .couldNotCheck : .notJoined,
                 absentState: layers == nil ? "Could not check" : "Not joined",
@@ -157,7 +154,6 @@ enum UserSettingsRender {
     private static func checkerTier(
         component: UserSettingsComponent,
         layer: Layer,
-        aliases: Set<String>,
         doctor: DoctorReport?,
         absentKind: UserSettingsTierKind = .needsAttention,
         absentState: String = "Not connected",
@@ -174,10 +170,7 @@ enum UserSettingsRender {
         }
         let matching = doctor.checkers.filter {
             $0.product == component.rawValue
-                && $0.layer.map { layerName in
-                    aliases.contains(layerName)
-                        || aliases.contains(where: { layerName.hasSuffix("-\($0)") })
-                } == true
+                && $0.layerRole == canonicalRole(layer)
         }
         guard !matching.isEmpty else {
             return UserSettingsTierStatus(
@@ -219,6 +212,15 @@ enum UserSettingsRender {
                 detail: detail,
                 kind: .needsAttention
             )
+        }
+    }
+
+    private static func canonicalRole(_ layer: Layer) -> String {
+        switch layer {
+        case .foundation: return "foundation"
+        case .org: return "organization"
+        case .dept: return "department"
+        case .personal: return "personal"
         }
     }
 

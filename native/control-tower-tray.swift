@@ -3667,10 +3667,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "status": "healthy",
           "offline": false,
           "checkers": [
-            {"id": "claude-foundation", "severity": "pass", "detail": "Foundation ready.", "repair": null, "destructive": false, "layer": "claude-foundation", "product": "claude", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
-            {"id": "claude-org", "severity": "pass", "detail": "Organization ready.", "repair": null, "destructive": false, "layer": "claude-organization", "product": "claude", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
-            {"id": "codex-foundation", "severity": "pass", "detail": "Foundation ready.", "repair": null, "destructive": false, "layer": "codex-foundation", "product": "codex", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
-            {"id": "codex-org", "severity": "pass", "detail": "Organization ready.", "repair": null, "destructive": false, "layer": "codex-organization", "product": "codex", "local_sha": null, "remote_sha": null, "path": null, "escalate": null}
+            {"id": "knowledge-foundation", "severity": "pass", "detail": "Foundation ready.", "repair": null, "destructive": false, "layer": "knowledge-foundation", "layer_role": "foundation", "product": "knowledge", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "knowledge-org", "severity": "pass", "detail": "Organization ready.", "repair": null, "destructive": false, "layer": "knowledge-organization", "layer_role": "organization", "product": "knowledge", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "cli-foundation", "severity": "pass", "detail": "Foundation ready.", "repair": null, "destructive": false, "layer": "foundation", "layer_role": "foundation", "product": "cli", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "cli-org", "severity": "pass", "detail": "Organization ready.", "repair": null, "destructive": false, "layer": "org-internal", "layer_role": "organization", "product": "cli", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "claude-foundation", "severity": "pass", "detail": "Foundation ready.", "repair": null, "destructive": false, "layer": "claude-foundation", "layer_role": "foundation", "product": "claude", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "claude-org", "severity": "pass", "detail": "Organization ready.", "repair": null, "destructive": false, "layer": "claude-organization", "layer_role": "organization", "product": "claude", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "codex-foundation", "severity": "pass", "detail": "Foundation ready.", "repair": null, "destructive": false, "layer": "codex-foundation", "layer_role": "foundation", "product": "codex", "local_sha": null, "remote_sha": null, "path": null, "escalate": null},
+            {"id": "codex-org", "severity": "pass", "detail": "Organization ready.", "repair": null, "destructive": false, "layer": "codex-organization", "layer_role": "organization", "product": "codex", "local_sha": null, "remote_sha": null, "path": null, "escalate": null}
           ],
           "auth": []
         }
@@ -3700,8 +3704,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             && settingsComponents.first(where: { $0.id == .knowledge })?
                 .tiers.last?.kind == .needsSetup
+            && settingsComponents.first(where: { $0.id == .knowledge })?
+                .tiers.first?.kind == .ready
+            && settingsComponents.first(where: { $0.id == .knowledge })?
+                .tiers.dropFirst().first?.kind == .ready
             && settingsComponents.first(where: { $0.id == .cli })?
                 .tiers.last?.kind == .needsSetup
+            && settingsComponents.first(where: { $0.id == .cli })?
+                .tiers.first?.kind == .ready
+            && settingsComponents.first(where: { $0.id == .cli })?
+                .tiers.dropFirst().first?.kind == .ready
             && settingsComponents.first(where: { $0.id == .claude })?
                 .tiers.last?.kind == .ready
             && settingsComponents.first(where: { $0.id == .codex })?

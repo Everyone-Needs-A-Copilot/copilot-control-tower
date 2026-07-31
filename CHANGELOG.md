@@ -2,6 +2,38 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.2.3] - 2026-07-31
+
+### Fixed
+
+- Existing installations now adopt the complete Knowledge, CLI, Claude, and
+  Codex topology instead of leaving Knowledge absent and CLI incomplete.
+- Knowledge and CLI Foundation and Organization status is backed by canonical
+  Doctor evidence, so Control Tower no longer misses repositories merely
+  because their managed layer identifiers use different names.
+- A recognized eight-layer setup is repaired additively to twelve layers while
+  preserving authored repositories and an exact rollback copy.
+
+### Changed
+
+- Knowledge and CLI are synchronized into product-owned read-only mirrors for
+  their native consumers. Claude and Codex continue to use their own
+  materialization roots.
+- Settings renders Foundation, Organization, Department, and Personal from the
+  helper's canonical tier role rather than guessing from layer names.
+- Admin handoffs now publish Knowledge and CLI component refs alongside the
+  selected Claude/Codex assistants.
+
+### QA
+
+- Added existing-machine migration, atomic pointer commit, product-isolated
+  mirror, canonical role, rollback, and full four-component UI regressions.
+
+### Rollback
+
+- Reinstall the signed `0.2.2` DMG to return to the previous release. Release
+  tags are immutable; supersede a defective build with a new version.
+
 ## [0.2.2] - 2026-07-31
 
 ### Fixed

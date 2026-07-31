@@ -30,6 +30,8 @@ ECOSYSTEM_SCHEMA_VERSION="2.0"
 # Codex version merely because both products share one ecosystem.
 FOUNDATION_CLAUDE_REF="^5.8.0"
 FOUNDATION_CODEX_REF="^0.6.0"
+FOUNDATION_KNOWLEDGE_REF="^0.1.0"
+FOUNDATION_CLI_REF="^0.3.0"
 # The public GitHub org that owns every foundation component repo
 # (<component>-copilot), read over anonymous HTTPS — no credential assumptions.
 FOUNDATION_ORG="Everyone-Needs-A-Copilot"
@@ -185,6 +187,8 @@ _valid_github_oauth_client_id() {
 
 _foundation_ref_for() {
   case "$1" in
+    knowledge) printf '%s' "$FOUNDATION_KNOWLEDGE_REF" ;;
+    cli) printf '%s' "$FOUNDATION_CLI_REF" ;;
     claude) printf '%s' "$FOUNDATION_CLAUDE_REF" ;;
     codex) printf '%s' "$FOUNDATION_CODEX_REF" ;;
     *) return 1 ;;
@@ -1046,6 +1050,7 @@ _resolve_foundation_pin() {
 
 # Reader state, set by _read_ecosystem_state.
 _STATE_HARNESS=()
+_STATE_COMPONENTS=()
 _STATE_DEPT_UNITS=()
 _STATE_STORE_STATUS=""
 _STATE_STORE_TYPE=""
@@ -1058,6 +1063,8 @@ _STATE_GITHUB_CLIENT_ID=""
 _STATE_FOUNDATION_LEGACY_REF=""
 _STATE_FOUNDATION_CLAUDE_REF=""
 _STATE_FOUNDATION_CODEX_REF=""
+_STATE_FOUNDATION_KNOWLEDGE_REF=""
+_STATE_FOUNDATION_CLI_REF=""
 _STATE_PERSONAL_OWNER=""
 _STATE_PERSONAL_RANK=""
 _STATE_PERSONAL_REPOSITORY_PATTERN=""
@@ -1074,6 +1081,7 @@ _yaml_unquote() {
 _read_ecosystem_state() {
   local content="$1"
   _STATE_HARNESS=()
+  _STATE_COMPONENTS=()
   _STATE_DEPT_UNITS=()
   _STATE_STORE_STATUS=""
   _STATE_STORE_TYPE=""
@@ -1086,6 +1094,8 @@ _read_ecosystem_state() {
   _STATE_FOUNDATION_LEGACY_REF=""
   _STATE_FOUNDATION_CLAUDE_REF=""
   _STATE_FOUNDATION_CODEX_REF=""
+  _STATE_FOUNDATION_KNOWLEDGE_REF=""
+  _STATE_FOUNDATION_CLI_REF=""
   _STATE_PERSONAL_OWNER=""
   _STATE_PERSONAL_RANK=""
   _STATE_PERSONAL_REPOSITORY_PATTERN=""
@@ -1111,6 +1121,8 @@ _read_ecosystem_state() {
         trimmed="${line#  - }"
         if [[ "$section" == "harness" ]]; then
           _STATE_HARNESS+=("$trimmed")
+        elif [[ "$section" == "components" ]]; then
+          _STATE_COMPONENTS+=("$trimmed")
         elif [[ "$section" == "departments" ]]; then
           if [[ "$trimmed" == unit:* ]]; then
             trimmed="${trimmed#unit:}"
@@ -1154,6 +1166,12 @@ _read_ecosystem_state() {
         ;;
       "    codex: "*)
         [[ "$section" == "foundation-refs" ]] && _STATE_FOUNDATION_CODEX_REF="$(_yaml_unquote "${line#    codex: }")"
+        ;;
+      "    knowledge: "*)
+        [[ "$section" == "foundation-refs" ]] && _STATE_FOUNDATION_KNOWLEDGE_REF="$(_yaml_unquote "${line#    knowledge: }")"
+        ;;
+      "    cli: "*)
+        [[ "$section" == "foundation-refs" ]] && _STATE_FOUNDATION_CLI_REF="$(_yaml_unquote "${line#    cli: }")"
         ;;
       "  owner: "*)
         [[ "$section" == "personal" ]] && _STATE_PERSONAL_OWNER="${line#  owner: }"
@@ -1216,7 +1234,7 @@ _render_ecosystem_yml() {
   printf '  client_id: "%s"\n' "$GITHUB_OAUTH_CLIENT_ID"
   printf 'foundation:\n'
   printf '  refs:\n'
-  for h in "${MERGE_HARNESS[@]}"; do
+  for h in "${MERGE_COMPONENTS[@]}"; do
     printf '    %s: "%s"\n' "$h" "$(_foundation_ref_for "$h")"
   done
   printf 'personal:\n'
@@ -1239,9 +1257,12 @@ _assert_existing_ecosystem_compatible() {
     || [[ -n "$_STATE_PERSONAL_REPOSITORY_PATTERN" && "$_STATE_PERSONAL_REPOSITORY_PATTERN" != "<user>/<component>-copilot-private" ]]; then
     refuse "ecosystem-yml" "$org/$target_repo carries a different personal handoff contract. I won't rewrite personal ownership or repository naming automatically."
   fi
-  for h in "${HARNESS_LIST[@]}"; do
+  local expected_components=(knowledge cli "${HARNESS_LIST[@]}")
+  for h in "${expected_components[@]}"; do
     desired_ref="$(_foundation_ref_for "$h")"
     case "$h" in
+      knowledge) existing_ref="$_STATE_FOUNDATION_KNOWLEDGE_REF" ;;
+      cli) existing_ref="$_STATE_FOUNDATION_CLI_REF" ;;
       claude) existing_ref="$_STATE_FOUNDATION_CLAUDE_REF" ;;
       codex) existing_ref="$_STATE_FOUNDATION_CODEX_REF" ;;
     esac
@@ -1962,6 +1983,7 @@ _check_ecosystem_file() {
   fi
   _read_ecosystem_state "$content"
   local h missing_h=() u missing_u=() missing_config=() actual_ref desired_ref
+  local expected_components=(knowledge cli "${HARNESS_LIST[@]}")
   for h in "${HARNESS_LIST[@]}"; do
     _array_contains "$h" "${_STATE_HARNESS[@]+"${_STATE_HARNESS[@]}"}" || missing_h+=("$h")
   done
@@ -1979,9 +2001,14 @@ _check_ecosystem_file() {
     || "$_STATE_PERSONAL_REPOSITORY_PATTERN" != "<user>/<component>-copilot-private" ]]; then
     missing_config+=("personal handoff")
   fi
-  for h in "${HARNESS_LIST[@]}"; do
+  for h in "${expected_components[@]}"; do
+    _array_contains "$h" "${_STATE_COMPONENTS[@]+"${_STATE_COMPONENTS[@]}"}" || missing_config+=("components.$h")
+  done
+  for h in "${expected_components[@]}"; do
     desired_ref="$(_foundation_ref_for "$h")"
     case "$h" in
+      knowledge) actual_ref="$_STATE_FOUNDATION_KNOWLEDGE_REF" ;;
+      cli) actual_ref="$_STATE_FOUNDATION_CLI_REF" ;;
       claude) actual_ref="$_STATE_FOUNDATION_CLAUDE_REF" ;;
       codex) actual_ref="$_STATE_FOUNDATION_CODEX_REF" ;;
     esac

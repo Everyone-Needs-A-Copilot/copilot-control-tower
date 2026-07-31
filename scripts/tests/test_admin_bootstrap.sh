@@ -289,6 +289,8 @@ test_fresh_standup_full_matrix() {
   ecosystem_content="$(cat "$st/repos/acme-co/codex-copilot-internal/refs/main/ecosystem.yml")"
   assert_contains "test1: ecosystem.yml carries the public OAuth client ID" "$ecosystem_content" 'client_id: "Iv1.a1b2c3d4e5f6a7b8"'
   assert_contains "test1: ecosystem.yml carries the Codex-specific foundation pin" "$ecosystem_content" 'codex: "^0.6.0"'
+  assert_contains "test1: ecosystem.yml carries the Knowledge-specific foundation pin" "$ecosystem_content" 'knowledge: "^0.1.0"'
+  assert_contains "test1: ecosystem.yml carries the CLI-specific foundation pin" "$ecosystem_content" 'cli: "^0.3.0"'
   assert_contains "test1: ecosystem.yml delegates personal ownership to User Setup" "$ecosystem_content" 'owner: user'
   assert_contains "test1: personal repositories stay private-patterned and user-owned" "$ecosystem_content" 'repository_pattern: "<user>/<component>-copilot-private"'
 

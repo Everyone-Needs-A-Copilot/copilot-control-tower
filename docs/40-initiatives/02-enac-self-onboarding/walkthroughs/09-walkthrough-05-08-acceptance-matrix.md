@@ -31,7 +31,7 @@ scripts/tests/test_walkthrough_05_08_acceptance.sh
 
 That override proves functional compatibility only. The default release gate
 uses `packaging/cc/cc`, which must remain the separately signed, notarized
-1.7.14 universal artifact and must pass
+1.7.15 universal artifact and must pass
 `scripts/verify-vendored-cc.sh --release packaging/cc/cc`.
 
 | Range | Acceptance surface | Evidence |
@@ -43,7 +43,7 @@ uses `packaging/cc/cc`, which must remain the separately signed, notarized
 | PKG-01…02 | Exact embedded helper version and verbs | Executed helper boundary |
 | CLEAN-01…02 | Clean-home classifications and `safe-finish → Ready → verify` | Executed helper against authoritative framework sources |
 
-Current source truth: the checked-in cc 1.7.14 package and revised native
+Current source truth: the checked-in cc 1.7.15 package and revised native
 implementation pass **40/40 (100%)** with zero critical failures. The signed,
 notarized 0.2.2 release artifact passed the same **40/40** matrix against its
 exact embedded helper. Earlier releases remain historical.

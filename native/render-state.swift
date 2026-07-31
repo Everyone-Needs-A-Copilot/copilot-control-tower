@@ -184,7 +184,7 @@ extension RenderState {
             ?? doctor.checkers.first(where: { $0.severity == .warn })
         guard let checker = worst else { return nil }
         let name = checker.product.map(displayName(forProduct:)) ?? "Something"
-        return (name, plainLayer(checker.layer))
+        return (name, plainLayer(checker.layerRole ?? checker.layer))
     }
 
     // MARK: Component tree (group checkers by product x layer)
@@ -211,7 +211,9 @@ extension RenderState {
         return order.map { product in
             let productCheckers = byProduct[product] ?? []
             let layerViews = Layer.allCases.compactMap { layer -> LayerView? in
-                let layerCheckers = productCheckers.filter { $0.layer == layer.rawValue }
+                let layerCheckers = productCheckers.filter {
+                    $0.layerRole == canonicalRole(layer)
+                }
                 guard !layerCheckers.isEmpty else { return nil }
                 let worst = worstSeverity(of: layerCheckers)
                 let detail = layerCheckers.first(where: { $0.severity == worst })?.detail
@@ -234,6 +236,15 @@ extension RenderState {
         if checkers.contains(where: { $0.severity == .fail }) { return .fail }
         if checkers.contains(where: { $0.severity == .warn }) { return .warn }
         return .pass
+    }
+
+    private static func canonicalRole(_ layer: Layer) -> String {
+        switch layer {
+        case .foundation: return "foundation"
+        case .org: return "organization"
+        case .dept: return "department"
+        case .personal: return "personal"
+        }
     }
 
     private static func displayBadge(_ severity: CliSeverity) -> BadgeState {

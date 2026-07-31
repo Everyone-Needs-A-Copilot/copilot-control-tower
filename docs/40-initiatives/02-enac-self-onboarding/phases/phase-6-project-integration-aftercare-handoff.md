@@ -5,12 +5,12 @@
 > Previous handoff:
 > [`phase-6-v0.1.3-user-install-handoff.md`](phase-6-v0.1.3-user-install-handoff.md)
 >
-> **This is the 0.2.2 release-completion record as of 2026-07-31.** The previous
+> **This is the 0.2.3 release-candidate record as of 2026-07-31.** The previous
 > handoff remains implementation and release history. The checked-in package
-> now embeds the separately signed and Apple-notarized cc 1.7.14 universal
-> helper, exposes the complete four-component/four-tier ecosystem after setup,
-> passes both the walkthrough and completed-setup acceptance gates, and can
-> launch guided Codex or Claude Code work in a visible Terminal session.
+> now embeds the separately signed and Apple-notarized cc 1.7.15 universal
+> helper. It repairs a recognized eight-layer existing machine to the complete
+> twelve-layer Knowledge, CLI, Claude, and Codex topology without modifying
+> authored repositories, and renders canonical tier evidence after setup.
 
 > **Owner-review closeout, 2026-07-30:** the installed Step 7 experience exposed
 > a continuous 53-project register, unclear category language, dead-end assistant
@@ -37,20 +37,28 @@
 > sends the command before bringing Terminal forward, and gives exact recovery
 > guidance when the assistant, project folder, or Automation permission is
 > unavailable.
+>
+> **Four-component topology closeout, 2026-07-31:** owner testing proved that
+> local Knowledge Foundation and Organization repositories existed while the
+> completed app reported them missing, and that CLI lacked Personal evidence.
+> Task `tc` 201 closes the contract gap: Admin handoffs publish Knowledge and
+> CLI refs, onboarding builds all four product stacks, Knowledge and CLI remain
+> product-owned read-only mirrors, Doctor emits canonical `layer_role`, and the
+> app renders that role without interpreting arbitrary layer identifiers.
 
 Date: 2026-07-31
 Primary repository: `copilot-control-tower`
 Branch: `app-build`
 CLI repository: `claude-copilot`
 CLI branch: `feat/adopt-and-project-setup`
-Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197 → 198 → 199
+Task lineage: `tc` 182 → 183 → 184 → 185 → 187 → 188–193 → 195 → 196 → 197 → 198 → 199 → 200 → 201
 Historical release status: signed and notarized Control Tower 0.1.9 passed
 clean-install and installed-artifact verification
 
-Current release status: truthful completed setup, durable project aftercare,
-and working visible guided-assistant launch are published in signed and
-notarized Control Tower 0.2.2; task 199 owns the defect, implementation,
-release, and artifact QA record
+Current release status: Control Tower 0.2.3 source and cc 1.7.15 passed the
+complete helper, application, migration, rollback, schema, Admin, scenario, and
+walkthrough gates. The final signed app/DMG publication and downloaded-artifact
+verification close task 201.
 
 ## Start Here
 

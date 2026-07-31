@@ -184,6 +184,9 @@ struct Checker: Decodable {
     /// key fails this whole decode; `CliClient` maps that to `.missingSecurityField`.
     let destructive: Bool
     let layer: String?
+    /// Canonical topology role emitted by cc. `layer` is an opaque identity
+    /// and must never be parsed to infer Foundation/Organization/etc.
+    let layerRole: String?
     let product: String?
     let localSha: String?
     let remoteSha: String?
