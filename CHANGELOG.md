@@ -2,6 +2,31 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.3.0] - 2026-08-01
+
+### Changed
+
+- The embedded helper requirement is now `cc 2.0.1`.
+- Onboard's `--json` contract moves to schema `2.0` (a breaking/MAJOR schema bump per the versioning policy): `layers_state` discriminates `reported` from `not-computed`, every `ecosystemLayer` row requires its topology fields, `completed_actions` is required, and resume is blocked-only. The app enforces this via a per-verb schema gate — onboard now requires schema major `2`, every other verb keeps the existing `1.x` floor.
+- `controltower.compat.json`'s `cc` range moves to `2.0.0`–`<3.0.0` (previously `1.7.16`–`<2.0.0`); its `schema_version` range widens to `1.0`–`2.0`.
+
+### Fixed
+
+- The onboard history classifier only claims a clean fast-forward when a merge-base-proven ancestry check passes; the other seven git history states (dirty, ahead-only, diverged, diverged-identical-tree, wrong-origin, unreadable, exact) route to the person instead of being auto-repaired.
+- Apply now asserts `HEAD == target` as a postcondition and reports "already at target" and "fast-forwarded" as distinct outcomes instead of collapsing into one.
+- All deterministic preflight, including the history classifier, now runs before any irreversible GitHub write, so a blocked review row produces zero mutations instead of partially creating repositories first and blocking after.
+- Annotated-tag pins (for example `cli-copilot @ v0.3.1`) now compare the peeled commit SHA rather than the tag object SHA, so a repository sitting exactly at a signed release tag classifies as current/reuse instead of misclassifying as diverged.
+- A `completed_actions` ledger threads through every onboard exit path and every resume hint, so "nothing changed" is only ever a legal claim on an empty ledger, and the app renders that ledger honestly at every site that used to show a generic "nothing changed" message.
+- Try again is now gated on whether the CLI reports the specific failure as retryable, instead of always being offered.
+
+### QA
+
+- Added a sixteen-row, eight-history-state packaged-binary topology gate (`scripts/tests/test_packaged_cc_topology_contract.sh`) that drives the exact packaged `cc` binary — never a mock — against a fully local git fixture and asserts zero mutation, schema validity, and source/packaged parity; `scripts/verify-vendored-cc.sh` runs the same live onboard probe in both placeholder and `--release` modes.
+
+### Rollback
+
+- Reinstall the signed `0.2.4` DMG to return to the previous release; a `0.3.0` fleet member must also fall back to a `cc` version below `2.0.0` since the onboard schema floor is not backward-compatible. Release tags are immutable; supersede a defective build with a new version.
+
 ## [0.2.4] - 2026-07-31
 
 ### Fixed
