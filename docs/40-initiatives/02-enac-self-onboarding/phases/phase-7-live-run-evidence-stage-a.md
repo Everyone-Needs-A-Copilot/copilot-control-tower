@@ -267,3 +267,81 @@ The manifest is confirmed unchanged (`f9d471649fb9262bfc91fb8ae4d2f851a83c91a867
 ### D.6 Verdict for Stage C completion
 
 The specific blocker routed at the end of C.6 (`onboard.py` treating any non-zero materialize exit as fatal, and rollback confirmation re-running the same fail-closed gates against the restored manifest) is **independently confirmed fixed** in `cc` 2.1.1 — verified by reading the diff, verified by the materialize shape changing exactly as predicted (48→1 blocked, 4 held), and verified by the rollback now self-reporting `"rolled-back"` with a byte-identical file instead of the previous false-negative `"rollback-failed"`. Task 215's manifest objective is **still not met**, now blocked by a second, independent, previously-latent gate (the post-materialize `doctor.status != "healthy"` check, tripped by an honest "offline" freshness-pointer/mirror-clone cold-start gap for department/personal/knowledge-tier layers that have never been through this health ladder before). This is not the same bug being routed twice — it is a distinct code path (`doctor.py`/`component_status.py`, not `onboard.py`'s materialize/rollback logic) that the 2.1.1 fix did not touch and was not asked to touch. Routed to @agent-me/the coordinator with full root-cause detail above; not force-workaroundable without fabricating remote refs or local mirror state, which this session's fail-closed mandate rules out.
+
+## Stage C — full acceptance achieved (third fix, cc 2.1.2)
+
+Date: 2026-08-01, evidence gathered 18:45–19:30 UTC (14:45–15:30 local, America/New_York). A third coordinator message reported the D.6 gate fixed in `cc` 2.1.2 (origin `194ae571` on `feat/adopt-and-project-setup`). As with both prior course corrections, the claim was independently verified before acting: fetched and fast-forward-confirmed the branch (already at the target commit — a parallel track had landed it), and read the actual diff before running anything live.
+
+### E.1 Verified the fix by reading the diff, not the message
+
+`git show 194ae571e4691b922cc2d1db0feb4590d4e2f4dd` confirms: the post-materialize gate now counts `doctor.checkers[].severity == "fail"` directly and only rolls back on a nonzero fail count — a warn-only report (including the aggregate `status: "offline"` label) surfaces on the `doctor` stage's own `detail` field and never undoes the manifest write. This is backed by `component_status.py`'s own pre-existing, independently-read contract comment — "This module never emits `severity: 'fail'`" — confirmed still true in the current source (a sync gap is structurally always `warn`). A new `_seed_cold_start_mirrors` function (confirmed present, confirmed calling the same `mirror.clone_or_update_mirror`/`mirror.resolve_transport`/`mirror.EXTERNALLY_CONSUMED_PRODUCTS` symbols already used elsewhere in the codebase — not fabricated names) runs right before the doctor check: for any layer with no published `refs/copilot/lock` pointer and no existing local mirror, it seeds one (best-effort, wrapped so a seeding failure degrades to an honest no-op, never raises past the call site). This directly addresses the exact two-layer-class root cause identified in D.4 (the 4 `knowledge-*` layers and the `claude`/`codex` department-accounting layers). Nothing here weakens a check — `doctor_fail_count` gating is strictly narrower than the prior `status != "healthy"` gate, and the mirror seed only adds real, git-verified local revisions; it never fabricates a lock ref or a sync verdict.
+
+### E.2 Fresh bearings and pre-apply state
+
+`cc --version` confirmed `2.1.2` from `$HOME`. All 16 repositories re-fingerprinted: clean, 0 dirty, `HEAD`s unchanged from D.5. Manifest unchanged: SHA-256 `f9d471649fb9262bfc91fb8ae4d2f851a83c91a8675a6124f003becd8da9762d`, still the pre-apply 8-layer content. A fresh read-only plan showed `claude-foundation` back to `review`/`diverged` — expected, mechanical consequence of the branch moving one more commit past `v5.13.24` (to `194ae571`, the 2.1.2 fix commit itself). A `v5.13.25` tag already existed, both locally and pushed to origin (cut by the parallel track landing the fix); independently verified before trusting it — signature (`git verify-tag`, exit 0, same approved `SHA256:FIfppOkzwXZUAamELQzYoSUQXiEAmTYiVewHe1ACMZo` fingerprint) and tree-match (`v5.13.25^{}^{tree}` equals `HEAD^{tree}` exactly: `62afecaa00aee940724b7fa8826ea42788fa1e1a`). Re-ran the plan: zero review rows, all 16 `reuse`/`current`.
+
+### E.3 THE APPLY — success
+
+`uv run cc onboard --org auto --products claude,codex --repository-root /Volumes/Dev/Sites/COPILOT --apply --json`, run from `$HOME`. **Exit code 0, `"result": "ready"`.**
+
+| Stage | Result | Detail |
+|---|---|---|
+| organization-handoff | ready | |
+| personal-packages | applied | existing 4, created 0 |
+| repository-location | ready | reuse |
+| device-ssh | ready | existing key, registered |
+| **layer-manifest** | **applied** | **16 layers, action `repair`** |
+| secret-store | deferred | Infisical unreachable, non-blocking |
+| codex-plugin | ready | |
+| visible-repositories | ready | 16/16 |
+| materialize | blocked | `blocked: 1, held: 4` — the established, expected shape (1 pre-existing `claude-personal`/`plugins` routing quirk, 4 knowledge-symlink protections) |
+| cli-sync | ready | |
+| **doctor** | **update-available** | score 48; detail: *"Seeded 6 first-time mirror clone(s) before this check. 0 checker(s) failed, 16 reported a warning — only a failure can undo this manifest write."* — surfaced honestly, did not gate |
+| resolve | ready | 8 effective capabilities resolved |
+| personal-repository-location | ready | 4 superseded hidden Personal mirrors quarantined to a recoverable legacy location (`_quarantine_legacy_personal_mirrors`, never-destroy — bytes preserved, not deleted) |
+
+**completed_actions ledger (8 entries):** 1 `layer-manifest` write, 1 `materialization` pass, and **6 `mirror-seed` entries** — `knowledge-personal`, `knowledge-department-accounting`, `knowledge-organization`, `knowledge-foundation`, `claude-department-accounting`, `codex-department-accounting` — exactly the 6 layers D.4's read-only diagnosis had already identified as lacking a mirror. Independently verified 5 of 6 seeded mirrors on disk with real `git rev-parse HEAD` values matching their source repos exactly (`knowledge-department-accounting` → `8ec4104d...`, `knowledge-organization` → `60f32d76...`, `knowledge-foundation` → `4e4bc04d...`, `claude-department-accounting` → `2fa6458b...`, `codex-department-accounting` → `d6da2574...`); the 6th (`knowledge-personal`) was seeded then correctly relocated to `~/.copilot/legacy-mirrors/knowledge-knowledge-personal` by the later `personal-repository-location` stage (a personal-tier layer's canonical checkout is its visible path, so a mirror clone of it is immediately superseded and quarantined, not left as a second live copy — this ran *after* doctor had already passed, so it did not affect the health check that mattered).
+
+### E.4 Manifest before/after
+
+| | Before | After |
+|---|---|---|
+| SHA-256 | `f9d471649fb9262bfc91fb8ae4d2f851a83c91a8675a6124f003becd8da9762d` | `672ce26c8c397d3f23b3af3406e33a4009019c790ad1f7a9195ada25a602910f` |
+| `version` | 1 | 1 |
+| layer count | 8 | 16 |
+| `source.path` populated | 0 of 8 (all `null`) | **16 of 16** |
+
+Full 16-layer table (`id` / `role` / `source.path`):
+
+| id | role | source.path |
+|---|---|---|
+| knowledge-personal | personal | /Volumes/Dev/Sites/COPILOT/knowledge-copilot-private |
+| knowledge-department-accounting | department | /Volumes/Dev/Sites/COPILOT/knowledge-copilot-accounting |
+| knowledge-organization | organization | /Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal |
+| knowledge-foundation | foundation | /Volumes/Dev/Sites/COPILOT/knowledge-copilot |
+| cli-personal | personal | /Volumes/Dev/Sites/COPILOT/cli-copilot-private |
+| cli-department-accounting | department | /Volumes/Dev/Sites/COPILOT/cli-copilot-accounting |
+| org-internal | organization | /Volumes/Dev/Sites/COPILOT/cli-copilot-internal |
+| foundation | foundation | /Volumes/Dev/Sites/COPILOT/cli-copilot |
+| claude-personal | personal | /Volumes/Dev/Sites/COPILOT/claude-copilot-private |
+| claude-department-accounting | department | /Volumes/Dev/Sites/COPILOT/claude-copilot-accounting |
+| claude-organization | organization | /Volumes/Dev/Sites/COPILOT/claude-copilot-internal |
+| claude-foundation | foundation | /Volumes/Dev/Sites/COPILOT/claude-copilot |
+| codex-personal | personal | /Volumes/Dev/Sites/COPILOT/codex-copilot-private |
+| codex-department-accounting | department | /Volumes/Dev/Sites/COPILOT/codex-copilot-accounting |
+| codex-organization | organization | /Volumes/Dev/Sites/COPILOT/codex-copilot-internal |
+| codex-foundation | foundation | /Volumes/Dev/Sites/COPILOT/codex-copilot |
+
+All 4 `*-department-accounting` layers are already present with real paths, written directly by this apply — `cc layers join` was not needed for department completeness (checked and confirmed before attempting any join).
+
+### E.5 Post-verification
+
+- **16/16 repos visible**, all 16 pre-existing repos' `HEAD`/branch/dirty-count byte-identical before and after this apply — confirmed, no unexpected git mutation anywhere.
+- **`cc resolve --explain --json`**: non-empty, 8 resolved capability items against the new 16-layer manifest (`claude-personal` wins 6, `codex-foundation` 1, `knowledge-organization` 1) — the resolver is healthy and reading the new manifest correctly.
+- **`cc doctor --json`** (standalone, from `$HOME`, against the live/new manifest): `status: "offline"`, `score: 53`, 16 `warn`-severity checkers, 0 `fail`. Explained honestly, not glossed over: most of these 16 layers (department/organization/personal roles) carry no executable content dimensions of their own (department repos are seed-only `copilot.layer.yml`; org/personal roles inherit their real content from foundation), so `copilot.lock.json`'s per-layer `_meta` never gets a `source_sha` recorded for them — `component_status.py`'s sync-checker reads that absence as `local: none`/"could not reach remote", which is the same structural cold-start signal D.4 diagnosed, now correctly non-fatal per the E.1 fix rather than gating anything. This is a real, minor, separate observation worth a note for whoever tunes doctor's ladder next (the sync-checker's lockfile-`source_sha` plumbing doesn't appear to populate for content-less layer roles) — it is not a blocker, and the task's own acceptance bar for this step was "doctor stage surfaced not gating," which is exactly what happened both inside the apply (score 48, mirror-seeded, non-fatal) and in this standalone confirmation run.
+- **Final read-only plan re-run**: `"result": "ready"` (top-level, no longer `"changes-required"`) — all 16 layer rows `reuse`/`current`, zero `review`, and `layer-manifest` itself now reads `"result": "ready", "action": "reuse", "detail": "Everything is already described correctly, so I'll keep it as it is."`
+- **Live `/opt/homebrew/bin/copilot` CLI (CLI Copilot)**: `--version` → `copilot-cli 1.4.6`, exit 0; `copilot layers` now shows the full 4-rank `cli` tier chain (`cli-personal` → `cli-department-accounting` → `org-internal` → `foundation`) sourced from the new 16-layer manifest — direct proof the live daily-use tool correctly consumes the new manifest, not just that it didn't crash.
+
+### E.6 Final verdict
+
+**All of task 215's acceptance criteria are now met.** Repository topology: 16/16 visible, 3 orphaned personals adopted (not recreated, `created_at` unchanged), zero destructive git operations across three apply attempts. Foundation rows: honestly cleared via the established signed-snapshot/plain-tag recipes each time the dev branch moved (claude `v5.13.23` → `v5.13.24` → `v5.13.25`, knowledge `v0.1.1`), every tag independently signature- and tree-verified before being trusted, never force-workaround. Manifest: 16 layers, every `source.path` populated, written by a real `cc onboard --apply` (not hand-edited), exit 0, byte-verified before/after. Materialize: the established, expected 4-held/1-blocked shape (never-destroy symlink protection + one pre-existing routing quirk), fully honest, zero forced overrides. Doctor: surfaced, not gating, both inside the apply and in a standalone confirmation. Resolve: non-empty. Live CLI: healthy and demonstrably reading the new topology. Both `cc` bugs this task uncovered along the way (C.6's fatal-materialize/false-negative-rollback, D.6's fatal-doctor-on-cold-start) were routed rather than worked around, and both were independently verified fixed — by reading the actual diffs, not by trusting the fix messages — before this final apply was attempted.
