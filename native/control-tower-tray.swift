@@ -3493,6 +3493,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "products": ["claude", "codex"],
           "components": ["knowledge", "cli", "claude", "codex"],
           "stages": [],
+          "layers_state": "not-computed",
           "layers": [],
           "inventory": [
             {"id": "personal-claude", "scope": "personal", "title": "Your Claude Copilot space", "state": "adoptable", "action": "create", "detail": "Your own content is already in here. I'll keep all of it and add a small note that says it belongs with your copilots.", "source_path": null, "destination_path": null, "reversible": true, "decline_detail": "Without this, Claude Copilot can't be set up on this Mac. You can include it later."},
@@ -3500,7 +3501,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             {"id": "personal-codex", "scope": "personal", "title": "Your Codex Copilot space", "state": "held", "action": "review", "detail": "I don't recognize how this space is set up, so I'll leave it exactly as it is.", "source_path": null, "destination_path": null, "reversible": false},
             {"id": "personal-knowledge", "scope": "personal", "title": "Your Knowledge Copilot space", "state": "ready", "action": "reuse", "detail": "Already set up. Everything in here will be kept.", "source_path": null, "destination_path": null, "reversible": false}
           ],
-          "inventory_summary": {"reused": 1, "changes": 2, "review": 1}
+          "inventory_summary": {"reused": 1, "changes": 2, "review": 1},
+          "completed_actions": []
         }
         """
         guard let inventoryData = inventoryJSON.data(using: .utf8),
@@ -3542,11 +3544,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           "products": ["claude"],
           "components": ["knowledge", "cli", "claude", "codex"],
           "stages": [],
+          "layers_state": "not-computed",
           "layers": [],
           "inventory": [
             {"id": "unmapped-example-row", "scope": "machine", "title": "Something this app doesn't recognize yet", "state": "adoptable", "action": "create", "detail": "Placeholder detail for a hypothetical future ask row.", "source_path": null, "destination_path": null, "reversible": true}
           ],
-          "inventory_summary": {"reused": 0, "changes": 1, "review": 0}
+          "inventory_summary": {"reused": 0, "changes": 1, "review": 0},
+          "completed_actions": []
         }
         """
         guard let unmappedData = unmappedJSON.data(using: .utf8),
