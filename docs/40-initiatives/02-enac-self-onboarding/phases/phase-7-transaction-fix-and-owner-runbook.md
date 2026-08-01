@@ -104,3 +104,62 @@ Read in this order before touching code or running the apply:
 ## Definition of done
 
 Task 215 closes only when stage B's live apply is complete with the acceptance criteria in step 3 above proven on this Mac, with an evidence-bound QA work product. Task 216 closes only when a signed, notarized, Gatekeeper-accepted, published, downloaded, checksum-verified app and helper release exist — not when the code that makes such a release possible merely exists on `origin`. Neither task may be marked done from source-only or fixture-only evidence.
+
+## Stage B — review-row resolution (2026-08-01)
+
+Status: three of the six stage-A review rows are resolved or advanced by this session (`@agent-me`, owner-approved per the qa dossier's recommendations, executed against real repositories with a backup branch per repo and full pre/post verification). `tc` 215 stage B as a whole is **not** complete — the live 16-row apply (owner runbook step 3 above) has not run, and `codex-copilot`'s foundation release remains a separate owner-gated decision. The three dirty-tree review rows (`knowledge-copilot`, `claude-copilot`, `claude-copilot-private`) were correctly left untouched per the HARD RULE governing this session and per the owner runbook's own step 1(c).
+
+### cli-copilot — resolved (review → reuse)
+
+Pre-action facts reconfirmed live and matched stage A exactly: `git status --porcelain` empty, local HEAD `949f37846cf5993766d3726a1f7fbbd4dbec6b45` on branch `hotfix/schema-mismatch-v0.3.1` contained in `origin/hotfix/schema-mismatch-v0.3.1`, `git diff HEAD origin/main --stat` empty (identical trees), `origin/main` at `48cbcf5055e4b6200e5864ddecc666f96c27bf31`, the peeled commit of tag `v0.3.1`.
+
+Backup branch `backup/pre-phase7-reconcile` created at `949f37846cf5993766d3726a1f7fbbd4dbec6b45` (local only, not pushed) before any ref move. Executed `git checkout -B main origin/main`. Post-verification: `git status --porcelain` empty, `git rev-parse HEAD` == `origin/main` == `48cbcf5055e4b6200e5864ddecc666f96c27bf31`, `git diff backup/pre-phase7-reconcile HEAD --stat` empty (content unchanged). The `hotfix/schema-mismatch-v0.3.1` branch and its `origin` counterpart were never touched and remain fully recoverable.
+
+### cli-copilot-internal — resolved (review → reuse)
+
+Pre-action facts reconfirmed live and matched stage A exactly: `git status --porcelain` empty, local HEAD `380c840f9a15f8c0942cc3984f7973f1f543254c` on branch `hotfix/schema-mismatch-v0.1.1` contained in `origin/hotfix/schema-mismatch-v0.1.1`, `git diff HEAD origin/main --stat` empty, `origin/main` at `b27d45cbe478d551d1d53fc270c1c5d472b4a343`, the peeled commit of tag `v0.1.1`.
+
+Backup branch `backup/pre-phase7-reconcile` created at `380c840f9a15f8c0942cc3984f7973f1f543254c` (local only, not pushed). Executed `git checkout -B main origin/main`. Post-verification: `git status --porcelain` empty, `git rev-parse HEAD` == `origin/main` == `b27d45cbe478d551d1d53fc270c1c5d472b4a343`, `git diff backup/pre-phase7-reconcile HEAD --stat` empty. This repo is the live editable-install source of the `copilot` CLI; `/opt/homebrew/bin/copilot --version` was confirmed still running after the checkout (`copilot-cli 1.4.6`). The `hotfix/schema-mismatch-v0.1.1` branch and its `origin` counterpart were never touched.
+
+### codex-copilot — push done; foundation release deliberately not cut
+
+Pre-action facts reconfirmed live and matched stage A exactly: `git status --porcelain` empty, `main...origin/main [ahead 1]`, exactly one unpushed commit `85acbbe949fe5c7235498d6ceab8c78c4ca1589c` (`feat(skills): require ordered walkthrough filenames`, 2 files changed — `plugins/codex-copilot/skills/uids/SKILL.md` and `plugins/codex-copilot/skills/uxd/SKILL.md`, 5 lines each) — confirmed to be the same mundane bookkeeping commit the stage-A dossier already characterized, not unfinished work.
+
+Executed `git push origin main`; GitHub accepted the fast-forward (`c0639a8..85acbbe`). Post-verification: `origin/main` == local `HEAD` == `85acbbe949fe5c7235498d6ceab8c78c4ca1589c`; no divergence remains for the push leg.
+
+**Stopped on cutting `v0.6.2` — the recipe's own gate refuses it, so nothing was hand-rolled.** Located the canonical recipe: `copilot-control-tower/scripts/foundation-snapshot-release.py`, documented at `copilot-control-tower/docs/06-deployment/foundation-release-signing.md` (there is no release-cutting script inside `codex-copilot/scripts/`; `claude-copilot/scripts/verify-foundation-release.sh` is a verify-only companion — read for context only, never executed, and `claude-copilot`'s own dirty tree was never touched). The recipe requires a dedicated ENAC foundation release SSH signing key plus an explicitly approved `SHA256:` fingerprint (`--signing-key` / `--approved-fingerprint`), and the doc's own "Current status" section states plainly: "Public release tags and compiled signer fingerprints remain blocked until a dedicated ENAC release key is selected, registered, and approved." This machine's filesystem and keychain were searched for any such key or fingerprint — none exists. That is a hard trust gate, not a missing convenience, so `v0.6.2` was not cut; `codex-copilot`'s foundation row remains `diverged`/`review`, exactly as this runbook's own step 1(b) already anticipated ("this row will never reach `reuse` on its own"). The manifest pin (`ecosystem.yml`'s `foundation.refs.codex: "^0.6.0"`, resolved live via `gh api` from the org handoff repo `claude-copilot-internal`, not a local file in any repo touched this session) was left untouched since there is no new tag for it to accept.
+
+### Final verification — read-only plan re-run
+
+Ran the documented invocation from `/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc` (local HEAD `8a5cfccd3069889023310b6da3491e4e76517b97`, matching this runbook's own header pin `8a5cfcc`): `TMPDIR=/tmp uv run cc onboard --org auto --products claude,codex --repository-root /Volumes/Dev/Sites/COPILOT --json`. Exit 0, `schema_version: "2.0"`, `result: "changes-required"`, `completed_actions: []`.
+
+Zero-mutation re-fingerprint: the manifest's SHA-256 and mtime are byte-identical to the stage-A baseline (`f9d471649fb9262bfc91fb8ae4d2f851a83c91a8675a6124f003becd8da9762d`, `2026-07-30T14:51:12-0400`); all three repos touched this session (`cli-copilot`, `cli-copilot-internal`, `codex-copilot`) show identical HEAD/branch/porcelain immediately before and after the plan run; the three untouchable repos (`knowledge-copilot`, `claude-copilot`, `claude-copilot-private`) were reconfirmed unchanged from their stage-A HEAD and dirty-line-count baselines — `claude-copilot`'s own HEAD having advanced to `8a5cfcc` between stage A and now is pre-existing upstream dev-branch history that this runbook's own header already records, not a mutation performed by this session; no git command was run against `claude-copilot` at any point, only file reads.
+
+### New 16-row classification (before → after)
+
+| Product | Role | Repository | Stage A (before) | Stage B (after) |
+|---|---|---|---|---|
+| knowledge | personal | knowledge-copilot-private | download | download (unchanged) |
+| knowledge | department | knowledge-copilot-accounting | initialize | initialize (unchanged) |
+| knowledge | organization | knowledge-copilot-internal | reuse (current) | reuse (current), unchanged |
+| knowledge | foundation | knowledge-copilot | review (local-changes) | review (local-changes) — untouched, HARD RULE |
+| cli | personal | cli-copilot-private | download | download (unchanged) |
+| cli | department | cli-copilot-accounting | initialize | initialize (unchanged) |
+| cli | organization | cli-copilot-internal | review (diverged-identical) | **reuse (current) — resolved** |
+| cli | foundation | cli-copilot | review (diverged-identical) | **repair (behind) — advanced, see finding below** |
+| claude | personal | claude-copilot-private | review (local-changes) | review (local-changes) — untouched, HARD RULE |
+| claude | department | claude-copilot-accounting | download | download (unchanged) |
+| claude | organization | claude-copilot-internal | download | download (unchanged) |
+| claude | foundation | claude-copilot | review (local-changes) | review (local-changes) — untouched, HARD RULE |
+| codex | personal | codex-copilot-private | download | download (unchanged) |
+| codex | department | codex-copilot-accounting | download | download (unchanged) |
+| codex | organization | codex-copilot-internal | download | download (unchanged) |
+| codex | foundation | codex-copilot | review (diverged) | review (diverged) — unchanged by design, release gated (see above) |
+
+### Finding: `cli-copilot`'s foundation row lands on `repair`, not `reuse` — a classifier quirk, not a git-state defect
+
+The stage-A dossier's recommended option for `cli-copilot` predicted this row would reach a durable `current`/`reuse` state after the checkout. Live re-verification instead shows `behind`/`repair`. Root cause, traced and reproduced directly against `claude-copilot/tools/cc/src/cc/commands/onboard.py:778` (`_classify_repository_history`, read-only — not edited, since `claude-copilot` is untouchable this session): for the foundation role, the classifier fetches the resolved ref by name (`git fetch <repo> v0.3.1`) and compares local `HEAD` to `FETCH_HEAD`. For an **annotated** tag, `FETCH_HEAD` resolves to the tag object's own SHA (`c4be6cc7e9934906926201051534ff76a672f5db`), not the peeled commit it points at (`48cbcf5055e4b6200e5864ddecc666f96c27bf31`) — reproduced directly: `git fetch git@github-work:Everyone-Needs-A-Copilot/cli-copilot.git v0.3.1` sets `FETCH_HEAD` to the tag object, while `git rev-parse v0.3.1^{}` gives the different, peeled commit SHA. Since local `HEAD` is a commit and can never literally equal a tag object's own SHA, the classifier's exact-match branch (`head_sha == target_sha`) can never succeed for a foundation role pinned to an annotated version tag, no matter how current the checkout is; it falls through to the forward-ancestor check instead, which does succeed (a commit is its own ancestor), yielding `fast-forwardable`/`behind`/`repair` rather than `exact`/`current`/`reuse`. `cli-copilot-internal`'s organization role does not hit this, because its pin is the branch name `main` rather than a tag, so `FETCH_HEAD` there is an ordinary commit SHA and the exact-match branch works as designed (confirmed: it now reports `reuse`). This is a latent classifier defect scoped to `claude-copilot` — out of scope to fix in this session both because that repo's dirty tree is one of the three untouchable repos and because no further git action against `cli-copilot` itself can change the outcome (it is already checked out at the exact commit the tag resolves to). Recommend a follow-up task against `claude-copilot`, owner-scheduled, to peel annotated tags before comparing (e.g. `git rev-parse "${ref}^{commit}"`, or fetching `refs/tags/${ref}:refs/tags/${ref}` and peeling locally) so foundation-role repos pinned to annotated tags can reach `reuse` the way branch-pinned roles already do. Net effect on stage B's eventual apply: `repair` is lower-friction than `review` — the runbook's own step 3 apply will fast-forward it automatically rather than needing a further human decision — so this finding does not block stage B; it is a fidelity gap worth fixing, not a blocker.
+
+### Task bookkeeping
+
+`tc task get 215 --json` confirms the task is still `status: in_progress`, `agent: qa`. This session did not close it — stage B's full live apply (owner runbook step 3) is still outstanding, and `codex-copilot`'s release cut remains owner-gated on step 2 (notarization) and the ENAC foundation release signing key. No `tc` mutation was made this session beyond the confirming read.
