@@ -2,6 +2,22 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.3.2] - 2026-08-01
+
+### Changed
+
+- The embedded helper requirement is now `cc 2.1.2` (0.3.1 shipped `cc 2.0.2`), carrying the never-destroy symlink/clean-repo guard (2.0.3), `knowledge-env list` plus `resolve`/`doctor` fixes (2.0.3), the department catalog and knowledge-skill routing surface (2.1.0), decoupled manifest writes plus pinned-ref signature verification (2.1.1), and the doctor severity gate plus cold-start mirror seeding fix (2.1.2).
+- `docs/01-architecture/schemas/onboard.schema.json` gains an optional `materialize` field on `ecosystemReport` (`$defs.materializeSummary`/`materializeHeldItem`/`materializeBlockedItem`), re-synced from `claude-copilot/tools/cc/tests/fixtures/schemas/onboard.schema.json` where this shape had already shipped. This is a compatible, additive `schema_version` 2.0 minor addition, not a bump — see `cli-contract.md`'s versioning note. Unchanged again for `cc 2.1.2` (byte-identical to the fixture at that commit).
+
+### Fixed
+
+- Held/blocked materialize items are now surfaced honestly in the onboard report instead of being conflated with a failed transaction or omitted entirely.
+- A warn-severity doctor result immediately after materialize no longer rolls back an already-verified manifest write; cold-start mirror seeding is corrected for the first-run case doctor was misreading as fatal.
+
+### Rollback
+
+- Reinstall the signed `0.3.1` DMG to return to the previous release. All of `0.3.0`, `0.3.1`, and `0.3.2` share the same schema `2.0` floor, so no `cc` downgrade is required for this rollback specifically. Release tags are immutable; supersede a defective build with a new version.
+
 ## [0.3.1] - 2026-08-01
 
 ### Fixed

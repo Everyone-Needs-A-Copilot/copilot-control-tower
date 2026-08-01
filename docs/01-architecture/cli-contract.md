@@ -84,6 +84,8 @@ and synthesizes a health verdict.
 
 This is a breaking change for any consumer that read `layers` optimistically (treating a present-but-empty array, or a bare `id`/`product`/`role`/`rank` row, as meaningful topology evidence) — hence the `schema_version` bump. See [`schemas/onboard.schema.json`](schemas/onboard.schema.json) for the full `$defs.ecosystemReport`/`$defs.ecosystemLayer` shape.
 
+**Versioning (2026-08-01, G-9, task 215 blocker fix — compatible, `schema_version` 2.0 minor addition, cc 2.1.1).** An optional `materialize` field is added to `ecosystemReport`, present only once a real apply has actually run the materialize step. Its shape (`$defs.materializeSummary`, reusing `held_items`/`blocked_items` from `$defs.materializeHeldItem`/`$defs.materializeBlockedItem`) reuses `cc update --json`'s own `held_for_approval`/`blocked` vocabulary verbatim — `held`/`blocked` items are never fatal to the transaction's manifest write or overall `result` on their own; they are surfaced here honestly instead of being conflated with failure. This is purely additive: no existing field, enum value, or `required` list changed, so it does not move the `schema_version` major/minor number and every app already reading `schema_version` 2.0 keeps working unchanged whether or not it branches on `materialize`. The canonical schema here was re-synced against `claude-copilot/tools/cc/tests/fixtures/schemas/onboard.schema.json` (the source of truth this shape shipped from) to close a drift where the fixture had gained this shape ahead of the copy in this repo.
+
 The transaction has two explicit authority stages:
 
 1. **Admin/shared:** verify the public foundation, create or verify organization
