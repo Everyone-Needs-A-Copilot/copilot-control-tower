@@ -56,6 +56,8 @@ Recorded verbatim in `cc memory` (entry `9b30dd30`), all six checkpoints ratifie
 
 These are the only steps left. They are ordered — do not skip ahead, since step 3 depends on step 1 being resolved and step 4 depends on step 2.
 
+Need to move a project agent/skill/command up to org or department right now, ahead of `cc publish`? See [`inheritance-and-publish.md`, "Elevating project content today (manual path)"](../../../01-architecture/inheritance-and-publish.md#elevating-project-content-today-manual-path) — copy → commit → push into the tier repo, never a symlink.
+
 ### 1. Resolve the six review rows
 
 The stage-A read-only plan puts six of the sixteen rows in `review`, meaning the apply will not touch them until you decide. Full ancestry evidence, options, and reversibility for the three divergent-history cases is in [`phase-7-live-run-evidence-stage-a.md`](phase-7-live-run-evidence-stage-a.md) §3; this is the short version.
