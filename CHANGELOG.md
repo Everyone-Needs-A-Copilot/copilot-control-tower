@@ -2,6 +2,17 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.3.1] - 2026-08-01
+
+### Fixed
+
+- The onboard history classifier gains a ninth git-history state: a parentless foundation-snapshot pin whose tree is byte-identical to a clean checkout's `HEAD` now classifies `current`/`reuse` instead of the permanent `diverged-identical`/`review` state 0.3.0 could never clear for a foundation-tier repository. This closes the one review row 0.3.0's classifier fix could not reach (a repository pinned via an orphan-snapshot foundation tag, as opposed to an ordinary branch/tag).
+- The embedded helper requirement is now `cc 2.0.2`.
+
+### Rollback
+
+- Reinstall the signed `0.3.0` DMG to return to the previous release. Both `0.3.0` and `0.3.1` share the same schema `2.0` floor, so no `cc` downgrade is required for this rollback specifically. Release tags are immutable; supersede a defective build with a new version.
+
 ## [0.3.0] - 2026-08-01
 
 ### Changed
