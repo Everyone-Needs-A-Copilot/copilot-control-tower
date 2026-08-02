@@ -7427,7 +7427,13 @@ enum WizardSelftest {
                 // that could print a value: the reply carries none.
                 print("SELFTEST connectResult=\(resultToken) mode=\(modeToken) service=\(stateToken) credentials=\(credentials.joined(separator: ","))")
             case .failure(let error):
-                print("SELFTEST connect=error(\(error))")
+                // `missingVerb` is printed for the SAME reason the
+                // connections step above prints it: every released build
+                // before this one bundles a helper with no `connect` verb, so
+                // "this helper is too old" has to be distinguishable from any
+                // other failure, and the sheet appends the update hint on
+                // exactly this classification.
+                print("SELFTEST connect=error(\(error)) missingVerb=\(error.looksLikeMissingConnectionsVerb)")
                 exit(1)
             }
         }

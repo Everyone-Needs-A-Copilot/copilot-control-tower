@@ -1090,6 +1090,30 @@ scenario_S48() {
     assert_contains "${id} connect (partial failure)" "INFISICAL_CLIENT_SECRET:failed"
 }
 
+scenario_S49() {
+    local id="S49"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=verb-unavailable CT_OPEN_WIZARD=1 CT_SELFTEST=1 \
+        CT_SELFTEST_STEP=connect CT_SELFTEST_SERVICE=infisical \
+        CT_SELFTEST_CONNECT_VALUES='{"INFISICAL_CLIENT_ID":"fixture-id","INFISICAL_CLIENT_SECRET":"fixture-secret"}'
+    rm -rf "${home}"
+    # Every RELEASED build before this one bundles a helper with no `connect`
+    # verb at all, so this is the state the first person to press the button
+    # would actually hit if they had not updated. It must classify as a
+    # too-old helper (which is what makes the sheet add the update hint),
+    # never as a generic failure -- and it must still not echo the value.
+    assert_exit_status "${id} connect (verb-unavailable)" 1
+    assert_contains "${id} connect (verb-unavailable)" "connect=error("
+    assert_contains "${id} connect (verb-unavailable)" "missingVerb=true"
+    if [[ "${LAST_OUTPUT}" == *"fixture-secret"* ]]; then
+        fail "${id} connect never echoes a value on failure" "${LAST_OUTPUT}"
+    else
+        pass "${id} connect never echoes a value on failure"
+    fi
+}
+
 # ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
@@ -1210,6 +1234,7 @@ scenario_S45
 scenario_S46
 scenario_S47
 scenario_S48
+scenario_S49
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

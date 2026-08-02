@@ -492,7 +492,20 @@ enum ConnectRender {
         case .notFound, .launchFailed:
             return .unreadable("The setup helper isn't available on this Mac right now, so nothing was saved.")
         default:
-            return .unreadable("Control Tower couldn't save these right now. Nothing was changed.")
+            // An installed helper that predates the `connect` verb produces
+            // the SAME structural exit-2-with-no-envelope shape
+            // `looksLikeMissingConnectionsVerb` already classifies for the
+            // roster read (`connections`). That is not hypothetical: every
+            // released build before this one bundles a helper with no
+            // `connect` verb at all, so without this branch the first person
+            // to press the button they were just promised gets a sentence
+            // with no way forward in it. Reuses the existing classifier and
+            // the existing hint rather than inventing a second reading of the
+            // same failure.
+            let hint = error.looksLikeMissingConnectionsVerb
+                ? " \(ConnectionsRender.updateHint)"
+                : ""
+            return .unreadable("Control Tower couldn't save these right now. Nothing was changed.\(hint)")
         }
     }
 }
