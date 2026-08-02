@@ -1,231 +1,473 @@
-> **Superseded framing.** This document predates the Copilot Solutioning Ecosystem (CSE) realignment. Its MDM/fleet framing and its use of "product" to mean a CSE tool are superseded. The corrected model is in `docs/10-reference/copilot-solutioning-ecosystem.md`; the decisions are in `docs/10-reference/cse-alignment-decisions.md`.
-
 # Service Blueprint
 
-> **Provenance.** Grounded synthesis from `20-journey-maps.md`, `architecture.md` §2–§9,
-> `cli-contract.md` (WS-A), the **primary-evidence owner interview** (2026-07-06,
-> `01-research/10-interviews/01-interview-self.md`; `scratchpad/interview-ground-truth.md`), and the
-> two red-teams. Backstage is given equal weight to frontstage — for this product it is where nearly
-> every failure originates, because Control Tower deliberately owns *no* intelligence: the backstage is
-> the `copilot`/`cc` CLI, `flock`, the `launchd` watchdog, MDM forced-domain config, the minisign trust
-> chain, the telemetry sink, and — new since the interview — the **write/publish path** (Obsidian →
-> push → cadence sync). Prerequisite: journey maps complete.
->
-> **The reframe (primary evidence, 2026-07-06).** The soul is **democratization: give a non-technical
-> person the AI superpowers of a deeply technical one, safely enough to run unattended.** The interview
-> added a **third actor between Pablo (foundation) and Bob (consumer): the trained early-adopter AUTHOR**
-> (org/department writer). This blueprint now carries a **Write/Publish lane** for that actor alongside
-> the Deploy/Consume spine, plus its new failure points (merge-conflict, credentials-carrying, the
-> personal↔shared boundary).
->
-> **Evidence stamps.** **GROUNDED** (Bob's psychology) · **OBSERVED** (Pablo's lived hand-sync pain) ·
-> **MODEL-IN-HEAD** (the multi-writer authoring lane — never run with >1 writer) · **HYPOTHESIS** (the
-> IT/Admin lane — no real operator) · **UNSOLVED** (merge-conflict resolution, credentials-carrier).
->
-> **The five invariants are backstage constraints, not aspirations:**
-> (1) **Parse, never compute** — the app calls CLI verbs and renders; no resolution/health/signature/
-> wipe logic lives in-app. (2) **Single process** — one signed binary; `launchd` is crash-only; the
-> **CLI self-serializes via `flock`**. (3) **Never-destroy** — re-materialize freely, never touch a
-> dirty personal tree. (4) **Security inherited, never weakened** — no `--skip-verify`/`--force`;
-> security keys only from the forced/managed domain. (5) **Route by actor-competence × reversibility.**
->
-> > **⚠ Flagged backstage risk — writable tiers vs. never-destroy.** The Write/Publish lane introduces
-> > *writable, collaborative* org/department tiers. This **strains invariant #3** ("re-materialize
-> > freely, never touch a dirty tree") and the *read-only mirror* model: a mirror the author can *write*
-> > is no longer read-only, and a cadence sync that carries a colleague's change can collide with local
-> > edits (see MTM-7 / F15). Trained-few-writers-first shrinks the blast radius but does **not** remove
-> > it. This is an **open architecture/security problem** (`interview-ground-truth.md` §6), stamped
-> > MODEL-IN-HEAD, not a settled design.
+<!--
+FACILITATION GUIDE — Service Designer
+======================================
+The service blueprint maps the full system — not just what the user
+sees, but what happens behind the scenes to make the experience work.
+
+PREREQUISITE: Journey maps must be completed.
+
+CONVERSATION FLOW:
+1. Map customer actions (what the user does)
+2. Map frontstage (what the user sees and interacts with)
+3. Map backstage (what happens behind the scenes)
+4. Map support processes (systems and infrastructure)
+5. Identify pain points and opportunities in each layer
+
+QUESTIONS TO ASK:
+
+## Round 1: Customer Actions
+- "Walk me through every action the user takes, from first
+  login to completing their primary task."
+- "What decisions does the user make at each step?"
+- "Where does the user need to provide input vs. where does
+  the system work autonomously?"
+
+## Round 2: Frontstage
+- "What does the user see at each step? What's on their screen?"
+- "How does the product communicate what it's doing?"
+- "Where are the waiting moments? What does the user see while
+  the system is working?"
+
+## Round 3: Backstage
+- "What happens behind the scenes at each step?"
+- "What processing, computation, or AI work runs invisibly?"
+- "What data is being created, transformed, or consumed?"
+
+## Round 4: Support Processes
+- "What external systems does this depend on?"
+- "What data stores are needed?"
+- "What third-party APIs are involved?"
+- "What monitoring and alerting is needed?"
+
+## Round 5: Pain Points & Opportunities
+- "Where in this blueprint are the highest-risk areas?"
+- "Where could the system fail silently?"
+- "Where are the biggest opportunities to delight the user?"
+
+SYNTHESIS:
+Present as a layered blueprint showing all four layers aligned
+to the same timeline/journey. Highlight failure points and
+dependencies.
+-->
+
+> **STATUS — rebuilt from evidence 2026-08-02. Describes Copilot Control Tower v0.4.0** (build 19, embedded helper `cc 2.2.0`, notarized arm64 DMG). This replaces a version written 2026-07-17 whose MDM/fleet framing, Rust/Tauri backstage, and telemetry lane no longer describe anything that ships. Every stage, surface, verb, and failure below is read from the shipping code, the released artifacts, the CLI contract, or dated incident evidence in this repository.
 
 ---
 
-## Blueprint spine (stages)
+## The architectural fact this whole blueprint rests on
+
+**Control Tower parses. It never computes.** Every verdict a person reads on screen — this layer is current, this project needs guided setup, this connection is ready, your organization has 20 declared services and three of them are missing credentials — was computed by the `cc` / `copilot` CLI and rendered by the app without judgment added. The app holds no resolution, sync, merge, signature, entitlement, or health logic of its own.
+
+The consequence, stated as a design test rather than a slogan: **if Control Tower vanished from a machine, the CLI would still be correct.** Nothing about the ecosystem's state, safety, or truth depends on the app being installed. The app is a face and a supervisor over a pipeline that is already right without it. The moment that stops being true, the product has failed — this is `CLAUDE.md` invariant #1 and `SOUL.md` Principle 1, and it is the reason the backstage section of this blueprint is longer than the frontstage one.
+
+A concrete illustration shipped in v0.4.0. The wizard's new step 6, "Your connections," renders the organization's full declared service roster with each row's real credential readiness. The app filters on exactly one field — the CLI-computed `secret_state` (`ready` | `needs-connect` | `no-store`) — and never inspects a secret value, never contacts the secret store, and never derives readiness itself. An unrecognized future `secret_state` value is grouped with `no-store`, never with `ready`. That is invariant #1 working exactly as designed, in a feature that could very easily have been built the other way.
+
+---
+
+## Provenance and evidence stamps
+
+Grounded in: `native/*.swift` (the ~22,650-line shipping app), `scripts/admin_bootstrap.sh`, `docs/01-architecture/cli-contract.md`, `docs/01-architecture/inheritance-and-publish.md`, `docs/01-architecture/schemas/` (15 JSON Schemas), `docs/05-security/credentials-and-boundary.md`, `docs/10-reference/cse-alignment-decisions.md` (D1–D10), ADR-001 … ADR-008 (all Accepted), `CHANGELOG.md`, the retained signed releases under `release/`, and two bodies of incident evidence: `docs/40-initiatives/03-schema-mismatch/` (complete) and `docs/40-initiatives/02-enac-self-onboarding/phases/phase-7-live-run-evidence-stage-a.md` (the live run, Stages A → E).
+
+Stamps used below: **SHIPPED** (in the v0.4.0 binary or its release pipeline) · **PROVEN** (exercised in a live run with recorded evidence) · **HYPOTHESIS** (designed, never validated with a real actor) · **DEFERRED** (formally not built, per an Accepted ADR) · **OPEN** (a named, unresolved gap).
+
+---
+
+## Actors and lanes
+
+This service does not have one user and one journey. It has four actors on four lanes that touch at exactly three handoff points, and the handoffs are where it breaks.
+
+| Actor | Lane | Surface | Evidence stamp |
+|---|---|---|---|
+| **The person** (the non-technical consumer — the product's reason to exist) | Adopt → run → keep running | `Copilot Control Tower.app`: 9-stage wizard, menu-bar tray, Settings | SHIPPED; **HYPOTHESIS as an experience** — no independent non-technical person has completed it |
+| **The organization's admin** (the enabler) | Stand up the org, then govern it | `Copilot Control Tower Admin.app`: 16 surfaces over a deterministic bash engine | SHIPPED; **PROVEN once, by the owner**; HYPOTHESIS for an independent operator |
+| **The author** (a trained early-adopter who writes org/department content) | Author → publish → let cadence carry it | No app surface. A markdown editor, then a human-invoked `git push` into the tier repo | **DEFERRED** (`cc publish`, ADR-008) with a documented manual substitute; never run with more than one writer |
+| **The publisher** (owner-only) | Build → sign → notarize → release | `Publisher Setup.app` + `scripts/package-user-release.sh` | SHIPPED; PROVEN across eight version lines |
+
+The publisher lane is not a customer journey, but it is unquestionably part of this service: the person's very first frontstage moment — a DMG that opens without Gatekeeper stopping them — is manufactured entirely in that lane. A blueprint that omitted it would omit the origin of the product's single most fragile dependency, the pinned vendored helper.
+
+---
+
+## Blueprint spine — the real stages
+
+These stages come from the shipping surfaces, not from a template. They are deliberately **not** a linear Awareness → Consideration → Purchase → Use → Support arc; this service is a loop with two re-entry points and one lane that never converges.
 
 ```
-S1 Deploy (IT)  →  S2 Provision (Bob)  →  S3 First Partner  →  S4 Steady-State  →  S5 Change/Heal  →  S6 Escalate  →  S7 Deprovision
+                    ┌──────────────────────── H1 ────────────────────────┐
+                    │  handoff: ecosystem.yml + GitHub team membership   │
+                    ▼                                                    │
+  S0 ORG STANDUP ──────────► S1 GET IT ──► S2 FIRST RUN ──► S3 STEADY STATE
+   (admin, 11 surfaces)      (download,    (9-stage        (tray, 300 s poll,
+                              DMG, first    wizard)         12 badges, silence)
+                              open)              │                │    ▲
+                                                 └──── H2 ────────┘    │
+                                              handoff: Verify → poll   │
+                                                                       │
+        S4 CHANGE LANDS ◄──────────────────────────────────────────────┤
+        (Sync now · What changed · Join a department · fanout)         │
+                                                                       │
+        S5 SOMETHING IS WRONG ◄────────────────────────────────────────┤
+        (holding states H1–H7 · project triage · diagnose · rollback)  │
+                │                                                      │
+                └──────── recovery, or ────────────────────────────────┘
+                          escalation to the admin
+
+  S6 GOVERNANCE (admin, 5 surfaces) ── add a department · someone left ·
+                                        connect the store · org setup
+
+  ── LANE B (author) ────────────────────────────────────────────────────
+  edit in a markdown editor → commit → human-invoked push to the tier repo
+  → every consuming machine picks it up on its next pull.  No app surface.
+  DEFERRED as a product verb; documented as a manual procedure.
+
+  ── LANE C (publisher, owner-only) ─────────────────────────────────────
+  build → sign → verify vendored cc → headless detect → headless setup
+  transaction → notarize → staple → Gatekeeper → DMG → release/
 ```
+
+**S3 is the destination, and its content is silence.** The success state of this product is a menu-bar glyph with no badge on it. Everything else in the blueprint exists to reach that silence honestly, or to break it truthfully when it can no longer be earned.
 
 ---
 
 ## Customer Actions
 
-| Stage | Bob (Operator) | Earl (IT / Admin) |
-|-------|----------------|-------------------|
-| **S1 Deploy** | — | Authors seed in the generator; generates + preflights the MDM profile; uploads one `.mobileconfig` to Jamf/Kandji/Intune |
-| **S2 Provision** | Double-clicks once (or nothing, managed); approves the one browser sign-in; confirms company/team if unmanaged | Watches the fleet begin to report in |
-| **S3 First Partner** | Reads the one-line cheat sheet; optionally adds a first skill / accepts backup offer | — |
-| **S4 Steady-State** | Glances at the icon; keeps working | Glances at the dashboard |
-| **S5 Change/Heal** | Commits dirty WIP *only when asked*; otherwise nothing | — |
-| **S6 Escalate** | Re-affirms a suspended override (rare); nothing else | Approves a held-major centrally; resolves a stuck machine |
-| **S7 Deprovision** | (Leaves / uninstalls) | Sets explicit `Deprovisioned=true`; runs the signed uninstaller path via MDM |
+*What each actor actually does. Autonomous system work is deliberately excluded here and appears in Backstage.*
 
-> **A third actor — Ada (the trained early-adopter AUTHOR)** — sits between Pablo (foundation) and Bob
-> (consumer) and runs a **separate lane**, not a column of S1–S7. Her actions (earn access → author in
-> Obsidian → save → push → let the cadence carry it) are blueprinted in **[Write/Publish Lane](#writepublish-lane-author--ada)**
-> below. Write access is **earned and gated**, small-then-growing. `> **Evidence: MODEL-IN-HEAD**`.
+| Stage | The person | The admin | The author | The publisher |
+|---|---|---|---|---|
+| **S0 Org standup** | — | Reads the orientation; supplies contacts; connects GitHub; describes the organization in plain language; reads the integrations explainer; connects a shared secret store **or explicitly defers it**; reviews exactly which repositories and teams will be created; hands the brief to Claude Code to execute; runs Setup check | — | — |
+| **S1 Get it** | Downloads the signed DMG from the org's deployable download page; drags to Applications; opens it | Distributes the admin build through a private GitHub release, never the public page | — | Cuts and publishes the release |
+| **S2 First run** | Reads Welcome; **connects GitHub** (device flow, first real action); waits through Detect; reads what they're getting; picks any department they are entitled to; reviews their connections; reviews their projects; presses **Set up**; watches Verify | Watches nothing — there is no fleet dashboard. Learns of a stuck person only if that person asks | — | — |
+| **S3 Steady state** | Glances at the glyph. Usually does nothing. This is the whole intent | — | — | — |
+| **S4 Change lands** | Optionally presses `Sync now`; optionally opens `What changed`; optionally joins a newly-entitled department; optionally brings projects up to date | Adds a department when the org grows | Edits content, commits, pushes to the tier repo | — |
+| **S5 Something is wrong** | Reads one plain sentence naming what is wrong; takes at most one action that is genuinely theirs — sign in again, grant one GitHub permission, review their own uncommitted work, choose a folder, or copy a diagnostic report / owner handoff to send onward | Receives the escalation; resolves it in GitHub or the store | — | Supersedes a defective build with a new version; the person reinstalls the prior signed DMG |
+| **S6 Governance** | — | Adds a department; handles a leaver by removing GitHub team membership and rotating the store tokens their teams could read; connects the shared store later if deferred; reads the org-setup summary | — | — |
+
+**Two rules govern this table, and both are `SOUL.md` case law rather than preference.** The person is asked *only* about their own data and only when the decision is non-deferrable and theirs to make — never to approve a held update, never to unblock a gated one, never to judge something they have no basis to judge. And the person is never shown raw Git: a collaborative conflict must resolve invisibly or hold safely and escalate, and a VCS error dumped on a non-technical person is a named anti-pattern.
 
 ---
 
 ## Frontstage (Line of Visibility)
 
-| Stage | What the user sees |
-|-------|---------------------|
-| **S1** | Admin-mode window: guided seed editor → repo/access scaffolding → capability-policy signer → **MDM profile generator** → red/green **preflight report** → per-MDM runbook. |
-| **S2** | Silent progress bar (managed) *or* a ≤3-step wizard (host if ambiguous → device-flow 8-char code + browser → company/team). If a required managed key is missing: a distinct **"IT configuration incomplete — contact IT"** card, never a guess. |
-| **S3** | Menu-bar icon goes **solid**; a short "teach" panel (cheat sheet + "add your first skill" + backup offer). |
-| **S4** | Menu-bar icon + one-line status sentence that **names the failing host**; dropdown (Sync now · Repair · What changed · Add a skill · Sign in · Hosts ▸ · Preferences · Quit). Honest states: *Healthy / Syncing / Update-available / Waiting-for-network / Offline*. |
-| **S5** | Usually **nothing** (auto-heal is invisible). A rare notification *only* when Bob is the sole competent actor ("commit your dirty work"; "a tool you used was removed"). |
-| **S6** | Bob: a calm, non-actionable "an update is waiting on IT," or a silent auto-suspend he never notices. IT: an actionable dashboard row + a content-free safety signal on the `AdminContact` channel. |
-| **S7** | Bob: "company content removed" (honest boundary if offline). IT: dashboard row transitions to deprovisioned; audit-log entry. |
+### S0 — Org standup: the Admin app, 16 surfaces
+
+Two stage families in one sidebar. **Onboarding (11):** Orientation · Prerequisites · Contacts · Connect GitHub · Describe your organization · Integrations · Secret store · Review setup · Organization setup · Setup check · Done. **Governance (5):** Add a department · Someone left · Connect the shared store · Org setup · Analytics.
+
+The register is orientation-before-input: each surface teaches before it collects. Review setup enumerates the exact repository and team names that will exist. The Integrations surface deliberately ends at "nothing to configure here today" — integrations are built later, in department repos, by an engineer assigned to that department; the admin never declares them. Analytics exists as a governance surface with a toggle and **no emitter behind it** — there is no telemetry in the shipping app at all. This is a frontstage element with no backstage, and it is flagged as such rather than described as working.
+
+### S1 — Get it
+
+A deployable download page that ships with the product so an organization can host and customize its own (swap the videos, the name, the contact). A signed, notarized, stapled arm64 DMG, roughly 24–25 MB. The admin build is never on that page.
+
+### S2 — First run: the 9-stage wizard
+
+`Welcome → Connect GitHub → Detect → What you're getting → Departments → Your connections → Your projects → Set up → Verify`.
+
+Three properties of this surface are worth stating because each was a decision, not a default. **Progress is named, never estimated** — the wizard shows the phase it is in and never a countdown, a percentage, or an ETA, because an estimate is a computed promise the app cannot honestly keep. **The person does not choose components** — everyone gets Knowledge Copilot, CLI Copilot, and the organization's harness Copilot, with a single optional checkbox to add the other harness if they personally use it; "choose your copilots" was replaced by "here's what you're getting." And **the emotional register is flat by design with exactly three sanctioned peaks**, of which the Done send-off — "You have the tools. Now go change the world!" — is an explicit owner override.
+
+Step 6, "Your connections," is new in v0.4.0 and closes what was previously an empty state. It renders the organization's full declared service roster (20 services in ENAC's live configuration) grouped into **Ready to use** and **Available to connect**, with a quiet sentence per unready row naming exactly which credential *names* are missing from the organization's store — never a value, never the words "tier," "mode," or "scope." When the organization's inherited config has not materialized yet, the roster still renders in full with every store-dependent row honestly marked as having no store, rather than collapsing to an empty list.
+
+Step 7, "Your projects," renders five project categories — Ready · Can finish automatically · Needs guided setup · Needs the project owner · Couldn't confirm. **All five classifications are authored by the CLI.** The app filters rows; it never classifies one. "Couldn't confirm" is a first-class, non-embarrassed state.
+
+### S3 — Steady state: the tray
+
+One `NSStatusItem` carrying the aviator-sunglasses glyph, template-tinted, with **no SF-Symbol fallback permitted** — the mark is the mark. Over it sits one of a **closed 12-token badge vocabulary**: `pass · ring · key · update · triangle · wrench · clock · cloud-slash · bang · spinner · hollow · none`. Shape carries the state first and colour second, so the status survives a monochrome render and a colour-blind reader. `none` — draw nothing — is the success state.
+
+Right-click gives `Sync now · What changed · Settings… · Quit` (plus `Open Administration…`, compiled in only in the admin build). The popover reads in the organization's own plain nouns: **YOUR COPILOTS · AVAILABLE TO JOIN** (with a per-row `Join`) **· SHARED WITH YOUR TEAM · YOUR ACCOUNTS**. The one-line status sentence names the failing host — "Codex needs sign-in; Claude is fine" — never a blended "something needs your attention."
+
+`What changed` is a short **Recently** list grouped into "Projects set up for you" and "Projects brought up to date," with an explicit and unapologetic empty state: "Nothing has changed since you last looked."
+
+### S3 — Settings
+
+Four components × four tiers: **Knowledge Copilot · CLI Copilot · Claude Copilot · Codex Copilot**, each expandable across **foundation · organization · department · personal**, every cell in one of five honest states — ready · needs setup · needs attention · not joined · couldn't check. The derivation is pure and shared with the tray, computed once from the CLI's own `doctor`, `onboard`, and `layers` reports. Ranks, manifests, and package states — the real internal vocabulary — never reach this screen.
+
+### S5 — When it is wrong
+
+A named copy family (H1–H7) covers every honest holding state. The specific affordances, all shipping: `Review your changes` when a dirty working tree holds a sync; `Grant this on GitHub` for the one least-privilege permission upgrade; `Choose folder…` / `Not on this Mac` / `Stop watching this folder` for project-root approval; `Finish safely`; `Diagnose in Codex` / `Diagnose in Claude Code`, which open a real Terminal session with a prepared prompt; `Copy diagnostic report`; `Copy project-owner handoff`; `Check again`.
+
+That last cluster is the most interesting frontstage decision in the product. When the app cannot fix something, it does not apologize and stop — it hands the person a way to put the problem in front of an AI assistant that *can* reason about it, or a way to hand it to whoever owns the project. The recovery path is a handoff, not a dead end.
+
+---
+
+## The transitions — where this service actually breaks
+
+Stages are easy. The joints between them are where experience is lost, and this service has three that carry real weight.
+
+### H1 — Admin "Done" → the person's "Welcome"
+
+**What crosses:** exactly two things. An `ecosystem.yml` file committed to the organization's instruction-layer repository — the org's config-of-record that every user's CLI reads — and **GitHub team membership**, which is the entitlement spine in its entirety (D3). Nothing else travels. No profile, no enrolment, no push, no MDM: that mechanism was dropped completely.
+
+**What can break here, and does.** If `ecosystem.yml` has not materialized on the person's machine, `cc connections` returns `org-config-unavailable`. The designed behaviour is not an error screen and not an empty list: the full roster renders with every store-dependent row honestly marked as having no store. If the organization's GitHub OAuth App was never created during standup — it is per-company by ratified decision, never foundation-provided — the person's Connect GitHub step has no client ID to use. If the shared secret store was deferred at standup, every integration row reads `no-store` forever until someone returns to the Connect-the-store governance surface.
+
+**The design property that makes this joint survivable:** each of those three is a *renderable state*, not a crash. The app was built so that an incomplete handoff produces an honest sentence about who owns the missing piece, not a blank screen.
+
+### H2 — Wizard "Verify" → tray steady state
+
+**What crosses:** the person stops being an active participant and becomes a supervised one. The wizard's named, visible, phase-by-phase progress gives way to a 300-second poll and a glyph that will usually say nothing at all.
+
+**Why this joint is fragile:** it inverts the feedback contract without announcing it. During Set up the person is told constantly what is happening; one second after Verify, correct behaviour is total silence — and silence is exactly what a change-averse person reads as "did it actually work?" The mitigations that ship are the returning-person ecosystem view, the persistent Settings matrix that answers "is it all still there" on demand, and `What changed` with its explicit nothing-has-changed state. **This remains the least-validated joint in the product**, because validating it requires watching a real non-technical person cross it, which has not happened.
+
+### H3 — The person's failure → the admin's queue
+
+**What crosses:** a copied diagnostic report or owner handoff, carried by the person, through whatever channel their organization already uses.
+
+**What is deliberately absent:** any fleet dashboard, telemetry, or automatic escalation. When MDM was dropped, the fleet-observability centre of gravity went with it. The admin does not learn that someone is stuck unless that person says so.
+
+**This is a live design tension, not a solved problem.** It is defensible for a small, trusted organization and it keeps the audit surface small. It is also the single largest scaling risk in the service model, and it should be named as such rather than smoothed over.
 
 ---
 
 ## Backstage
 
-*What runs behind the line of visibility. This is the product's substance — the app is a thin skin over it.*
+*The line of visibility is drawn immediately below everything above. Everything from here down is invisible to every actor, and it is where nearly every failure in this product's recorded history originated.*
 
-| Stage | Backstage work | Invariant enforced |
-|-------|----------------|--------------------|
-| **S1** | Seed generator emits `ecosystem.yml` + opens a PR; repo/access scaffolding via `gh`; capability policy **signed with the security-team key** (distinct from push authority); MDM profile generator emits the `dev.enac.controltower` payload + managed login-item (`com.apple.servicemanagement`) + notifications (`com.apple.notificationsettings`) payloads; **preflight** runs the A-C1 completeness check, declared-dept-repo existence, policy-signer authorization, foundation-pin resolution, mirror reachability. | #4 (signing is authored, not weakened) |
-| **S2** | Wizard drives `copilot doctor --bootstrap` phases P2–P10; **schema-validates the managed profile** (absent vs present-but-invalid vs valid; type-checks; settling window for partial MDM apply) → fail-closed *IT-config-incomplete*; installs SMAppService login item + `launchd` crash-watchdog + a persisted checkpoint at the **first** phase; GUI device-flow sign-in; `copilot derive` selects the `claude`/`codex` column; offline → foundation-only + *Waiting-for-network*. | #1, #4, (persistence at first phase = A-H6 fix) |
-| **S3** | CLI materializes `.claude/` per host and verifies; Control Tower **parses** the result and renders — it never computes what materialized. | #1, #3 |
-| **S4** | Single-process supervisor runs timer loops **while alive** (freshness `copilot freshness --json` ~15m, doctor ~1h, sync ~6h) with battery/metered backoff; each menu action spawns a CLI verb with `--json`; **status computed CLI-side**, parsed and projected worst-wins across hosts. **No headless daemon, no in-app fallback loop.** | #1, #2 |
-| **S5** | `copilot update --json` returns `changed[]`; the **escalation router** classifies each by actor-competence × reversibility: AUTO-ACT (re-materialize, ff-pull, apply signed patches, defer non-security materialize while a host session is live, **auto-suspend a security-shadowing override**) / ESCALATE-IT / ASK-BOB. **CLI-side `flock` on `copilot.lock`** serializes every verb (a global per-host mutex so `deprovision` drains pending syncs); the app is *not* the lock. Never touches a dirty personal tree. | #1, #2, #3, #5 |
-| **S6** | Held-majors + policy conflicts + signature failures + time-boxed un-acted Bob items → the mandatory `AdminContact` **safety channel** (content-free, on-by-default for managed), split from opt-in analytics; auto-suspend + parallel escalate for the security shadow. | #4, #5 |
-| **S7** | Only an explicit `Deprovisioned=true` (never mere profile removal) triggers a debounced, **soft-then-hard** wipe via `copilot deprovision --json` (`secrets_touched` MUST be 0); real backstop is **server-side token revocation** (next online `update` fails closed + wipes) + an MDM-run `deprovision` agent; signed uninstaller runs `launchctl bootout` + `SMAppService.unregister()` + Keychain cleanup. | #3 (retains dirty work), #4 |
+### B1 — The verb seam: what the app is allowed to say to the CLI
 
----
+The app's entire vocabulary is the following argv set, every call `--json`. This is the complete list; there is nothing else.
 
-## Write/Publish Lane (Author — Ada)
+| Verb | Purpose in the service | Where it surfaces |
+|---|---|---|
+| `doctor --json` | The health verdict, per checker, with `severity` (`pass`/`warn`/`fail`) and a closed `layer_role` | Tray badge, Settings matrix, status sentence |
+| `auth status` / `auth login` / `auth grant` | GitHub device-flow sign-in; least-privilege upgrade requesting only `write:public_key` | Wizard step 2, `Grant this on GitHub` |
+| `layers` / `layers join <id>` | Discover which department/org layers the account is **entitled** to and which are already joined; join one | Wizard step 5, `AVAILABLE TO JOIN` |
+| `freshness` / `freshness --all-projects` | The cheap poll target — a single lock SHA comparison, not a full update | The 300 s poll |
+| `update` / `update --fanout` / `update --project <p>` | Apply, or report `held` / `blocked` / `offline` | `Sync now`, project rows |
+| `onboard --scope personal …` / `onboard --org … --products …` | The whole setup transaction, plan and apply | Detect, Set up, Verify |
+| `workspace` (9 subverbs: status, verify, plan, configure, approve-root, forget-root, roots, decline, revert) | Project discovery, classification, and aftercare | Wizard step 7, project drill-in |
+| `connections` | The declared service roster with per-row `secret_state` | Wizard step 6, Settings connections card |
 
-> `> **Evidence: MODEL-IN-HEAD**` — this entire lane has **never been run with more than one writer.**
-> It is the interview's new actor tier and the everyday-hero mechanism ("make a change once, never
-> wonder whether it landed"), but its two hardest points — merge-conflict resolution and the
-> credentials-carrier — are **UNSOLVED.** Design it, but do not let downstream over-trust it.
+**Four verbs are never called by the app**, and the absence is the design. `resolve` and `deprovision` have schemas and retired Rust implementations but no Swift caller. `repair` and `publish` are **formally deferred by ADR-008**: history remediation lives inside `onboard`'s own routing, and the author-side push path is preserved as design record only. No document in this repository may list either as an existing verb.
 
-A parallel spine for the trained early-adopter author, sitting between Pablo (foundation) and Bob
-(consumer). The consumer spine (S1–S7) *pulls*; this lane *pushes*, and the cadence sync is where the
-two meet on every consumer machine.
+### B2 — The schema gate: the app's fail-closed front door
 
-```
-W1 Earn access  →  W2 Author (Obsidian)  →  W3 Save & Push  →  W4 Cadence sync → every machine  →  W5 Collide/Resolve
-```
+Before trusting any field of any CLI response, the app decodes **only** `schema_version` and requires an exact major match — **per verb**. `onboard` requires major **2**; every other verb requires major **1**. The compatibility pin (`controltower.compat.json`, mirrored into every release directory) declares `cc 2.0.0 – <3.0.0` and schema `1.0 – 2.0`; `cc 2.2.0` sits inside that window, so v0.4.0 did not move it.
 
-| Stage | Ada (Author) — Customer Action | Frontstage (visible) | Backstage (CLI/git-owned) | Invariant / risk |
-|-------|-------------------------------|----------------------|----------------------------|-------------------|
-| **W1 Earn access** | Is granted **gated, earned** write access to an org/department repo (starts with a few innovators, grows with demand) | An access grant lands; her Obsidian vault gains a writable tier | IT/Pablo scaffolds the writable dept remote + push authority (distinct from the capability-policy signer); credential provisioned to her machine | #4 · **credentials-carrier UNSOLVED (F16)** |
-| **W2 Author** | Opens the **tier-scoped Obsidian vault**, edits a skill/agent/Knowledge-Copilot doc/CLI integration — or has AI update it | The vault; a clear indicator of *which tier* she's editing (personal vs dept vs org) | Files live on disk in the tier's tree; **personal and shared are separate trees/remotes** so a personal artifact has no route upward | **#3 tension (writable tier)** · leakage wall (F17) |
-| **W3 Save & Push** | Saves; triggers "publish" (a button, not a `git push` command) | A plain-language "publishing your change to *Finance*…" → "published"; **never** a Git terminal | `copilot publish --json` (or equivalent) commits + pushes to the *tier-correct* remote only; **fail-closed if the change touches a tier she can't write**; no personal content can be selected | #4 · #5 · leakage wall enforced by construction |
-| **W4 Cadence sync → every machine** | Nothing — she's done; she does **not** babysit | On consumers: the change simply *appears* on the next cadence; the author gets a "landed on N machines" confirmation (closes the "did it land?" anxiety) | Every consumer's supervisor `freshness`→`update` pull carries it on cadence (~6h), deferring while a host session is live; **manual "sync now" is an escape hatch; per-minute refresh is explicitly wrong** | #1 · #2 · #5 |
-| **W5 Collide/Resolve** | If a colleague edited the same file: sees a plain-language "keep both / choose" — **never** a Git conflict marker | A non-technical, side-by-side resolution surface, or (if it can't be made safe) an "held — escalated to an author" state | Conflict handled behind the scenes where non-overlapping; a true content collision is resolved with **no data loss and no Git literacy**, or escalated to a competent author — **never** lost | **#3 strained · MERGE-CONFLICT UNSOLVED (F15; MTM-7)** |
+The gate's failure vocabulary is closed and every member is fail-closed: `notFound`, `launchFailed`, `exit2(code, message)`, `parse`, `schemaOutOfRange`, `missingSecurityField`. **A missing security-relevant field is treated as unsafe, never as safe** — an absent `destructive`, `signed`, or `severity` reads as destructive, unsigned, and failing. The app never reads the CLI's stderr at all and never shows a raw error.
 
-**How the two lanes meet:** W4 *is* Bob's Stage-4 steady-state from the other side — an authorized
-change made once upstream appears on his machine on cadence, without touching his personal work. The
-seam between "author pushes" and "consumer pulls" is where the **leakage wall (F17)** and **merge-
-conflict (F15)** risks live, and where the writable-tier strain on never-destroy (invariant #3) is felt.
+This gate is why schema drift is classified as a *security* event rather than a compatibility annoyance: a misread `fail` → `pass` would show green over a red pipeline, which is the highest-consequence integration risk in the product.
+
+### B3 — Locating the helper, and refusing to guess
+
+Resolution order is strict and deliberately excludes `$PATH`: an explicit override (only if executable) → **the bundle's own `Contents/Resources/cc`** → `~/.local/bin/cc` → `/opt/homebrew/bin/cc` → `/usr/local/bin/cc`. The app never invokes a bare name, because `Process.executableURL` does not consult `$PATH` by construction and because the bare name `copilot` collides with an unrelated tool.
+
+The bundled helper is preferred over every machine-installed one. It is a 21.4 MB binary, SHA-256 pinned, **independently notarized**, and verified at release time by a gate that also confirms it was not re-signed. Child processes get a private 0700 `TMPDIR` under the app's own cache directory and the environment marker `COPILOT_MANAGED_BY=controltower`, which **disables the CLI's own self-update** so there is never a two-updater fight over the same binary.
+
+### B4 — Concurrency: the CLI self-serializes; the app is not the lock
+
+`update`, `onboard`, and `deprovision` serialize on a **`flock` over `copilot.lock`**, a global per-host mutex across all verbs, failing fast when held. Nothing in the app observes, references, or holds that lock. This is invariant #2 stated precisely: the app is not the serialization authority; the pipeline is. `onboard`'s in-transaction history repair is covered by `onboard`'s own lock, which is one of the reasons a standalone `repair` verb was never needed.
+
+### B5 — The setup transaction: a preflighted saga, not an atomic write
+
+This is the deepest backstage machinery in the service, and it is what the person experiences as a progress list and a Verify screen.
+
+`cc onboard` runs **all deterministic preflight before any irreversible GitHub write**. At its core is one pure classifier over a closed set of **nine git-history states**, and the routing rule is narrow on purpose: **only a merge-base-proven fast-forward may auto-repair.** Every other state — dirty, ahead-only, diverged, diverged-with-identical-tree, wrong-origin, unreadable — routes to a human as `review` and stops the transaction before any personal-repository, SSH, store, or manifest mutation. Apply asserts `HEAD == target` as a postcondition. A run-scoped `completed_actions` ledger records every mutation. Compensation is never-destroy: **report, never delete.** Before any migrate or repair, the original manifest bytes are written to a content-addressed local rollback directory.
+
+Row actions are a closed set — `reuse`, `create`, `migrate`, `repair`, `review` — and the guarantee that orphaned personal repositories are *adopted, never recreated* is structural rather than conventional: `create` can only be reached when a remote is genuinely missing, and an explicit HTTP 404 is the only accepted evidence of absence.
+
+The live run proved this end to end: 16 of 16 layers, three previously-orphaned personal repositories adopted with their `created_at` timestamps byte-identical before and after, zero destructive git operations across three apply attempts, and a manifest written by a real apply rather than by hand.
+
+### B6 — Materialize, and the never-destroy boundary
+
+Materialization is a reconciling sync from local clones into the trees the assistants actually scan. Three trees have three different protections, and conflating any two of them is how the product's worst incident happened:
+
+| Tree | Written by | Never-destroy treatment |
+|---|---|---|
+| Read-only mirror (`~/.copilot/mirrors/…`) | Only the pull path — fetch, reset, reclone | Disposable. May be reset or recloned freely |
+| Materialized tree (what the host scans) | Only the pull path | Disposable. May be re-materialized freely |
+| A human's working tree — a dirty personal checkout **or an author's tier-scoped authoring checkout** | The human | **Never touched.** Already covered by invariant #3 as written |
+
+The consumer machine is read-only by construction, which is why a non-authoring person physically cannot produce a local conflict on shared content: there is nothing dirty in the mirror to conflict, and the only writable thing they own is the personal layer, which has its own protection. Conflicts exist only between *authors of the same tier*, at push time, against the remote — a lane that is deferred and has never carried a second writer.
+
+Materialize also enforces the security posture that never weakens: production materialization is **fail-closed until executable remote content passes the ratified signature and policy check**. An item with no verifier wired in is blocked, not waved through. This is honest by intent and it is visible: it is why an apply that introduces brand-new layers legitimately reports blocked items.
+
+### B7 — Entitlement, credentials, and the two things that never travel together
+
+**Entitlement is GitHub repository access, and nothing else** (D3). Team membership grants read or write; selecting an entitled department syncs that layer onto the machine. There is no separate permissions system, no license server, no enrolment. The CLI computes entitlement by checking repository access per candidate layer; the app renders the resulting list and passes back a chosen id. `not-entitled` is a normal renderable outcome, not an error.
+
+**Secrets never enter inheritance content or any git repository, at any tier, public or private.** Inheritance content carries `requires_secret: <NAME>` references only. The carriers are the per-user OS keychain and, optionally, a tier-scoped, organization-managed shared secret store — self-hosted Infisical — whose **endpoint** is delivered via inherited org config (the endpoint is not a secret; access stays gated by the person's own GitHub team membership). **Git push credentials are always per-user, on-device, and are explicitly excluded from the shared store.**
+
+The `connections` verb is where this model becomes visible without ever becoming leaky. Backstage, it shells `copilot --json layers` against a CLI Copilot foundation carrying per-service `requires_secret` / `store_scope` declarations, then **presence-checks the hinted secret names** against the organization's store with **one `secret list` call per run, never one per name** — reading which names exist, never any value. It is read-only and takes no lock. The result is a per-row `secret_state` and, for unready rows, a list of missing *names*. Control Tower receives names and a state; it never receives, requests, or stores a credential.
+
+### B8 — The admin engine: the script decides, the app renders
+
+The Admin app computes no organizational state. The deterministic engine is `scripts/admin_bootstrap.sh` — 98 KB of bash whose own header states the contract: *the script, never the model, makes every existence and idempotency decision; every mutation is check-then-act (GET before POST/PATCH/PUT); nothing is ever forced, skipped past, or overwritten.*
+
+Its dependencies are deliberately tiny and mostly vendored into the app bundle: `gh` and `jq` ship inside `Contents/Resources/`, alongside stock `python3` (used solely to parse the brief's YAML front matter) and `/usr/bin/curl` (used solely for a bounded store-reachability check). Foundation version floors are pinned in the script as fully-specified caret ranges, per product, so that a major version of one product can never be mistaken for a version of another. The content-bearing work branch is fixed and deterministic — never timestamped, never force-pushed, reused and fast-forwarded across re-runs.
+
+The execution model is itself a service-design decision: **the app teaches and verifies; Claude Code executes.** The app collects the organization's description, produces a human-reviewable markdown brief saved to the machine, and hands it off; the app's Setup check then renders GitHub's own truth afterward. In v1 the app never fires the mutation itself.
+
+### B9 — The release train: how a trustworthy artifact is manufactured
+
+One pipeline, run locally, gating every release: build with `swiftc` → sign → verify the vendored helper by checksum and confirm it was not re-signed → verify the signed app carries the required automation entitlement and purpose string → run the app's own **headless Detect** (the exact three production calls, through the production client, printing typed JSON, exiting before any UI is created) → run the **headless setup transaction**, driving the real wizard model from Set up through Verify against an inert fixture helper while independently asserting which commands were sent → schema-compatibility gate → notarization-order gate → notarize → staple → Gatekeeper assessment → DMG → retained release directory with checksums, compat pin, notarization records, and metadata.
+
+The testing shape that pipeline encodes was learned from an incident and is stated in the incident record: **test the state engine directly, test the app's typed seam headlessly, then run the same headless command against the final packaged artifact. Opening the UI is a visual-product check, not the primary integration test.**
+
+Two selftest guards are worth naming because they defend the backstage from itself: the setup-transaction selftest refuses to run unless it is explicitly permitted **and** the helper's filename is literally `mock-cc` — an arbitrary helper path must never be able to turn a selftest into a live mutation.
 
 ---
 
 ## Support Processes
 
-*Systems, infrastructure, external dependencies — the substrate the backstage rides on.*
-
-| Process | Role | Constraint (from the invariants / red-team) |
-|---------|------|------------------------------------------------|
-| **CLI `--json` contract (WS-A)** | The whole safety boundary — every consumed verb (`doctor`/`update`/`repair`/`resolve`/`deprovision`/`freshness`) emits versioned JSON with `schema_version` | Bidirectional `min/max_schema` gate; **missing security fields fail closed**; CI contract test green in the `copilot` repo. **Prerequisite for everything** (`cli-contract.md`). |
-| **`flock` on `copilot.lock`** | CLI self-serialization across all verbs | The CLI is the lock, not the app — no process arrangement can double-write (B-C1). |
-| **`launchd` crash-only watchdog** | Relaunch on crash only + own the self-update health gate/rollback | `KeepAlive={SuccessfulExit:false}`, `RunAtLoad=false`, **never `true`**; `ThrottleInterval` + circuit breaker; stable stub never self-updated (B-C2/B-C3). |
-| **`SMAppService` login item** | Launch-at-login (one mechanism) | Managed login-item MDM payload makes it non-toggleable; detect `.requiresApproval` → emit "persistence disabled" to IT (B-H3). |
-| **MDM forced/managed domain** (`dev.enac.controltower`) | Delivers org config + security keys + login-item + notifications payloads | Security keys (`UpdateFeedURL`, `FoundationMirror`, `EcosystemSeedURL`, `HTTPSProxy`, `GitHubHost`, `AuthMode`, `AllowSelfUpdate`, `Deprovisioned`) read **only** via `CFPreferencesAppValueIsForced`; user-domain values ignored + logged as tamper (B-C5). Trust roots are compiled-in code, not config. |
-| **Minisign + two-of-N signing / transparency-log** | App self-update trust chain, independent of the Apple codesign chain | One popped key ≠ fleet RCE; codesign cert + minisign key in separate custody; staged rollout with anomaly-halt (B-M4). |
-| **Cross-repo signed-CLI artifact contract** | `claude-copilot` CI publishes already-signed/notarized universal `copilot`/`cc` at a pinned SHA+version | Control Tower CI *verifies* (`codesign`, `spctl`), never re-signs; blocks release if the vendored CLI is below the compat floor (B-H1). |
-| **Developer ID + notarize + staple** | Distribution (not Mac App Store — sandbox forbids spawning the CLI) | Userland-only entitlements; no admin, no privileged helper; per-`$UID` everything. |
-| **Server-side token revocation** | The real deprovision backstop | Independent of the app existing/being online (A-C4). |
-| **Opt-in, org-scoped telemetry sink → IT dashboard** | Closes the observability gap | `machine_id = hmac(hardware_uuid + posix_uid, per-install-random-salt)`; usage emits only CLI-verified `{org,dept,foundation}` items — a **personal name is un-emittable by construction** (B-H5). |
-| **Mandatory `AdminContact` safety channel** | Content-free safety escalations | On-by-default for managed machines; split from analytics so "IT notified" is never a no-op (A-C5). |
-| **Writable org/department remotes + gated push authority** | The Write/Publish lane's substrate | `> **MODEL-IN-HEAD**` — write access is *earned and gated* (few innovators, growing); push authority is distinct from the capability-policy signer; **breaks the read-only-mirror assumption** (invariant #3 tension). |
-| **Personal↔shared tier separation** (distinct trees + remotes) | Makes the leakage wall structural | Personal-layer content has **no route** into a shared remote; the push path is tier-scoped and fails closed (leakage-wall guarantee; analogue of the *un-emittable-by-construction* telemetry, B-H5). |
-| **Credentials-carrier through a pull-based model** | Delivers push/pull secrets when a company has **no cloud secret store** | `> **UNSOLVED (F16)**` — candidate is GitHub-as-carrier, but *how, safely* is open. Gates the whole Write/Publish lane. Route to security/threat-model (`interview-ground-truth.md` §10). |
-| **Non-technical merge-conflict resolution** | Resolves a two-author collision with no Git literacy | `> **UNSOLVED (F15)**` — Pablo is genuinely unsure what is possible; must be invisible or escalate-to-author, never a raw conflict marker, never data loss (MTM-7). |
+| System | What the service depends on it for | Failure posture |
+|---|---|---|
+| **GitHub** | The entitlement spine (team membership), device-flow identity, repository hosting for all 16 layers, the org's `ecosystem.yml` config-of-record, admin distribution via a private release | Degrades to honest holding states. `not-entitled` renders; an expired or revoked token surfaces as the `key` badge and one sign-in action |
+| **The organization's GitHub OAuth App** | Device-flow client ID for the person's Connect GitHub step. **Per-company by ratified decision**, created during standup, client ID (not a secret) travelling in inherited org config | If never created, the person's first real action has nothing to authenticate against — an H1 handoff failure |
+| **Shared secret store (self-hosted Infisical)** | Presence-checking declared credential names at tier scope; endpoint delivered via inherited org config | **Optional and deferrable.** Unreachable renders as a deferred, non-blocking stage; rows read `no-store` honestly. A phantom provisioner that could report a store as configured when it was not was fixed in `cc 2.2.0` |
+| **The vendored `cc` helper** | Every verdict in the product | Pinned by SHA-256, independently notarized, preferred over any machine-installed copy, release-gated against re-signing |
+| **Apple notarization / stapling / Gatekeeper** | The person's first frontstage moment: an app that opens | Release-blocking. Notarization order is itself gated by a test |
+| **Foundation snapshot signing** | Signed, parentless snapshot commits for foundation-tier releases, verified against compiled-in allowed signers | Fail-closed. Unverified executable content is blocked, never materialized |
+| **`copilot.lock` + `flock`** | Serializing all mutating verbs per host | Fail-fast when held. The app neither holds nor observes it |
+| **`controltower.compat.json`** | The declared compatibility window between app, helper, schema, reader, and optional hooks | Both-direction gate: a helper older than the floor is as fatal as one newer |
+| **Optional Discord hook transport** | A convenience bridge, entirely outside the critical path | **Codified fail-open**, with a bounded internal timeout — the direct, permanent output of the outage described below |
 
 ---
 
 ## Failure Points
 
-*Where the system can fail, and the impact on experience. Ranked by severity. Each is a red-team finding with its designed containment.*
+*Ordered by demonstrated blast radius. Every entry below actually happened or is a currently-open gap; none is hypothetical.*
 
-| # | Failure point (backstage) | Impact on user experience | Containment | Sev |
-|---|----------------------------|----------------------------|-------------|-----|
-| F1 | Managed profile missing a required key under `DisableWizard=true` | Silent mis-provision → false-Healthy over an empty department | Fail-closed schema validation → *IT-config-incomplete* + IT escalation (A-C1) | Crit |
-| F2 | Vendored CLI binaries killed by Gatekeeper/quarantine | Every CLI spawn dies; the app can render only failures or misreads them | Cross-repo signed+notarized binaries; de-quarantine; `cli-spawnable` doctor check (A-C2) | Crit |
-| F3 | Security-shadow relies on a notification Bob never sees | Vulnerable override keeps winning indefinitely | Auto-suspend the override + parallel IT escalation (A-C3) | Crit |
-| F4 | Deprovision defeated by trashing the app / staying offline | A leaver's company content persists | MDM-native + server-side token revocation; honest offline boundary (A-C4) | Crit |
-| F5 | Safety escalation gated behind off-by-default analytics | "IT notified" reaches no one; dashboard empty | Split safety from analytics; `AdminContact` on-by-default for managed (A-C5) | Crit |
-| F6 | Two schedulers double-write `~/.copilot` | Torn `.claude/` tree; corrupt state on an ordinary machine | Single process + **CLI-side `flock`** (B-C1) | Crit |
-| F7 | `KeepAlive=true` / rollback trapped in a crashing bundle | Menu bar crash-loops; Bob can't recover, no terminal | Crash-only watchdog + circuit breaker; watchdog-owned rollback + liveness heartbeat (B-C2/B-C3) | Crit |
-| F8 | User-domain preference repoints update feed/mirror | Supply-chain RCE via a `defaults write` | Security keys honored only from the forced/managed domain (B-C5) | Crit |
-| F9 | `--json` schema drift / missing field defaults to "safe" | Green shown over a red pipeline; a destructive repair read as safe | Bidirectional schema gate; missing security fields fail closed; "click to update" not "run doctor in a terminal" (B-H6) | Crit |
-| F10 | Compat-matrix deadlock; no vendored-CLI owner | Red badge Bob can't clear, no admin rights | One owner; newer CLI *pulls* newer app; version-locked pair on `AllowSelfUpdate=false` fleets (B-C4) | Crit |
-| F11 | Offline / seed-not-yet-published first-run | False-Healthy over foundation-only; whole fleet green-but-empty | *Waiting-for-network*; seed-vs-solo distinction via managed `EcosystemSeedURL` (A-H7/A-H12) | High |
-| F12 | Quit mid-wizard, no daemon to finish | Machine sits half-provisioned, invisible to IT | Persist checkpoint + install watchdog at the first phase; resume headlessly (A-H6) | High |
-| F13 | Held-major handed to Bob; used skill pruned silently; notif permission denied; login item toggled off | Bob-fatigue → he ignores the one alert that matters; silent degradation invisible to IT | Route by competence (central IT approval); notify on used-item prune; popover + IT fallback; managed login-item payload + disabled-state detection (A-H9/H10/H11/H13, B-H3) | High |
-| F14 | Deprovision races a scheduled sync; profile-removal ambiguity; flap re-auth cost | Re-clone over a wipe; accidental wipe on re-scope; fleet-wide re-auth on a fat-finger | Global per-host mutex across all verbs; only explicit `Deprovisioned=true` wipes; debounce + soft-then-hard (A-M17, B-M1/M2) | Med |
-| F15 | **Two authors edit the same department file → merge conflict; neither knows Git** | A raw `<<<<<<< HEAD` marker a non-technical person can't act on; a colleague's edits lost or the file stuck; a change-averse Bob concludes the tool broke his work — **trust make-or-break** (MTM-7) | Invisible/behind-the-scenes resolution where non-overlapping; plain-language "keep both / choose" for a true collision; **no data loss, no Git literacy**; escalate-to-author, never-lose if unsafe. **`> UNSOLVED · MODEL-IN-HEAD`** — deferrable *with* the multi-writer path, but must be solved before a 2nd writer gets access (`interview-ground-truth.md` §6) | **Crit** (when the write lane opens) |
-| F16 | **Credentials-carrier in a pull-based model with no cloud secret store** | Push/pull auth can't reach a machine safely → the Write/Publish lane can't run, or secrets are carried insecurely | Designed secret-delivery (candidate: GitHub-as-carrier, mechanism TBD); **`> UNSOLVED`** — route to security/threat-model (`interview-ground-truth.md` §10) | **Crit** (blocks the lane) |
-| F17 | **Personal content crosses into a shared/public tier** (the leakage wall) | Private personal information lands in an org/public repo — **irreversible**; Anxiety #2, the nightmare scenario; a change-averse Bob is gone for good | Structural personal/shared separation (distinct trees + remotes) + tier-scoped, **fail-closed** push = crossing is impossible by accident; **prevent-not-detect** (MTM-6) | **Crit** (new P0 guarantee, both consumers) |
-| F18 | **Writable tier collides with never-destroy / read-only mirror** | A cadence pull carries a colleague's change over local author edits; a "read-only" mirror the author can write is no longer read-only → dirty-tree ambiguity | Trained-few-writers-first (blast-radius reduction, not removal); never touch a dirty personal tree; hold-and-escalate on ambiguity. **`> Flagged open architecture problem`** (invariant #3 tension) | High (design-open) |
+### F1 — A manifest field rename took down every Claude Code prompt · **PROVEN, remediated**
+
+The ecosystem's layer manifest migrated from `component:` to `product:`. CLI Copilot's resolver still filtered on `component:`, found zero matching entries, and — this is the actual defect — **treated "zero matches" as the ordinary foundation-only state** rather than as schema drift. It loaded the public foundation only. The organization's `discord` command, which lives in the org overlay, vanished from the command tree. The user-level `UserPromptSubmit` hook then invoked `copilot discord …`, which no longer existed, and exited nonzero. Claude Code correctly treats a nonzero `UserPromptSubmit` hook as a prompt rejection.
+
+**An optional notification transport became a total harness outage. Every prompt was rejected, regardless of content.**
+
+The controls that now stand, all shipped: `product` is canonical with exactly one release of bounded legacy read compatibility and a hard error on conflicting dual declarations; a writer may not publish a schema change merely because its own validator accepts it — `cc onboard` now asks the installed reader to *prove* the resulting chain before moving the live pointer, applies downstream changes before moving it, restores exact prior bytes on failure, and refuses rollback if another process changed the candidate concurrently; hook shims are **transport fail-open** (success with a concise diagnostic when the command is absent or fails, stdout preserved when it succeeds), which is codified in the compat pin as `optional_hooks.policy: fail-open` with a bounded timeout; and a packaged N-1/N reader gate now tests the *exact shipped artifacts* against legacy, canonical, matching-dual, and conflicting manifests.
+
+**The transferable lesson, and the reason this is F1:** the failure crossed four repositories and turned an optional convenience into a total outage. The blast radius of a shared-contract change is the union of every consumer, and a consumer that cannot distinguish "legitimately empty" from "I no longer understand this format" will always fail silently in the most expensive direction.
+
+### F2 — The app worked from a terminal and failed from Finder · **PROVEN, remediated**
+
+Control Tower correctly located its bundle-relative helper by absolute path. That helper then located *its own* `copilot` dependency by searching `$PATH`. Finder launches an app with `/usr/bin:/bin:/usr/sbin:/sbin`, so a Homebrew-installed `copilot` disappeared even though it was installed and working. The person saw "the installed `copilot` command is unavailable" on a machine where it plainly was available.
+
+Three testing gaps allowed it to ship, and all three are instructive: app tests replaced the helper with a mock and therefore stopped at the app/CLI boundary, never exercising the real helper's own dependencies; the upstream release probe erased the whole environment instead of changing only `PATH`, and accepted any non-crashing report without requiring a real manifest inspection; and the branch producing the helper had no CI for its onboarding contracts.
+
+The repaired boundary is one rule: **the helper owns machine inventory and resolves every direct dependency to a canonical absolute executable; the app stays parse-only.** Both the UI and the headless runner call the same production seam; neither reimplements inventory.
+
+### F3 — Honest imperfection rolled back verified work, twice · **PROVEN, remediated in `cc` 2.1.1 and 2.1.2**
+
+In the live run, a complete and correct 16-layer manifest write was undone twice by gates that were treating truthfulness as failure.
+
+**First:** the transaction treated *any* non-zero materialize exit as fatal — including `held`, which is a passive, protective non-write. Four items were held because the new symlink guard was correctly refusing to write through a symlink escaping the materialize root; forty-eight were blocked because the fail-closed policy default blocks any executable item with no signature verifier wired in yet. Neither is a defect. Both rolled back the manifest. Worse, the **rollback-confirmation step re-ran the same failing gates against the restored manifest**, so it could not prove its own success and self-reported `rollback-failed` over a file that was byte-identical to its baseline. A false negative about the system's own safety.
+
+**Second, after the first fix:** the post-materialize health check rolled back on anything short of `healthy`. A brand-new layer legitimately cannot have a positive freshness pointer or a local mirror on its very first appearance in a manifest — the signal is designed around already-established layers. Nine checkers reported `warn`; **zero reported `fail`**; the aggregate label read `offline`; the manifest write was undone.
+
+Both fixes narrowed the gate rather than weakening it: rollback now only triggers on a genuine environment failure, rollback confirmation is a direct byte comparison of the file, the health gate counts `fail`-severity checkers directly rather than reading an aggregate label, and cold-start mirrors are seeded before the check. **The pattern worth naming: a fail-closed system that cannot distinguish "honestly imperfect" from "broken" will destroy its own correct work, and will do it deterministically.** Both were found only by a live run, both were root-caused by reading the diff rather than trusting the fix message, and neither was ever forced past.
+
+### F4 — Never-destroy had a hole, and it cost 12,537 deletions · **PROVEN, remediated**
+
+`~/.claude/knowledge` was a symlink into the organization's knowledge authoring checkout while simultaneously being the materialize target for the knowledge dimension. A routine update reconcile-deleted everything under the paths it owned there: 5 org agent extensions including the brand-voice binding, 16 agents, all commands, all memory, hooks and skills, 10 of 11 top-level docs files, and the knowledge manifest — **12,537 deletions in one commit, which a backup cron then pushed to origin.**
+
+The root cause was two-fold and precise: the personal-tree guard protected a path only if it was a *registered* personal root or a *currently dirty* git tree, and a clean authoring checkout is neither; and the registered-roots list had no production feeder, so that branch never fired for a real authoring checkout. Content was restored and pushed. A guard now refuses to write or delete through any symlink escaping the materialize root — and that guard is the source of the four `held` items in F3, which is a good illustration of how a safety mechanism looks from the inside: like an incomplete transaction.
+
+The documented procedure is now unambiguous: **never elevate content by symlink, and never point a materialize target at an authoring checkout.** Elevation is always copy → commit → push into the tier repo's own working directory, which is safe independent of the guard's state.
+
+### F5 — Conservative safety reads as a wall of problems · **OPEN, by design**
+
+The history classifier checks `git status --porcelain` before it compares any SHA, and **any** non-empty output routes to `review` without fetching or ancestry-checking. In the live run this meant 6 of 7 present repositories landed on `review` — and in every case the non-emptiness was 100% *untracked* framework-materialization litter, not a single modified tracked file.
+
+That is the correct, conservative reading of never-destroy: the classifier cannot distinguish someone's uncommitted edit from someone's scratch file without making exactly the judgment call this product has decided belongs to a human. **But it is also a real experience failure in waiting.** Nine review rows presented to a non-technical person is not safety, it is a wall. The opportunity — not built, not scheduled — is a frontstage translation layer that says *"we found files here we didn't put there, so we stopped"* rather than surfacing a count of review states.
+
+### F6 — Two things the invariants promise that the shipping app does not do · **OPEN, documented honestly**
+
+**The invariants are not machine-enforced on the shipping binary.** All 40 fitness tests scan the retired Rust tree and cannot see one line of the shipping Swift; the CI job that would run them is disabled. Several native-side invariants *are* genuinely enforced — never a bare CLI name, the fail-closed schema gate, the selftest that refuses a non-mock helper — but by code review and shell harnesses, not by the named fitness functions. Porting the suite to scan the shipping sources is an open item.
+
+**The crash-only watchdog is not implemented.** Invariant #2 describes a launchd watchdog with `KeepAlive={SuccessfulExit:false}` and never `true`. The packaging assets and the plist test exist; the shipping app neither installs nor manages the LaunchAgent. If the tray dies, nothing restarts it.
+
+The owner's ratified position of 2026-08-02 is to **document both as named open items** rather than fix them in this pass or quietly reframe them away. Both are recorded here because a blueprint that claimed enforcement the product does not have would be repeating the exact defect this rebuild exists to correct. The mitigation for the watchdog gap is the product's own founding property: if the face dies, the pipeline is still correct — the person loses their window, not their environment.
+
+### F7 — A backstage component that lied about its own readiness · **PROVEN, remediated in `cc` 2.2.0**
+
+A phantom secret-store provisioner could report a store as configured when it was not. This is the most soul-relevant failure in the list: not an outage, not data loss, but a **false-positive readiness claim** — the exact class the product's whole honesty discipline exists to prevent, occurring in the backstage rather than in the icon. It was fixed alongside the connections bridge, and the secret-store onboarding stage now checks against the real store identity surface rather than a stale placeholder.
+
+### F8 — Silent-failure surface: where this service could still fail without telling anyone
+
+Named explicitly because the facilitation guide asks for it. **The 300-second poll is the only heartbeat, and nothing monitors it** — if it silently stops, the glyph freezes on its last honest state and looks exactly like success. **No telemetry exists**, so nothing detects a stuck fleet; the Analytics surface has a toggle and no emitter. **No fleet dashboard exists**, so an admin learns of a stuck person only when that person speaks. **A person who abandons the wizard mid-way leaves no signal anywhere.** Each of these is a deliberate consequence of choosing a small audit surface over observability, and each is a real cost of that choice rather than an oversight.
+
+---
+
+## Emotional journey and moments of truth
+
+*Specific states, not adjectives. The moments where this service is won or lost.*
+
+| Moment | The felt state | Why it is a moment of truth |
+|---|---|---|
+| Opening a downloaded DMG | Low-grade suspicion — "is this going to be a fight with my Mac?" | Gatekeeper stopping the person here ends the journey before the product has said a word. The entire notarize-and-staple pipeline exists for this one second |
+| The device-flow code, waiting on the browser | Mild exposure — "I've just connected my work GitHub to something I don't understand" | The first act of trust, and it is asked for immediately. It is why the sign-in seam is built to hold no token by construction, not merely by convention |
+| Detect, running | Suspended judgment — "it's looking at my machine and I can't see what it found" | Named phases, no percentage. An honest "here's the phase" beats a confident countdown that turns out to be wrong |
+| Seeing "Your connections" populated with the organization's real roster | Recognition — "this knows my company, not just my laptop" | The v0.4.0 addition. Before it, this step could render empty, which reads as *nothing is here for me* |
+| Pressing **Set up** | The single sharpest anxiety in the product — "what if it doesn't work and I've broken something?" | The founding anxiety from the owner interview. Answered by preflight-before-any-irreversible-write, adopt-never-recreate, and a mutation ledger — none of which the person sees, all of which they feel as *nothing bad happened* |
+| The Done send-off | Deliberate elation — "You have the tools. Now go change the world!" | An owner-overridden peak in an otherwise flat register. One of exactly three |
+| The first day of silence after Verify | Unease — "is it working, or has it just stopped?" | The H2 transition. The product's success state and its failure state look identical to a newcomer, and this is the least-validated moment in the service |
+| A badge appears for the first time | Startle, then either relief or resentment | Determined entirely by whether the sentence names something the person can act on. One unactionable alert burns the credibility of the one that matters |
+| Reading "Couldn't confirm" | Relief, if the copy earns it — "it didn't pretend" | A first-class honest state. This product would rather say *I don't know* than guess, and the whole trust model depends on that reading as competence rather than weakness |
+| Being told to review your own uncommitted work | Ownership, ideally — "it stopped because that's mine" | Never-destroy made visible. F5 is the risk that this reads as obstruction instead |
+| Copying a diagnostic report to send onward | Dignity, or defeat | The recovery-as-handoff design. The difference between a dead end and a door is entirely in this one affordance |
 
 ---
 
 ## Blueprint Diagram
 
 ```
- STAGE        S1 DEPLOY (IT)      S2 PROVISION       S3 FIRST PARTNER   S4 STEADY-STATE    S5 CHANGE/HEAL     S6 ESCALATE        S7 DEPROVISION
- ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- CUSTOMER     author seed +       double-click /     read cheat sheet;  glance at icon     commit dirty WIP   re-affirm override old (IT) set
- ACTIONS      preflight + upload   approve 1 sign-in  add first skill    (Bob) / dashboard  *only when asked*  (rare) / IT approve Deprovisioned;
-              MDM profile          confirm team (IT)                     (IT)                                  held-major          uninstall
- ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- FRONTSTAGE   Admin window:        silent bar OR      icon → solid;      icon + host-naming (usually nothing) Bob: "waiting on   "company content
- (visible)    generator →          ≤3-step wizard;    "teach" panel      status sentence;   rare, relevant     IT" (calm) /       removed" (honest
-              red/green preflight  fail-closed card                      dropdown menu      notification       IT: actionable row  offline boundary)
- ═══════════════════════════ LINE OF VISIBILITY ═════════════════════════════════════════════════════════════════════════════════════════════
- BACKSTAGE    seed→PR; policy      doctor --bootstrap resolve/materialize freshness/doctor/ update --json →    auto-suspend +     Deprovisioned=true
- (CLI-owned)  SIGNED; profile+     schema-validate    (CLI); app PARSES  sync loops; status escalation router  parallel IT signal → soft-then-hard;
-              payloads; PREFLIGHT  → IT-config-incompl only, never       computed CLI-side  (auto/IT/ask-Bob)  (content-free)      secrets_touched=0
-              completeness         watchdog@phase-1                       parse-never-compute flock serializes                     server-side revoke
- ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- SUPPORT      Admin-mode gen;      MDM forced domain; SMAppService +     single-process     CLI-side FLOCK;    mandatory          MDM-native +
- PROCESSES    gh; capability-      cross-repo signed  launchd crash-only  supervisor; --json AdminContact      AdminContact       server-side token
-              policy signer        CLI contract       watchdog            contract (WS-A)    safety channel     (on by default)     revocation; signed
-                                                                                                                                    uninstaller
- ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- FAILURE      F1 missing key       F1/F2/F11/F12      F2 Gatekeeper      F6 double-write    F3 shadow;         F5 no-op channel;  F4 un-wipeable;
- POINTS       (fail closed)        F8 pref repoint    F9 schema drift    F7 crash-loop      F13 Bob-fatigue    F13 held-major     F14 wipe race/flap
-```
+TIME ────────────────────────────────────────────────────────────────────────────────────────►
 
-```
- AUTHOR LANE (Ada — runs alongside, MODEL-IN-HEAD)
- ─────────────────────────────────────────────────────────────────────────────────────────────
- W1 earn access   →  W2 author in Obsidian  →  W3 save & "publish"  →  W4 cadence → every machine  →  W5 collide/resolve
- (gated, grows)      (tier-scoped vault)        (button, not git)       (= Bob's Stage-4, other side)   (no Git · no data loss)
-                              │                        │                          │                          │
-                     leakage wall (F17)         fail-closed push          author "landed on N"        merge-conflict (F15)
-                     personal↔shared            tier-correct only         confirmation                 writable-tier vs #3 (F18)
-                                                credentials-carrier (F16, UNSOLVED)
-```
+           S0 STANDUP        S1 GET IT       S2 FIRST RUN        S3 STEADY      S4 CHANGE      S5 WRONG        S6 GOVERN
+           (admin)           (person)        (person)            (person)       (person)       (person)        (admin)
 
-**How to read it:** the frontstage is deliberately thin — a bar, an icon, a sentence, a rare
-notification, and (for the author) a publish button that is never a Git terminal. Everything
-load-bearing lives *below* the line of visibility, in the CLI + `flock` + watchdog + MDM/minisign
-trust chain — and now the **write/publish path** (Obsidian → push → cadence sync). That asymmetry
-**is** the product: Control Tower is trustworthy precisely because it computes nothing and its whole
-substance is a hardened backstage it merely renders. Every failure point above is a backstage failure
-with a designed containment — because for this product, the backstage is where trust is won or lost.
-The **new author lane (F15–F18)** is the least-settled part of that backstage: two of its four
-failure points are stamped **UNSOLVED**, and the whole lane is **MODEL-IN-HEAD** — never run with more
-than one writer.
+CUSTOMER   describe org ·    download ·      connect GitHub ·    glance ·       Sync now ·     read one       add dept ·
+ACTIONS    connect store ·   open DMG        pick department ·   do nothing     What changed · sentence ·      someone left ·
+           review · hand                     press Set up                       join a dept    do the one     connect store
+           off · check                                                                          thing that's
+                                                                                                theirs
+──────────────────────────────────── LINE OF INTERACTION ────────────────────────────────────────
+FRONTSTAGE 16 admin         download page ·  9-stage wizard ·    aviator glyph  popover ·      H1–H7 holding  5 governance
+           surfaces ·       signed DMG       named phases ·      + 1 of 12      Recently list  copy · 5       surfaces ·
+           orientation-                      no ETA · roster     badges ·       · empty state  triage         org-setup
+           before-input                      of 20 services ·    one plain      that says      categories ·   summary
+                                             5 project          sentence ·      nothing        diagnose ·
+                                             categories ·        Settings 4×4   changed        copy handoff
+                                             playful Done
+────────────────────────────── LINE OF VISIBILITY ───────────────────────────────────────────────
+BACKSTAGE  admin_bootstrap  build · sign ·   auth login/grant ·  freshness      update ·       workspace       layers ·
+           .sh: check-then- verify vendored  layers · doctor ·   (cheap SHA     update         verify/plan/    onboard --org ·
+           act, GET before  cc · headless    connections ·       poll, 300 s)   --fanout ·     configure ·     store token
+           POST · vendored  detect ·         onboard plan →      · doctor       update         revert ·        rotation
+           gh + jq · fixed  headless setup   preflight → apply                  --project      onboard resume
+           work branch ·    txn · notarize · · 9-state
+           per-product      staple ·         classifier ·
+           foundation pins  Gatekeeper       ledger · rollback
+                                             copy · materialize
+                                             (fail-closed)
+           ── every one of these is `--json`, schema-gated per verb, fail-closed on a missing security field ──
+           ── mutating verbs serialize on flock(copilot.lock); the app is NOT the lock ──
+────────────────────────────── LINE OF INTERNAL INTERACTION ─────────────────────────────────────
+SUPPORT    GitHub org ·     Apple notary ·   GitHub device flow  GitHub ·       GitHub ·       GitHub ·        GitHub teams ·
+PROCESSES  teams · repos ·  Developer ID ·   · repo access =     Infisical      Infisical      the person's    Infisical
+           ecosystem.yml ·  Gatekeeper       entitlement ·                                     own assistant   token rotation
+           per-org OAuth                     Infisical presence                                (Claude/Codex)
+           App · Infisical                   check (names only)
+────────────────────────────────────────────────────────────────────────────────────────────────
+FAILURE    H1 handoff       F2 launch-env    F3 honest work      F8 silent      F1 shared-     F5 conservative F6 no fleet
+POINTS     carries only     PATH divergence  rolled back ·       poll death ·   contract       safety reads    visibility ·
+           2 things ·       (fixed)          F4 symlink escape   F6 no watchdog drift across   as a wall ·     escalation is
+           F7 store lied                     (fixed) · F5 review                4 repos        H2 silence      person-carried
+           about readiness                   wall                 (fixed)       reads as death
+           (fixed)
+```
 
 ---
 
-**Related:** [Journey Maps](20-journey-maps.md) | [Moments That Matter](40-moments-that-matter.md) | [JTBD](30-jtbd.md) | [CLI Contract](../../01-architecture/cli-contract.md)
+## Acceptance criteria for this blueprint
+
+Verifiable, and each one traceable to evidence in this repository rather than to intent.
+
+1. **Touchpoint cohesion.** Every frontstage element above maps to a named surface in `native/*.swift` or `scripts/admin_bootstrap.sh`; no aspirational surface is described as shipping. The two frontstage elements with no working backstage — the Analytics toggle, and the watchdog invariant — are named as such.
+2. **No verdict is computed in the app.** Every state a person reads traces to a CLI field. The two most tempting places to break this — project classification and connection readiness — are both single-field filters over CLI-authored values, with unrecognized values failing closed rather than reading as ready.
+3. **The deferred lanes are labelled as deferred.** `repair` and `publish` appear nowhere as existing verbs; the author lane carries its manual substitute and its unvalidated stamp.
+4. **Every failure point cites evidence.** F1, F2, F3, F4, F7 are recorded incidents with remediation shipped in a named version. F5, F6, F8 are open gaps stated without softening.
+5. **The open items survive into the next phase unresolved and unhidden:** the V-5 cold-laptop proof; the publicize step; invariant enforcement on the shipping binary; the absent watchdog; escalation with no fleet visibility; and the fact that **no independent non-technical person has completed this journey**, which makes the entire person lane a well-evidenced design against an unvalidated model.
+
+---
+
+**Related:** [Self-Interview](../01-research/10-interviews/01-interview-self.md) | [Journey Maps](20-journey-maps.md) | [JTBD](30-jtbd.md) | [Moments That Matter](40-moments-that-matter.md) | [CLI Contract](../../01-architecture/cli-contract.md) | [Inheritance & Publish](../../01-architecture/inheritance-and-publish.md) | [SOUL.md](../../../SOUL.md)

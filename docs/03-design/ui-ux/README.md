@@ -1,30 +1,25 @@
-# UI/UX design track — Product Creation Copilot
+# UI/UX design of record
 
-This is the visual/interaction design track for Control Tower. **Read this before invoking PCC.**
+> **Status line — rebuilt from evidence, 2026-08-02.** Describes Copilot Control Tower v0.4.0. The prior version of this file directed Product Creation Copilot to design an MDM-profile generator and to output a Figma file plus a Storybook component library; neither happened. MDM is dropped completely as a mechanism for this product (CSE decision D4), and the app was hand-built in native Swift on a separate design track, not delivered as Figma/Storybook artifacts.
 
-## Scope: do not re-run discovery
+## The design of record
 
-We already did the systems architecture ([`../../01-architecture/architecture.md`](../../01-architecture/architecture.md)) and the engineering PRD ([`../../02-prd/prd.md`](../../02-prd/prd.md)). The hard decisions — process model, status precedence, the wizard's steps, the escalation ladder, the Admin-mode flow — are locked and validated against two adversarial red-teams. **Do not send Product Creation Copilot back through its own Discovery phase to re-derive what the product is.** Its job here is narrower and later-stage: turn an already-decided system into the four concrete surfaces below, and (per `00-overview/soul.md`) help ratify the soul as a side effect of that design conversation, not as a precondition for starting it.
+The native app's actual UI/UX design lives in three documents, in this order:
 
-## The four surfaces to design
+1. [`../control-tower-native-experience-architecture.md`](../control-tower-native-experience-architecture.md) — the native macOS experience architecture (Stage 1 of 3). States plainly that the Tauri-web UI was rejected and the target is a true native macOS SwiftUI/AppKit app.
+2. [`../control-tower-interaction-spec.md`](../control-tower-interaction-spec.md) — the interaction spec (Stage 2 of 3). Documents the tray states, wizard flow, and Settings surface as they actually render, and explicitly records that MDM/managed-fleet framing was deleted from the design.
+3. [`../control-tower-visual-system.md`](../control-tower-visual-system.md) — the visual system (Stage 3 of 3). The monochrome, template-icon-friendly, "no MDM and no fleet-as-center" visual language actually implemented.
 
-1. **The menu-bar dropdown + status states** — the icon and its ten states (Setup-needed, IT-config-incomplete, Healthy, Syncing, Update-available, Needs-attention, Signed-out, Offline, Waiting-for-network, Updating-app) and the dropdown actions (Sync now, Repair, What changed, Add a skill, Sign in, Hosts ▸, Preferences, Quit). The top line is always a plain-language sentence naming the failing host, never a blended verdict.
-2. **The first-run wizard panels** — Welcome → detect host(s) → choose host → sign in (8-char device-flow code) → company → department → choose products → pull repos → materialize + verify → teach — **including the silent managed path** (a progress bar only, when IT has pushed `DisableWizard=true`).
-3. **The Admin-mode setup UI** — the seed generator, the MDM-profile generator, preflight validation (red/green report), and the fleet dashboard (who's healthy, stuck, behind, needs re-auth).
-4. **Notifications** — the rare, high-trust Bob-facing alerts (sign-in approve, "commit your dirty work"), scoped tightly per the escalation model so they never become noise.
+A fourth document, [`../control-tower-copy-deck.md`](../control-tower-copy-deck.md), is the canonical copy source, organized for direct use in `native/*.swift`.
 
-## Inputs to feed PCC
+These four documents describe what was actually built. Read them, not the historical brief below, before proposing a visual or interaction change.
 
-Point PCC at, in this order: `architecture.md` §2 (status model & menu), §4 (first-run wizard), §8 (Admin mode, MDM & IT enablement), and §9 (the Bob-agency escalation model) — plus the state machine embedded in §2's precedence table and the wizard's step list in §4. These four sections are the entire contract PCC needs; nothing outside them should change the design's substance.
+## Historical brief (superseded, kept for lineage only)
 
-## Outputs wanted
+The original brief in this file directed Product Creation Copilot to design four surfaces — the menu-bar dropdown, the first-run wizard (including a "silent managed path" gated on an MDM-pushed `DisableWizard=true`), an Admin-mode UI including "the MDM-profile generator," and notifications — and to deliver the result as a Figma file plus a Storybook component library, landing back in this repo. None of that happened as specified: there is no MDM-profile generator (MDM is dropped, not built), there is no silent managed path gated on a device-management push (self-install is the only path, per CSE decision D4), and no Figma or Storybook artifact was ever the delivery mechanism. The app was hand-authored in native Swift against the three-document design of record above.
 
-A **Figma file** (screens for all four surfaces, all states) and a **Storybook component library** (the reusable primitives: status icon, dropdown row, wizard panel, progress states, dashboard card). Both land back in this repo under `docs/03-design/ui-ux/` (Figma link + exported specs, Storybook source or a pointer to where it's vendored) so the engineering workstreams in the PRD can implement directly from them.
+If Product Creation Copilot or a similar design process is invoked again for this product, point it at the design of record above, not at this historical brief, and do not re-derive the MDM/Figma/Storybook framing — it was explicitly rejected.
 
 ## Brand
 
-The mark is the **aviator-sunglasses silhouette**, color `#2D294E`, deliberately **template-icon friendly** (renders correctly as a monochrome macOS menu-bar template image across light/dark and all ten status overlays).
-
-## How to invoke
-
-Local path: `/Volumes/Dev/Sites/COPILOT/product-creation-copilot`. Run `claude` in that repo and say "Read quickstart.md and let's begin," then steer it directly at design (not discovery) using the inputs above.
+The mark is the aviator-sunglasses silhouette, deliberately template-icon friendly (renders correctly as a monochrome macOS menu-bar template image across light/dark and every badge state). See [`../brand-assets.md`](../brand-assets.md) for the source assets and rasterization approach.

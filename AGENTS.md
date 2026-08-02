@@ -1,10 +1,14 @@
 # Agent Instructions
 
+> **Status line — rebuilt from evidence, 2026-08-02.** Describes Copilot Control Tower v0.4.0. Superseding the prior version of this file, which described a Tauri v2/Rust stack that is no longer what ships.
+
 ## Project Overview
 
 - Project: `copilot-control-tower`
-- Description: Open-source Tauri menu-bar app that supervises the `copilot`/`cc` CLI and provides an Admin mode for IT setup and deployment.
-- Stack: Tauri v2 / Rust / TypeScript / Vite
+- Description: Open-source native macOS menu-bar app that supervises the `copilot`/`cc` CLI and provides an Admin mode for IT setup and deployment.
+- Stack: **Native SwiftUI/AppKit**, compiled by `swiftc` (no Xcode project, no package manager for the app itself). Source lives in [`native/`](native/) — `models.swift`, `cli-client.swift`, `cli-dtos.swift`, `render-state.swift`, `wizard.swift`, `user-settings.swift`, `control-tower-tray.swift` (the User app) plus `admin.swift`/`admin-support.swift` (Admin-only, compiled with `-D CT_ADMIN_BUILD`). Build entry points are `scripts/build-user.command` and `scripts/build-admin.command`; packaging/signing/notarization is `scripts/package-user-release.sh`.
+- **A retired Tauri v2/Rust/TypeScript/Vite tree exists at `src-tauri/`, `package.json`, and `dist/` and is not the shipping stack.** It is not built by any release script, not exercised by CI (the workflow that would run it is disabled), and its own version file is frozen behind every other version marker in the repo. Do not propose changes there as if they affect the shipping app; if you need historical context on a pre-native design decision it may be preserved there, but verify against `native/*.swift` before trusting it.
+- macOS-only. Windows was designed against the retired Rust core and is formally out of scope; see the superseded banner on `docs/01-architecture/windows-parity.md`.
 
 ## Codex Copilot
 
@@ -76,18 +80,14 @@ For three or more related `tc` operations, prefer one `python3` block using `tc.
 
 ### QA Gate Convention
 
-Codex Copilot cannot rely on Claude runtime lifecycle hooks such as SessionStart,
-PreToolUse, or SubagentStop, so implementation work uses explicit `tc` state.
-This does not change the design-led product creation protocol.
+Codex Copilot cannot rely on Claude runtime lifecycle hooks such as SessionStart, PreToolUse, or SubagentStop, so implementation work uses explicit `tc` state. This does not change the design-led product creation protocol.
 
 - implementation tasks that need verification should carry `metadata.requiresQa=true`
 - `$me` stores an implementation work product and routes to `$qa`
 - `$qa` stores a `test` work product with an `ARTIFACT:` marker and a `VERDICT: APPROVED`, `VERDICT: APPROVED-WITH-MINOR-FIXES`, or `VERDICT: REJECTED` token
 - `scripts/copilot-gate.sh` can inspect QA-required tasks before closure
 
-Passing QA verdicts must be evidence-bound. Valid artifact markers include
-`test-run`, `file-check`, `diff-check`, `screenshot-check`, `a11y-check`, and
-`design-fidelity-check`.
+Passing QA verdicts must be evidence-bound. Valid artifact markers include `test-run`, `file-check`, `diff-check`, `screenshot-check`, `a11y-check`, and `design-fidelity-check`.
 
 ## Framework Rules
 
@@ -110,7 +110,4 @@ Passing QA verdicts must be evidence-bound. Valid artifact markers include
 
 ## Project-Specific Rules
 
-- Every change to the application must end with a new release. Do not stop at
-  source implementation or local QA: increment the appropriate app version,
-  build from immutable pushed source, sign/notarize/staple the macOS artifact,
-  verify the install artifact, and publish the release and its provenance.
+- Every change to the application must end with a new release. Do not stop at source implementation or local QA: increment the appropriate app version, build from immutable pushed source, sign/notarize/staple the macOS artifact, verify the install artifact, and publish the release and its provenance.

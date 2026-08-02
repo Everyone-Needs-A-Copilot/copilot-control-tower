@@ -1,452 +1,349 @@
-> **Superseded framing.** This document predates the Copilot Solutioning Ecosystem (CSE) realignment. Its MDM/fleet framing and its use of "product" to mean a CSE tool are superseded. The corrected model is in `docs/10-reference/copilot-solutioning-ecosystem.md`; the decisions are in `docs/10-reference/cse-alignment-decisions.md`.
-
 # Product Overview
 
-> **Provenance.** A Discovery synthesis, now **re-grounded in primary evidence** — a facilitated
-> owner interview with Pablo, 2026-07-06 (`01-research/10-interviews/01-interview-self.md`;
-> `scratchpad/interview-ground-truth.md`). That interview **reframed the soul of the product**
-> (see "The reframe" below) and this file has been rewritten to lead with it. Supporting engineering
-> intent still lives in the docs (`product-brief.md`, `soul.md`, `01-architecture/architecture.md`,
-> `02-prd/prd.md`, `04-validation/redteam-use-cases.md`, `10-reference/ecosystem-use-cases.md`).
-> Every foundation stone below carries an honest **Evidence** stamp (TESTED / OBSERVED / GROUNDED /
-> HYPOTHESIS / ASPIRATION); inline `<!-- TODO -->` marks genuine open decisions.
+<!--
+FACILITATION GUIDE — Service Designer + Product Discovery
+=========================================================
+This is the starting point. Before anything gets designed or built,
+we need to understand what this product IS and WHY it exists.
 
-> **The reframe (primary evidence, 2026-07-06).** The earlier drafts led with *"close the
-> observability gap."* That is the **mechanism, not the soul.** The soul is **democratization: give a
-> non-technical person the AI superpowers of a deeply technical one — safely enough to run
-> unattended.** Pablo can wield the ecosystem only because he is extremely technically proficient;
-> almost no one inside a company can. Control Tower is the one-click bridge that lets someone with
-> "absolutely no clue" break out of the paradigm of *only ever using the software IT handed them* —
-> to build, answer, and integrate what they need without understanding the technical layers
-> underneath. Observability and self-heal are what **earn the right** to run in the background; they
-> are not the point.
+CONTEXT:
+Read the project's CLAUDE.md for any existing product description.
+Use that as a starting point, but let the conversation reveal the
+full picture. Don't assume — ask.
+
+CONVERSATION FLOW:
+1. Start with the problem (what's broken in the world?)
+2. Move to who feels this pain
+3. Define what "done" looks like
+4. Capture the jobs to be done
+5. Map the forces (Moments Framework)
+6. Establish what this is NOT
+7. Articulate the AI philosophy (where AI helps vs. what humans do)
+8. Define A+ capabilities and the essential minimum
+9. Map the ecosystem and establish guardrails
+
+QUESTIONS TO ASK (in order):
+
+## Round 1: The Problem
+- "What problem does this product solve?"
+- "Who experiences this problem? Describe them as real people."
+- "What's broken about the current reality? What happens today without this?"
+- "What has this problem cost — emotionally, financially, in time?"
+- "Why does this problem exist? What's the root cause?"
+
+## Round 2: The Vision
+- "If this product existed perfectly, what would change for the user?"
+- "What's the magic moment — the single instant where a user thinks 'this is it'?"
+- "What would make someone tell a colleague about this?"
+- "Walk me through what you see in your mind when someone is using this.
+  What does it feel like?"
+
+## Round 3: Forces Mapping (Moments Framework)
+- PUSH (away from current state): "What's driving people away from how they
+  do this today?"
+- PULL (toward new solution): "What's the dream? What's pulling people toward
+  something better?"
+- ANXIETY (about switching): "What worries people about trying something new here?"
+- HABIT (keeping them stuck): "What keeps people doing it the old way even
+  when it's broken?"
+
+## Round 4: Jobs to Be Done
+- "When [situation], I want to [motivation], so I can [expected outcome]"
+- Ask for 3-5 of these. Probe: "What job is the user hiring this product to do?"
+- Consider different personas and contexts.
+
+## Round 5: Boundaries
+- "What should this product absolutely NOT do?"
+- "What would make this product fail — not technically, but as an idea?"
+- "What's the one thing this must do well, even if everything else is mediocre?"
+
+## Round 6: AI Philosophy
+- "Where does AI help in this product — and where must a human stay in control?"
+- "What is the AI's job? What is the human's job? Where does that line sit?"
+- "What language should we use and avoid when describing what AI does here?"
+- "Apply the Magic Test to each AI feature you're imagining:
+    1. Would it feel like magic? Not 'useful' — magic.
+    2. Does it create 100x value? Not 2x, not 10x.
+    3. Does it serve the human or replace them? If it replaces, rethink it.
+    4. Are we anchored on AI as the solution? Start with the problem instead.
+    5. Would we build this even without AI?"
+- "What are the things we say about AI in this product, and what do we
+  specifically NOT say?"
+
+## Round 7: Capabilities & Essence
+- "What are the 3-5 capabilities that make this excellent, not just useful?
+  What does delight look like for each one?"
+- "If you stripped this product to its absolute minimum — the core of what
+  it is — what would remain?"
+- "How many lines of core logic does this product need? Where does scope
+  bloat come from?"
+- "What is a capability that would be a B- version of this product?
+  What would the A+ version of that same capability feel like?"
+
+## Round 8: Ecosystem & Guardrails
+- "Where does {{PRODUCT_NAME}} sit in a broader product ecosystem?
+  What flows in? What flows out?"
+- "Are there other products this connects with? What's the intelligence
+  handoff — what data crosses the boundary?"
+- "What feature requests should be an immediate no — the ones that are
+  a regression trigger if they appear?"
+- "Who are the three stakeholders who must accept this product for it
+  to be considered successful? What does acceptance look like for each?"
+
+SYNTHESIS:
+After the conversation, fill in the sections below using the user's
+own language wherever possible. Keep it concrete and human.
+-->
+
+> **Status — rebuilt from evidence 2026-08-02.** This document was rewritten from the shipping code, the release history, the accepted ADRs, and the ratified decision records, replacing a version that described a Tauri/MDM product that no longer exists. It describes **v0.4.0** (released 2026-08-02); the underlying code survey was taken one release earlier at v0.3.2 (commit `e0bf0c3`), and every fact affected by the difference has been reconciled forward. Product status is **DOGFOODING** — running in production on exactly one organization (ENAC), not offered to outside organizations, not generally available. Seven signed, notarized releases exist; the claim "the build has not started" that appears in older documents is false.
+>
+> **Version note.** During this rebuild, **v0.4.0** was cut (2026-08-02): it adds the connections bridge and moves the embedded helper to `cc 2.2.0`. Nothing in this document changes as a result; where a fact is version-specific it is marked.
 
 ## Product Name
+
 Copilot Control Tower (short: **Control Tower**)
 
 ## Summary
-Control Tower is the always-on macOS menu-bar client for the Copilot ecosystem — two faces over one
-open-source binary — and its purpose is **democratization: to give a non-technical person a
-technical person's AI superpowers, safely, unattended.** *Operator mode* gives a non-technical
-person (the **"Bob"** psychographic, the primary consumer) a working, focus-scoped Copilot partner
-from one double-click, then **keeps that environment Copilot-ready** — synced and self-healed on a
-cadence — for as long as it runs, so a change made once upstream *finds its way onto the machine
-quietly, without clobbering personal work.* Bob's "silent first light," followed by an environment
-that stays ready on its own, is the hero experience. *Admin mode* — the open-source IT setup/deploy
-tool that lets an IT team stand up and deploy the whole ecosystem for their org (seed generator,
-MDM-profile generator, preflight validation, fleet dashboard, deployment runbooks) without
-hand-editing YAML — is the **enabler** of that experience, not a co-equal product.
 
-> **Evidence stamp.** Claude Copilot delivering value to a team is **TESTED** (several real users on
-> Pablo's team). That non-technical teammates cannot reach Knowledge / CLI Copilot unaided is
-> **OBSERVED** (those layers are effectively single-user today; the missing Control Tower is why).
-> The Admin / IT-operator experience is a **HYPOTHESIS** (no real IT operator has touched it — see
-> Target Users). Multi-writer org/dept authoring is a **MODEL-IN-HEAD**; enterprise scale is an
-> **ASPIRATION**.
+Control Tower is a native macOS menu-bar app that hands a non-technical person the working environment of a deeply technical one, and then keeps it that way without their attention. It is the face and supervisor over the `copilot`/`cc` command line: it asks the CLI what is true, renders the answer in plain language, and never computes a verdict of its own. Two faces ship from one source tree — a **User app** (the menu-bar tray plus a nine-step first-run setup) and an **Admin app** (sixteen surfaces that stand an organization's ecosystem up) — plus an owner-only **Publisher Setup** app used to sign and notarize releases.
 
-The name is the model. A control tower doesn't fly the plane — it watches every flight, keeps them
-coordinated and on schedule, clears them to proceed, and raises the alarm when something is off.
-Control Tower is that supervisor role over the ecosystem's `copilot`/`cc` CLI, **never** a second
-brain that reimplements what the CLI already does.
+What it keeps current is the **tooling you build with**, never the products you build: four components — Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot — across four tiers — foundation, organization, department, personal. Four components times four tiers is the sixteen-layer topology the app names on screen, sets up, and verifies. Entitlement is GitHub repository access and nothing else: you have a layer if and only if you can reach its repository.
+
+The name is the model. A control tower does not fly the plane. It watches every flight, keeps them coordinated, clears them to proceed, and raises the alarm when something is off. It says exactly what is true and no more — and when it has nothing to say, it says nothing.
 
 ## Problem Statement
-The Copilot ecosystem already gives a technical person real superpowers — Pablo uses it daily to
-write well, check accounting numbers, build software that does parts of his own job, and integrate
-data across sources. **But those superpowers are locked behind technical proficiency, and locked to
-one person's diligence.** Two problems, one root:
 
-- **The power is undemocratized.** A non-technical employee is stuck in the paradigm of *only ever
-  using the software IT handed them.* Reaching Knowledge Copilot or CLI Copilot requires the terminal
-  fluency almost no one has; today those layers are effectively **single-user** — only Pablo reaches
-  them. `> **Evidence: OBSERVED**` — the missing Control Tower is precisely *why* no teammate can.
-- **Keeping it alive is manual and unglamorous.** Pablo holds the whole thing together **by hand** —
-  constantly telling Claude Code and Codex to update, syncing systems, and pushing his own changes.
-  He runs **two machines**, and every time he touches the laptop he re-updates the framework,
-  Knowledge Copilot, and CLI Copilot just to reach parity. *"That shit gets exhausting."* It works
-  only because *he* remembers. `> **Evidence: OBSERVED**` (lived daily).
-- **Nothing propagates on its own.** A change made once does not land everywhere. There is no
-  cadence-based pull that carries foundation / org / department content onto every machine quietly,
-  without clobbering personal work. The human *is* the sync layer.
+**The superpowers are real, and almost nobody can reach them.** The Copilot ecosystem already lets a technically proficient person write well, check numbers, build software that does part of their own job, and integrate data across systems. But that intelligence is CLI-shaped, and the CLI shape is a wall. The typical worker inside a company uses only the software IT handed them, in the way it was handed to them, and does not deviate. So the power stays locked to whoever is diligent and technical enough to hold it. `Evidence: OBSERVED` — before this product, Knowledge Copilot and CLI Copilot were effectively single-user inside ENAC; the absence of Control Tower is precisely why.
 
-The mechanism that fixes all three — and that earns the right to run unattended on someone else's
-machine — is **observability and honest self-heal**, the ecosystem's own **named gap**
-(`architecture.md` §9): IT "literally cannot tell a healthy Mac from a bricked one" when machines
-drift, fall behind, or lose auth. What that costs today: stalled or mis-provisioned machines that
-report false-Healthy (`redteam-use-cases.md` C1, H7, H12); security fixes that don't take because
-they depend on a notification Bob never sees (C3); a leaver's materialized company content persisting
-silently (C4); and an always-on token-holding auto-updater an enterprise cannot trust because it is
-not auditable (`architecture.md` §1). Observability is not the soul — it is the trust that lets the
-democratization run in the background.
+**Keeping it alive was a person, not a system.** The owner held the whole thing together by hand across two machines — telling the assistants to update, syncing components, pushing his own changes, re-updating everything on the laptop just to reach parity with the desktop. Nothing propagated unless he remembered. A change made once did not land everywhere; the human *was* the sync layer. `Evidence: OBSERVED` — lived daily, and the direct origin of the product.
+
+**The obvious fix is the thing security teams refuse to trust.** What would actually solve both problems is an always-on, token-holding agent on every machine that quietly keeps the environment ready — which is exactly the shape of software an enterprise will not accept unless it can audit it. The trade-off on the table was: democratize the ecosystem and accept an unauditable background agent, or stay safe and leave every non-technical employee behind. Control Tower refuses that trade-off by earning the right to run unattended through legibility — one open-source signed binary that parses a versioned JSON contract and computes nothing.
+
+**And the cost of getting this wrong is not hypothetical.** Three recorded incidents define the failure surface this product lives inside. A layer-manifest field rename shipped while the resolver still filtered on the old field name, so the org overlay vanished and the `UserPromptSubmit` hook exited non-zero — **Claude Code rejected every prompt on the machine** (`docs/40-initiatives/03-schema-mismatch/`, remediated in Control Tower 0.1.1). A materialize target was pointed at a human-owned authoring checkout, and one routine `cc update` reconcile-deleted **12,537 lines of org content** in a single commit, which a backup cron then pushed to origin (`docs/01-architecture/inheritance-and-publish.md`, "Elevating project content today"). And through v0.2.3 the app could report a Personal layer as ready when it existed only as a hidden mirror with no visible repository beside it — a false green (fixed in 0.2.4, ADR-005). Every invariant in this product traces to a failure of this class.
 
 ## Target Users
-> **Bob is a PSYCHOLOGY, not a role.** "Bob the Accountant" is a behavioral archetype found in every
-> company and every department — IT, HR, and executives can all "be Bob." Accounting is the exemplar
-> because accountants are archetypally *not* rule-breakers: they use the software they're given,
-> don't deviate, follow standards well, and are **intensely detail-oriented.** Bob is uncomfortable
-> with change because change = **loss of control** over the thing he's comfortable with; a new tool
-> means he can make a mistake, break something, or be *wrong* — and being wrong could lose
-> information, lose the company money, or lose his job. **The fear is professional consequence.**
 
-> **Two consumer psychographics** (the earlier draft collapsed them into one):
-> - **(a) The change-averse consumer (Bob)** — reads / consumes; must feel **SAFE** above all. Target
->   emotion: **comfortable AND excited** — the tools give him *"superpowers he's wanted his entire
->   career and is only now getting."*
-> - **(b) The trained early-adopter author** — writes org/department content via a markdown editor
->   (Obsidian); more comfortable with the machinery; wants **POWER.** Write access is *earned and
->   gated*, starting with a few innovators and growing as demand rises.
+> **"Bob" is a psychology, not a job title.** The archetype is the change-averse, intensely detail-oriented professional found in every company and every department — IT, HR, finance, and executives can all be Bob. Accounting is the exemplar because accountants are archetypally not rule-breakers: they use what they are given, follow standards well, and are precise. Bob is uncomfortable with change because change means loss of control over something he is currently competent at, and being wrong could lose information, lose the company money, or lose him his standing. **The fear is professional consequence.** The design consequence is direct: Bob will catch a dishonest status, so an icon that cannot lie is survival, not decoration.
 
-- **Bob — the change-averse non-technical consumer (PRIMARY).**
-  `> **Evidence: GROUNDED**` — real people across real companies. Not a developer, no terminal,
-  routinely denies OS permission prompts, ignores single nudges, may run Focus/DND. **"Bob is not a
-  reliable actor"** is a load-bearing design assumption (`redteam-use-cases.md`, Bob-agency
-  recommendation; `prd.md` §13). Asked *at most three* things at setup, interrupted almost never
-  after. **Design consequence:** Bob's detail-orientation means he *will catch* any dishonest or
-  drifted status — so **"the icon that cannot lie" is survival, not decoration.** One false green and
-  a change-averse Bob is gone for good.
-- **The trained early-adopter author — the writable-tier consumer.**
-  `> **Evidence: MODEL-IN-HEAD**` — the multi-writer authoring loop (Obsidian → save → push → sync)
-  has never been run with more than one writer. Authors org / department content (new skills, agents,
-  Knowledge Copilot content, CLI Copilot integrations) via a markdown editor; wants power, not just
-  safety.
-- **The IT / admin operator (Admin mode) — the enabler, not a co-equal product.**
-  `> **Evidence: HYPOTHESIS**` — **no real IT operator has ever touched Admin mode, a fleet
-  dashboard, or a deprovision.** Whether a real IT admin will trust a dashboard enough to *act* on it
-  (vs. wait for Bob to call) is an untested behavioral bet. Modeled as **Earl** (platform lead) and the
-  org security team from `10-reference/ecosystem-use-cases.md` (UC6, UC11), but those personas are
-  inferred, not interviewed. Stands up the ecosystem and deploys it via Jamf/Kandji/Intune; wants a
-  fleet they can see, trust, and provision without hand-editing YAML.
-  <!-- TODO: confirm with Pablo — has any real IT/MDM admin reviewed the Admin-mode flow? -->
-- **Pablo — the ecosystem owner / ENAC maintainer, and today the *only* operator.**
-  `> **Evidence: OBSERVED**` — authors the foundation layer and keeps two machines in parity by hand.
-  Needs the always-on agent to make the ecosystem *safer* to adopt, not riskier — the whole reason
-  the app is open source with reproducible builds and two-of-N signing (`architecture.md` §1, §7).
+- **Bob — the change-averse non-technical consumer (PRIMARY).** `Evidence: GROUNDED` — real people across real companies. No terminal, no YAML, routinely denies OS permission prompts, ignores single nudges. "Bob is not a reliable actor" is a load-bearing design assumption, not a slight: the product is built so that nothing safety-critical depends on him noticing anything. He is asked about his own data and nothing else. Target emotion: comfortable *and* excited — these are superpowers he has wanted his whole career and is only now getting.
+- **The trained early-adopter author — the writable tier.** `Evidence: MODEL-IN-HEAD, partially contradicted by one incident` — the multi-writer loop (write markdown in Obsidian, save, push, everyone pulls on cadence) has still never been run with more than one writer. What *has* been run is a single author's elevation path, and it produced the 12,537-deletion incident, which is why the current documented elevation procedure is copy-commit-push into the tier repository's own working directory and explicitly never a symlink.
+- **Earl — the IT/admin operator (the enabler, not a co-equal audience).** `Evidence: RUN ONCE, BY THE AUTHOR` — upgraded from HYPOTHESIS on 2026-08-02. Admin mode has now stood up a real sixteen-layer organization end to end (Phase 7 reached 16/16 live apply). But it was run by the person who wrote it, on his own organization. **No third-party IT operator has ever touched it.** Whether a real admin trusts a guided tool enough to run an organization's standup through it remains an untested behavioral bet.
+- **Pablo — the ecosystem owner and trust basis.** `Evidence: OBSERVED` — authors the foundation, holds the signing identity (`Developer ID Application: Pablo Alejo Jr`), and is the person the product releases from being the sync layer. He needs the always-on agent to make the ecosystem *safer* to adopt than the manual path, which is why the app is open source, why security-sensitive configuration comes only from compiled-in trust roots and signed inherited configuration, and why there is no bypass flag anywhere in it.
 
-Secondary context personas from `10-reference/ecosystem-use-cases.md`: **Rosa** (a developer with all
-four layers), **Mira** (Finance dept lead), **Dwayne** (independent solo user). Control Tower must not
-break their existing CLI workflow — it supervises the same pipeline they run by hand.
+Not an audience, deliberately: open-source contributors looking to submit patches, and developers receiving an engineering handoff. Contribution mechanics stay minimal on purpose. The documents in this package are written for the owner's future self, for buyers and non-technical evaluators, and for organizations trying to change how they work.
 
 ## Core Capabilities
-- Deliver a working, focus-scoped partner from one double-click (or a silent MDM push).
-- Keep every machine synced and self-healed on a schedule, as a **face + supervisor over the CLI**.
-- Turn `copilot doctor --json` into a glanceable, per-host menu-bar status that names the failing host.
-- Route every event by **actor-competence × reversibility** — auto-act, escalate to IT, or (rarely) ask Bob.
-- Give IT an open-source tool + first-class docs to author seeds, generate MDM profiles, preflight,
-  and watch fleet health.
+
+These are the capabilities that exist in the shipping binary at v0.4.0, described in the app's own on-screen vocabulary.
+
+- **A menu-bar tray that states one honest thing.** An aviator-glyph status item badged from a closed twelve-token vocabulary (pass, ring, key, update, triangle, wrench, clock, cloud-slash, bang, spinner, hollow, none), refreshed on a single 300-second timer plus on launch and on open. Badge shape carries state first and color second, so status survives a monochrome or color-blind render. The popover names things in the user's language, not the system's: `YOUR COPILOTS`, `AVAILABLE TO JOIN` with per-row **Join**, `SHARED WITH YOUR TEAM`, `YOUR ACCOUNTS`. Actions are `Sync now`, `What changed`, `Set up`, `Settings…`.
+- **A nine-step first-run setup that never requires a terminal.** Welcome, connect GitHub (browser device flow, no token ever held by the app), detect, what you're getting, departments, **Your connections**, **Your projects**, **Set up**, verify. Progress is named by phase, never by countdown or percentage — an estimate is a promise the app cannot keep honestly.
+- **A settings window that shows the whole topology.** Four components (Knowledge, CLI, Claude, Codex) by four tiers (Foundation, Organization, Department, Personal), each row resolving to ready / needs setup / needs attention / not joined / could not check — derived purely from the CLI's own reports, with the visible repository name and on-disk path shown rather than an internal rank.
+- **Project aftercare that routes work to the right assistant.** Projects are triaged into five CLI-authored categories with per-project detail: `Run in Codex` / `Run in Claude Code` open a real Terminal session at the project with the CLI-generated prompt, `Copy prompt`, `Copy project-owner handoff`, `Finish safely`, `Check again`. The app resolves each assistant to an absolute executable first, because Finder and Terminal do not share a `PATH`.
+- **An Admin app that stands an organization up without hand-editing YAML.** Sixteen surfaces across two families — eleven onboarding (orientation, prerequisites, contacts, connect GitHub, describe your organization, integrations, secret store, review setup, organization setup, setup check, done) and five governance (add a department, someone left, connect the shared store, org setup, analytics). Every existence and idempotency decision is made by a deterministic bash engine using check-then-act (GET before POST/PATCH/PUT), never by a model and never by the UI.
+- **A setup transaction that refuses to be half-done.** All deterministic preflight — including a nine-state Git history classifier — runs before any irreversible GitHub write. Only a merge-base-proven fast-forward is auto-repaired; every other history state routes to a person. Apply asserts `HEAD == target` as a postcondition, and a run-scoped ledger of completed actions threads through every exit path, so "nothing changed" is only ever a legal claim on an empty ledger.
 
 ## Status
-- **Phase:** Design (Discovery)
-- **Stack:** Tauri v2 · Rust core + minimal web UI · single process · macOS-first (Windows = later re-skin)
+
+- **Phase:** Dogfooding — live on one organization (ENAC), sixteen of sixteen layers applied live. Not general availability.
+- **Stack:** Native macOS SwiftUI/AppKit, ~22,650 lines of Swift compiled by `swiftc` into three executables (User app, Admin app, Publisher Setup). The app shells out to a pinned, independently notarized `cc` helper embedded in the bundle and reads its versioned `--json` output. The earlier Tauri v2 / Rust / web-UI plan is **retired**; that tree remains on disk as read-only historical reference and is not built by the release pipeline.
+- **Remaining before publicizing:** the V-5 cold-laptop proof (a second machine with an empty keychain onboards, clones both mirrors, and resolves every service with no hand-copied secret and no `.env`), then the scrub-rotate-publicize step for the two private foundation repositories. The second is deliberately last because it is irreversible and gated on credential rotation.
 
 ## Forces Map
-<!-- Moments Framework, grounded in the owner interview (2026-07-06) §2,4,5,7 — Pablo's own forces. -->
 
-| Force | Description (owner's framing) |
-|-------|------------------------------|
-| **Push** (away from current) | Keeping the ecosystem alive **by hand**: constantly telling Claude Code and Codex to update, syncing systems, pushing his own changes. Two machines — every laptop pickup means re-updating the framework, Knowledge Copilot, and CLI Copilot just to reach parity. Nothing propagates unless *he* remembers. **"That shit gets exhausting."** And for everyone else: they can't reach Knowledge / CLI Copilot at all, stuck using only IT-approved software in a fixed way. |
-| **Pull** (toward new) | Never having to think about it — make a change **once** and never worry whether it landed where it needs to; the system carries it, quietly, on cadence, without clobbering personal work. **"Control Tower ensures my environment is Copilot-ready."** And for Bob: the *superpowers he's wanted his entire career and is only now getting* — build, answer, integrate what he needs without understanding the layers underneath. |
-| **Anxiety** (about change) | (1) **"What if it doesn't work?"** — and a *non-technical* person has **no dignified way to recover.** Failure with no path back is the real fear. (2) **Leakage across boundaries** — mixing personal into department/org, or accidentally pushing private personal information into a public/shared place. The data boundary is a trust wall; crossing it by accident is the nightmare scenario. (Underneath, for the security reviewer: an always-on token-holding auto-updater must be auditable — answered by open source + reproducible builds + two-of-N signing + never-destroy + zero bypass flags.) |
-| **Habit** (keeping stuck) | Falling back to what they've always used — **the Claude app, ChatGPT, Gemini** — a "useless" generic chat tool. The mistake is defaulting to generic chat for every conversation instead of reaching for the solution-oriented ecosystem, from "what email do I send" to "I'm not getting the report I need — let's actually build one." |
+<!-- Moments Framework. Re-grounded 2026-08-02 against the shipped record; the Push and Anxiety rows now carry incident evidence rather than only interview language. -->
 
-## Inheritance & Propagation Model
-<!-- Core mechanism, from the owner interview §3. The write/read hierarchy the tool must operate. -->
-
-The ecosystem inherits down a **four-tier hierarchy — foundation → org → department → personal** —
-with a *write/read* split that is gated and **earned, not universal:**
-
-| Tier | Who writes | How it moves |
-|------|-----------|--------------|
-| **Foundation** | Pablo authors | Published upstream |
-| **Org** | A *team* authors — new skills, agents, Knowledge Copilot content, CLI Copilot integrations | Authored in a markdown editor (**Obsidian**) → save → push |
-| **Department** | A *smaller, trained* group with write access to that department's repo | Same authoring loop, department-scoped |
-| **Personal** | The individual — personal Knowledge Copilot content (e.g. writing styles) | Local; **must never leak upward into a shared/public place** |
-| **Everyone else** | *Reads / pulls on a **cadence*** — not real time | Control Tower carries it quietly onto every machine |
-
-**Write access starts with a few trained early-adopters and grows as demand rises.** The tool's core
-job: when an authorized person changes foundation / org / department content, it **finds its way onto
-every machine automatically, quietly, on cadence — without clobbering personal work.** A manual
-"sync now" is an escape hatch; constant per-minute refresh is explicitly *wrong* ("I can rarely
-imagine a moment where someone updates something that someone needs right now").
-
-> `> **Evidence: MODEL-IN-HEAD**` — this multi-writer authoring hierarchy has **never been run with
-> more than one writer.** It introduces *writable, collaborative tiers*, which strains the current
-> "never-destroy / read-only mirrors" safety assumption (see the merge-conflict open problem in
-> `10-scope-and-non-goals.md`).
+| Force | Description |
+|-------|-------------|
+| **Push** (away from current) | Being the sync layer by hand. Two machines, and every laptop pickup meant re-updating the framework, Knowledge Copilot, and CLI Copilot just to reach parity — "that shit gets exhausting." Nothing propagated unless one person remembered. For everyone else, the push is sharper and quieter: they cannot reach Knowledge or CLI Copilot at all, so they stay inside whatever software IT gave them. `Evidence: OBSERVED` |
+| **Pull** (toward new) | Make a change **once** and never wonder whether it landed. The environment is Copilot-ready without anyone thinking about it — an authorized upstream change simply appears on the next sync, and personal work is untouched. For the non-technical person the pull is the superpowers themselves: build the report instead of asking for it, draft in your own voice, reach the systems outside your computer. `Evidence: OBSERVED (the pain) / TESTED at one org (the mechanism)` |
+| **Anxiety** (about change) | Three specific fears, in the order people actually feel them. (1) **"What if it breaks and I can't get back?"** — a non-technical person has no dignified recovery path, which is why every release since 0.2.0 ships an explicit rollback paragraph naming the prior signed DMG, and why release tags are immutable. (2) **"What if my private stuff ends up somewhere public?"** — the boundary is a trust wall and crossing it is irreversible; a wipe cannot un-exfiltrate. (3) **"What if it quietly destroys work I own?"** — no longer hypothetical after the 12,537-deletion incident. Underneath all three, for the security reviewer: an always-on token-holding auto-updater must be auditable, which is answered by pure open source, one signed binary, zero bypass flags, and a fail-closed schema gate. |
+| **Habit** (keeping stuck) | Falling back to a generic chat window — the Claude app, ChatGPT, Gemini — for every question, instead of reaching for the solution-oriented ecosystem. The habit is not laziness; it is that the generic tool is one click away and always works, while the powerful one used to require a terminal. Control Tower's entire job on this axis is to make the powerful path the one that is already set up. |
 
 ## Jobs to Be Done
-- **When** I make a change to foundation / org / department content once, **I want** it to land on
-  every machine quietly, on cadence, without clobbering anyone's personal work, **so I can** stop
-  being the sync layer and never worry whether it landed. *(Pablo / author — the core job)*
-- **When** I'm a non-technical employee handed the ecosystem, **I want** a technical person's AI
-  superpowers without understanding the layers underneath, **so I can** build, answer, and integrate
-  what I need instead of being stuck with the software IT handed me. *(Bob — the democratization job)*
-- **When** it breaks, **I want** the system to either fix it for me or walk me through it, **so I
-  can** recover with dignity even though I'm not technical. *(Bob — the recovery job; Anxiety #1)*
-- **When** I author or consume across tiers, **I want** a hard wall between personal and shared
-  content, **so I can** never accidentally push private personal information into a public place.
-  *(both consumers — the leakage job; Anxiety #2)*
-- **When** I (a trained early-adopter) want to contribute a skill or knowledge, **I want** to write
-  it in a markdown editor and have it sync across the department, **so I can** extend the ecosystem
-  without a technical release process. *(author psychographic)*
-- **When** I roll the ecosystem out to my org, **I want** to generate the seed and MDM profile from a
-  guided tool and preflight it, **so I can** deploy to a fleet without hand-editing config. *(IT —
-  HYPOTHESIS: untested with a real operator)*
-- **When** a machine drifts or a security fix ships, **I want** it seen and self-healed (the
-  vulnerable override auto-suspended), **so I can** trust the fleet without depending on a
-  non-technical user noticing a notification. *(IT / ecosystem)*
+
+- **When** I make a change once to foundation, organization, or department content, **I want** it to land on every entitled machine quietly and without clobbering anyone's personal work, **so I can** stop being the sync layer and stop wondering whether it landed. *(The owner/author job — the origin job.)*
+- **When** I am a non-technical person handed this ecosystem, **I want** a technical person's AI superpowers without understanding the layers underneath, **so I can** build, answer, and integrate what I need instead of being stuck with the software IT handed me. *(The democratization job — the essence.)*
+- **When** something breaks or looks wrong, **I want** the system to either fix it or tell me in one plain sentence exactly what is wrong and who fixes it, **so I can** recover with dignity without being technical. *(The recovery job — Anxiety #1.)*
+- **When** I work across personal and shared content, **I want** it to be structurally impossible for my private material to reach a shared place, **so I can** stop policing myself. *(The leak job — Anxiety #2; answered by construction, not by discipline.)*
+- **When** I am setting my organization up, **I want** to be shown exactly what will be created, downloaded, or left alone before anything irreversible happens, **so I can** authorize a change I actually understand. *(The admin job — answered by preflight-before-any-irreversible-write.)*
+- **When** I join a department or gain access to a new capability, **I want** it to appear on my machine because my repository access says it should, **so I can** stop filing tickets to get tools. *(The entitlement job — entitlement is GitHub repository access, full stop.)*
 
 ## The Magic Moment
-Bob double-clicks once — and without answering a single technical question (or, on a managed fleet,
-without even clicking) he watches a short progress bar and then has a working, company-scoped Copilot
-partner: **the superpowers he's wanted his entire career, and is only now getting.** He never sees a
-terminal, never edits a config file. From then on the menu-bar icon just sits there, quietly solid,
-and — this is the deeper magic — **an authorized change made once, somewhere upstream, simply
-appears** on his machine on the next cadence, without his attention and without touching his personal
-work. His environment stays *Copilot-ready* on its own. For Pablo the magic is the release from
-carrying two machines by hand; for IT (still a HYPOTHESIS) it is the mirror image — upload one
-generated `.mobileconfig`, and the fleet self-provisions and reports green on a dashboard that did
-not exist before.
+
+Setup finishes, the menu-bar icon goes quiet, and a person who has never opened a terminal is now running the full sixteen-layer ecosystem on their own Mac — every component at every tier they are entitled to, each one named on screen with the repository it came from and the folder it lives in. Nothing was hidden, nothing was guessed, and they never had to be technical. From then on the deeper magic is the absence of events: an authorized change made once upstream simply appears on the next sync, without their attention and without touching a single thing they own.
+
+For the owner, the same moment reads differently and just as strongly: the thing he used to carry by hand across two machines now carries itself, and the proof is a setup transaction that told him what it was about to do before it did it.
 
 ## Non-Goals
-- **Not a second brain.** No resolution logic, no health scoring, no signature verification, no
-  prune/wipe logic lives in the app — that would duplicate a hardened pipeline and create two
-  sources of truth (`product-brief.md`; invariant #1).
-- **No independent decision-making about systems of record.** Reads happen unprompted; writes
-  confirm. It does not replace GitHub, MDM, or Teams/HR directories — it supervises and surfaces
-  state that already lives there.
-- **Not an AI chat surface / copilot-of-the-copilot.** It renders the CLI's verdict; it does not
-  reason about your machine.
-- **Windows is deferred**, not designed against — macOS-first; Windows is a later six-shim re-skin.
-- **No multi-org-per-machine** in v1 (ecosystem-level, deferred — `prd.md` §1).
+
+The full set with rationale lives in `10-scope-and-non-goals.md`. The five that matter most here:
+
+- **Not a second brain.** No resolution, health scoring, signature verification, merge, or wipe logic exists in the app. If a decision requires computing ecosystem state, it belongs in the CLI. If Control Tower vanished, the CLI would still be correct.
+- **Not a device-management product.** MDM is dropped completely as a mechanism — no `.mobileconfig`, no Jamf/Kandji/Intune flow, no forced configuration domain. Entitlement and deployment are GitHub repository access. People self-install a signed, notarized DMG.
+- **Not cross-platform.** Windows is formally out of scope. The shipping app is native macOS SwiftUI/AppKit; the Windows work that exists lives entirely in the retired Rust tree and was never once run on Windows.
+- **Not a manager of the things you build.** A product or project carries its own knowledge, skills, agents, and integrations inside its own repository. It is never a Control Tower sync layer. Control Tower syncs the tooling you build *with*, never the products you build.
+- **Not a business.** Pure open source, free forever. No paid tier, no enterprise SKU, no hosted service, no closed component. Openness is not a pricing choice here; it is the security guarantee that lets an always-on token-holder be trusted at all.
 
 ## The One Thing
-**Essence line (from the owner interview): *keeps your environment Copilot-ready.*** It gives a
-non-technical person a technical person's superpowers and quietly keeps the environment that delivers
-them ready — synced, healed, current — without the person ever having to think about it. It does this
-by **faithfully rendering the CLI's truth and keeping the machine synced and self-healed without ever
-computing that truth itself.** If Control Tower vanished, the CLI would still be correct. The moment
-the app computes a health verdict, resolves a conflict, or weakens a security check, it stops being a
-control tower and becomes a second, untrustworthy pilot — the honesty that earns unattended trust
-collapses, and the whole democratization idea fails with it.
+
+**It must never say something is fine when it cannot prove it.** Everything else in this product is negotiable in some direction; this is not. Bob is detail-oriented and change-averse, so one false green loses him permanently — and an always-on agent that can lie about state is worse than no agent, because it converts an honest unknown into a confident error. This is why the status vocabulary includes states like *waiting for network* and *could not check*, why missing security fields in the CLI's JSON fail closed rather than safe, why the app decodes `schema_version` before it trusts any other field, and why a warn-severity result must not be allowed to masquerade as either success or catastrophe. Honesty outranks convenience, and it outranks minimalism.
 
 ## AI Philosophy
-Control Tower is a deliberate inversion of the usual "add AI" instinct. **The intelligence already
-exists in the ecosystem's CLI; the product's job is to add zero intelligence of its own** and
-instead make that intelligence *legible, safe, and always-on* for people who can't run it by hand.
-The "smart" part of the system — resolution, health scoring, signature checks, wipes — stays in the
-hardened CLI pipeline. Control Tower **parses, it never computes.**
 
-> **AI principle:** Control Tower adds no judgment of its own — it renders the CLI's verdict and
-> automates only what is reversible and safe. All computation lives in the hardened pipeline; the
-> app is the trustworthy face, not a second brain.
+Control Tower is a deliberate inversion of the "add AI" instinct. The intelligence already exists in the ecosystem's CLI; this product's job is to add exactly zero intelligence of its own and instead make that intelligence legible, safe, and always-on for people who cannot run it by hand. It is not an AI feature. It is the thing that puts AI capability into hands that could not otherwise hold it.
 
-### What the System Does vs. What Humans Do
-<!-- "AI/automation" here = the CLI pipeline + Control Tower's deterministic routing. -->
+> **AI principle:** Control Tower adds no judgment of its own. It renders the CLI's verdict, automates only what is reversible, and escalates everything else to whoever is actually competent to decide it.
 
-| Automation Provides (CLI + Control Tower routing) | Humans Do |
-|---------------------------------------------------|-----------|
-| Computes every health verdict, resolution, signature check, prune, wipe (CLI) | Bob approves the one sign-in; commits dirty personal work before a sync |
-| Parses `--json`, renders per-host status, keeps machine synced/healed on a schedule | IT authors the seed, approves held-major upgrades centrally, signs capability policy |
-| Auto-acts on reversible, un-judgeable changes; escalates what Bob can't action to IT | IT reads the fleet dashboard and preflight report; decides rollout timing |
-| Auto-suspends a security-shadowing override (reversible) | Bob may re-affirm an override he still wants |
+### What AI Does vs. What Users Do
+
+| AI Provides | Users Do |
+|-------------|----------|
+| The CLI computes every health verdict, every layer resolution, every git-history classification, every signature check, every materialization | The person approves the one GitHub sign-in that is theirs to approve |
+| The CLI generates the guided prompt for a project setup; the app opens a real Terminal session with it | The person watches the assistant work and stays in control of their own project |
+| Control Tower parses `--json`, renders per-component and per-tier status, and re-runs the same pipeline on a schedule | The person decides which departments to join — bounded by what their repository access already permits |
+| Control Tower auto-acts only where the action is reversible and the person could not reasonably judge it | The person owns every dirty working tree; the app never touches one |
 
 ### Language That Reflects This Principle
 
 | We Say | We Don't Say |
 |--------|--------------|
-| "Control Tower parses the CLI's verdict and renders it" | "Control Tower determined your machine is healthy" |
-| "Watch the fleet," "cleared to proceed," "raise the alarm" | "AI decides," "auto-resolve," "second brain" |
-| "Supervises," "surfaces," "re-materializes" | "Computes," "scores," "verifies" (as the app's own act) |
-| "Safer than running `copilot update` by hand" | "Trust us, it's automatic" |
+| "Control Tower renders the CLI's verdict" | "Control Tower determined your machine is healthy" |
+| "Codex needs sign-in; Claude is fine" | "Something needs your attention" |
+| "Waiting for network" / "Could not check" | "Healthy" (when it cannot prove it) |
+| "Kept your working version" | "Update failed — contact support" |
+| "Setting up Claude…" (a phase name) | "About 2 minutes remaining" (a computed promise) |
+| "Your connections", "Your projects", "Available to join" | "Layer manifest", "rank", "package resolution" |
 
 ### The Magic Test
 
-1. **Would this feel like magic?** Yes — a non-technical person gets a working, team-scoped AI
-   partner from one click and it stays healthy untouched; IT stands up a whole fleet from one upload.
-2. **Does this create 100x value?** The alternative is per-machine hand-provisioning and a fleet
-   nobody can see — Control Tower turns that into a single artifact and a self-healing, observable fleet.
-3. **Does this serve the human, or replace them?** It serves — it removes terminal/YAML toil for Bob
-   and hand-craft for IT; it never replaces IT's judgment (held-majors, policy) or Bob's ownership of
-   his personal data.
-4. **Are we anchored on AI as the solution?** Deliberately not — the anchor is *trust and legibility
-   of existing intelligence*, and the invariant forbids adding model-driven judgment to the app.
-5. **Would we build this even without AI?** Yes — this is a supervision/observability/deployment
-   product; that it delivers an AI ecosystem is incidental to *how* Control Tower itself works.
+Before adding any AI feature — or any feature at all — ask:
 
-## A+ Capabilities
+1. **Would this feel like magic?** Not "useful." Not "efficient." Magic.
+2. **Does this create 100x value?** Not 2x. Not 10x. If it is not 100x, it is probably not worth building.
+3. **Does this serve the human, or replace them?** If it replaces, rethink it.
+4. **Are we anchored on AI as the solution?** If yes, step back. Start with the problem.
+5. **Would we build this even without AI?** If no, we are building for technology, not humans.
 
-> **Re-ranking under the reframe.** With democratization (not observability) as the soul, the ranking
-> holds but the *reasons* shift: #1 and #2 are the democratization + unattended-trust core and stay
-> CRITICAL; **#2 rises in weight** because Bob's detail-orientation makes "the icon that cannot lie"
-> *survival, not polish.* **A new #6 (cadence-based propagation without babysitting)** is surfaced by
-> the interview as the everyday hero mechanism — "make a change once and never worry whether it
-> landed." #3 (Admin mode) and #5 (fleet observability) remain first-class *enablers* but are now
-> honestly stamped **HYPOTHESIS** — no real IT operator has touched them.
+Applied to this product: (1) yes — sixteen layers live on a machine whose owner has never opened a terminal is magic to that person, and an upstream change appearing unbidden is magic to the author. (2) Yes — the alternative is per-machine hand-provisioning by the one person capable of it, which does not scale past one. (3) It serves: it removes toil from Bob and hand-craft from the admin, and it never takes a judgment away from the person who owns it. (4) Deliberately not — the anchor is trust and legibility of intelligence that already exists, and the first invariant forbids the app from adding model-driven judgment. (5) Yes — this is a supervision, provisioning, and distribution product; that what it distributes happens to be AI tooling is incidental to how Control Tower itself works.
 
-### 1. One-double-click working partner → democratization entry (CRITICAL)
-> `> **Evidence: OBSERVED**` — the CLI-shaped barrier is real; Knowledge/CLI Copilot are single-user today.
+## Capabilities & Essence
 
-**The delight:** A non-technical employee goes from a fresh laptop to a working, team-scoped Copilot
-partner without answering a technical question — asked *at most three* things unmanaged, *zero* on a
-managed fleet where IT shipped a complete profile.
+**The essence is DEMOCRATIZATION: a technical person's superpowers in a non-technical person's hands, kept ready on its own.** Organizations are the buyer; the individual is where the value lands. Parse-never-compute is not the essence — it is *how the product earns the right* to run unattended and deliver that essence.
 
-**Example:** IT pushes the app + `.mobileconfig` via Jamf; Bob's wizard runs silently; he watches a
-progress bar and is done (`architecture.md` §4, silent managed path).
+The three capabilities below are the ones that make this excellent rather than merely useful, followed by two that make it durable. Every one is tested against the mechanism (democratization), not against the outcome (organizational transformation) — a feature that transforms an organization while requiring its people to be technical has failed this product's reason to exist.
 
-**Impact:** Removes the single biggest adoption barrier — that the ecosystem is CLI-shaped and Bob has
-no terminal. This is the product's reason to exist for the end user.
+### 1. Sixteen layers, no terminal (CRITICAL)
 
-### 2. Always-on self-heal with glanceable, honest health — "the icon that cannot lie" (CRITICAL / SURVIVAL)
-> `> **Evidence: GROUNDED**` (Bob's psychology) — Bob is intensely detail-oriented and *will catch* a
-> drifted or dishonest status. One false green and a change-averse Bob is gone for good. This is not
-> decoration; it is the survival condition for unattended trust.
+**The delight:** A person who could not have installed any part of this ecosystem gets all of it — four components at four tiers — from a double-click, a browser sign-in, and a screen that names in plain language exactly what it is about to create, download, or leave exactly as it found it.
 
-**The delight:** The machine stays synced and healed on a schedule while running, and the menu-bar
-icon is an honest projection of `copilot doctor --json` — never false-Healthy, always naming the
-failing host in plain language ("Codex needs sign-in; Claude is fine").
+**Example:** The nine-step wizard's Set up stage runs the preflighted saga: it classifies every repository's git history first, plans the full topology, shows the person the visible folder each repository will live in, and only then performs an irreversible write. A blocked row produces zero mutations rather than half a set of repositories.
 
-**Example:** A partial two-host update fails on Codex; the icon goes amber and the sentence names
-Codex, not a blended "needs attention" (`architecture.md` §2, §5; fixes A-M14, H7, H12).
+**Impact:** This is the product's reason to exist for the end user. It removes the single biggest adoption barrier — that the ecosystem is CLI-shaped and its intended beneficiaries have no CLI.
 
-**Impact:** Trust. An always-on agent that runs the *same* pipeline with zero bypass flags is
-*safer* than a human running `copilot update` by hand — every pull is visible, verified,
-policy-bounded, auditable.
+### 2. The icon that cannot lie (CRITICAL — survival, not polish)
 
-### 3. Admin mode — stand up the ecosystem without hand-YAML (HIGH VALUE / ENABLER)
-> `> **Evidence: HYPOTHESIS**` — no real IT operator has ever run Admin mode, preflight, or a fleet
-> deploy. The value proposition is sound in the model but entirely untested in the field.
+**The delight:** Status is one honest sentence naming the failing component, carried by a badge shape before it is carried by a color, refreshed by re-running the real pipeline rather than by remembering the last good answer.
 
-**The delight:** IT authors the org `ecosystem.yml`, scaffolds per-department repos, signs
-capability policy, and generates a ready-to-upload MDM profile from a guided flow — then preflights
-it end-to-end and gets a red/green report before pushing to the fleet.
+**Example:** The schema gate decodes only `schema_version` before trusting any field, and requires an exact major match per verb (`onboard` requires major 2, everything else major 1). An out-of-range or unparseable response becomes an explicit unreadable state, never an optimistic one. Missing security fields fail closed.
 
-**Example:** The MDM profile generator emits one `.mobileconfig` (managed keys + login-item +
-notifications payloads) so every employee's wizard runs silent (`architecture.md` §8.1; `prd.md` H1–H6).
+**Impact:** Trust is the whole permission slip for running unattended. Bob will catch a drifted status, and one false green ends the relationship. The 0.2.4 fix — a GitHub repository or hidden mirror no longer counts as an installed layer — is what this capability costs when it is not upheld.
 
-**Impact:** Turns a hand-crafted, error-prone one-time setup into a guided, validated, reproducible
-deployment — the enablement that lets an enterprise adopt the ecosystem at all.
+### 3. Change made once, landing everywhere, touching nothing it does not own (CRITICAL — the everyday hero)
 
-### 4. Actor-competence × reversibility escalation (DIFFERENTIATOR)
+**The delight:** An authorized upstream change appears on every entitled machine on cadence. Nobody runs a command. Nobody's personal work is disturbed. The author never has to ask whether it landed.
 
-**The delight:** The system never "notifies Bob and hopes." It auto-acts on reversible things Bob
-can't judge, escalates to IT what Bob can't action, and asks Bob only when he is the *sole competent
-actor about his own data*.
+**Example:** Sync is pull-only and downward by construction — the scheduled path holds no upward push credential to any shared remote, so the worst leakage failure (a silent bidirectional sync) is closed structurally rather than by discipline. Visible working trees are human-owned: Control Tower may reuse a clean checkout or fast-forward it, and never resets a dirty one.
 
-**Example:** A `security:`-trailer fix that a personal override shadows is **auto-suspended** (Bob
-can re-affirm) and escalated to IT in parallel — the vulnerable version can't win silently
-(`architecture.md` §9; fixes A-C3). Capability-policy denials go to the IT log only, never a Bob
-notification (fixes A-M15).
+**Impact:** This is what released one person from being the sync layer, and it is what makes the ecosystem extensible by a team rather than usable by an individual. It is also the capability that opens the hardest remaining design problem — genuinely collaborative writable tiers.
 
-**Impact:** Every alert Bob can't act on burns down the credibility of the one that matters. Routing
-by competence, not event-class, is what makes the escalation model actually work — and it's rare in
-the category.
+### 4. Escalation routed by competence, not by proximity (DIFFERENTIATOR)
 
-### 5. Fleet observability + auditable always-on trust basis (LONG-TERM MOAT / ENABLER)
-> `> **Evidence: HYPOTHESIS** (usage) / ASPIRATION (scale).** The dashboard and its acting-on-it
-> behavior are untested with a real IT operator; enterprise scale (3 → 600,000) is a flexibility
-> aspiration, not a proven capability. Observability is the *mechanism that earns unattended trust*,
-> not the product's soul.
+**The delight:** The system never notifies whoever happens to be standing at the menu bar. It auto-acts on reversible things the person cannot judge, routes to whoever holds the authority when authority is required, and asks the person only about their own data.
 
-**The delight:** IT sees who's healthy, stuck, behind, or needs re-auth on a dashboard — closing the
-ecosystem's named observability gap — over telemetry that is opt-in, org-scoped, and PII-minimizing
-by construction (a personal item name is *un-emittable*).
+**Example:** The dirty-working-tree hold surfaces as `Review your changes` rather than as a git error; the missing `write:public_key` scope surfaces as `Grant this on GitHub` rather than as an OAuth failure; a project whose evidence cannot be confirmed offers a read-only diagnostic route rather than a verdict.
 
-**Example:** `machine_id = hmac(hardware_uuid + posix_uid, per-install-random-salt)` — per-user,
-non-reversible from MDM inventory; usage emits only CLI-verified {org,dept,foundation} items
-(`architecture.md` §9; fixes B-H5).
+**Impact:** Every alert a person cannot act on burns down the credibility of the one that matters. Keeping the interrupt count near zero is what makes the rare real interrupt land.
 
-**Impact:** Observability + open source + reproducible builds + two-of-N signing is the trust basis
-an enterprise security review demands. It's the moat: the thing a competitor can't bolt on later
-without the same invariant discipline.
+### 5. Auditability as the moat (LONG-TERM MOAT)
 
-### 6. Cadence-based propagation without babysitting — "keeps your environment Copilot-ready" (CRITICAL / EVERYDAY HERO)
-> `> **Evidence: OBSERVED** (the pain) / MODEL-IN-HEAD (multi-writer).** Pablo lives the pain of
-> hand-syncing two machines daily; the *multi-writer* propagation loop (Obsidian → push → sync across
-> a department) has never been run with more than one writer.
+**The delight:** An enterprise security review can read the entire thing. One signed binary. No daemon. No bypass flags. No closed component. Security-sensitive configuration comes only from compiled-in trust roots and signed inherited configuration, never from anything a user or an attacker can write locally.
 
-**The delight:** An authorized change made **once** upstream — foundation, org, or department —
-simply appears on every machine on the next cadence, quietly, without clobbering personal work. The
-consumer never thinks about it; the author never wonders whether it landed. A manual "sync now" is
-there as an escape hatch, but real-time refresh is deliberately absent.
+**Example:** The embedded `cc` helper is SHA-256 pinned and independently notarized; the release gate rejects a signed app that lacks its Apple Events entitlement or purpose string; the in-binary setup-transaction selftest refuses to run unless the helper's filename is literally `mock-cc`, so an arbitrary override can never turn a test into a live mutation.
 
-**Example:** A department lead edits a Knowledge Copilot file in Obsidian, saves, and pushes; every
-machine in that department pulls it on the next sync cadence — no one runs a command, no one's
-personal writing-style content is touched.
-
-**Impact:** This is the everyday embodiment of the essence. It is what releases Pablo from being the
-sync layer and what makes the ecosystem *extensible by a team*, not just usable by one person. It
-also opens the hardest design problem — writable collaborative tiers and non-technical merge-conflict
-resolution (see `10-scope-and-non-goals.md`).
+**Impact:** This is the thing a competitor cannot bolt on afterwards, because it is a discipline expressed as a hundred small refusals rather than a feature. It is also the go-to-market: openness is why an organization can say yes to an always-on token-holder at all.
 
 ## Essential Minimum
 
+Stripped to its core, this product is a renderer over a contract. Everything below is load-bearing; everything not below is decoration.
+
 | Component | Purpose | Notes |
 |-----------|---------|-------|
-| CLI `--json` / `flock` / `COPILOT_MANAGED_BY` contract | The whole safety boundary — the app can't supervise a CLI it can't read machine-readably | Lives in `copilot`, not here (WS-A). Bidirectional schema gate; missing security fields fail closed. **Prerequisite for everything.** |
-| Single-process Tauri shell + status state machine + menu | Tray, supervisor, scheduler in one signed binary; renders per-host status | No headless daemon, no in-app fallback loop (invariant #2) |
-| GUI first-run wizard (silent managed path + fail-closed validation) | Turns Ring-1 phases into a GUI; provisions Bob | Asks ≤3 unmanaged; schema-validate profile → `IT-config-incomplete` on missing key |
-| SMAppService login item + `launchd` crash-only watchdog | "Stays on, keeps synced"; self-update rollback | `KeepAlive={SuccessfulExit:false}`, never `true` |
-| Actor-competence × reversibility escalation router | Routes every event to auto-act / escalate-IT / ask-Bob | Assumes Bob is not a reliable actor |
-| Admin mode: seed + MDM-profile generator + preflight | Lets IT stand up + deploy the fleet | Open source is a *requirement*, not goodwill |
+| The versioned CLI `--json` contract | The entire safety boundary. The app cannot supervise a CLI it cannot read machine-readably | Lives in the CLI repository, not here. Fifteen schemas on disk; per-verb major gate; missing security fields fail closed |
+| A locator that never resolves a bare name | The app must run *the* helper, not whatever `PATH` offers | Bundle `Contents/Resources/cc` first, then known absolute paths; `Process.executableURL` never consults `$PATH`, and `gh copilot` can never be mistaken for it |
+| The status state machine and its twelve-token badge vocabulary | Turns a parsed report into one honest glanceable fact | Shape before color; no computed score; no celebratory success state |
+| The nine-step wizard with named phases | Provisions a non-technical person without a terminal | No countdown, no percentage; a blocked step is a named state, not a spinner |
+| The Admin bootstrap engine | Makes an organization exist, idempotently | Deterministic bash, check-then-act, GET before every write; the model and the UI decide nothing |
+| The preflighted saga with a completed-actions ledger | Makes setup honest about what it did | All deterministic preflight before any irreversible write; `HEAD == target` postcondition; never-destroy compensation reports rather than deletes |
+| Pinned, notarized helper + signed, notarized app + immutable release tags | Makes the thing installable by someone who cannot verify it themselves | Rollback is reinstalling the prior signed DMG; a defective release is superseded, never moved |
 
 ## Ecosystem Context
 
 ```
-copilot / cc CLI (--json verdicts)   ecosystem.yml seed   MDM managed profile (dev.enac.controltower)
-        |                                   |                        |
-        |  (parses, never computes)         | (products, pins)       | (org values, forced-domain security keys)
-        v                                   v                        v
-                        ┌─────────────────────────────────────────┐
-                        │           COPILOT CONTROL TOWER          │
-                        │   Operator mode  ·  Admin mode           │
-                        └─────────────────────────────────────────┘
-        |                         |                          |
-        v                         v                          v
-  materialized .claude/     IT fleet dashboard        generated .mobileconfig + seed
-  (via CLI, per host)       (opt-in org telemetry)    → Jamf / Kandji / Intune
-                                  |
-                                  v
-                        content-free safety escalations → IT AdminContact channel
+GitHub repository access (the single entitlement)   Shared secret store (endpoint via inherited org config)
+              |                                                  |
+              |  (who is entitled to which layer)                |  (references, never values)
+              v                                                  v
+                    +-------------------------------------------+
+                    |            copilot / cc  CLI              |
+                    |  computes: resolve, doctor, onboard,      |
+                    |  layers, freshness, update, workspace     |
+                    +-------------------------------------------+
+                              |  versioned --json
+                              v
+                    +-------------------------------------------+
+                    |         COPILOT CONTROL TOWER             |
+                    |   User app (tray + wizard + settings)     |
+                    |   Admin app (16 surfaces)                 |
+                    |   parses, renders, schedules — never      |
+                    |   computes                                |
+                    +-------------------------------------------+
+                              |
+                              v
+      Sixteen live layers on the machine: Knowledge / CLI / Claude / Codex
+      x Foundation / Organization / Department / Personal
+                              |
+                              v
+      The person's own work: their projects, in their own repositories,
+      which Control Tower sets up integrations for and never syncs as layers
 ```
 
-Flows **in:** CLI JSON verdicts, the `ecosystem.yml` seed, the MDM managed profile, host detection.
-Flows **out:** re-materialized `.claude/` (done by the CLI), org-scoped fleet telemetry to the IT
-dashboard, generated MDM profiles/seeds/runbooks (Admin mode) to the MDM vendor, content-free safety
-signals to the IT channel. It **does not** replace any system of record — it supervises them.
+Flows **in:** the CLI's typed JSON reports, GitHub repository and team access, the organization's declared services and their connection state, the person's own choices about departments and projects. Flows **out:** materialized layers on disk (written by the CLI, never by the app), a real Terminal session handed to the chosen assistant, and a plain-language account of what changed. It replaces no system of record: GitHub remains the source of truth for access, the CLI remains the source of truth for state, and the person remains the owner of their own tree.
 
 ## Warning Signs (Regression Triggers)
 
 | Request | Why It Is Wrong |
 |---------|-----------------|
-| "Add health scoring / resolution in the app so it works offline" | Duplicates the CLI, creates two sources of truth — violates *parse-never-compute* (invariant #1) |
-| "Let the app edit `.claude/` or resolve conflicts directly" | Same — the CLI owns materialization; the app renders, it doesn't mutate |
-| "Add a `--force` / `--skip-verify` to unstick a machine" | *Security posture is inherited and never weakened* (invariant #4) — no lower-bar mode may exist |
-| "Let Bob approve a held-major upgrade to clear the badge" | Approval authority is IT's; Bob has no basis to judge (fixes A-H11). Proximity to the menu bar ≠ competence |
-| "Set `KeepAlive=true` so it never dies" | Crash-loops a bad build and resurrects after a clean Quit (fixes B-C2) — the watchdog is crash-only |
-| "Make it a full chat UI / a second brain" | It's a tower, not the pilot — an AI surface is out of scope by definition |
-| "Read `UpdateFeedURL`/`FoundationMirror` from the user domain for convenience" | Supply-chain RCE via preference write (fixes B-C5) — security keys honored only from the forced/managed domain |
-| "Notify Bob on every prune / policy denial" | Alert fatigue burns the one alert that matters (C3); route by who can act (fixes A-M15) |
+| "Let the app compute health when the CLI is slow or offline, so it still works" | Two sources of truth, and the app's is the one that can be wrong. An honest holding state is the answer; a guess is the one failure worse than more UI |
+| "Add a `--force` or `--skip-verify` to unstick a machine" | The entire safety claim is that the agent runs the same pipeline with zero bypass flags. One lower-bar mode and the security review that gates all adoption says no |
+| "Read the update feed or a mirror location from user preferences for power users" | A preference write becomes remote code execution. Security-sensitive configuration comes only from compiled-in trust roots and signed inherited configuration |
+| "Show the merge conflict and let them resolve it — every developer does" | A raw VCS error reads to a non-technical person as *the tool broke my work*. Resolution is non-technical by construction or it does not surface to them at all |
+| "Add a chat box so people can ask if their machine is okay" | It is a tower, not the pilot. A model-driven surface contradicts parse-never-compute by definition and multiplies the audit surface the moat depends on shrinking |
+| "Add a paid tier or a hosted dashboard to fund the work" | Openness *is* the security guarantee. A closed component directly undermines the reason an organization can trust an always-on token-holder |
+| "Show percent complete or time remaining during setup" | An estimate is a computed promise the app cannot keep honestly. Name the phase |
+| "Push everything through one remote and sort the tiers out later" | Private content reaching a shared place is irreversible. Separate trees, separate remotes, and no upward credential on any personal-holding path |
+| "Let the person approve the held update so the badge clears" | Proximity to the menu bar is not competence. Handing someone a decision they have no basis for trains blind approval |
 
 ## Acceptance Criteria
 
 ### For Users
-Bob: *"I double-clicked once and had a working partner scoped to my team. I never opened a terminal
-or edited a config file. It just stays working, and it only ever asks me about my own stuff."*
+
+*"I clicked once, signed in with my browser, and everything was set up. I have never opened a terminal. It told me exactly what it was going to do before it did it, and it only ever asks me about my own stuff. When something is wrong it tells me in one sentence what is wrong, and most of the time there is nothing to tell me at all."*
 
 ### For the Business
-Pablo / ENAC: *"It's **pure open source, free forever** — no paid tier, no enterprise SKU, no hosted
-service — and that is exactly why enterprises trust it: open source is both the security requirement
-and the go-to-market. It's auditable and MDM-deployable, so enterprises adopt the whole Copilot
-ecosystem without friction, and the always-on agent is provably *safer* than a human running
-`copilot update` by hand. Success is **adoption, trust, and reliability** — machines running healthy,
-security reviews passed, contribution health — never revenue. Every one of the 25 Critical/High
-red-team findings is closed."*
-<!-- DECIDED (Pablo, 2026-07-06): Business model = pure OSS, no monetization. Control Tower is free
-     and open-source forever; its purpose is to drive trust and adoption of the broader copilot/cc
-     ecosystem. Open source is both a security *requirement* and the go-to-market. No paid tier, no
-     enterprise SKU, no hosted service. "Worth building" is judged by adoption + trust + reliability,
-     not revenue. -->
+
+*"It is pure open source and free forever, and that is the strategy rather than a concession — openness is what lets an organization accept an always-on agent at all. Worth-it is measured in adoption, trust, and reliability: machines running honestly, setups that complete without a human rescuing them, and security reviews that end in a yes. There is no revenue metric here by design."*
 
 ### For the Ecosystem
-IT / fleet: *"I stood up and deployed the ecosystem from Admin mode and the docs alone. I can see
-healthy-vs-stuck at a glance, every escalation reaches a live channel, and a leaver loses access
-reliably even offline — the observability gap is closed."*
+
+*"An organization's people get the tooling their repository access already says they should have, without anyone hand-provisioning a machine. A change authored once lands everywhere entitled to it. Nothing personal ever moves upward, and no shared change ever destroys something a person owns. The ecosystem became something a team can extend, not something one technical person has to carry."*
