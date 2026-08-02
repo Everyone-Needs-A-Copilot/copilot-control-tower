@@ -328,7 +328,7 @@ enum ConnectionSecretState: Decodable, Equatable {
 /// `ConnectionRow.missing`'s NAMES are ever rendered), so there is nothing
 /// for a stricter type to buy here, and a plain `String` is inherently
 /// forward-tolerant of a future routing hint.
-struct ConnectionRequiredSecret: Decodable {
+struct ConnectionRequiredSecret: Decodable, Equatable {
     let name: String
     let from: String
 }
@@ -338,7 +338,10 @@ struct ConnectionRequiredSecret: Decodable {
 /// decoded for contract fidelity but deliberately never surfaced as on-screen
 /// jargon (`docs/03-design/`'s Quiet Instrument voice) -- only
 /// `name`/`description`/`secretState`/`missing` drive any rendered text.
-struct ConnectionRow: Decodable, Identifiable {
+/// `Equatable` so `ConnectRender.Outcome` (native/render-state.swift) can be,
+/// which is what lets a SwiftUI view hold the sheet's terminal state in
+/// `@State` and compare it without re-rendering on every unrelated update.
+struct ConnectionRow: Decodable, Identifiable, Equatable {
     let id: String
     let name: String
     let description: String
@@ -371,6 +374,101 @@ struct ConnectionsReport: Decodable {
     let org: String?
     let store: ConnectionsStore
     let connections: [ConnectionRow]
+}
+
+// MARK: - connect.schema.json (task 222 — the in-app Connect sheet)
+
+/// `cc connect`'s envelope-level outcome. Lenient decode for the same reason
+/// `ConnectionsResult` above is: `SchemaGate` only range-gates the MAJOR
+/// version, so an additive minor bump could add a value this build has never
+/// heard of. An unrecognized value folds into `.unknown`, which every call
+/// site treats as "did not succeed" — never silently "ok".
+enum ConnectResult: Decodable, Equatable {
+    case ok
+    case unknownService
+    case invalidInput
+    case copilotUnavailable
+    case orgConfigUnavailable
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "ok": self = .ok
+        case "unknown-service": self = .unknownService
+        case "invalid-input": self = .invalidInput
+        case "copilot-unavailable": self = .copilotUnavailable
+        case "org-config-unavailable": self = .orgConfigUnavailable
+        default: self = .unknown
+        }
+    }
+}
+
+/// Which mode the CLI actually ran in. The app sends `--check` for its
+/// post-connect refresh and nothing else, so a `check` reply to a `connect`
+/// call (or the reverse) is a contract violation the render layer treats as a
+/// failure rather than trusting — see `ConnectRender.outcome(for:)`.
+enum ConnectMode: Decodable, Equatable {
+    case connect
+    case check
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "connect": self = .connect
+        case "check": self = .check
+        default: self = .unknown
+        }
+    }
+}
+
+/// Per-credential outcome. Lenient decode, and an unrecognized value folds
+/// into `.failed` rather than `.unknown` + a separate branch: the only honest
+/// reading of "this build does not know what happened to this credential" is
+/// "do not claim it was stored".
+enum CredentialOutcomeState: Decodable, Equatable {
+    case stored
+    case alreadyPresent
+    case failed
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "stored": self = .stored
+        case "already-present": self = .alreadyPresent
+        default: self = .failed
+        }
+    }
+}
+
+/// One credential's outcome (`connect.schema.json`'s `$defs.credentialOutcome`).
+/// `name` is a NAME, never a value; `detail` is the CLI's own plain-language
+/// reason and is contractually guaranteed never to contain the value or any
+/// substring of it. Nothing in this app ever puts a value into a DTO — the
+/// values travel one way, over stdin, and are never read back.
+struct CredentialOutcome: Decodable, Identifiable {
+    var id: String { name }
+    let name: String
+    let outcome: CredentialOutcomeState
+    let detail: String?
+}
+
+/// `cc connect <service-id> [--check] --json`'s full envelope.
+///
+/// `service` is the SAME row shape `cc connections --json` returns (the schema
+/// `$ref`s `connections.schema.json#/$defs/connection` rather than duplicating
+/// it), re-evaluated AFTER any writes — which is precisely what lets the two
+/// connections surfaces refresh a single row from this reply without a second
+/// full `connections` call, and without this app deciding for itself whether
+/// the write "worked" (invariant #1).
+struct ConnectReport: Decodable {
+    let schemaVersion: String
+    let result: ConnectResult
+    let detail: String?
+    let mode: ConnectMode
+    let service: ConnectionRow?
+    let credentials: [CredentialOutcome]?
 }
 
 // MARK: - freshness.schema.json

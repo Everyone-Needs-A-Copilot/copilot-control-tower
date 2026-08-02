@@ -46,6 +46,13 @@
 #                                     #   `cc` build that PREDATES this verb entirely (exit 2,
 #                                     #   no readable body — the real bundled 0.3.2 app's
 #                                     #   `cc 2.1.2` helper's exact observed shape).
+#   mock-cc connect <id> --json      # task 222: writes the values read from STDIN into the
+#                                     #   keychain and re-checks (connect.schema.json). Derives
+#                                     #   the row from the SAME connections/corpus/ body, and
+#                                     #   FAILS LOUDLY if any supplied value is also visible in
+#                                     #   argv or the environment — that assertion is the point.
+#   mock-cc connect <id> --check --json
+#                                     #   read-only re-evaluation: never reads stdin, never writes.
 #   mock-cc onboard --org <o> --products <p> --json
 #                                     # the aggregate ecosystem PLAN call (`WizardModel.
 #                                     #   performDetect`/`WizardSelftest`'s CT_SELFTEST_STEP=
@@ -315,6 +322,7 @@ verb=""
 subverb=""
 arg3=""
 poll=0
+connect_check=0
 project_path=""
 fanout=0
 all_projects=0
@@ -371,6 +379,13 @@ while [ $i -lt ${#args[@]} ]; do
     --poll)
       poll=1
       ;;
+    --check)
+      # `connect --check` (task 222): read-only re-evaluation, never reads
+      # stdin and never writes. Declared explicitly rather than falling into
+      # the `-*` ignore case below, because the difference between check mode
+      # and connect mode is the whole point of the verb.
+      connect_check=1
+      ;;
     --json) ;; # accepted, no-op marker
     -*) ;;      # ignore unknown flags
     *)
@@ -400,7 +415,7 @@ if [ -z "$fixture" ]; then
       ;;
     freshness) fixture="mixed-fresh-and-stale" ;;
     layers) fixture="available" ;;
-    connections) fixture="ready-and-needs-connect" ;;
+    connections|connect) fixture="ready-and-needs-connect" ;;
     *) fixture="healthy-clean-fleet" ;;
   esac
 fi
@@ -967,6 +982,147 @@ PY
     exit 0
     ;;
 
+  connect)
+    # `mock-cc connect <service-id> [--check] --json` (task 222,
+    # connect.schema.json). Derives its answer from the SAME connections
+    # corpus body `connections` above serves, for the same reason the real
+    # verb reuses `cc connections`' machinery: there must be exactly one
+    # description of what a service requires and what is missing.
+    #
+    # The load-bearing behaviour this fixture exists to prove is not the
+    # happy path — it is that a VALUE only ever arrives on stdin. This mock
+    # compares every supplied value against its own argv and against its
+    # environment, and fails LOUDLY if it finds one there, so a future change
+    # that starts passing a credential as an argument or an env var breaks a
+    # test instead of shipping.
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. keychain unavailable) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+    if [ "$fixture" = "verb-unavailable" ]; then
+      echo "Usage: cc [OPTIONS] COMMAND [ARGS]..." >&2
+      echo "Try 'cc --help' for help." >&2
+      echo "Error: No such command 'connect'." >&2
+      exit 2
+    fi
+
+    connect_corpus="${fixture:-ready-and-needs-connect}"
+    connect_path="$CONNECTIONS_CORPUS_DIR/$connect_corpus.json"
+    if [ ! -f "$connect_path" ]; then
+      echo "mock-cc: unknown connections fixture '$connect_corpus' for 'connect'." >&2
+      exit 2
+    fi
+
+    connect_stdin=""
+    if [ "$connect_check" -eq 0 ]; then
+      # Read stdin whole. An empty stdin is a real, testable case
+      # (`invalid-input`), not an error here.
+      connect_stdin="$(cat)"
+    fi
+
+    python3 - "$connect_path" "$subverb" "$connect_check" "$connect_stdin" "${args[@]}" <<'PY'
+import json
+import os
+import sys
+
+corpus_path, service_id, check_flag, stdin_raw = sys.argv[1:5]
+argv_rest = sys.argv[5:]
+check = check_flag == "1"
+
+with open(corpus_path, encoding="utf-8") as handle:
+    report = json.load(handle)
+
+row = next((r for r in report.get("connections", []) if r.get("id") == service_id), None)
+
+def emit(payload):
+    print(json.dumps(payload))
+    sys.exit(0)
+
+if row is None:
+    emit({
+        "schema_version": "1.0",
+        "result": "unknown-service",
+        "detail": f"There is no connection called '{service_id}' in your organization's setup.",
+        "mode": "check" if check else "connect",
+        "service": None,
+        "credentials": None,
+    })
+
+if check:
+    emit({
+        "schema_version": "1.0",
+        "result": "ok",
+        "detail": None,
+        "mode": "check",
+        "service": row,
+        "credentials": None,
+    })
+
+required = [entry["name"] for entry in row.get("requires_secret", [])]
+missing = list(row.get("missing", []))
+
+try:
+    supplied = json.loads(stdin_raw) if stdin_raw.strip() else None
+    if not isinstance(supplied, dict) or not all(isinstance(v, str) for v in supplied.values()):
+        raise ValueError
+except (ValueError, TypeError):
+    emit({
+        "schema_version": "1.0",
+        "result": "invalid-input",
+        "detail": "Control Tower sent something this helper could not read. Nothing was saved.",
+        "mode": "connect",
+        "service": row,
+        "credentials": [
+            {"name": name, "outcome": "failed", "detail": "no value was provided for this credential."}
+            for name in required
+        ],
+    })
+
+# The whole point of the fixture: a value must never have travelled by any
+# route other than stdin.
+for name, value in supplied.items():
+    if not value:
+        continue
+    if any(value == token or value in token for token in argv_rest):
+        print(f"mock-cc: FATAL — the value for {name} appeared in argv. Values must only ever reach the CLI on stdin.", file=sys.stderr)
+        sys.exit(2)
+    if any(value == env_value for env_value in os.environ.values()):
+        print(f"mock-cc: FATAL — the value for {name} appeared in the environment. Values must only ever reach the CLI on stdin.", file=sys.stderr)
+        sys.exit(2)
+
+credentials = []
+stored = set()
+for name in required:
+    if name not in missing:
+        credentials.append({"name": name, "outcome": "already-present", "detail": None})
+        continue
+    value = supplied.get(name)
+    if value is None:
+        credentials.append({"name": name, "outcome": "failed", "detail": "no value was provided for this credential."})
+    elif value == "":
+        credentials.append({"name": name, "outcome": "failed", "detail": "value must not be empty."})
+    elif value == "MOCK-KEYCHAIN-REFUSES":
+        credentials.append({"name": name, "outcome": "failed", "detail": "this Mac's keychain refused to save it."})
+    else:
+        credentials.append({"name": name, "outcome": "stored", "detail": None})
+        stored.add(name)
+
+fresh = dict(row)
+fresh["missing"] = [name for name in missing if name not in stored]
+fresh["secret_state"] = "ready" if not fresh["missing"] else "needs-connect"
+
+emit({
+    "schema_version": "1.0",
+    "result": "ok",
+    "detail": None,
+    "mode": "connect",
+    "service": fresh,
+    "credentials": credentials,
+})
+PY
+    exit 0
+    ;;
+
   auth)
     # `mock-cc auth login --json ...` is accepted as an alias for `mock-cc auth --json
     # ...` (D-3-M3 recommendation #2: the wizard's host/GitHub sign-in step is one more
@@ -1099,7 +1255,7 @@ PY
     ;;
 
   *)
-    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json', 'auth --json [--poll]' / 'auth status --json', 'layers --json' / 'layers join <id> --json', 'connections --json', 'freshness --json' / 'freshness --all-projects --json', 'deprovision <org> --json', 'update --json' / 'update --project <path> --json' / 'update --fanout --json', and 'config set <key> <value>'" >&2
+    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json', 'auth --json [--poll]' / 'auth status --json', 'layers --json' / 'layers join <id> --json', 'connections --json', 'connect <service-id> [--check] --json', 'freshness --json' / 'freshness --all-projects --json', 'deprovision <org> --json', 'update --json' / 'update --project <path> --json' / 'update --fanout --json', and 'config set <key> <value>'" >&2
     exit 2
     ;;
 esac

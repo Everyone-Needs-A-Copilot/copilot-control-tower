@@ -444,6 +444,10 @@ struct UserSettingsView: View {
     let onFinishPersonalSetup: () -> Void
     let onManageProjects: (ProjectTriageCategory?) -> Void
     @State private var expandedComponents: Set<UserSettingsComponent> = []
+    /// The Connect sheet's row (task 222) — presentation-only, dropped the
+    /// moment the sheet closes, exactly as `native/wizard.swift`'s step 6
+    /// holds it.
+    @State private var connectingRow: ConnectionRow?
 
     var body: some View {
         ScrollView {
@@ -466,6 +470,17 @@ struct UserSettingsView: View {
         }
         .frame(minWidth: 760, idealWidth: 820, minHeight: 650, idealHeight: 760)
         .background(Color(nsColor: .windowBackgroundColor))
+        .sheet(item: $connectingRow) { row in
+            ConnectSheet(row: row) { _ in
+                // Same discipline as the wizard's step 6: re-read everything
+                // from the CLI rather than patching the one row this app just
+                // changed.
+                connectingRow = nil
+                model.load()
+            } onCancel: {
+                connectingRow = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -752,23 +767,33 @@ struct UserSettingsView: View {
     }
 
     /// `secret_state == needs-connect` org row -- names what is actually
-    /// missing, in plain language, never tier/mode jargon.
+    /// missing, in plain language, never tier/mode jargon, and carries the
+    /// same Connect affordance the wizard's step 6 does (task 222), on the
+    /// same rule: `needs-connect` only, never a `no-store` row.
     private func connectionNeedsConnectRow(_ row: ConnectionRow) -> some View {
         let detail = ConnectionsRender.needsConnectDetail(row)
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(row.name.capitalized)
-                .font(.callout.weight(.semibold))
-            Text(row.description)
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            Text(detail)
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
+        return HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.name.capitalized)
+                    .font(.callout.weight(.semibold))
+                Text(row.description)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
+
+            Spacer(minLength: 0)
+
+            Button { connectingRow = row } label: { Text("Connect…") }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Connect \(row.name.capitalized)")
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
     }
 
     /// `secret_state == no-store` rows -- grouped under one honest
@@ -926,6 +951,191 @@ struct UserSettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Button("Try again") { model.load() }
                 .buttonStyle(.bordered)
+        }
+    }
+}
+
+// MARK: - The Connect sheet (task 222)
+
+/// The one surface in this app that ever takes a secret VALUE from a person.
+///
+/// It lives here, rather than beside either caller, because BOTH connections
+/// surfaces present the identical sheet — `native/wizard.swift`'s step 6 and
+/// this file's own "Your connections" card. That is a deliberate exception to
+/// this app's usual "shared derivation, independent views" convention: the row
+/// treatments differ between a full-window wizard step and a settings card and
+/// are duplicated on purpose, but a modal that handles credentials must behave
+/// identically in both places, and duplicating it would mean maintaining two
+/// copies of the rules below.
+///
+/// The rules, all of which are load-bearing:
+///   - Values are held in `@State` for exactly as long as the sheet is open,
+///     are passed once to `CliClient.connect` (which writes them to the child's
+///     stdin and nothing else), and are cleared the moment the sheet closes.
+///   - `SecureField` means the value is never rendered, never in an
+///     accessibility label, and never in a screenshot.
+///   - Nothing here decides whether the connection worked. The CLI re-checks
+///     after writing and returns the row; `ConnectRender.outcome(for:)` reads
+///     its verdict (invariant #1).
+///   - Every terminal state names an actor or a self-retry, per the
+///     honest-degrade floor in `docs/03-design/connect-experience-walkthrough.md`
+///     §2 (HMW-3). There is no dead end on this sheet.
+///
+/// This sheet is the BRIDGE, not the destination: the ratified design in
+/// `docs/05-security/self-service-store-provisioning.md` §5.2 removes the
+/// pasted value entirely, by having the store answer to the person's own
+/// GitHub team membership. It exists because a member whose organization has
+/// not wired that up yet is otherwise stuck with a screen that promises a
+/// Connect button and has never had one.
+struct ConnectSheet: View {
+    let row: ConnectionRow
+    /// Called with the CLI's own re-checked row once it comes back ready — the
+    /// caller refreshes from THIS row rather than assuming, and closes.
+    let onConnected: (ConnectionRow) -> Void
+    let onCancel: () -> Void
+
+    @State private var values: [String: String] = [:]
+    @State private var working = false
+    @State private var outcome: ConnectRender.Outcome?
+
+    /// Every missing name, in the CLI's own order — never re-sorted, never
+    /// filtered, and never a name this app decided was needed.
+    private var fields: [String] { row.missing }
+
+    private var canSubmit: Bool {
+        !working && !fields.isEmpty && fields.allSatisfy { !(values[$0] ?? "").isEmpty }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Connect \(row.name.capitalized)")
+                    .font(.title2.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                Text(row.description)
+                    .font(.body)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text("Whoever set up your organization's shared store gives you these. Control Tower hands them straight to this Mac's keychain — they are never shown again, never written into a project, and never sent anywhere.")
+                .font(.callout)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(fields, id: \.self) { name in
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(name)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        SecureField("", text: binding(for: name))
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(working)
+                            .accessibilityLabel(name)
+                    }
+                }
+            }
+            .padding(15)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            if let outcome { outcomeView(outcome) }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 10) {
+                if working {
+                    ProgressView().controlSize(.small)
+                    Text("Saving these to your keychain…")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                }
+                Spacer()
+                Button { onCancel() } label: { Text("Cancel") }
+                    .buttonStyle(.bordered)
+                    .disabled(working)
+                Button { submit() } label: { Text(outcome == nil ? "Connect" : "Try again") }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canSubmit)
+            }
+        }
+        .padding(28)
+        .frame(width: 560, height: fields.count > 2 ? 560 : 470)
+    }
+
+    @ViewBuilder
+    private func outcomeView(_ outcome: ConnectRender.Outcome) -> some View {
+        switch outcome {
+        case .connected:
+            // Reached only in the instant before the caller dismisses.
+            Label("Connected.", systemImage: "checkmark.circle")
+                .font(.callout.weight(.semibold))
+                .foregroundColor(Color(nsColor: .systemGreen))
+
+        case .notConnected(let title, let details):
+            VStack(alignment: .leading, spacing: 7) {
+                Label(title, systemImage: "exclamationmark.triangle")
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .systemOrange))
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(details, id: \.self) { detail in
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("Nothing else on this Mac was changed. Check the values with whoever gave them to you, then try again.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+        case .unreadable(let sentence):
+            VStack(alignment: .leading, spacing: 7) {
+                Label(sentence, systemImage: "exclamationmark.triangle")
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .systemOrange))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("You can close this and try again whenever you want.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+            }
+        }
+    }
+
+    private func binding(for name: String) -> Binding<String> {
+        Binding(
+            get: { values[name] ?? "" },
+            set: { values[name] = $0 }
+        )
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        working = true
+        outcome = nil
+        // The payload is built from the CLI's OWN `missing` names, handed to
+        // `CliClient.connect` once, and dropped: `values` is cleared below
+        // whatever the result, so a sheet left open after a failure never
+        // still holds what was typed.
+        let payload = fields.reduce(into: [String: String]()) { result, name in
+            result[name] = values[name] ?? ""
+        }
+        Task { @MainActor in
+            let result = await CliClient.shared.connect(serviceId: row.id, values: payload)
+            values = [:]
+            working = false
+            switch result {
+            case .success(let report):
+                let decided = ConnectRender.outcome(for: report)
+                outcome = decided
+                if case .connected(let fresh) = decided { onConnected(fresh) }
+            case .failure(let error):
+                outcome = ConnectRender.outcome(for: error)
+            }
         }
     }
 }

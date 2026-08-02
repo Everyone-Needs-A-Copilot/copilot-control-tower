@@ -1028,6 +1028,69 @@ scenario_S45() {
 }
 
 # ==========================================================================
+# Scenarios S46/S47/S48 — task 222: the Connect sheet's CLI seam
+# (`connect.schema.json`). S46 proves `--check` is genuinely read-only and
+# decodes. S47 proves the whole write path end to end AND that the value only
+# ever travelled on stdin — `mock-cc connect` compares every supplied value
+# against its own argv and environment and exits 2 with a FATAL line if it
+# finds one there, so a regression that starts passing a credential as an
+# argument fails this scenario rather than shipping. S48 proves a partial
+# failure stays honest: the envelope is still `ok`, and it is the ROW that
+# reports the connection is not ready.
+# ==========================================================================
+
+scenario_S46() {
+    local id="S46"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=ready-and-needs-connect CT_OPEN_WIZARD=1 CT_SELFTEST=1 \
+        CT_SELFTEST_STEP=connect CT_SELFTEST_SERVICE=infisical
+    rm -rf "${home}"
+    assert_exit_zero "${id} connect --check"
+    assert_contains "${id} connect --check" "connectResult=ok mode=check"
+    assert_contains "${id} connect --check" "service=needs-connect"
+    assert_contains "${id} connect --check" "credentials="
+}
+
+scenario_S47() {
+    local id="S47"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=ready-and-needs-connect CT_OPEN_WIZARD=1 CT_SELFTEST=1 \
+        CT_SELFTEST_STEP=connect CT_SELFTEST_SERVICE=infisical \
+        CT_SELFTEST_CONNECT_VALUES='{"INFISICAL_CLIENT_ID":"fixture-id","INFISICAL_CLIENT_SECRET":"fixture-secret"}'
+    rm -rf "${home}"
+    assert_exit_zero "${id} connect (stdin write)"
+    assert_contains "${id} connect (stdin write)" "connectResult=ok mode=connect"
+    assert_contains "${id} connect (stdin write)" "service=ready"
+    assert_contains "${id} connect (stdin write)" "INFISICAL_CLIENT_ID:stored"
+    assert_contains "${id} connect (stdin write)" "INFISICAL_CLIENT_SECRET:stored"
+    # The value itself must appear nowhere in anything this run printed.
+    if [[ "${LAST_OUTPUT}" == *"fixture-secret"* ]]; then
+        fail "${id} connect never echoes a value" "${LAST_OUTPUT}"
+    else
+        pass "${id} connect never echoes a value"
+    fi
+}
+
+scenario_S48() {
+    local id="S48"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=ready-and-needs-connect CT_OPEN_WIZARD=1 CT_SELFTEST=1 \
+        CT_SELFTEST_STEP=connect CT_SELFTEST_SERVICE=infisical \
+        CT_SELFTEST_CONNECT_VALUES='{"INFISICAL_CLIENT_ID":"fixture-id","INFISICAL_CLIENT_SECRET":"MOCK-KEYCHAIN-REFUSES"}'
+    rm -rf "${home}"
+    assert_exit_zero "${id} connect (partial failure)"
+    assert_contains "${id} connect (partial failure)" "connectResult=ok mode=connect"
+    assert_contains "${id} connect (partial failure)" "service=needs-connect"
+    assert_contains "${id} connect (partial failure)" "INFISICAL_CLIENT_SECRET:failed"
+}
+
+# ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
 
@@ -1144,6 +1207,9 @@ scenario_S42
 scenario_S43
 scenario_S44
 scenario_S45
+scenario_S46
+scenario_S47
+scenario_S48
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

@@ -413,6 +413,90 @@ enum ConnectionsRender {
     static let updateHint = "Update to see your organization's connections."
 }
 
+// MARK: - The Connect sheet (task 222)
+
+/// Pure derivation from a decoded `ConnectReport` (or a failed CLI seam) into
+/// the one thing the Connect sheet needs to know: what to say, and whether the
+/// row is now ready. Shared by `native/wizard.swift`'s step 6 and
+/// `native/user-settings.swift`'s "Your connections" card, exactly like
+/// `ConnectionsRender` above — shared DERIVATION, independent VIEWS.
+///
+/// The discipline this type exists to enforce: **every sentence about what the
+/// CLI did comes from the CLI** (invariant #1). This app owns copy only for
+/// conditions it observed itself — the helper could not be reached, or the
+/// helper answered in a shape the contract does not allow — and even then it
+/// never invents a REASON, only states what it can honestly stand behind.
+enum ConnectRender {
+    enum Outcome: Equatable {
+        /// The CLI re-checked after writing and the row came back ready. This
+        /// is the ONLY state the sheet is allowed to call success, and it is
+        /// the CLI's verdict, not the app's inference from "the write didn't
+        /// error".
+        case connected(ConnectionRow)
+        /// The CLI answered, and the answer was not "ready". `title` is
+        /// CLI-authored whenever the CLI supplied one; `details` are the
+        /// CLI's own per-credential sentences, in the CLI's own order.
+        case notConnected(title: String, details: [String])
+        /// The app could not get a trustworthy answer at all. App-owned copy,
+        /// naming no reason it cannot prove.
+        case unreadable(String)
+    }
+
+    /// The sheet's own framing when the CLI reported `ok` but the row is still
+    /// not ready — a partial per-credential failure, which by design does NOT
+    /// change the envelope-level result (`connect.schema.json`'s `credentials`
+    /// note). States the observed fact; the reasons underneath it are the
+    /// CLI's.
+    static let partialTitle = "Not everything was saved."
+
+    /// Used only when the CLI said `ok`, the row is still not ready, and there
+    /// is no per-credential detail to show either — a shape the contract
+    /// permits but does not explain. Claims nothing about why.
+    static let unexplainedTitle = "This connection still isn't ready."
+
+    static func outcome(for report: ConnectReport) -> Outcome {
+        // A `check` reply to a `connect` call (or vice versa) is a contract
+        // violation. Fail closed rather than reading a row that may describe
+        // a different question than the one asked.
+        guard report.mode == .connect else {
+            return .unreadable("Control Tower couldn't confirm what was saved, so it won't say this is connected.")
+        }
+
+        let failures = (report.credentials ?? [])
+            .filter { $0.outcome == .failed }
+            .compactMap { credential -> String? in
+                guard let detail = credential.detail, !detail.isEmpty else { return nil }
+                return "\(credential.name): \(detail)"
+            }
+
+        if report.result == .ok, let service = report.service, service.secretState == .ready {
+            return .connected(service)
+        }
+
+        if let detail = report.detail, !detail.isEmpty {
+            return .notConnected(title: detail, details: failures)
+        }
+
+        return failures.isEmpty
+            ? .notConnected(title: unexplainedTitle, details: [])
+            : .notConnected(title: partialTitle, details: failures)
+    }
+
+    /// The CLI seam itself failed. Deliberately does NOT reuse the raw
+    /// `CliError` payload in any form — this app never shows a raw error
+    /// (`control-tower-copy-deck.md`'s hard rule) — and deliberately does not
+    /// distinguish the causes on screen: from the person's side they are one
+    /// state, "nothing was saved and nothing was changed".
+    static func outcome(for error: CliError) -> Outcome {
+        switch error {
+        case .notFound, .launchFailed:
+            return .unreadable("The setup helper isn't available on this Mac right now, so nothing was saved.")
+        default:
+            return .unreadable("Control Tower couldn't save these right now. Nothing was changed.")
+        }
+    }
+}
+
 extension CliError {
     /// True for the one `CliError` shape an installed `cc` build with no
     /// `connections` verb at all produces: exit code 2 (Click's own

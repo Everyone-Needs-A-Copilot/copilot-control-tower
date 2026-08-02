@@ -2504,6 +2504,15 @@ final class WizardModel: ObservableObject {
         }
     }
 
+    /// Re-reads the roster after the Connect sheet reports the CLI made a
+    /// change (task 222). Deliberately the SAME call step 6 made on entry —
+    /// never a narrower "just this row" patch — so what the screen shows
+    /// after a write is a fresh answer from the CLI, not this app's belief
+    /// about what its own write should have done.
+    func refreshConnections() {
+        loadConnections()
+    }
+
     func skipIntegrations() {
         enterProjectsStep()
     }
@@ -3602,6 +3611,11 @@ struct WizardRootView: View {
     /// it` — unlike the Holding sheets above, closing it never re-checks
     /// anything: it just returns focus to the field on the SAME screen.
     @State private var showsOrgHelpSheet = false
+    /// Step 6's Connect sheet (task 222). Presentation-only, same pattern as
+    /// the sheets above — the row it carries is the CLI's own
+    /// `needs-connect` row, never one this view assembled, and it is dropped
+    /// the moment the sheet closes.
+    @State private var connectingRow: ConnectionRow?
     /// Presentation-only list controls for Step 7. The selected category
     /// itself lives on `WizardModel` so sidebar review preserves the route;
     /// search and pagination are ephemeral and never affect CLI truth.
@@ -3666,6 +3680,19 @@ struct WizardRootView: View {
         .sheet(isPresented: $showsOrgHelpSheet) {
             OrgHelpSheet {
                 showsOrgHelpSheet = false
+            }
+        }
+        .sheet(item: $connectingRow) { row in
+            ConnectSheet(row: row) { _ in
+                // Re-read the whole roster from the CLI rather than patching
+                // the one row this app just changed: the verb already
+                // re-checked, and a second, independent read is what proves
+                // the screen and the machine agree (invariant #1 — the app
+                // never decides that a write took).
+                connectingRow = nil
+                model.refreshConnections()
+            } onCancel: {
+                connectingRow = nil
             }
         }
     }
@@ -4657,24 +4684,40 @@ struct WizardRootView: View {
     }
 
     /// `secret_state == needs-connect` org row -- names what is actually
-    /// missing, in plain language, never tier/mode jargon.
+    /// missing, in plain language, never tier/mode jargon, and carries the
+    /// Connect button this step's own intro has always promised (task 222).
+    ///
+    /// The button appears on `needs-connect` rows ONLY. Those are the rows
+    /// where the CLI has actually reached the store and found named
+    /// credentials absent — i.e. the one case a person on this Mac can
+    /// resolve. `no-store` rows deliberately keep no affordance at all
+    /// (`connectionsNoStoreGroup` below): nothing about them was verified, so
+    /// they are rendered as facts rather than as actions.
     private func connectionNeedsConnectRow(_ row: ConnectionRow) -> some View {
         let detail = ConnectionsRender.needsConnectDetail(row)
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(row.name.capitalized)
-                .font(.callout.weight(.semibold))
-                .foregroundColor(Color(nsColor: .labelColor))
-            Text(row.description)
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            Text(detail)
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
+        return HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.name.capitalized)
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                Text(row.description)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
+
+            Spacer(minLength: 0)
+
+            Button { connectingRow = row } label: { Text("Connect…") }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Connect \(row.name.capitalized)")
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
     }
 
     /// `secret_state == no-store` rows -- grouped under one honest
@@ -7319,6 +7362,72 @@ enum WizardSelftest {
                 print("SELFTEST connectionsResult=\(resultToken) connections=\(rows.joined(separator: ","))")
             case .failure(let error):
                 print("SELFTEST connections=error(\(error)) missingVerb=\(error.looksLikeMissingConnectionsVerb)")
+                exit(1)
+            }
+        }
+
+        // CT_SELFTEST_STEP=connect — the Connect sheet's CLI seam (task 222),
+        // driven directly for the same reason every step above is: a headless
+        // run proves the seam decodes `connect.schema.json` (including against
+        // the real SOURCE `cc`) without a person typing into a SecureField.
+        //
+        // `CT_SELFTEST_CONNECT_VALUES` is the ONLY way this path ever writes,
+        // and it exists so the fixture harness can prove the stdin channel
+        // end to end against `mock-cc`. Without it this runs `--check`, which
+        // reads and never writes — that is what makes this selftest safe to
+        // point at a real machine's real keychain, and the packaged-app
+        // release check does exactly that.
+        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "connect" {
+            let environment = ProcessInfo.processInfo.environment
+            let serviceId = environment["CT_SELFTEST_SERVICE"] ?? "infisical"
+            let result: Result<ConnectReport, CliError>
+            if let rawValues = environment["CT_SELFTEST_CONNECT_VALUES"],
+               let data = rawValues.data(using: .utf8),
+               let values = try? JSONDecoder().decode([String: String].self, from: data) {
+                result = await CliClient.shared.connect(serviceId: serviceId, values: values)
+            } else {
+                result = await CliClient.shared.connectCheck(serviceId: serviceId)
+            }
+
+            switch result {
+            case .success(let report):
+                let resultToken: String
+                switch report.result {
+                case .ok: resultToken = "ok"
+                case .unknownService: resultToken = "unknown-service"
+                case .invalidInput: resultToken = "invalid-input"
+                case .copilotUnavailable: resultToken = "copilot-unavailable"
+                case .orgConfigUnavailable: resultToken = "org-config-unavailable"
+                case .unknown: resultToken = "unknown"
+                }
+                let modeToken: String
+                switch report.mode {
+                case .connect: modeToken = "connect"
+                case .check: modeToken = "check"
+                case .unknown: modeToken = "unknown"
+                }
+                let stateToken: String
+                switch report.service?.secretState {
+                case .some(.ready): stateToken = "ready"
+                case .some(.needsConnect): stateToken = "needs-connect"
+                case .some(.noStore): stateToken = "no-store"
+                case .some(.unknown): stateToken = "unknown"
+                case nil: stateToken = "none"
+                }
+                let credentials = (report.credentials ?? []).map { credential -> String in
+                    let outcome: String
+                    switch credential.outcome {
+                    case .stored: outcome = "stored"
+                    case .alreadyPresent: outcome = "already-present"
+                    case .failed: outcome = "failed"
+                    }
+                    return "\(credential.name):\(outcome)"
+                }
+                // Prints NAMES and OUTCOMES only. There is no code path here
+                // that could print a value: the reply carries none.
+                print("SELFTEST connectResult=\(resultToken) mode=\(modeToken) service=\(stateToken) credentials=\(credentials.joined(separator: ","))")
+            case .failure(let error):
+                print("SELFTEST connect=error(\(error))")
                 exit(1)
             }
         }

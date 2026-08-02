@@ -413,8 +413,25 @@ actor CliClient {
     /// call site, none of which pass one. It fires off the main
     /// thread/actor; a caller that touches `@MainActor` state from it must
     /// hop there itself.
+    /// `stdin`, when non-nil, is written to the child's standard input and the
+    /// pipe is then closed (the child sees a clean EOF). This is the ONLY way
+    /// a secret VALUE ever reaches the CLI from this app — never an argument
+    /// (`ps` and the shell history would show it), never an environment
+    /// variable (inherited by every descendant, and visible in a crash
+    /// report), never a temporary file (it would outlive the process on disk).
+    /// The `Data` is written once and never retained, logged, or returned;
+    /// nothing downstream of this method can read it back.
+    ///
+    /// The write happens on its OWN queue, concurrently with `ProcessDrain`'s
+    /// stdout/stderr draining, for the same structural reason the drain reads
+    /// both pipes concurrently: a payload larger than one pipe buffer would
+    /// otherwise block this thread on the write while nothing drains the
+    /// child's output, and the child blocks on its own output write — a
+    /// deadlock that no realistic credential size would hit today and that
+    /// would be a lurking trap the first time one did.
     func runRaw(
         _ args: [String],
+        stdin: Data? = nil,
         onStdoutLine: ((String) -> Void)? = nil
     ) async -> Result<(stdout: Data, exit: Int32), CliError> {
         guard let executableURL = CliLocator.locate() else {
@@ -437,11 +454,30 @@ actor CliClient {
                 process.standardOutput = stdoutPipe
                 process.standardError = stderrPipe
 
+                let stdinPipe: Pipe? = stdin == nil ? nil : Pipe()
+                if let stdinPipe {
+                    process.standardInput = stdinPipe
+                }
+
                 do {
                     try process.run()
                 } catch {
                     continuation.resume(returning: .failure(.launchFailed))
                     return
+                }
+
+                if let stdinPipe, let payload = stdin {
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let handle = stdinPipe.fileHandleForWriting
+                        // A child that exits before reading everything makes
+                        // this write raise SIGPIPE/an ObjC exception rather
+                        // than returning an error; `try?` on the throwing
+                        // variant keeps that from taking the app down, and the
+                        // child's own exit code and envelope remain the single
+                        // source of truth for what happened.
+                        try? handle.write(contentsOf: payload)
+                        try? handle.close()
+                    }
                 }
 
                 // `ProcessDrain` (native/admin.swift) drains both pipes
@@ -559,6 +595,39 @@ actor CliClient {
     /// `native/render-state.swift`) rather than this method special-casing it.
     func connections() async -> Result<ConnectionsReport, CliError> {
         await decodeVerb(["connections", "--json"])
+    }
+
+    /// `cc connect <service-id> --json` (`connect.schema.json`, task 222) —
+    /// the ONE call in this app that carries a secret VALUE, and it carries it
+    /// over stdin only (see `runRaw`'s `stdin:` note for why not argv/env/a
+    /// file). `values` is `{"<NAME>": "<value>"}`; the CLI writes each to the
+    /// per-user OS keychain, re-runs `cc connections`' own presence checks, and
+    /// returns the fresh row plus a per-credential outcome list.
+    ///
+    /// This app never decides what a service requires, what is missing, or
+    /// whether a write succeeded — all four answers come back from the CLI
+    /// (invariant #1). The `values` dictionary is built at the call site from
+    /// the CLI's OWN `missing` names and is released the moment this returns;
+    /// it is never stored, never logged, and never echoed into any DTO, and
+    /// the reply is contractually guaranteed to carry no value or substring of
+    /// one.
+    ///
+    /// A `JSONEncoder` failure here is impossible for a `[String: String]` and
+    /// is mapped to `.parse` rather than force-unwrapped, so a hypothetical
+    /// future value type that cannot encode fails closed instead of trapping.
+    func connect(serviceId: String, values: [String: String]) async -> Result<ConnectReport, CliError> {
+        guard let payload = try? JSONEncoder().encode(values) else {
+            return .failure(.parse)
+        }
+        return await decodeVerb(["connect", serviceId, "--json"], stdin: payload)
+    }
+
+    /// `cc connect <service-id> --check --json` — read-only re-evaluation of
+    /// one row, no stdin read and no write. This is the post-connect refresh:
+    /// it re-asks the CLI the same question the sheet just changed the answer
+    /// to, rather than the app assuming the write took.
+    func connectCheck(serviceId: String) async -> Result<ConnectReport, CliError> {
+        await decodeVerb(["connect", serviceId, "--check", "--json"])
     }
 
     func freshnessAllProjects() async -> Result<AllProjectsFreshness, CliError> {
@@ -755,9 +824,9 @@ actor CliClient {
     /// a normal business outcome (e.g. `doctor`'s "at least one checker
     /// failed") and is decoded exactly like exit 0 — only exit 2 changes
     /// what shape is trusted.
-    private func decodeVerb<T: Decodable>(_ args: [String]) async -> Result<T, CliError> {
+    private func decodeVerb<T: Decodable>(_ args: [String], stdin: Data? = nil) async -> Result<T, CliError> {
         let verb = args.first ?? ""
-        switch await runRaw(args) {
+        switch await runRaw(args, stdin: stdin) {
         case .failure(let error):
             return .failure(error)
 
