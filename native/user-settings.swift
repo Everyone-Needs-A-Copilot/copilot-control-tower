@@ -54,12 +54,27 @@ enum UserSettingsTierKind {
         }
     }
 
+    /// The raw NSColor -- glyphs keep using this directly (shape carries the
+    /// state, colour there is redundant decoration; WCAG 1.4.11).
     var color: NSColor {
         switch self {
         case .ready: return .systemGreen
         case .needsSetup: return .systemBlue
         case .needsAttention: return .systemOrange
         case .notJoined, .couldNotCheck: return .secondaryLabelColor
+        }
+    }
+
+    /// The same state, mapped onto the shared appearance-corrected ramp
+    /// (`CTColor.state(_:)`) for TEXT only (task 222 P1-5, G-5) -- raw
+    /// `.systemGreen`/`.systemOrange` measure 2.22:1/2.31:1 as text on the
+    /// light page, under this product's own 4.5:1 floor.
+    var ctState: CTState {
+        switch self {
+        case .ready: return .ready
+        case .needsSetup: return .actionable
+        case .needsAttention: return .attention
+        case .notJoined, .couldNotCheck: return .neutral
         }
     }
 }
@@ -487,19 +502,19 @@ struct UserSettingsView: View {
     private var setupHeader: some View {
         switch model.topologyState {
         case .waiting, .loading:
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: CTSpace.sm) {
                 Text("Your setup")
-                    .font(.largeTitle.weight(.semibold))
+                    .ctText(CTType.hero)
                 loadingRow("Checking every Copilot repository and layer…")
             }
         case .failed:
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: CTSpace.md) {
                 Text("Your setup")
-                    .font(.largeTitle.weight(.semibold))
+                    .ctText(CTType.hero)
                 Text("Control Tower couldn't check whether the ecosystem is complete.")
-                    .font(.title3.weight(.semibold))
+                    .ctText(CTType.sectionTitle)
                 Text("Nothing was changed, and Control Tower will not call the ecosystem ready without that report.")
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.lead)
                 Button("Try again") { model.load() }
                     .buttonStyle(.bordered)
             }
@@ -508,19 +523,18 @@ struct UserSettingsView: View {
             let statuses = UserSettingsRender.topologyStatuses(topology, doctor: doctor)
             let ready = statuses.flatMap(\.tiers).filter { $0.kind == .ready }.count
             let needsAction = ready != topology.layers.count
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: CTSpace.md) {
                 Text("Your setup")
-                    .font(.largeTitle.weight(.semibold))
+                    .ctText(CTType.hero)
                 Text(needsAction
                     ? "Your Copilot setup is incomplete"
                     : "Your ecosystem is ready")
-                    .font(.title2.weight(.semibold))
+                    .ctText(CTType.sectionTitle)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(needsAction
                     ? "\(ready) of \(topology.layers.count) expected layers are already in place. Finish the others now or return here later."
                     : "Knowledge, CLI, Claude, and Codex have verified Foundation, Organization, Department, and Personal layers.")
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.lead)
                     .fixedSize(horizontal: false, vertical: true)
                 if needsAction {
                     Button("Finish Copilot Setup", action: onFinishPersonalSetup)
@@ -544,27 +558,22 @@ struct UserSettingsView: View {
             } ?? []
             VStack(alignment: .leading, spacing: 10) {
                 if let root = topology?.stages.first(where: { $0.stage == "repository-location" })?.path {
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: CTSpace.hair) {
                         Text("Copilot repository folder")
-                            .font(.caption.weight(.semibold))
+                            .ctText(CTType.rowDetail, color: CTColor.ink)
                         Text(root)
-                            .font(.caption.monospaced())
+                            .ctText(CTType.mono)
                             .textSelection(.enabled)
                         Text("New Copilot repositories are created or downloaded here, beside the ones you already have.")
-                            .font(.caption2)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .ctText(CTType.caption)
                     }
-                    .padding(12)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .ctCard(.well)
                 }
                 Text("Each Copilot shows Foundation, Organization, your joined Department, and Personal as separate evidence-backed layers.")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.rowDetail)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("Personal is yours; its repository is private, but its checkout stays visible in your Copilot repository folder.")
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.caption)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(statuses) { component in
                     componentCard(component)
@@ -593,48 +602,43 @@ struct UserSettingsView: View {
                     if tier.id != component.tiers.last?.id { Divider() }
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, CTSpace.sm)
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: CTSpace.sm) {
                 Image(systemName: component.overallKind.symbol)
                     .foregroundColor(Color(nsColor: component.overallKind.color))
                     .accessibilityHidden(true)
                 Text(component.id.label)
-                    .font(.callout.weight(.semibold))
+                    .ctText(CTType.rowTitle)
                 Spacer()
                 Text(component.overall)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: component.overallKind.color))
+                    .ctText(CTType.status, color: CTColor.state(component.overallKind.ctState))
             }
             .contentShape(Rectangle())
         }
-        .padding(14)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .ctCard()
         .accessibilityLabel("\(component.id.label), \(component.overall)")
     }
 
     private func tierRow(_ tier: UserSettingsTierStatus) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: CTSpace.sm) {
             Image(systemName: tier.kind.symbol)
                 .foregroundColor(Color(nsColor: tier.kind.color))
                 .frame(width: 16)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: CTSpace.hair) {
                 Text(tier.label)
-                    .font(.caption.weight(.semibold))
+                    .ctText(CTType.rowTitle)
                 Text(tier.detail)
-                    .font(.caption2)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.rowDetail)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             Text(tier.state)
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: tier.kind.color))
+                .ctText(CTType.status, color: CTColor.state(tier.kind.ctState))
                 .multilineTextAlignment(.trailing)
         }
-        .padding(.vertical, 9)
+        .padding(.vertical, CTSpace.rowV)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(tier.label), \(tier.state), \(tier.detail)")
     }
@@ -650,29 +654,27 @@ struct UserSettingsView: View {
                 detail: "Nothing was changed. Try again when the setup helper is available."
             )
         case .loaded(let auth):
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .center, spacing: 10) {
-                    Image(systemName: auth.state == .authorized
-                        ? "checkmark.circle.fill"
-                        : "person.crop.circle.badge.exclamationmark")
-                        .foregroundColor(Color(nsColor: auth.state == .authorized
-                            ? .systemGreen
-                            : .systemOrange))
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("GitHub")
-                            .font(.callout.weight(.semibold))
-                        Text(githubDetail(auth))
-                            .font(.caption)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            VStack(alignment: .leading, spacing: CTSpace.sm) {
+                CTCardTitle("Ready to use")
+                VStack(alignment: .leading, spacing: 0) {
+                    CTStatusRow(
+                        glyph: .filledDot(.neutral),
+                        title: "GitHub",
+                        detail: githubDetail(auth),
+                        trailing: .status(auth.state == .authorized ? "Ready" : "Needs sign-in", .neutral)
+                    )
+
+                    if case .loaded(let report) = model.connectionsState {
+                        let ready = ConnectionsRender.readyRows(report)
+                        if !ready.isEmpty {
+                            Divider()
+                            ForEach(Array(ready.enumerated()), id: \.element.id) { index, row in
+                                connectionReadyRow(row)
+                                if index < ready.count - 1 { Divider() }
+                            }
+                        }
                     }
-                    Spacer()
-                    Text(auth.state == .authorized ? "Ready" : "Needs sign-in")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
-                .padding(.vertical, 6)
-                .accessibilityElement(children: .combine)
 
                 organizationConnectionsSection
             }
@@ -691,79 +693,59 @@ struct UserSettingsView: View {
     /// The organization's declared connections roster (task 221 bridge stage
     /// C), rendered directly beneath the GitHub row -- same `ConnectionsRender`
     /// grouping `native/wizard.swift`'s step 6 uses, independent styling.
+    ///
+    /// The "Available to connect" header (and its rows) disappears entirely
+    /// once nothing is pending -- same correction as the wizard's step 6
+    /// (spec §5.3): never left standing as an empty shell once the CLI has
+    /// confirmed there is nothing left to connect.
     @ViewBuilder
     private var organizationConnectionsSection: some View {
         switch model.connectionsState {
         case .waiting, .loading:
-            Divider()
             loadingRow("Checking your organization's connections…")
-                .padding(.top, 8)
 
         case .loaded(let report):
-            let ready = ConnectionsRender.readyRows(report)
             let needsConnect = ConnectionsRender.needsConnectRows(report)
             let noStore = ConnectionsRender.noStoreRows(report)
             if report.connections.isEmpty {
-                Divider()
                 Text(ConnectionsRender.unavailableDetail(report))
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.rowDetail)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 8)
-            } else {
-                if !ready.isEmpty {
-                    Divider()
-                    ForEach(ready) { row in connectionReadyRow(row) }
-                }
-                if !needsConnect.isEmpty {
-                    Divider()
-                    ForEach(needsConnect) { row in connectionNeedsConnectRow(row) }
-                }
-                if !noStore.isEmpty {
-                    Divider()
-                    connectionsNoStoreGroup(noStore, storeDetail: report.store.detail)
+            } else if !needsConnect.isEmpty || !noStore.isEmpty {
+                CTCardTitle("Available to connect")
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(needsConnect.enumerated()), id: \.element.id) { index, row in
+                        connectionNeedsConnectRow(row)
+                        if index < needsConnect.count - 1 || !noStore.isEmpty { Divider() }
+                    }
+                    if !noStore.isEmpty {
+                        connectionsNoStoreGroup(noStore, storeDetail: report.store.detail)
+                    }
                 }
             }
 
         case .failed(let error):
-            Divider()
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: CTSpace.xs) {
                 Text("No additional organization connections are available in Control Tower right now.")
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.rowDetail)
                     .fixedSize(horizontal: false, vertical: true)
                 if error.looksLikeMissingConnectionsVerb {
                     Text(ConnectionsRender.updateHint)
-                        .font(.caption2)
-                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                        .ctText(CTType.caption)
                 }
             }
-            .padding(.top, 8)
         }
     }
 
     /// `secret_state == ready` org row.
     private func connectionReadyRow(_ row: ConnectionRow) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 8))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.name.capitalized)
-                    .font(.callout.weight(.semibold))
-                Text(row.description)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            }
-            Spacer()
-            Text("Ready")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-        }
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(row.name.capitalized), ready, \(row.description)")
+        CTStatusRow(
+            glyph: .filledDot(.neutral),
+            title: row.name.capitalized,
+            detail: row.description,
+            trailing: .status("Ready", .neutral),
+            accessibilityLabelOverride: "\(row.name.capitalized), ready, \(row.description)"
+        )
     }
 
     /// `secret_state == needs-connect` org row -- names what is actually
@@ -771,52 +753,30 @@ struct UserSettingsView: View {
     /// same Connect affordance the wizard's step 6 does (task 222), on the
     /// same rule: `needs-connect` only, never a `no-store` row.
     private func connectionNeedsConnectRow(_ row: ConnectionRow) -> some View {
-        let detail = ConnectionsRender.needsConnectDetail(row)
-        return HStack(alignment: .top, spacing: 10) {
-            // Same `setup-needed` hollow ring, same reasoning, as the wizard's
-            // step 6 row -- see `native/wizard.swift`.
-            Image(systemName: "circle")
-                .font(.system(size: 8))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .padding(.top, 5)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(row.name.capitalized)
-                    .font(.callout.weight(.semibold))
-                Text(row.description)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
+        let missingDetail = ConnectionsRender.needsConnectDetail(row)
+        return CTStatusRow(
+            glyph: .ring,
+            title: row.name.capitalized,
+            detail: row.description,
+            footnote: missingDetail,
+            trailing: .button("Connect…", accessibilityLabel: "Connect \(row.name.capitalized)") {
+                connectingRow = row
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
-
-            Spacer(minLength: 12)
-
-            Button { connectingRow = row } label: { Text("Connect…") }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Connect \(row.name.capitalized)")
-        }
-        .padding(.vertical, 9)
+        )
     }
 
     /// `secret_state == no-store` rows -- grouped under one honest
     /// explanation (`store.detail`) rather than one line per row.
     private func connectionsNoStoreGroup(_ rows: [ConnectionRow], storeDetail: String?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: CTSpace.xs) {
             Text(storeDetail ?? "Your organization's shared secret store could not be checked on this Mac.")
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .ctText(CTType.rowDetail)
                 .fixedSize(horizontal: false, vertical: true)
             Text(rows.map { $0.name.capitalized }.joined(separator: ", "))
-                .font(.caption2)
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                .ctText(CTType.caption)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, CTSpace.sm)
         .accessibilityElement(children: .combine)
     }
 
@@ -869,18 +829,19 @@ struct UserSettingsView: View {
                     Button {
                         onManageProjects(category)
                     } label: {
-                        HStack(spacing: 10) {
+                        HStack(spacing: CTSpace.sm) {
                             Image(systemName: category.systemImage)
                                 .frame(width: 18)
                                 .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: CTSpace.hair) {
                                 Text(category.title)
-                                    .font(.callout.weight(.semibold))
+                                    .ctText(CTType.rowTitle)
                                 Text(category.shortMeaning)
-                                    .font(.caption)
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .ctText(CTType.rowDetail)
                             }
                             Spacer()
+                            // Deliberate scale break, kept as-is (spec P2-4):
+                            // the count numeral stays `.title3.semibold`.
                             Text("\(count)")
                                 .font(.title3.weight(.semibold))
                             Image(systemName: "chevron.right")
@@ -888,26 +849,21 @@ struct UserSettingsView: View {
                                 .foregroundColor(Color(nsColor: .tertiaryLabelColor))
                                 .accessibilityHidden(true)
                         }
-                        .padding(12)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .ctCard()
                     .accessibilityLabel("\(count), \(category.title), \(category.shortMeaning)")
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: CTSpace.xs) {
                     Text("Come back whenever you want")
-                        .font(.callout.weight(.semibold))
+                        .ctText(CTType.rowTitle)
                     Text("Finish one or two projects now, or return later. Every unfinished route stays available under Your projects.")
-                        .font(.caption)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .ctText(CTType.rowDetail)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(12)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .ctCard(.well)
 
                 Button("Open project aftercare…") { onManageProjects(nil) }
                     .buttonStyle(.bordered)
@@ -924,15 +880,11 @@ struct UserSettingsView: View {
         title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(title)
-                .font(.title3.weight(.semibold))
+        VStack(alignment: .leading, spacing: CTSpace.md) {
+            CTCardTitle(title)
             content()
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .ctCard()
     }
 
     private func loadingRow(_ text: String) -> some View {
@@ -1004,6 +956,11 @@ struct ConnectSheet: View {
     @State private var values: [String: String] = [:]
     @State private var working = false
     @State private var outcome: ConnectRender.Outcome?
+    /// First-field autofocus (spec §5.2: "set in `.onAppear`. Tab moves
+    /// between fields in CLI order"). `String?` keyed on the credential NAME
+    /// itself, never a value.
+    @FocusState private var focusedField: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Every missing name, in the CLI's own order — never re-sorted, never
     /// filtered, and never a name this app decided was needed.
@@ -1013,51 +970,57 @@ struct ConnectSheet: View {
         !working && !fields.isEmpty && fields.allSatisfy { !(values[$0] ?? "").isEmpty }
     }
 
+    /// `380 + 64 × fields.count`, clamped to 560 (spec §5.1) — replaces the
+    /// prior binary `fields.count > 2 ? 560 : 470`.
+    private var sheetHeight: CGFloat {
+        min(380 + 64 * CGFloat(fields.count), 560)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: CTSpace.xl) {
+            VStack(alignment: .leading, spacing: CTSpace.hair) {
                 Text("Connect \(row.name.capitalized)")
-                    .font(.title2.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .labelColor))
+                    .ctText(CTType.sectionTitle)
                 Text(row.description)
-                    .font(.body)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.lead)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Text("Whoever set up your organization's shared store gives you these. Control Tower hands them straight to this Mac's keychain — they are never shown again, never written into a project, and never sent anywhere.")
-                .font(.callout)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .ctText(CTType.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: CTSpace.lg) {
                 ForEach(fields, id: \.self) { name in
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: CTSpace.xs) {
+                        // The credential NAME, verbatim, never
+                        // uppercase-transformed — it is data from the CLI,
+                        // and monospaced so `O`/`0` and `I`/`l` stay
+                        // distinguishable (spec §5.2).
                         Text(name)
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .ctText(CTType.monoLabel)
                         SecureField("", text: binding(for: name))
                             .textFieldStyle(.roundedBorder)
                             .disabled(working)
+                            .focused($focusedField, equals: name)
                             .accessibilityLabel(name)
                     }
                 }
             }
-            .padding(15)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .ctCard(.well)
 
-            if let outcome { outcomeView(outcome) }
+            if let outcome {
+                outcomeView(outcome)
+                    .transition(.opacity)
+            }
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 10) {
+            HStack(spacing: CTSpace.md) {
                 if working {
                     ProgressView().controlSize(.small)
                     Text("Saving these to your keychain…")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .ctText(CTType.body)
                 }
                 Spacer()
                 Button { onCancel() } label: { Text("Cancel") }
@@ -1068,48 +1031,48 @@ struct ConnectSheet: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canSubmit)
             }
+            .padding(.top, CTSpace.section - CTSpace.xl)
         }
-        .padding(28)
-        .frame(width: 560, height: fields.count > 2 ? 560 : 470)
+        .padding(CTSpace.section)
+        .frame(width: 520, height: sheetHeight)
+        .animation(reduceMotion ? CTMotion.reduced : CTMotion.normal, value: outcome)
+        .onAppear { focusedField = fields.first }
     }
 
+    /// Three outcomes, all CLI-authored, none of them a dead end, none of
+    /// them red — red is reserved for `cli-unreadable` only (spec §5.4); a
+    /// credential that did not take is `.attention`, because the person can
+    /// act on it. Both non-empty cases render inside the same
+    /// `CTCalloutNote(.attention)` / `.ctCard(.well)` shape every other
+    /// honest degrade in this product uses, rather than an inline `Label`
+    /// unique to this sheet.
     @ViewBuilder
     private func outcomeView(_ outcome: ConnectRender.Outcome) -> some View {
         switch outcome {
         case .connected:
-            // Reached only in the instant before the caller dismisses.
-            Label("Connected.", systemImage: "checkmark.circle")
-                .font(.callout.weight(.semibold))
-                .foregroundColor(Color(nsColor: .systemGreen))
+            // The receipt is the row behind this sheet, never a state here
+            // (spec §5.3 / G-12's celebration correction): `onConnected`
+            // already fired above and the caller is about to dismiss this
+            // sheet. Reached only in the instant before that happens, and
+            // posts no success state at all.
+            EmptyView()
 
         case .notConnected(let title, let details):
-            VStack(alignment: .leading, spacing: 7) {
-                Label(title, systemImage: "exclamationmark.triangle")
-                    .font(.callout.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .systemOrange))
-                    .fixedSize(horizontal: false, vertical: true)
-                ForEach(details, id: \.self) { detail in
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Text("Nothing else on this Mac was changed. Check the values with whoever gave them to you, then try again.")
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            CTCalloutNote(
+                kind: .attention,
+                lead: title,
+                body: details,
+                actor: "Nothing else on this Mac was changed. Check the values with whoever gave them to you, then try again."
+            )
+            .ctCard(.well)
 
         case .unreadable(let sentence):
-            VStack(alignment: .leading, spacing: 7) {
-                Label(sentence, systemImage: "exclamationmark.triangle")
-                    .font(.callout.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .systemOrange))
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("You can close this and try again whenever you want.")
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-            }
+            CTCalloutNote(
+                kind: .attention,
+                lead: sentence,
+                actor: "You can close this and try again whenever you want."
+            )
+            .ctCard(.well)
         }
     }
 

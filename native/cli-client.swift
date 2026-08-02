@@ -630,6 +630,18 @@ actor CliClient {
         await decodeVerb(["connect", serviceId, "--check", "--json"])
     }
 
+    /// TEST-ONLY, never called from `ConnectSheet` or any other production
+    /// call site: sends `rawStdin` verbatim rather than JSON-encoding a real
+    /// `[String: String]`, so `native/wizard.swift`'s `CT_SELFTEST_STEP=connect`
+    /// harness can drive `connect.schema.json`'s `invalid-input` result
+    /// end to end (task 222) — a shape `connect(serviceId:values:)` can never
+    /// produce on its own, since it always encodes a well-formed dictionary.
+    /// Reuses the exact same `decodeVerb` pipeline as every real verb; only
+    /// the stdin payload differs.
+    func rawConnectForSelftest(serviceId: String, rawStdin: String) async -> Result<ConnectReport, CliError> {
+        await decodeVerb(["connect", serviceId, "--json"], stdin: rawStdin.data(using: .utf8))
+    }
+
     func freshnessAllProjects() async -> Result<AllProjectsFreshness, CliError> {
         await decodeVerb(["freshness", "--all-projects", "--json"])
     }

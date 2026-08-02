@@ -473,18 +473,22 @@ enum HoldingVariant: Hashable {
     case needsPermission
 
     /// `StepShell.headerTint` token per the taxonomy table (§1). H4 uses the
-    /// shell's own default (`.systemBlue`) rather than repeating it here, so
-    /// there is exactly one place ("no ramp color") that decides that value.
-    /// H7 is `signed-out` blue (copy spec §3.2: "Actionable-by-you,
-    /// informational blue, not alarm" — the same non-alarm blue as H4,
-    /// reusing the shell's default rather than a new token).
+    /// shell's own default (`CTColor.state(.actionable)`) rather than
+    /// repeating it here, so there is exactly one place ("no ramp color")
+    /// that decides that value. H7 is `signed-out` blue (copy spec §3.2:
+    /// "Actionable-by-you, informational blue, not alarm" — the same
+    /// non-alarm blue as H4, reusing the shell's default rather than a new
+    /// token). Values are the appearance-corrected ramp (`CTColor.state(_:)`,
+    /// spec §2.3/P1-5) rather than the raw system colours these used to be —
+    /// text drawn straight from `.systemRed`/`.systemOrange` measures 3.57:1
+    /// / 2.31:1 on the light page, under this product's own 4.5:1 floor (G-5).
     var tint: Color {
         switch self {
         case .notInstalled, .waitingOffline, .waitingBusy, .waitingOnOrg:
-            return Color(nsColor: .secondaryLabelColor)
-        case .unreadable: return Color(nsColor: .systemRed)
-        case .fault: return Color(nsColor: .systemOrange)
-        case .yours, .needsPermission: return Color(nsColor: .systemBlue)
+            return CTColor.state(.neutral)
+        case .unreadable: return CTColor.state(.blocked)
+        case .fault: return CTColor.state(.attention)
+        case .yours, .needsPermission: return CTColor.state(.actionable)
         }
     }
 
@@ -3405,7 +3409,7 @@ struct StepShell<Content: View, Leading: View, Trailing: View>: View {
     @ViewBuilder let content: Content
     @ViewBuilder let leadingActions: Leading
     @ViewBuilder let primaryAction: Trailing
-    var tint: Color = Color(nsColor: .systemBlue)
+    var tint: Color = CTColor.state(.actionable)
     /// VoiceOver focus binding for the title (`holding-copy-spec.md` §7:
     /// "focus moves to the title on entering Holding"). `nil` for every
     /// caller except the Holding views — the other nine steps have no
@@ -3441,37 +3445,32 @@ struct StepShell<Content: View, Leading: View, Trailing: View>: View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: CTSpace.section) {
                         Color.clear
                             .frame(height: 0)
                             .id("step-shell-top")
 
                         Text(eyebrow)
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(tint)
-                            .textCase(.uppercase)
+                            .ctText(CTType.eyebrow, color: tint)
                             .accessibilityAddTraits(.isHeader)
 
                         Text(title)
-                            .font(.title.weight(.semibold))
-                            .foregroundColor(Color(nsColor: .labelColor))
+                            .ctText(CTType.stepTitle)
                             .fixedSize(horizontal: false, vertical: true)
                             .modifier(TitleAccessibilityFocus(binding: focusTitle))
 
                         if let intro {
                             Text(intro)
-                                .font(.body)
-                                .lineSpacing(2)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .ctText(CTType.lead)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
 
                         content
                     }
                     .frame(maxWidth: 600, alignment: .leading)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 24)
-                    .padding(.bottom, 24)
+                    .padding(.horizontal, CTSpace.pane)
+                    .padding(.top, CTSpace.paneTop)
+                    .padding(.bottom, CTSpace.section)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .onAppear {
@@ -3930,9 +3929,11 @@ struct WizardRootView: View {
     // MARK: 2.1.1 Which organization are you with? (inline over Connect
     // GitHub, entered on `org-required` — copy spec §2.1.1). Same
     // no-sidebar-row/`accent` blue mechanism `onboardQuestionView` already
-    // uses over Detect; `stepShell`'s default tint IS `.systemBlue`, so this
-    // view never calls `.headerTint(_:)` either — this is a question, never
-    // a Holding variant.
+    // uses over Detect; `stepShell`'s default tint IS `CTColor.state(.actionable)`
+    // (task 222 P1-5 — the appearance-corrected accent, still the user's own
+    // chosen accent colour, per `docs/03-design/native-visual-refresh-spec.md`
+    // §2.3), so this view never calls `.headerTint(_:)` either — this is a
+    // question, never a Holding variant.
 
     private var orgQuestionView: some View {
         stepShell(
@@ -4271,7 +4272,8 @@ struct WizardRootView: View {
     // MARK: One question first (adopt-and-project-setup spec, inline over
     // Detect — same no-sidebar-row mechanism Holding uses below, accent
     // blue, never Holding's orange: `stepShell`'s default `tint` already IS
-    // `.systemBlue`, so this view never calls `.headerTint(_:)` at all).
+    // `CTColor.state(.actionable)` (task 222 P1-5), so this view never calls
+    // `.headerTint(_:)` at all).
 
     private enum OnboardCardRow: Identifiable {
         case ask(EcosystemInventoryItem)
@@ -4604,30 +4606,16 @@ struct WizardRootView: View {
             title: "Your connections",
             intro: "These are the connections Control Tower can prove are ready for you. If your organization makes another connection available, it will appear here with a working Connect button."
         ) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: CTSpace.xl) {
                 sectionCard("Ready to use") {
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack(alignment: .center, spacing: 10) {
-                            Image(systemName: "circle.fill")
-                                .font(.system(size: 8))
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("GitHub")
-                                    .font(.callout.weight(.semibold))
-                                    .foregroundColor(Color(nsColor: .labelColor))
-                                Text("Signed in as \(model.authorizedLogin ?? "your GitHub account").")
-                                    .font(.caption)
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            }
-                            Spacer()
-                            Text("Ready")
-                                .font(.caption.weight(.semibold))
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        }
-                        .padding(.vertical, 6)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("GitHub, ready, signed in as \(model.authorizedLogin ?? "your GitHub account")")
+                        CTStatusRow(
+                            glyph: .filledDot(.neutral),
+                            title: "GitHub",
+                            detail: "Signed in as \(model.authorizedLogin ?? "your GitHub account").",
+                            trailing: .status("Ready", .neutral),
+                            accessibilityLabelOverride: "GitHub, ready, signed in as \(model.authorizedLogin ?? "your GitHub account")"
+                        )
 
                         if case .loaded(let report) = model.connectionsState {
                             let ready = ConnectionsRender.readyRows(report)
@@ -4642,8 +4630,16 @@ struct WizardRootView: View {
                     }
                 }
 
-                sectionCard("Available to connect") {
-                    availableToConnectContent
+                // The "Available to connect" card disappears entirely once
+                // nothing is pending (spec §5.3's row-transition correction:
+                // "the 'Available to your team' heading is gone, because
+                // nothing under it is pending any more") -- never shown as an
+                // empty shell once the CLI has confirmed there is nothing
+                // left to connect.
+                if showsAvailableToConnectCard {
+                    sectionCard("Available to connect") {
+                        availableToConnectContent
+                    }
                 }
             }
         } leadingActions: {
@@ -4656,31 +4652,36 @@ struct WizardRootView: View {
         }
     }
 
-    /// `secret_state == ready` org row -- same anatomy as the GitHub row
-    /// above it (dot, name, description, quiet trailing "Ready" label), no
-    /// tier/mode jargon.
-    private func connectionReadyRow(_ row: ConnectionRow) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 8))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.name.capitalized)
-                    .font(.callout.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Text(row.description)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            }
-            Spacer()
-            Text("Ready")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+    /// The "Available to connect" card is shown while loading/failed (an
+    /// honest in-flight or unreadable state), whenever the whole roster
+    /// couldn't be resolved at all (`connections.isEmpty`, `copilot-unavailable`
+    /// -- a distinct unavailable-store explanation, not "nothing pending"),
+    /// and whenever at least one row is actually `needs-connect`/`no-store`.
+    /// It disappears ONLY in the one case spec §5.3 names: the CLI answered
+    /// fine and nothing is outstanding.
+    private var showsAvailableToConnectCard: Bool {
+        switch model.connectionsState {
+        case .waiting, .loading, .failed:
+            return true
+        case .loaded(let report):
+            if report.connections.isEmpty { return true }
+            let needsConnect = ConnectionsRender.needsConnectRows(report)
+            let noStore = ConnectionsRender.noStoreRows(report)
+            return !(needsConnect.isEmpty && noStore.isEmpty)
         }
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(row.name.capitalized), ready, \(row.description)")
+    }
+
+    /// `secret_state == ready` org row -- same anatomy as the GitHub row
+    /// above it (quiet dot, name, description, quiet trailing "Ready"
+    /// label), no tier/mode jargon.
+    private func connectionReadyRow(_ row: ConnectionRow) -> some View {
+        CTStatusRow(
+            glyph: .filledDot(.neutral),
+            title: row.name.capitalized,
+            detail: row.description,
+            trailing: .status("Ready", .neutral),
+            accessibilityLabelOverride: "\(row.name.capitalized), ready, \(row.description)"
+        )
     }
 
     /// `secret_state == needs-connect` org row -- names what is actually
@@ -4693,60 +4694,38 @@ struct WizardRootView: View {
     /// resolve. `no-store` rows deliberately keep no affordance at all
     /// (`connectionsNoStoreGroup` below): nothing about them was verified, so
     /// they are rendered as facts rather than as actions.
+    ///
+    /// `footnote` (not `detail`) carries `needsConnectDetail` -- the sentence
+    /// a person must actually read to act. It used to live in
+    /// `.tertiaryLabelColor` (1.88:1, G-4); `CTStatusRow.footnote` renders it
+    /// in `CTType.caption`/`CTColor.faint` (4.95:1 light / 6.07:1 dark)
+    /// instead, clearing this product's own 4.5:1 floor.
     private func connectionNeedsConnectRow(_ row: ConnectionRow) -> some View {
-        let detail = ConnectionsRender.needsConnectDetail(row)
-        return HStack(alignment: .top, spacing: 10) {
-            // The `setup-needed` badge token from the ratified visual system
-            // (§4/§2.2): a hollow ring in `.secondaryLabelColor`. Shape first,
-            // and deliberately NO ramp color -- the shared integration
-            // register earns none. It is here for composition: it gives this
-            // row the same glyph/text/trailing anatomy the Ready rows above it
-            // already have, which is what stops the card reading as a stack of
-            // loose sentences.
-            Image(systemName: "circle")
-                .font(.system(size: 8))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .padding(.top, 5)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(row.name.capitalized)
-                    .font(.callout.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Text(row.description)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
+        let missingDetail = ConnectionsRender.needsConnectDetail(row)
+        return CTStatusRow(
+            glyph: .ring,
+            title: row.name.capitalized,
+            detail: row.description,
+            footnote: missingDetail,
+            trailing: .button("Connect…", accessibilityLabel: "Connect \(row.name.capitalized)") {
+                connectingRow = row
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
-
-            Spacer(minLength: 12)
-
-            Button { connectingRow = row } label: { Text("Connect…") }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Connect \(row.name.capitalized)")
-        }
-        .padding(.vertical, 9)
+        )
     }
 
     /// `secret_state == no-store` rows -- grouped under one honest
     /// explanation (`store.detail`) rather than one line per row, since
     /// nothing about them was individually verified.
     private func connectionsNoStoreGroup(_ rows: [ConnectionRow], storeDetail: String?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: CTSpace.xs) {
             Text(storeDetail ?? "Your organization's shared secret store could not be checked on this Mac.")
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .ctText(CTType.rowDetail)
                 .fixedSize(horizontal: false, vertical: true)
             Text(rows.map { $0.name.capitalized }.joined(separator: ", "))
-                .font(.caption2)
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                .ctText(CTType.caption)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, CTSpace.sm)
         .accessibilityElement(children: .combine)
     }
 
@@ -4754,12 +4733,11 @@ struct WizardRootView: View {
     private var availableToConnectContent: some View {
         switch model.connectionsState {
         case .waiting, .loading:
-            HStack(spacing: 8) {
+            HStack(spacing: CTSpace.sm) {
                 ProgressView()
                     .controlSize(.small)
                 Text("Checking your organization's connections…")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.rowDetail)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Checking your organization's connections")
@@ -4769,13 +4747,7 @@ struct WizardRootView: View {
             let noStore = ConnectionsRender.noStoreRows(report)
             if report.connections.isEmpty {
                 Text(ConnectionsRender.unavailableDetail(report))
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if needsConnect.isEmpty && noStore.isEmpty {
-                Text("No additional organization connections are available in Control Tower right now.")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.rowDetail)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
@@ -4790,15 +4762,13 @@ struct WizardRootView: View {
             }
 
         case .failed(let error):
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: CTSpace.xs) {
                 Text("No additional organization connections are available in Control Tower right now.")
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.rowDetail)
                     .fixedSize(horizontal: false, vertical: true)
                 if error.looksLikeMissingConnectionsVerb {
                     Text(ConnectionsRender.updateHint)
-                        .font(.caption2)
-                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                        .ctText(CTType.caption)
                 }
             }
         }
@@ -6512,19 +6482,13 @@ struct WizardRootView: View {
     }
 
     private func sectionCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: CTSpace.md) {
             if !title.isEmpty {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .textCase(.uppercase)
+                CTCardTitle(title)
             }
             content()
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .ctCard()
     }
 
     /// The Welcome/What-you're-getting read-only rows (`.confirm-row`).
@@ -7393,10 +7357,17 @@ enum WizardSelftest {
             let environment = ProcessInfo.processInfo.environment
             let serviceId = environment["CT_SELFTEST_SERVICE"] ?? "infisical"
             let result: Result<ConnectReport, CliError>
-            if let rawValues = environment["CT_SELFTEST_CONNECT_VALUES"],
-               let data = rawValues.data(using: .utf8),
-               let values = try? JSONDecoder().decode([String: String].self, from: data) {
-                result = await CliClient.shared.connect(serviceId: serviceId, values: values)
+            if let rawValues = environment["CT_SELFTEST_CONNECT_VALUES"] {
+                if let data = rawValues.data(using: .utf8),
+                   let values = try? JSONDecoder().decode([String: String].self, from: data) {
+                    result = await CliClient.shared.connect(serviceId: serviceId, values: values)
+                } else {
+                    // `CT_SELFTEST_CONNECT_VALUES` was set but is not a
+                    // well-formed `{"NAME":"value"}` object -- exercises
+                    // `invalid-input` end to end (task 222) rather than
+                    // silently downgrading to `--check`.
+                    result = await CliClient.shared.rawConnectForSelftest(serviceId: serviceId, rawStdin: rawValues)
+                }
             } else {
                 result = await CliClient.shared.connectCheck(serviceId: serviceId)
             }

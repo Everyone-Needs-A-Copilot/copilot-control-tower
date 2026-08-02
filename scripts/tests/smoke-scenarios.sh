@@ -1114,6 +1114,33 @@ scenario_S49() {
     fi
 }
 
+# S50 — `connect.schema.json`'s `invalid-input` result (task 222 P1-8). A
+# malformed `CT_SELFTEST_CONNECT_VALUES` (not JSON at all) fails the harness's
+# own `[String: String]` decode attempt, so it takes
+# `CliClient.rawConnectForSelftest` instead of the ordinary typed
+# `connect(values:)` — the one path that can send something other than a
+# well-formed `{"NAME":"value"}` object on stdin, proving the app renders
+# `invalid-input` rather than treating it as an ordinary CLI-unreadable
+# failure. Still must never echo the bogus payload back.
+scenario_S50() {
+    local id="S50"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=ready-and-needs-connect CT_OPEN_WIZARD=1 CT_SELFTEST=1 \
+        CT_SELFTEST_STEP=connect CT_SELFTEST_SERVICE=infisical \
+        CT_SELFTEST_CONNECT_VALUES='not-json-at-all'
+    rm -rf "${home}"
+    assert_exit_zero "${id} connect (invalid-input)"
+    assert_contains "${id} connect (invalid-input)" "connectResult=invalid-input mode=connect"
+    assert_contains "${id} connect (invalid-input)" "INFISICAL_CLIENT_ID:failed"
+    if [[ "${LAST_OUTPUT}" == *"not-json-at-all"* ]]; then
+        fail "${id} connect never echoes the malformed payload" "${LAST_OUTPUT}"
+    else
+        pass "${id} connect never echoes the malformed payload"
+    fi
+}
+
 # ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
@@ -1235,6 +1262,7 @@ scenario_S46
 scenario_S47
 scenario_S48
 scenario_S49
+scenario_S50
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

@@ -1361,30 +1361,31 @@ private struct LayerDot: View {
 private struct ComponentTreeRow: View {
     let component: ComponentView
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(component.component)
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .labelColor))
-                Spacer(minLength: 8)
-                Text(component.worstSeverity == .pass ? "Ready" : component.worstSeverity == .warn ? "Needs review" : "Needs attention")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: component.worstSeverity == .pass ? .systemGreen : .secondaryLabelColor))
-            }
-            Text(component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }.joined(separator: " · "))
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
-            if let detail = component.layers.first(where: { $0.severity != .pass })?.detail {
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    private var state: CTState {
+        switch component.worstSeverity {
+        case .pass: return .ready
+        case .warn: return .attention
+        case .fail: return .blocked
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(component.component), \(component.worstSeverity.rawValue)")
+    }
+
+    private var statusWord: String {
+        switch component.worstSeverity {
+        case .pass: return "Ready"
+        case .warn: return "Needs review"
+        case .fail: return "Needs attention"
+        }
+    }
+
+    var body: some View {
+        CTStatusRow(
+            glyph: .filledDot(state),
+            title: component.component,
+            detail: component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }.joined(separator: " · "),
+            footnote: component.layers.first(where: { $0.severity != .pass })?.detail,
+            trailing: .status(statusWord, state),
+            accessibilityLabelOverride: "\(component.component), \(component.worstSeverity.rawValue)"
+        )
     }
 }
 
@@ -1545,15 +1546,16 @@ struct PopoverContentView: View {
     // fixed layer cells each (`control-tower-copy-deck.md` §1.3/§1.4).
 
     private var componentTreeRegion: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("YOUR COPILOTS")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            ForEach(model.state.components) { component in
-                ComponentTreeRow(component: component)
+        VStack(alignment: .leading, spacing: CTSpace.xs) {
+            CTCardTitle("Your copilots")
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(model.state.components.enumerated()), id: \.element.id) { index, component in
+                    ComponentTreeRow(component: component)
+                    if index < model.state.components.count - 1 { Divider() }
+                }
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, CTSpace.md)
     }
 
     // MARK: Region 3 — "AVAILABLE TO JOIN": present only when a joinable
@@ -1566,10 +1568,8 @@ struct PopoverContentView: View {
     }
 
     private var joinRegion: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("AVAILABLE TO JOIN")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        VStack(alignment: .leading, spacing: CTSpace.sm) {
+            CTCardTitle("Available to join")
             ForEach(model.joinable) { entry in
                 JoinRow(
                     entry: entry,
@@ -1579,7 +1579,7 @@ struct PopoverContentView: View {
                 )
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, CTSpace.md)
     }
 
     // MARK: Region 4 — shared + personal integrations (§1.3/§1.6). No CLI
@@ -1597,28 +1597,22 @@ struct PopoverContentView: View {
     }
 
     private var integrationsRegion: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("SHARED WITH YOUR TEAM")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        VStack(alignment: .leading, spacing: CTSpace.xs) {
+            CTCardTitle("Shared with your team")
             Text("Ready for you. Nothing to sign into.")
-                .font(.caption2)
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                .ctText(CTType.caption)
 
-            Text("YOUR ACCOUNTS")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .padding(.top, 6)
+            CTCardTitle("Your accounts")
+                .padding(.top, CTSpace.sm)
             HStack {
                 Text("GitHub")
-                    .foregroundColor(Color(nsColor: .labelColor))
+                    .ctText(CTType.rowTitle)
                 Spacer()
                 Text(githubAccountStatusText)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.rowDetail)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, CTSpace.md)
     }
 
     // MARK: Region 5 — the action row (Sync now / What changed / Settings...).
@@ -1903,16 +1897,15 @@ struct PopoverContentView: View {
                                     Button {
                                         selectedProjectCategory = category
                                     } label: {
-                                        HStack(spacing: 8) {
+                                        HStack(spacing: CTSpace.sm) {
                                             Image(systemName: category.systemImage)
                                                 .frame(width: 16)
                                                 .accessibilityHidden(true)
-                                            VStack(alignment: .leading, spacing: 1) {
+                                            VStack(alignment: .leading, spacing: CTSpace.hair) {
                                                 Text(category.title)
-                                                    .font(.caption.weight(.semibold))
+                                                    .ctText(CTType.rowDetail, color: CTColor.ink)
                                                 Text(category.shortMeaning)
-                                                    .font(.caption2)
-                                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                                    .ctText(CTType.caption)
                                             }
                                             Spacer()
                                             Text("\(count)")
@@ -1924,26 +1917,21 @@ struct PopoverContentView: View {
                                         .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
-                                    .padding(8)
-                                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .ctCard(.compact)
                                     .accessibilityLabel(
                                         "\(count), \(category.title), \(category.shortMeaning)"
                                     )
                                 }
                             }
 
-                            VStack(alignment: .leading, spacing: 3) {
+                            VStack(alignment: .leading, spacing: CTSpace.hair) {
                                 Text("Come back whenever you want")
-                                    .font(.caption.weight(.semibold))
+                                    .ctText(CTType.rowDetail, color: CTColor.ink)
                                 Text("Project setup is always available here. Finish one or two projects now, or return later—unfinished routes stay under Your projects.")
-                                    .font(.caption2)
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .ctText(CTType.caption)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
-                            .padding(8)
-                            .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .ctCard(.compact)
                         }
 
                         HStack(spacing: 12) {
@@ -2110,13 +2098,10 @@ struct PopoverContentView: View {
                     }
                     Divider()
                     Text(projectCapabilitySummary(workspace.capabilities))
-                        .font(.caption)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .ctText(CTType.caption)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .ctCard(.well)
 
                 if let action = workspace.safeAction {
                     projectPreservationPanel(
@@ -2180,40 +2165,34 @@ struct PopoverContentView: View {
     }
 
     private func projectNextStep(title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 7) {
+        HStack(alignment: .top, spacing: CTSpace.sm) {
             Image(systemName: "arrow.right.circle.fill")
                 .foregroundColor(Color(nsColor: .linkColor))
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: CTSpace.hair) {
                 Text(title)
-                    .font(.caption.weight(.semibold))
+                    .ctText(CTType.rowDetail, color: CTColor.ink)
                 Text(detail)
-                    .font(.caption2)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .ctText(CTType.caption)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .ctCard(.well)
     }
 
     private func projectCouldNotConfirmEvidence(_ workspace: WorkspaceEntry) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: CTSpace.sm) {
             ForEach(workspace.components, id: \.component.rawValue) { component in
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: CTSpace.hair) {
                     Text(component.component == .claude ? "Claude" : "Codex")
-                        .font(.caption.weight(.semibold))
+                        .ctText(CTType.rowDetail, color: CTColor.ink)
                     if component.missingRequirements.isEmpty {
                         Text("No missing requirement was reported.")
-                            .font(.caption2)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .ctText(CTType.caption)
                     } else {
                         ForEach(component.missingRequirements, id: \.detail) { requirement in
                             Text("• \(requirement.detail)")
-                                .font(.caption2)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .ctText(CTType.caption)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -2232,10 +2211,7 @@ struct PopoverContentView: View {
                         .font(.caption2.weight(.semibold))
                     }
                 }
-                .padding(7)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.58))
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .ctCard(.compact)
             }
         }
     }
@@ -2346,9 +2322,7 @@ struct PopoverContentView: View {
             projectPreservationRow("Will preserve", values: willPreserve)
             projectPreservationRow("Will not change", values: willNotChange)
         }
-        .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .ctCard(.well)
     }
 
     private func projectPreservationRow(_ label: String, values: [String]) -> some View {
