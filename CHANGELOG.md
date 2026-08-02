@@ -2,6 +2,21 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.4.0] - 2026-08-02
+
+### Added
+
+- The connections bridge: Settings and the wizard's new step 6, "Your connections," render the organization's full roster of declared services with their real shared-credential-store connection state, closing the "Your connections" empty-state gap. The app calls the new `cc connections --json` verb (see [`schemas/connections.schema.json`](docs/01-architecture/schemas/connections.schema.json) and `cli-contract.md`) and filters purely on the CLI-computed `secret_state` (`ready` | `needs-connect` | `no-store`) — Control Tower never inspects a secret value or computes connection state itself.
+- `cc connections --json` is CLI-side end to end: it shells `copilot --json layers` (now requiring cli-copilot foundation ≥v0.3.2, which carries `requires_secret`/`store_scope` per service) and presence-checks each service's hinted secret names against the organization's shared Infisical store with one `copilot infisical --json secret list` call per run. The secret-store onboarding stage is fixed to check against this same real Infisical identity surface instead of a stale placeholder.
+
+### Changed
+
+- The embedded helper requirement is now `cc 2.2.0` (0.3.2 shipped `cc 2.1.2`). This is the first app release to carry `cc 2.1.3`–`2.1.5` as well: `resolve --explain` correctly joins a layer's `source.subpath` onto explicit local paths (2.1.3); the never-destroy guard now holds a committed customization to a framework-owned project file rather than overwriting it (2.1.4); `fold` falls back to the newest verified layer when the range's nominal winner is blocked-unverified instead of failing outright (2.1.5).
+
+### Fixed
+
+- A phantom secret-store provisioner that could report a store as configured when it was not is closed (`cc 2.2.0`).
+
 ## [0.3.2] - 2026-08-01
 
 ### Changed
