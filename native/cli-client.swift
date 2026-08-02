@@ -548,6 +548,19 @@ actor CliClient {
         await decodeVerb(["freshness", "--json"])
     }
 
+    /// The organization's declared connections roster + shared-store
+    /// reachability (`connections.schema.json`, task 221 bridge stage C).
+    /// Read-only, same gate as every other verb here (`SchemaGate.requiredMajor(forVerb:)`'s
+    /// `default` case already covers major 1 -- no per-verb override needed).
+    /// The bundled 0.3.2 app's `cc 2.1.2` helper predates this verb entirely;
+    /// that surfaces as an ordinary `CliError` (verified live: exit 2, no
+    /// readable envelope -- Click's own "no such command" usage-error shape),
+    /// which callers degrade from gracefully (`CliError.looksLikeMissingConnectionsVerb`,
+    /// `native/render-state.swift`) rather than this method special-casing it.
+    func connections() async -> Result<ConnectionsReport, CliError> {
+        await decodeVerb(["connections", "--json"])
+    }
+
     func freshnessAllProjects() async -> Result<AllProjectsFreshness, CliError> {
         await decodeVerb(["freshness", "--all-projects", "--json"])
     }

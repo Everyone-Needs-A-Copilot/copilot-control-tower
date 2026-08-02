@@ -352,3 +352,97 @@ enum FanoutRender {
         }
     }
 }
+
+// MARK: - Organization connections (task 221 bridge stage C)
+
+/// Pure derivation from an already-decoded `ConnectionsReport`
+/// (`native/cli-dtos.swift`) into the "Ready to use" / "Available to
+/// connect" two-card layout `native/wizard.swift`'s step 6 and
+/// `native/user-settings.swift`'s "Your connections" card BOTH render --
+/// shared here (like `native/user-settings.swift`'s `UserSettingsRender` is
+/// already reused from `native/control-tower-tray.swift`) so the
+/// grouping/wording logic exists exactly once, while each surface keeps its
+/// own independent SwiftUI styling for the cards themselves (this app's
+/// existing convention: shared DERIVATION, independent VIEWS -- neither
+/// surface's `sectionCard`/`settingsCard` helper is shared either).
+enum ConnectionsRender {
+    /// `secret_state == ready` rows, in the CLI's own `connections[]` order
+    /// (never re-sorted).
+    static func readyRows(_ report: ConnectionsReport) -> [ConnectionRow] {
+        report.connections.filter { $0.secretState == .ready }
+    }
+
+    /// `secret_state == needs-connect` rows -- the store is reachable, but at
+    /// least one required name is absent from it.
+    static func needsConnectRows(_ report: ConnectionsReport) -> [ConnectionRow] {
+        report.connections.filter { $0.secretState == .needsConnect }
+    }
+
+    /// `no-store` rows, PLUS a genuinely unrecognized future `secret_state`
+    /// (`.unknown` -- `cli-dtos.swift`'s lenient-decode note). Fail-closed:
+    /// an unrecognized state is never rendered as ready, and grouping it
+    /// here (rather than silently dropping the row) means it still gets an
+    /// honest `store.detail`-driven explanation.
+    static func noStoreRows(_ report: ConnectionsReport) -> [ConnectionRow] {
+        report.connections.filter { $0.secretState == .noStore || $0.secretState == .unknown }
+    }
+
+    /// Quiet-voice sentence for one `needs-connect` row, e.g. "Needs 2
+    /// credentials in your organization's secret store: INFISICAL_CLIENT_ID,
+    /// INFISICAL_CLIENT_SECRET." Exactly `missing`'s names, in order --
+    /// never a value, never tier/mode jargon.
+    static func needsConnectDetail(_ row: ConnectionRow) -> String {
+        let count = row.missing.count
+        let noun = count == 1 ? "credential" : "credentials"
+        return "Needs \(count) \(noun) in your organization's secret store: \(row.missing.joined(separator: ", "))."
+    }
+
+    /// The whole-roster explanation for when there is nothing to group into
+    /// either card at all (`connections` empty -- per the schema, only when
+    /// `result == "copilot-unavailable"`) -- the CLI's own `detail`, never a
+    /// raw error or an app-invented sentence.
+    static func unavailableDetail(_ report: ConnectionsReport) -> String {
+        report.detail ?? "Control Tower could not read your organization's connections right now."
+    }
+
+    /// Quiet second line shown alongside the pre-existing static "no
+    /// additional connections" sentence, specifically when the `connections`
+    /// call itself failed in the one shape a `connections`-unaware `cc`
+    /// build produces (`CliError.looksLikeMissingConnectionsVerb` below) --
+    /// never shown for any other failure kind.
+    static let updateHint = "Update to see your organization's connections."
+}
+
+extension CliError {
+    /// True for the one `CliError` shape an installed `cc` build with no
+    /// `connections` verb at all produces: exit code 2 (Click's own
+    /// usage-error exit) with no readable `{schema_version, error}` envelope
+    /// -- a missing verb never gets far enough to print one (verified live
+    /// against the bundled 0.3.2 app's `cc 2.1.2` helper, task 221 stage C:
+    /// empty stdout, "No such command 'connections'." on stderr, exit 2).
+    /// This is a STRUCTURAL check on the already-classified `CliError` case,
+    /// never a scan of stderr text (this app never reads stderr at all --
+    /// `cli-client.swift`'s "never shows a raw error" rule) or the JSON body.
+    /// A genuinely different exit-2 failure that also happens to omit its
+    /// envelope collapses onto the SAME honest "can't check right now,
+    /// update to see more" copy -- never a false negative, and never a
+    /// misleading claim either.
+    var looksLikeMissingConnectionsVerb: Bool {
+        if case .exit2(let code, _) = self { return code == "unknown" }
+        return false
+    }
+}
+
+/// Connections-specific load state, carrying the real `CliError` on failure
+/// (unlike `native/user-settings.swift`'s `UserSettingsLoadState<Value>`,
+/// whose shared `.failed` case deliberately carries none -- that generic is
+/// reused across six unrelated report kinds via `UserSettingsModel.load()`'s
+/// `Result.loadedState`, none of which need the specific error; adding a
+/// payload there would ripple into all of them for a need only this screen
+/// has). Shared by BOTH `WizardModel` and `UserSettingsModel`.
+enum ConnectionsLoadState {
+    case waiting
+    case loading
+    case loaded(ConnectionsReport)
+    case failed(CliError)
+}

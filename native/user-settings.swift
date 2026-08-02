@@ -374,6 +374,12 @@ final class UserSettingsModel: ObservableObject {
     @Published private(set) var layersState: UserSettingsLoadState<LayersReport> = .waiting
     @Published private(set) var projectsState: UserSettingsLoadState<WorkspacesReport> = .waiting
     @Published private(set) var topologyState: UserSettingsLoadState<EcosystemOnboardReport> = .waiting
+    /// "Your connections" card's organization roster (task 221 bridge stage
+    /// C) -- `ConnectionsLoadState`, not `UserSettingsLoadState<ConnectionsReport>`,
+    /// because this one card needs the real `CliError` to tell a
+    /// verb-unavailable `cc` build apart from any other read failure
+    /// (`native/render-state.swift`'s own doc comment on why).
+    @Published private(set) var connectionsState: ConnectionsLoadState = .waiting
 
     private var isLoading = false
 
@@ -388,6 +394,7 @@ final class UserSettingsModel: ObservableObject {
         layersState = .loading
         projectsState = .loading
         topologyState = .loading
+        connectionsState = .loading
 
         Task {
             async let authResult = CliClient.shared.authStatus()
@@ -398,6 +405,7 @@ final class UserSettingsModel: ObservableObject {
             async let layersResult = CliClient.shared.layers()
             async let projectsResult = CliClient.shared.workspaces()
             async let topologyResult = CliClient.shared.ecosystemOnboardPlan(products: ["claude", "codex"])
+            async let connectionsResult = CliClient.shared.connections()
 
             let auth = await authResult
             let doctor = await doctorResult
@@ -405,6 +413,7 @@ final class UserSettingsModel: ObservableObject {
             let layers = await layersResult
             let projects = await projectsResult
             let topology = await topologyResult
+            let connections = await connectionsResult
 
             authState = auth.loadedState
             doctorState = doctor.loadedState
@@ -412,6 +421,10 @@ final class UserSettingsModel: ObservableObject {
             layersState = layers.loadedState
             projectsState = projects.loadedState
             topologyState = topology.loadedState
+            switch connections {
+            case .success(let report): connectionsState = .loaded(report)
+            case .failure(let error): connectionsState = .failed(error)
+            }
             isLoading = false
         }
     }
@@ -622,27 +635,32 @@ struct UserSettingsView: View {
                 detail: "Nothing was changed. Try again when the setup helper is available."
             )
         case .loaded(let auth):
-            HStack(alignment: .center, spacing: 10) {
-                Image(systemName: auth.state == .authorized
-                    ? "checkmark.circle.fill"
-                    : "person.crop.circle.badge.exclamationmark")
-                    .foregroundColor(Color(nsColor: auth.state == .authorized
-                        ? .systemGreen
-                        : .systemOrange))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("GitHub")
-                        .font(.callout.weight(.semibold))
-                    Text(githubDetail(auth))
-                        .font(.caption)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: auth.state == .authorized
+                        ? "checkmark.circle.fill"
+                        : "person.crop.circle.badge.exclamationmark")
+                        .foregroundColor(Color(nsColor: auth.state == .authorized
+                            ? .systemGreen
+                            : .systemOrange))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("GitHub")
+                            .font(.callout.weight(.semibold))
+                        Text(githubDetail(auth))
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                    Spacer()
+                    Text(auth.state == .authorized ? "Ready" : "Needs sign-in")
+                        .font(.caption.weight(.semibold))
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
-                Spacer()
-                Text(auth.state == .authorized ? "Ready" : "Needs sign-in")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .padding(.vertical, 6)
+                .accessibilityElement(children: .combine)
+
+                organizationConnectionsSection
             }
-            .accessibilityElement(children: .combine)
         }
     }
 
@@ -653,6 +671,121 @@ struct UserSettingsView: View {
         case .signedOut:
             return "This Mac is not signed in to GitHub."
         }
+    }
+
+    /// The organization's declared connections roster (task 221 bridge stage
+    /// C), rendered directly beneath the GitHub row -- same `ConnectionsRender`
+    /// grouping `native/wizard.swift`'s step 6 uses, independent styling.
+    @ViewBuilder
+    private var organizationConnectionsSection: some View {
+        switch model.connectionsState {
+        case .waiting, .loading:
+            Divider()
+            loadingRow("Checking your organization's connections…")
+                .padding(.top, 8)
+
+        case .loaded(let report):
+            let ready = ConnectionsRender.readyRows(report)
+            let needsConnect = ConnectionsRender.needsConnectRows(report)
+            let noStore = ConnectionsRender.noStoreRows(report)
+            if report.connections.isEmpty {
+                Divider()
+                Text(ConnectionsRender.unavailableDetail(report))
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            } else {
+                if !ready.isEmpty {
+                    Divider()
+                    ForEach(ready) { row in connectionReadyRow(row) }
+                }
+                if !needsConnect.isEmpty {
+                    Divider()
+                    ForEach(needsConnect) { row in connectionNeedsConnectRow(row) }
+                }
+                if !noStore.isEmpty {
+                    Divider()
+                    connectionsNoStoreGroup(noStore, storeDetail: report.store.detail)
+                }
+            }
+
+        case .failed(let error):
+            Divider()
+            VStack(alignment: .leading, spacing: 4) {
+                Text("No additional organization connections are available in Control Tower right now.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                if error.looksLikeMissingConnectionsVerb {
+                    Text(ConnectionsRender.updateHint)
+                        .font(.caption2)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    /// `secret_state == ready` org row.
+    private func connectionReadyRow(_ row: ConnectionRow) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 8))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.name.capitalized)
+                    .font(.callout.weight(.semibold))
+                Text(row.description)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+            Spacer()
+            Text("Ready")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.name.capitalized), ready, \(row.description)")
+    }
+
+    /// `secret_state == needs-connect` org row -- names what is actually
+    /// missing, in plain language, never tier/mode jargon.
+    private func connectionNeedsConnectRow(_ row: ConnectionRow) -> some View {
+        let detail = ConnectionsRender.needsConnectDetail(row)
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(row.name.capitalized)
+                .font(.callout.weight(.semibold))
+            Text(row.description)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Text(detail)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
+    }
+
+    /// `secret_state == no-store` rows -- grouped under one honest
+    /// explanation (`store.detail`) rather than one line per row.
+    private func connectionsNoStoreGroup(_ rows: [ConnectionRow], storeDetail: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(storeDetail ?? "Your organization's shared secret store could not be checked on this Mac.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(rows.map { $0.name.capitalized }.joined(separator: ", "))
+                .font(.caption2)
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder

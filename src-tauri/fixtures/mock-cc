@@ -39,6 +39,13 @@
 #                                     #   `layers --json` (available|joined|not-entitled|
 #                                     #   offline map to joined|already-joined|
 #                                     #   not-entitled|offline respectively).
+#   mock-cc connections --json       # task 221 bridge stage C: the org's declared
+#                                     #   connections roster + shared-store reachability —
+#                                     #   reads connections/corpus/ (connections.schema.json).
+#                                     #   `CT_FIXTURE=verb-unavailable` simulates an installed
+#                                     #   `cc` build that PREDATES this verb entirely (exit 2,
+#                                     #   no readable body — the real bundled 0.3.2 app's
+#                                     #   `cc 2.1.2` helper's exact observed shape).
 #   mock-cc onboard --org <o> --products <p> --json
 #                                     # the aggregate ecosystem PLAN call (`WizardModel.
 #                                     #   performDetect`/`WizardSelftest`'s CT_SELFTEST_STEP=
@@ -283,6 +290,9 @@ LAYERS_CORPUS_DIR="$HERE/layers/corpus"
 # distinguished structurally exactly like the real schema — see
 # fixtures/projects/corpus/.
 PROJECTS_CORPUS_DIR="$HERE/projects/corpus"
+# Task 221 bridge stage C: the `connections` verb's own fixture corpus
+# (connections.schema.json) — see fixtures/connections/README.md.
+CONNECTIONS_CORPUS_DIR="$HERE/connections/corpus"
 
 # No hardcoded default here — `doctor` defaults to "healthy-clean-fleet" and
 # `deprovision` defaults to "wiped-clean", applied below once $verb is known
@@ -390,6 +400,7 @@ if [ -z "$fixture" ]; then
       ;;
     freshness) fixture="mixed-fresh-and-stale" ;;
     layers) fixture="available" ;;
+    connections) fixture="ready-and-needs-connect" ;;
     *) fixture="healthy-clean-fleet" ;;
   esac
 fi
@@ -439,6 +450,12 @@ list_fixtures() {
     [ -e "$f" ] || continue
     printf '  %s\n' "$(basename "${f%.json}")"
   done
+  echo "connections corpus (valid, for 'connections --json'):"
+  for f in "$CONNECTIONS_CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "connections special: verb-unavailable (exit 2, no body — a pre-connections cc build)"
   echo "special: list, exit-2"
 }
 
@@ -903,6 +920,53 @@ PY
     exit 0
     ;;
 
+  connections)
+    # `mock-cc connections --json` (task 221 bridge stage C). Two special
+    # fixture names BEFORE the ordinary corpus lookup:
+    #   exit-2            — same generic simulated env/credential error every
+    #                        other verb supports.
+    #   verb-unavailable  — simulates an installed `cc` build that PREDATES
+    #                        this verb entirely: exit 2, NOTHING on stdout, a
+    #                        Click-style usage error on stderr. Verified live
+    #                        against the bundled 0.3.2 app's real `cc 2.1.2`
+    #                        helper (task 221 stage C) — that exact command
+    #                        produces empty stdout, "Error: No such command
+    #                        'connections'." on stderr, exit 2.
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+    if [ "$fixture" = "verb-unavailable" ]; then
+      echo "Usage: cc [OPTIONS] COMMAND [ARGS]..." >&2
+      echo "Try 'cc --help' for help." >&2
+      echo "Error: No such command 'connections'." >&2
+      exit 2
+    fi
+
+    resolve_connections_fixture_path() {
+      local name="$1"
+      if [ -f "$CONNECTIONS_CORPUS_DIR/$name.json" ]; then
+        echo "$CONNECTIONS_CORPUS_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
+
+    path="$(resolve_connections_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown connections fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
+
+    # Same simpler convention as `layers`/`deprovision`/`update`: no
+    # per-body severity concept here, always exit 0 once a fixture body is
+    # found (`result` inside the body itself carries any degradation).
+    cat "$path"
+    exit 0
+    ;;
+
   auth)
     # `mock-cc auth login --json ...` is accepted as an alias for `mock-cc auth --json
     # ...` (D-3-M3 recommendation #2: the wizard's host/GitHub sign-in step is one more
@@ -1035,7 +1099,7 @@ PY
     ;;
 
   *)
-    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json', 'auth --json [--poll]' / 'auth status --json', 'layers --json' / 'layers join <id> --json', 'freshness --json' / 'freshness --all-projects --json', 'deprovision <org> --json', 'update --json' / 'update --project <path> --json' / 'update --fanout --json', and 'config set <key> <value>'" >&2
+    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json', 'auth --json [--poll]' / 'auth status --json', 'layers --json' / 'layers join <id> --json', 'connections --json', 'freshness --json' / 'freshness --all-projects --json', 'deprovision <org> --json', 'update --json' / 'update --project <path> --json' / 'update --fanout --json', and 'config set <key> <value>'" >&2
     exit 2
     ;;
 esac

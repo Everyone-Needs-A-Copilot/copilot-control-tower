@@ -11,10 +11,12 @@ every fixture under invalid/ is confirmed non-schema-valid or unparseable (i.e. 
 is doing its job as an adversarial case), AND every fixture under layers/corpus/
 validates against layers.schema.json, AND every fixture under projects/corpus/
 validates against projects.schema.json (which $refs update.schema.json for a
-per-project materialize `report`). This intentionally does NOT assert anything
-about the app's own semantic range-gate (MIN_SCHEMA/MAX_SCHEMA are Rust
-compiled-in constants, not part of the JSON Schema — see doctor.schema.json's
-$comment on the `status` property and README.md in this directory).
+per-project materialize `report`), AND every fixture under connections/corpus/
+validates against connections.schema.json (task 221 bridge stage C). This
+intentionally does NOT assert anything about the app's own semantic range-gate
+(MIN_SCHEMA/MAX_SCHEMA are Rust compiled-in constants, not part of the JSON
+Schema — see doctor.schema.json's $comment on the `status` property and
+README.md in this directory).
 
 `deprovision/corpus/`, `update/corpus/` (their own, non-`layers`/`projects` shapes)
 are deliberately NOT validated here — see their own README.md files: those two are
@@ -37,6 +39,7 @@ CORPUS_DIR = HERE / "corpus"
 INVALID_DIR = HERE / "invalid"
 LAYERS_CORPUS_DIR = HERE / "layers" / "corpus"
 PROJECTS_CORPUS_DIR = HERE / "projects" / "corpus"
+CONNECTIONS_CORPUS_DIR = HERE / "connections" / "corpus"
 
 # Fixtures that are syntactically schema-valid on purpose (the schema cannot encode
 # the app's compiled-in min/max range — see doctor.schema.json's allOf $comment).
@@ -69,11 +72,18 @@ def build_validator() -> Draft202012Validator:
 
 def load_wsa_registry() -> Registry:
     """Registry for the newer WS-A verb schemas (layers/projects, which $refs
-    update.schema.json for the per-project materialize `report`) -- kept
+    update.schema.json for the per-project materialize `report`; connections,
+    task 221 bridge stage C, which $refs only `_envelope.schema.json`) -- kept
     separate from `load_registry()` above (doctor-only) so neither corpus's
     validator accidentally cross-resolves the other's `$id`."""
     resources = []
-    for name in ("_envelope.schema.json", "update.schema.json", "layers.schema.json", "projects.schema.json"):
+    for name in (
+        "_envelope.schema.json",
+        "update.schema.json",
+        "layers.schema.json",
+        "projects.schema.json",
+        "connections.schema.json",
+    ):
         contents = json.loads((SCHEMAS_DIR / name).read_text())
         resources.append(Resource.from_contents(contents, default_specification=DRAFT202012))
     return Registry().with_resources([(r.contents["$id"], r) for r in resources])
@@ -86,6 +96,11 @@ def build_layers_validator(registry: Registry) -> Draft202012Validator:
 
 def build_projects_validator(registry: Registry) -> Draft202012Validator:
     schema = json.loads((SCHEMAS_DIR / "projects.schema.json").read_text())
+    return Draft202012Validator(schema, registry=registry)
+
+
+def build_connections_validator(registry: Registry) -> Draft202012Validator:
+    schema = json.loads((SCHEMAS_DIR / "connections.schema.json").read_text())
     return Draft202012Validator(schema, registry=registry)
 
 
@@ -166,6 +181,7 @@ def main() -> int:
     wsa_registry = load_wsa_registry()
     layers_validator = build_layers_validator(wsa_registry)
     projects_validator = build_projects_validator(wsa_registry)
+    connections_validator = build_connections_validator(wsa_registry)
 
     print()
     print("Validating layers/corpus/ (must ALL pass layers.schema.json):")
@@ -175,7 +191,11 @@ def main() -> int:
     print("Validating projects/corpus/ (must ALL pass projects.schema.json):")
     projects_failures = check_generic_corpus(projects_validator, PROJECTS_CORPUS_DIR, "projects/corpus")
 
-    failures = corpus_failures + invalid_failures + layers_failures + projects_failures
+    print()
+    print("Validating connections/corpus/ (must ALL pass connections.schema.json):")
+    connections_failures = check_generic_corpus(connections_validator, CONNECTIONS_CORPUS_DIR, "connections/corpus")
+
+    failures = corpus_failures + invalid_failures + layers_failures + projects_failures + connections_failures
     print()
     if failures:
         print(f"FAILED ({len(failures)}):")
@@ -183,7 +203,7 @@ def main() -> int:
             print(f"  - {f}")
         return 1
     print("All fixtures behave as expected. Corpus is schema-valid; invalid/ fixtures are adversarial as intended; "
-          "layers/corpus/ and projects/corpus/ are schema-valid.")
+          "layers/corpus/, projects/corpus/, and connections/corpus/ are schema-valid.")
     return 0
 
 

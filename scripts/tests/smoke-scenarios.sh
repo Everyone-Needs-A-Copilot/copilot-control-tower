@@ -23,6 +23,20 @@
 #                                           pending> signedInAs=<login|none>`
 #                                           (+ `SELFTEST departments=<...>`
 #                                           when CT_SELFTEST_STEP=departments,
+#                                           or, when CT_SELFTEST_STEP=connections
+#                                           (task 221 bridge stage C, step 6
+#                                           "Your connections"): `SELFTEST
+#                                           connectionsResult=<ok|
+#                                           copilot-unavailable|
+#                                           org-config-unavailable|unknown>
+#                                           connections=<id>:<secret_state>,...`
+#                                           on a successful decode, or exit 1
+#                                           with `SELFTEST
+#                                           connections=error(...)
+#                                           missingVerb=<bool>` on a CLI-call
+#                                           failure (an installed `cc` build
+#                                           that predates the verb sets
+#                                           missingVerb=true);
 #                                           or, when CT_SELFTEST_STEP=holding
 #                                           (the Detect->Holding transition
 #                                           AND the "One question first"
@@ -220,6 +234,21 @@ assert_exit_zero() {
         return 0
     fi
     fail "${desc}: expected exit 0, got ${LAST_STATUS}" "${LAST_OUTPUT}"
+    return 1
+}
+
+# A genuine `CliClient` call failure inside a SELFTEST step (e.g. task 221's
+# `CT_SELFTEST_STEP=connections`, verb-unavailable) exits the harness process
+# with 1, same convention `WizardSelftest`'s departments step already uses —
+# `assert_exit_zero` above only covers the (so far exclusively exercised)
+# always-succeeds steps.
+assert_exit_status() {
+    local desc="$1" expected="$2"
+    if [[ "${LAST_STATUS}" -eq "${expected}" ]]; then
+        pass "${desc}: exit ${expected}"
+        return 0
+    fi
+    fail "${desc}: expected exit ${expected}, got ${LAST_STATUS}" "${LAST_OUTPUT}"
     return 1
 }
 
@@ -961,6 +990,44 @@ scenario_S43() {
 }
 
 # ==========================================================================
+# Scenarios S44/S45 — task 221 bridge stage C: step 6 "Your connections"
+# read data path (`connections()`), independent of Holding's own
+# classifiers above. S44 proves a normal decode reaches the render layer
+# (per-row `secret_state`, `needs-connect` naming its missing credentials).
+# S45 proves the verb-unavailable degrade path (an installed `cc` build that
+# predates this verb, e.g. the bundled 0.3.2 app's real `cc 2.1.2` helper —
+# task 221's WP-388 trace) is classified honestly as a missing verb rather
+# than silently swallowed or confused with a generic failure.
+# ==========================================================================
+
+scenario_S44() {
+    local id="S44"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=ready-and-needs-connect CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=connections
+    rm -rf "${home}"
+    assert_exit_zero "${id} connections"
+    assert_contains "${id} connections" "SELFTEST connectionsResult=ok"
+    assert_contains "${id} connections" "git:ready"
+    assert_contains "${id} connections" "infisical:needs-connect"
+}
+
+# `mock-cc CT_FIXTURE=verb-unavailable` reproduces the bundled helper's exact
+# observed shape (exit 2, no readable body — src-tauri/fixtures/connections/README.md).
+scenario_S45() {
+    local id="S45"
+    should_run "${id}" || return 0
+    local home; home="$(fresh_home)"
+    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
+        CT_CLI_PATH="${MOCK_CC}" CT_FIXTURE=verb-unavailable CT_OPEN_WIZARD=1 CT_SELFTEST=1 CT_SELFTEST_STEP=connections
+    rm -rf "${home}"
+    assert_exit_status "${id} connections (verb-unavailable)" 1
+    assert_contains "${id} connections (verb-unavailable)" "SELFTEST connections=error("
+    assert_contains "${id} connections (verb-unavailable)" "missingVerb=true"
+}
+
+# ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
 
@@ -1075,6 +1142,8 @@ scenario_S40
 scenario_S41
 scenario_S42
 scenario_S43
+scenario_S44
+scenario_S45
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

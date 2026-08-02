@@ -23,13 +23,17 @@
 //   - Connect GitHub (step 2): `authLoginInitiate()` / `authLoginPoll(deviceCode:)`
 //   - Detect (step 3): `authStatus()` + `doctor()` + aggregate `onboard` plan
 //   - Departments (step 5): `layers()` / `layersJoin(id:)`
+//   - Your connections (step 6): `connections()` (task 221 bridge stage C).
+//     Shows the GitHub connection established in step 2 plus the org's
+//     declared roster, grouped by the CLI's own `secret_state` into "Ready
+//     to use" / "Available to connect"; a `cc` build that predates this verb
+//     (or any other read failure) degrades to the same honest empty state
+//     this step always had, with a quiet update hint when that specific
+//     shape is detected. It never advertises a provider the organization has
+//     not made available, and never computes readiness itself.
 //   - Set up (step 7): aggregate `onboard --apply` (+ `updateFanout()` when a
 //     department was joined)
 //   - Verify (step 8): `doctor()`
-// Your connections (step 6) stays render-only until the CLI exposes an
-// organization-scoped connections contract. It shows the GitHub connection
-// established in step 2 and an honest empty state for additional connections;
-// it never advertises providers that the organization has not made available.
 // `WizardModel` never spawns `Process` itself — it only calls `CliClient`,
 // which owns that seam alone (invariant #1, "Parse, never compute").
 //
@@ -1110,6 +1114,10 @@ final class WizardModel: ObservableObject {
     @Published var adoptionRollbackPaths: [String] = []
     @Published var includeCodex = true
     @Published var departments: [DepartmentRow] = []
+    /// Step 6, "Your connections" (task 221 bridge stage C) -- the GitHub
+    /// card always renders regardless of this state; this drives only the
+    /// "Ready to use" org rows and the "Available to connect" card.
+    @Published var connectionsState: ConnectionsLoadState = .waiting
     @Published var setupProgress = SetupProgressState()
     @Published var workspaceFolderName: String?
     /// The last successful ecosystem `--apply` report's own `result`/`stages`
@@ -2473,9 +2481,28 @@ final class WizardModel: ObservableObject {
 
     func continueFromDepartments() {
         phase = .integrations
+        loadConnections()
     }
 
     // MARK: Integrations (#w6)
+
+    /// `connections()` -- real CLI seam (task 221 bridge stage C). A failed
+    /// call (including an installed `cc` build that predates the verb) is
+    /// folded into `.failed`, never a Holding interruption: the GitHub card
+    /// and Continue action both work regardless of this call's outcome, same
+    /// non-blocking discipline `loadDepartments()` above already uses for
+    /// `layers()`.
+    private func loadConnections() {
+        connectionsState = .loading
+        Task {
+            switch await CliClient.shared.connections() {
+            case .success(let report):
+                self.connectionsState = .loaded(report)
+            case .failure(let error):
+                self.connectionsState = .failed(error)
+            }
+        }
+    }
 
     func skipIntegrations() {
         enterProjectsStep()
@@ -4552,34 +4579,44 @@ struct WizardRootView: View {
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 sectionCard("Ready to use") {
-                    HStack(alignment: .center, spacing: 10) {
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 8))
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("GitHub")
-                                .font(.callout.weight(.semibold))
-                                .foregroundColor(Color(nsColor: .labelColor))
-                            Text("Signed in as \(model.authorizedLogin ?? "your GitHub account").")
-                                .font(.caption)
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .center, spacing: 10) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 8))
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("GitHub")
+                                    .font(.callout.weight(.semibold))
+                                    .foregroundColor(Color(nsColor: .labelColor))
+                                Text("Signed in as \(model.authorizedLogin ?? "your GitHub account").")
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            }
+                            Spacer()
+                            Text("Ready")
+                                .font(.caption.weight(.semibold))
                                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         }
-                        Spacer()
-                        Text("Ready")
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .padding(.vertical, 6)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("GitHub, ready, signed in as \(model.authorizedLogin ?? "your GitHub account")")
+
+                        if case .loaded(let report) = model.connectionsState {
+                            let ready = ConnectionsRender.readyRows(report)
+                            if !ready.isEmpty {
+                                Divider()
+                                ForEach(Array(ready.enumerated()), id: \.element.id) { index, row in
+                                    connectionReadyRow(row)
+                                    if index < ready.count - 1 { Divider() }
+                                }
+                            }
+                        }
                     }
-                    .padding(.vertical, 6)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("GitHub, ready, signed in as \(model.authorizedLogin ?? "your GitHub account")")
                 }
 
                 sectionCard("Available to connect") {
-                    Text("No additional organization connections are available in Control Tower right now.")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
+                    availableToConnectContent
                 }
             }
         } leadingActions: {
@@ -4589,6 +4626,126 @@ struct WizardRootView: View {
             Button { model.continueFromIntegrations() } label: { Text("Continue") }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
+        }
+    }
+
+    /// `secret_state == ready` org row -- same anatomy as the GitHub row
+    /// above it (dot, name, description, quiet trailing "Ready" label), no
+    /// tier/mode jargon.
+    private func connectionReadyRow(_ row: ConnectionRow) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 8))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.name.capitalized)
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                Text(row.description)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+            Spacer()
+            Text("Ready")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.name.capitalized), ready, \(row.description)")
+    }
+
+    /// `secret_state == needs-connect` org row -- names what is actually
+    /// missing, in plain language, never tier/mode jargon.
+    private func connectionNeedsConnectRow(_ row: ConnectionRow) -> some View {
+        let detail = ConnectionsRender.needsConnectDetail(row)
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(row.name.capitalized)
+                .font(.callout.weight(.semibold))
+                .foregroundColor(Color(nsColor: .labelColor))
+            Text(row.description)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            Text(detail)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
+    }
+
+    /// `secret_state == no-store` rows -- grouped under one honest
+    /// explanation (`store.detail`) rather than one line per row, since
+    /// nothing about them was individually verified.
+    private func connectionsNoStoreGroup(_ rows: [ConnectionRow], storeDetail: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(storeDetail ?? "Your organization's shared secret store could not be checked on this Mac.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(rows.map { $0.name.capitalized }.joined(separator: ", "))
+                .font(.caption2)
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var availableToConnectContent: some View {
+        switch model.connectionsState {
+        case .waiting, .loading:
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Checking your organization's connections…")
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Checking your organization's connections")
+
+        case .loaded(let report):
+            let needsConnect = ConnectionsRender.needsConnectRows(report)
+            let noStore = ConnectionsRender.noStoreRows(report)
+            if report.connections.isEmpty {
+                Text(ConnectionsRender.unavailableDetail(report))
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if needsConnect.isEmpty && noStore.isEmpty {
+                Text("No additional organization connections are available in Control Tower right now.")
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(needsConnect.enumerated()), id: \.element.id) { index, row in
+                        connectionNeedsConnectRow(row)
+                        if index < needsConnect.count - 1 || !noStore.isEmpty { Divider() }
+                    }
+                    if !noStore.isEmpty {
+                        connectionsNoStoreGroup(noStore, storeDetail: report.store.detail)
+                    }
+                }
+            }
+
+        case .failed(let error):
+            VStack(alignment: .leading, spacing: 4) {
+                Text("No additional organization connections are available in Control Tower right now.")
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                if error.looksLikeMissingConnectionsVerb {
+                    Text(ConnectionsRender.updateHint)
+                        .font(.caption2)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                }
+            }
         }
     }
 
@@ -7128,6 +7285,40 @@ enum WizardSelftest {
                 print("SELFTEST departments=\(parts.joined(separator: ","))")
             case .failure:
                 print("SELFTEST auth=error")
+                exit(1)
+            }
+        }
+
+        // CT_SELFTEST_STEP=connections — step 6's `connections()` read
+        // (task 221 bridge stage C), independent of `WizardModel`'s own
+        // `loadConnections()` for the same reason the departments step
+        // above is: this drives `CliClient` directly so a headless run can
+        // prove the CLI seam decodes a real payload (including against the
+        // real SOURCE `cc`, not just `mock-cc`) without clicking through
+        // the wizard UI.
+        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "connections" {
+            switch await CliClient.shared.connections() {
+            case .success(let report):
+                let resultToken: String
+                switch report.result {
+                case .ok: resultToken = "ok"
+                case .copilotUnavailable: resultToken = "copilot-unavailable"
+                case .orgConfigUnavailable: resultToken = "org-config-unavailable"
+                case .unknown: resultToken = "unknown"
+                }
+                let rows = report.connections.map { row -> String in
+                    let state: String
+                    switch row.secretState {
+                    case .ready: state = "ready"
+                    case .needsConnect: state = "needs-connect"
+                    case .noStore: state = "no-store"
+                    case .unknown: state = "unknown"
+                    }
+                    return "\(row.id):\(state)"
+                }
+                print("SELFTEST connectionsResult=\(resultToken) connections=\(rows.joined(separator: ","))")
+            case .failure(let error):
+                print("SELFTEST connections=error(\(error)) missingVerb=\(error.looksLikeMissingConnectionsVerb)")
                 exit(1)
             }
         }

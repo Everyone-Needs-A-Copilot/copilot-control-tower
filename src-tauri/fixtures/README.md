@@ -21,6 +21,11 @@ for those two new fixture corpora (both validated by `validate.sh`, alongside th
 `doctor` corpus below); `deprovision/corpus/` and `update/corpus/` remain unchanged and
 are still exercised by this repo's Rust-side tests directly, not this Python validator.
 
+**Task 221 bridge stage C addition:** `mock-cc` now also implements `connections` — the
+organization's declared connections roster + shared-store reachability. See
+[`connections/README.md`](connections/README.md) for that fixture corpus (also validated
+by `validate.sh`).
+
 Conforms to [`docs/01-architecture/schemas/doctor.schema.json`](../../docs/01-architecture/schemas/doctor.schema.json)
 (Draft 2020-12) and [`_envelope.schema.json`](../../docs/01-architecture/schemas/_envelope.schema.json).
 

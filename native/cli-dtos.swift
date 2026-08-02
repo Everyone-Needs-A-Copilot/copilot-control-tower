@@ -273,6 +273,106 @@ struct JoinResult: Decodable {
     let reason: String?
 }
 
+// MARK: - connections.schema.json (task 221 bridge stage C)
+
+/// Envelope-level outcome. Decoded LENIENTLY (a hand-written `init(from:)`,
+/// not a raw-value `Decodable` enum like `DoctorStatus` above) rather than
+/// throwing on an unrecognized string: `SchemaGate` only range-gates the
+/// MAJOR version (`cli-client.swift`), so an additive minor bump could add a
+/// new `result` value without this app's schema floor rejecting it first. An
+/// unrecognized value folds into `.unknown`, which every call site treats
+/// exactly like any other non-"ok" result (never silently "ok") — fail-closed,
+/// same discipline as `LayerEntry.entitled`'s `nil`-means-not-entitled rule.
+enum ConnectionsResult: Decodable, Equatable {
+    case ok
+    case copilotUnavailable
+    case orgConfigUnavailable
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "ok": self = .ok
+        case "copilot-unavailable": self = .copilotUnavailable
+        case "org-config-unavailable": self = .orgConfigUnavailable
+        default: self = .unknown
+        }
+    }
+}
+
+/// Per-row secret readiness. Same lenient-decode reasoning as
+/// `ConnectionsResult` above — an unrecognized future value becomes
+/// `.unknown` rather than failing the whole report's decode, and is grouped
+/// with `.noStore` at render time (`native/render-state.swift`'s
+/// `ConnectionsRender.noStoreRows`) rather than ever being treated as ready.
+enum ConnectionSecretState: Decodable, Equatable {
+    case ready
+    case needsConnect
+    case noStore
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "ready": self = .ready
+        case "needs-connect": self = .needsConnect
+        case "no-store": self = .noStore
+        default: self = .unknown
+        }
+    }
+}
+
+/// A single declared credential name (never a value) plus which
+/// credential-ladder rungs it may resolve from. `from` is left a plain
+/// `String` (not a closed enum) -- this app never branches on it (only
+/// `ConnectionRow.missing`'s NAMES are ever rendered), so there is nothing
+/// for a stricter type to buy here, and a plain `String` is inherently
+/// forward-tolerant of a future routing hint.
+struct ConnectionRequiredSecret: Decodable {
+    let name: String
+    let from: String
+}
+
+/// One row of the organization's declared service roster
+/// (`connections.schema.json`'s `$defs.connection`). `tier`/`mode` are
+/// decoded for contract fidelity but deliberately never surfaced as on-screen
+/// jargon (`docs/03-design/`'s Quiet Instrument voice) -- only
+/// `name`/`description`/`secretState`/`missing` drive any rendered text.
+struct ConnectionRow: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let description: String
+    let tier: String
+    let mode: String
+    let requiresSecret: [ConnectionRequiredSecret]
+    let storeScope: String?
+    let secretState: ConnectionSecretState
+    let missing: [String]
+}
+
+/// The org's declared shared-secret-store reachability
+/// (`connections.schema.json`'s `store` object) -- `type`/`scope`/`detail`
+/// are non-secret summaries only (never a credential, never a value).
+struct ConnectionsStore: Decodable {
+    let type: String?
+    let reachable: Bool
+    let scope: String?
+    let detail: String?
+}
+
+/// `cc connections --json`'s full envelope. `connections` is empty only when
+/// `result == .copilotUnavailable` (the schema's own note) -- `native/render-state.swift`'s
+/// `ConnectionsRender` is the one place this app derives the two-card
+/// (Ready to use / Available to connect) layout from it.
+struct ConnectionsReport: Decodable {
+    let schemaVersion: String
+    let result: ConnectionsResult
+    let detail: String?
+    let org: String?
+    let store: ConnectionsStore
+    let connections: [ConnectionRow]
+}
+
 // MARK: - freshness.schema.json
 
 struct FreshnessLayer: Decodable {

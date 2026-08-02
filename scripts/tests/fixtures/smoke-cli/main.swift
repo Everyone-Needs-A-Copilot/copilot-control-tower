@@ -211,6 +211,107 @@ for fixture in ["available", "joined", "not-entitled", "offline"] {
     }
 }
 
+// MARK: - connections: decode the corpus cleanly + assert every secret_state
+// (task 221 bridge stage C)
+
+setenv("CT_FIXTURE", "ready-and-needs-connect", 1)
+switch await CliClient.shared.connections() {
+case .success(let report):
+    check("connections/ready-and-needs-connect decodes", report.result == .ok)
+    let ready = ConnectionsRender.readyRows(report)
+    let needsConnect = ConnectionsRender.needsConnectRows(report)
+    check("connections/ready-and-needs-connect has ready rows", ready.map(\.id) == ["git", "discord"], "got \(ready.map(\.id))")
+    check(
+        "connections/ready-and-needs-connect has needs-connect rows",
+        needsConnect.map(\.id) == ["infisical", "uspto"],
+        "got \(needsConnect.map(\.id))"
+    )
+    if let infisical = needsConnect.first(where: { $0.id == "infisical" }) {
+        check(
+            "needsConnectDetail names both missing credentials",
+            ConnectionsRender.needsConnectDetail(infisical) == "Needs 2 credentials in your organization's secret store: INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET.",
+            "got \"\(ConnectionsRender.needsConnectDetail(infisical))\""
+        )
+    } else {
+        check("infisical row present", false)
+    }
+case .failure(let error):
+    check("connections/ready-and-needs-connect decodes", false, "got \(error)")
+}
+
+setenv("CT_FIXTURE", "store-unreachable", 1)
+switch await CliClient.shared.connections() {
+case .success(let report):
+    check("connections/store-unreachable decodes", report.result == .ok)
+    check("connections/store-unreachable store is unreachable", report.store.reachable == false)
+    let noStore = ConnectionsRender.noStoreRows(report)
+    check("connections/store-unreachable has no-store rows", noStore.map(\.id) == ["coolify", "brevo"], "got \(noStore.map(\.id))")
+    check("connections/store-unreachable still has a ready row", ConnectionsRender.readyRows(report).map(\.id) == ["git"])
+case .failure(let error):
+    check("connections/store-unreachable decodes", false, "got \(error)")
+}
+
+setenv("CT_FIXTURE", "org-config-unavailable", 1)
+switch await CliClient.shared.connections() {
+case .success(let report):
+    check("connections/org-config-unavailable decodes", report.result == .orgConfigUnavailable)
+    check("connections/org-config-unavailable still carries the full roster", report.connections.count == 2)
+    check("connections/org-config-unavailable carries a detail", report.detail != nil)
+case .failure(let error):
+    check("connections/org-config-unavailable decodes", false, "got \(error)")
+}
+
+setenv("CT_FIXTURE", "copilot-unavailable", 1)
+switch await CliClient.shared.connections() {
+case .success(let report):
+    check("connections/copilot-unavailable decodes", report.result == .copilotUnavailable)
+    check("connections/copilot-unavailable roster is empty", report.connections.isEmpty)
+    check(
+        "unavailableDetail renders the CLI's own detail",
+        ConnectionsRender.unavailableDetail(report) == report.detail,
+        "got \"\(ConnectionsRender.unavailableDetail(report))\""
+    )
+case .failure(let error):
+    check("connections/copilot-unavailable decodes", false, "got \(error)")
+}
+
+// `verb-unavailable` — the exact shape an installed `cc` build that predates
+// this verb entirely produces (exit 2, no readable envelope). Must map to
+// `CliError.exit2` AND `looksLikeMissingConnectionsVerb == true`, never a
+// generic `.parse` failure and never decoded as a false success.
+setenv("CT_FIXTURE", "verb-unavailable", 1)
+switch await CliClient.shared.connections() {
+case .success:
+    check("connections/verb-unavailable fails to decode", false, "decoded successfully, expected .exit2 failure")
+case .failure(let error):
+    let isExit2: Bool
+    if case .exit2 = error { isExit2 = true } else { isExit2 = false }
+    check("connections/verb-unavailable maps to CliError.exit2", isExit2, "got \(error)")
+    check(
+        "connections/verb-unavailable is classified as a missing verb",
+        error.looksLikeMissingConnectionsVerb,
+        "got \(error)"
+    )
+}
+
+// `exit-2` (a generic simulated env/credential error, same convention every
+// other verb's mock uses) is structurally IDENTICAL to `verb-unavailable` in
+// this harness -- no trustworthy body either way -- so it collapses onto the
+// SAME `.exit2`/missing-verb classification. That is the documented,
+// intentional trade-off (`CliError.looksLikeMissingConnectionsVerb`'s own doc
+// comment: "never a false negative, and never a misleading claim either"),
+// not a bug: this only asserts it still decodes as `.exit2`, never a
+// different failure kind.
+setenv("CT_FIXTURE", "exit-2", 1)
+switch await CliClient.shared.connections() {
+case .success:
+    check("connections/exit-2 fails to decode", false, "decoded successfully, expected .exit2 failure")
+case .failure(let error):
+    let isExit2: Bool
+    if case .exit2 = error { isExit2 = true } else { isExit2 = false }
+    check("connections/exit-2 maps to CliError.exit2", isExit2, "got \(error)")
+}
+
 // MARK: - auth: initiate, poll, status all decode
 
 switch await CliClient.shared.authLoginInitiate() {
