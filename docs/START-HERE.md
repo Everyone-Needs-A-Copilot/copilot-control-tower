@@ -41,7 +41,7 @@ This repo holds Control Tower's spec, design, and the native macOS app itself; t
 | `03-design/` | Engineering + experience design streams for the native app (interaction spec, visual system, copy deck, agentic-setup, `ui-ux/`) |
 | `product-design/` | The PCC design package (Discovery → Design Challenge), Phases 1–5 done; **the app's UX/UI/copy lives in `04-experience-design/`** |
 | `04-validation/` | Red-team reports + `test-plan.md` |
-| `05-security/` | `credentials-and-boundary.md` + `threat-model.md` + `incident-response.md` |
+| `05-security/` | `credentials-and-boundary.md` + `self-service-store-provisioning.md` + `threat-model.md` + `incident-response.md` |
 | `06-deployment/` | Deployment/onboarding guides: signed-app install, GitHub repo-access entitlement, standup/runbook docs for Admin mode |
 | `07-contributing/` | Developer guide, `release-and-versioning.md`, `publisher-release-runbook.md` (root also has `CONTRIBUTING.md`/`CODE_OF_CONDUCT.md`/`SECURITY.md`) |
 | `08-observability/` | Telemetry spec (two-channel, `machine_id`, fleet dashboard) |
