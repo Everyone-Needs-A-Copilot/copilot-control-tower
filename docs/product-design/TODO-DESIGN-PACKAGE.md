@@ -136,6 +136,8 @@ The `06-prototype/` folder is retained as an unused template artifact. Do not re
 
 None of these block the package. All are real and none were fixed during the documentation rebuild, because the owner scoped that pass to documentation and forbade code changes.
 
+**Full write-up with severity, root cause and proposed fix for each: [`../04-validation/audit-2026-08-02-findings.md`](../04-validation/audit-2026-08-02-findings.md).** That document is the durable record — it ranks these Critical → Low, adds the ones that are not design-package concerns (accessibility, repository hygiene, the closed security audit), and preserves the raw evidence the rebuild was derived from.
+
 | ID | Item |
 |----|------|
 | **G-1** | **The invariants are stated but not enforced.** All 40 `fitness_*.rs` tests scan `src-tauri/src/**` — the retired Rust tree — and cannot see one line of the shipping Swift. The CI job that runs them is disabled behind `vars.RELEASE_CI_ENABLED`. Porting the suite to scan `native/` is open work |
