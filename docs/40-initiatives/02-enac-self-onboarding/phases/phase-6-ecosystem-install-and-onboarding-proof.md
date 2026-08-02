@@ -450,8 +450,21 @@ content in Admin output**.
 ## 7. Ratified decisions and remaining owner gates
 
 - **RD-1 — Bootstrap credentials.** Use a scoped, revocable per-machine identity;
-  do not distribute the org-wide `ecosystem-admin` credential. The provisioning
-  verb is implemented; live service proof remains owner-controlled.
+  do not distribute the org-wide `ecosystem-admin` credential. **Correction
+  (WP-395/task 222, 2026-08-02): no per-machine identity-provisioning verb
+  exists.** `copilot infisical identity provision` has never existed (only
+  `list`/`create`, which mints a bare identity with no universal-auth method,
+  client secret, project membership, or role — see WP-395 gaps G-5/G-7); the
+  B-5/status-table claims that a provisioning verb was "Built and tested"
+  were themselves corrected in §5.1/§6 by that same WP. `cc connect
+  <service-id> --json` (task 222) is the machine-side floor that WRITES a
+  credential to a device's keychain once an admin has minted one by hand in
+  the Infisical dashboard (see
+  `docs/06-deployment/connecting-a-machine-to-the-shared-store.md`) — it is
+  credential-agnostic and does not itself provision, mint, or police the
+  provenance of the value it is given, so RD-1's obligation not to distribute
+  the org-wide pair still rests entirely on the admin's manual step until
+  G-5's real provisioning verb is built.
 - **RD-2 — Onboarding authority.** `cc onboard` computes and mutates; Control
   Tower renders one structured result.
 - **RD-3 — Manifest delivery.** `cc onboard` derives the manifest from the Admin

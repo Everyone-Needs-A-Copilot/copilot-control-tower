@@ -80,6 +80,15 @@ on. Nothing in this directory claims a not-yet-built piece works.
   → preflight → stand up the tier repos + team grants → rollout → opt-in
   telemetry → offboarding a leaver. The single "to actually stand up the
   ecosystem" walkthrough.
+- **[`connecting-a-machine-to-the-shared-store.md`](connecting-a-machine-to-the-shared-store.md)**
+  - how a single machine gets read access to the org's shared Infisical
+  store: the keychain mechanism (`security -a <NAME> -s copilot-cli`) both
+  the manual path and `cc connect <service-id> --json` (task 222, `cc`
+  2.3.0) write to, today's app-less two-command manual path plus where the
+  values come from (an admin mints a per-machine identity in the Infisical
+  dashboard - RD-1: never the org-wide pair), and verification via
+  `cc connections --json`. The non-technical end-user surface on top of
+  this mechanism is still an open design fork (WP-396/WP-398).
 - **[`two-of-n-custody-runbook.md`](two-of-n-custody-runbook.md)** - the
   signing-custody runbook: the k-of-N verifier that now exists in code
   (dev keys, not yet the live path) alongside the still-live single-key
