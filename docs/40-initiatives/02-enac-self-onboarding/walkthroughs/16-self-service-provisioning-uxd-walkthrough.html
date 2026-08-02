@@ -29,7 +29,7 @@
   <header>
     <strong>Self-service provisioning · UX</strong>
     <nav class="toc" aria-label="Screens">
-      <a href="#s1">01</a><a href="#s2">02</a><a href="#s3">03</a><a href="#s4">04</a><a href="#s5">05</a><a href="#s6">06</a><a href="#s7">07</a><a href="#s8">08</a><a href="#s9">09</a><a href="#s10">10</a><a href="#s11">11</a><a href="#s12">12</a><a href="#s13">13</a>
+      <a href="#s1">01</a><a href="#s2">02</a><a href="#s3">03</a><a href="#s4">04</a><a href="#s5">05</a><a href="#s6">06</a><a href="#s7">07</a><a href="#s8">08</a><a href="#s9">09</a><a href="#s10">10</a><a href="#s11">11</a><a href="#s12">12</a><a href="#s13">13</a><a href="#s14">14</a>
     </nav>
     <button class="theme" id="theme" aria-label="Change color theme">Theme: system</button>
   </header>
@@ -40,7 +40,7 @@
       <p>Walkthrough 15 drew a receipt: a step 6 where every shared row reads Ready and nothing carries a button. This walkthrough is what makes that receipt true. On Bob's side it adds nothing, not a screen, not a button, not a word he has to learn. Everything it adds lands on the administrator, once, and on a small service nobody in accounting will ever hear of. Both halves are drawn here, because a design that shows only the empty one has hidden its own price.</p>
       <p>The job, stated as a job: <em>when my department's tools need a key I don't have and shouldn't have, I want the work to just run, so I can close the month without asking a colleague to DM me something I know I'm not supposed to have.</em></p>
     </div>
-    <p class="legend"><span class="chip new">NEW</span> marks a capability today's product does not have. Nothing here is ratified: the design is at review after two security passes, and screen 13 is the list of things only the owner can settle. Bob's screens name no vendor, no protocol and no component; they describe effects, because that is all he can act on. The administrator's screens name things precisely, because precision is what she is owed. Every quoted string is CLI authored: the app renders the sentence, it never composes it (invariant #1).</p>
+    <p class="legend"><span class="chip new">NEW</span> marks a capability today's product does not have. Nothing here is ratified: the design is at review after two security passes, screen 13 reconciles this design with the bridge that shipped today, and screen 14 is the list of things only the owner can settle. Bob's screens name no vendor, no protocol and no component; they describe effects, because that is all he can act on. The administrator's screens name things precisely, because precision is what she is owed. Every quoted string is CLI authored: the app renders the sentence, it never composes it (invariant #1).</p>
 
     <p class="part">PART ONE · BOB'S SIDE, WHERE NOTHING IS ADDED</p>
 
@@ -324,17 +324,44 @@
             <div><b>12</b><span><strong>Read the scores honestly, not mechanically.</strong> The two edges land in the middle band because compromising a registrar or a build pipeline is hard, not because the damage is smaller. Both max the damage column. High consequence, medium likelihood, and never a lower priority than a compromise of the service itself.</span></div>
             <div><b>→</b><span><strong>None of this argues for the alternative.</strong> Every finding on this list is present and worse in the shape that creates credentials, which carries all of them plus one component whose compromise is the store's compromise.</span></div>
           </div>
-          <div class="card inset" style="margin-top:14px"><div class="decision"><b>Two passes</b><span>Seventeen findings scored across an independent second review: none critical, three high, nine medium, five low. The second pass corrected two overclaims in the design's own headline and found one missing instruction, which is on screen 04.</span></div><div class="decision"><b>Not ratified</b><span>The verdict is "survives, with changes." The changes are screen 13.</span></div></div>
+          <div class="card inset" style="margin-top:14px"><div class="decision"><b>Two passes</b><span>Seventeen findings scored across an independent second review: none critical, three high, nine medium, five low. The second pass corrected two overclaims in the design's own headline and found one missing instruction, which is on screen 04.</span></div><div class="decision"><b>Not ratified</b><span>The verdict is "survives, with changes." The changes are screen 14.</span></div></div>
           <div class="footer"><span></span><button class="primary" onclick="location.hash='s13'">The rulings →</button></div>
         </div></div>
         <aside class="note"><h4>Overselling is the failure mode here</h4><ul><li>Stated without its edges, the structural claim becomes a slogan, and the first person to find the DNS path would be right to distrust everything else in the document.</li><li>Two of these are operational duties with owners and cadences rather than code. They belong on the ruling list precisely because a designer cannot assign them to anyone.</li><li>One is an unanswered vendor question. Writing "unconfirmed" next to it is not a weakness in the design. Pretending otherwise would be.</li></ul></aside>
       </div><div class="pager"><a href="#s11">← Previous</a><a href="#s13">Next →</a></div>
     </section>
 
+    <section id="s13">
+      <div class="screen-title"><span class="number">13</span><h2>What shipped today instead, and why it is built to be deleted</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage current"><b>●</b><span>Your connections</span></div><div class="stage"><b>○</b><span>Your projects</span></div><div class="stage"><b>○</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">STEP 6 OF 9 · SHIPPED TODAY, NOT PART OF THIS DESIGN</span><h3>Connect Infisical</h3><p class="lead">Every other screen in this walkthrough is a design. This one is the product as of today, and it is here because a walkthrough that showed only the destination would let the thing actually on the owner's Mac go undescribed.</p>
+            <div class="card inset">
+              <p style="margin:0 0 9px;color:var(--muted)">Whoever set up your organization's shared store gives you these. Control Tower hands them straight to this Mac's keychain — they are never shown again, never written into a project, and never sent anywhere.</p>
+              <div style="margin-bottom:9px"><span class="field mono">INFISICAL_CLIENT_ID</span><div class="command mono">••••••••••••••••••••••••</div></div>
+              <div><span class="field mono">INFISICAL_CLIENT_SECRET</span><div class="command mono">••••••••••••••••••••••••</div></div>
+            </div>
+            <div class="footer"><button>Cancel</button><button class="primary">Connect</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>Both statements are true, at different times</h4><ul><li>Walkthrough 15 found a step 6 that promised a Connect button the product had never had. That promise is now kept.</li><li>The design in this walkthrough deletes the same button, because a value nobody has to carry is a value nobody can mishandle.</li><li>The bridge is not a smaller version of the destination. It is the thing the destination removes.</li></ul></aside>
+      </div>
+      <div class="layout" style="margin-top:16px">
+        <div class="window" style="min-height:0"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Why both exist</span></div><div class="content">
+          <span class="eyebrow">THE HONEST RECONCILIATION</span><h3>A promise kept this week, and a promise that outlives it</h3>
+          <div class="card"><div class="decision"><b>What shipped</b><span>A native secure-input sheet on the one row a person can actually resolve, and a CLI verb behind it. The value reaches the CLI on standard input and nothing else — never an argument, never an environment variable, never a file — and the CLI writes it to this Mac's keychain and re-checks. The suite fails loudly if a value ever appears anywhere else.</span></div><div class="decision"><b>Why</b><span>A member whose organization has not wired the store to GitHub teams is otherwise left exactly where walkthrough 15 found him: a heading that implies an action, over a row with no action.</span></div><div class="decision"><b>What replaces it</b><span>Everything screens 01 to 12 describe. Membership becomes the access, and the sheet has nothing left to ask for.</span></div><div class="decision"><b>What that costs</b><span>One screen, one verb, and one runbook to retire. The design was chosen partly because that retirement is cheap: nothing about the bridge is load-bearing for the destination.</span></div></div>
+          <div class="card inset callout"><b class="warn">−</b><div><strong>Do not read this screen as the plan.</strong><p>The bridge is shipped and real. Screens 01 to 12 are neither: they are at review, and screen 14 is what has to be settled before any of them is built.</p></div></div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s14'">The rulings →</button></div>
+        </div></div>
+        <aside class="note"><h4>Why this is in a design walkthrough at all</h4><p>Because the same repository now holds a document saying the target must never accept a pasted value and a product that just started accepting one. Left unreconciled, the next person to read both would have to guess which is current. This screen removes the guess.</p></aside>
+      </div><div class="pager"><a href="#s12">← Previous</a><a href="#s14">Next →</a></div>
+    </section>
+
     <p class="part">PART FOUR · THE RULINGS</p>
 
-    <section id="s13">
-      <div class="screen-title"><span class="number">13</span><h2>Eight things only the owner can settle</h2></div>
+    <section id="s14">
+      <div class="screen-title"><span class="number">14</span><h2>Eight things only the owner can settle</h2></div>
       <div class="layout">
         <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Decisions</span></div><div class="content">
           <span class="eyebrow">DECISION NEEDED · OWNER</span><h3>None of these are design questions, and none can be answered by building more</h3><p class="lead">Each carries a recommendation and a consequence that follows from choosing differently. Every one of them changes something a person feels, or something a person has to remember.</p>
@@ -353,7 +380,7 @@
           <div class="footer"><button class="plain" onclick="location.hash='s12'">Back to what it does not claim</button><button class="primary" onclick="location.hash='s1'">Restart walkthrough</button></div>
         </div></div>
         <aside class="note"><h4>Alignment, not approval</h4><ul><li>This walkthrough is drawn so the owner can answer eight questions by looking at consequences rather than at architecture.</li><li>Walkthrough 15 ended on one fork about whether membership should be the access. This one assumes that answer and asks only how the promise is kept, which is why it reads after it.</li><li>The one thing not on this list, because it is not the owner's to decide, is the ordering defect on screen 02. It belongs to whoever owns the wizard, and it survives every ruling above.</li></ul></aside>
-      </div><div class="pager"><a href="#s12">← Previous</a><a href="#s1">Restart ↺</a></div>
+      </div><div class="pager"><a href="#s13">← Previous</a><a href="#s1">Restart ↺</a></div>
     </section>
   </main>
   <script>
