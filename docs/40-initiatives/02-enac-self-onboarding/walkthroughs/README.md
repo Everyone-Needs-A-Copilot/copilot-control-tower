@@ -20,6 +20,9 @@ aftercare before moving to the Admin experience.
 | 12 | [Admin form placeholders — UI](12-admin-form-placeholders-uids-walkthrough.html) | Form guidance for organization and infrastructure values. |
 | 13 | [Admin completion and departments — UX](13-admin-completion-departments-uxd-walkthrough.html) | Completion, department inventory, duplicate refusal, and addition. |
 | 14 | [Admin completion and departments — UI](14-admin-completion-departments-uids-walkthrough.html) | The final high-fidelity Admin completion and department experience. |
+| 15 | [The connect experience — UX](15-connect-experience-uxd-walkthrough.html) | Bob's journey to his team's shared keys under both credential models, the shipped dead ends they replace, and the one open fork. |
+
+Walkthrough 15 reads last on purpose, not merely because it is newest: it spans both faces (the member's wizard and Admin governance), it is the only walkthrough still carrying an undecided fork, and its user-side screens depend on the setup and completion model established by 01 to 10.
 
 ## Naming Convention
 
