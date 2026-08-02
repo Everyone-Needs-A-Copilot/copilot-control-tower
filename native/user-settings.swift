@@ -772,8 +772,15 @@ struct UserSettingsView: View {
     /// same rule: `needs-connect` only, never a `no-store` row.
     private func connectionNeedsConnectRow(_ row: ConnectionRow) -> some View {
         let detail = ConnectionsRender.needsConnectDetail(row)
-        return HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        return HStack(alignment: .top, spacing: 10) {
+            // Same `setup-needed` hollow ring, same reasoning, as the wizard's
+            // step 6 row -- see `native/wizard.swift`.
+            Image(systemName: "circle")
+                .font(.system(size: 8))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .padding(.top, 5)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(row.name.capitalized)
                     .font(.callout.weight(.semibold))
                 Text(row.description)
@@ -781,19 +788,19 @@ struct UserSettingsView: View {
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 Text(detail)
                     .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 12)
 
             Button { connectingRow = row } label: { Text("Connect…") }
                 .buttonStyle(.bordered)
                 .accessibilityLabel("Connect \(row.name.capitalized)")
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 9)
     }
 
     /// `secret_state == no-store` rows -- grouped under one honest

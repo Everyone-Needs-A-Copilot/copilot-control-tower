@@ -4695,8 +4695,20 @@ struct WizardRootView: View {
     /// they are rendered as facts rather than as actions.
     private func connectionNeedsConnectRow(_ row: ConnectionRow) -> some View {
         let detail = ConnectionsRender.needsConnectDetail(row)
-        return HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        return HStack(alignment: .top, spacing: 10) {
+            // The `setup-needed` badge token from the ratified visual system
+            // (§4/§2.2): a hollow ring in `.secondaryLabelColor`. Shape first,
+            // and deliberately NO ramp color -- the shared integration
+            // register earns none. It is here for composition: it gives this
+            // row the same glyph/text/trailing anatomy the Ready rows above it
+            // already have, which is what stops the card reading as a stack of
+            // loose sentences.
+            Image(systemName: "circle")
+                .font(.system(size: 8))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .padding(.top, 5)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(row.name.capitalized)
                     .font(.callout.weight(.semibold))
                     .foregroundColor(Color(nsColor: .labelColor))
@@ -4705,19 +4717,19 @@ struct WizardRootView: View {
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 Text(detail)
                     .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .foregroundColor(Color(nsColor: .tertiaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(row.name.capitalized), \(row.description), \(detail)")
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 12)
 
             Button { connectingRow = row } label: { Text("Connect…") }
                 .buttonStyle(.bordered)
                 .accessibilityLabel("Connect \(row.name.capitalized)")
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 9)
     }
 
     /// `secret_state == no-store` rows -- grouped under one honest
