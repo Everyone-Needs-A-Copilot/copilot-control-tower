@@ -38,10 +38,11 @@ These govern every document in the package and are not to be re-litigated withou
 | Status | Count |
 |--------|-------|
 | DONE (rebuilt from evidence 2026-08-02) | 15 facilitated documents + `SOUL.md` |
+| DONE (recorded 2026-08-03) | Phase 6 outcome — the 16th output |
 | NOT STARTED | 0 |
 | IN PROGRESS | 0 |
 
-Both checkpoints **PASSED**. Phase 6 is **COMPLETE by a different route than the template anticipated** — see below.
+Both checkpoints **PASSED**. The package is **complete**: 16 outputs plus `SOUL.md`, matching the template package's 17. Phase 6 closed by a different route than the template anticipated — see below.
 
 ---
 
@@ -124,11 +125,15 @@ The prototype phase was satisfied by **building the real product**. The output i
 
 | Output | Path |
 |--------|------|
-| Experience architecture | [`../03-design/ui-ux/control-tower-native-experience-architecture.md`](../03-design/ui-ux/control-tower-native-experience-architecture.md) |
-| Interaction spec | [`../03-design/ui-ux/control-tower-native-interaction-spec.md`](../03-design/ui-ux/control-tower-native-interaction-spec.md) |
-| Visual system | [`../03-design/ui-ux/control-tower-native-visual-system.md`](../03-design/ui-ux/control-tower-native-visual-system.md) |
+| Experience architecture | [`../03-design/control-tower-native-experience-architecture.md`](../03-design/control-tower-native-experience-architecture.md) |
+| Interaction spec | [`../03-design/control-tower-interaction-spec.md`](../03-design/control-tower-interaction-spec.md) |
+| Visual system | [`../03-design/control-tower-visual-system.md`](../03-design/control-tower-visual-system.md) |
 
-The `06-prototype/` folder is retained as an unused template artifact. Do not resume there.
+| # | Document | Status | Notes |
+|---|----------|--------|-------|
+| 16 | `06-prototype/00-outcome.md` | DONE | **The Phase 6 output.** Records that the phase was satisfied by shipping the real product, why each of the four template formats was rejected against an already-built app, where the real design specification lives, and — honestly — the three things this route does not give you (no accessibility spec, no consolidated component catalogue, two undocumented status vocabularies) |
+
+Ratified with the owner on 2026-08-03. A Design Specification was considered seriously and rejected on the product's own principle: its content already exists across `60-ui-design.md`, `50-ux-design.md` and the triad, so consolidating it would create a fourth copy of the same truth — and duplicated documentation drifting into untruth is precisely what this rebuild had to repair.
 
 ---
 
@@ -159,5 +164,5 @@ None of these block the package. All are real and none were fixed during the doc
 |------|---------|
 | [`../../SOUL.md`](../../SOUL.md) | The decision instrument. Run any proposed feature through its six-gate Feature Filter before building |
 | [`../../CLAUDE.md`](../../CLAUDE.md) | The six invariants — the product's spine |
-| `01-research/10-interviews/00-interview-template.md` | Generic interview template — copy and rename for additional interviews |
-| `06-prototype/README.md` | Unused template artifact, retained. See Phase 6 above |
+| [`01-research/10-interviews/00-interview-template.md`](01-research/10-interviews/00-interview-template.md) | Generic interview template — copy and rename for additional interviews. **This is the instrument for closing findings H3 and M5**: neither the primary persona (Bob) nor the admin persona (Earl) has ever been validated by anyone other than the author, and the V-5 cold-laptop proof is the occasion to run a real one |
+| [`06-prototype/README.md`](06-prototype/README.md) | The template's format chooser, retained for reference. The choice made here is recorded in [`06-prototype/00-outcome.md`](06-prototype/00-outcome.md) |
