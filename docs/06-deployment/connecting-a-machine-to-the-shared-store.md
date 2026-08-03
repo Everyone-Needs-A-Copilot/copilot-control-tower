@@ -51,6 +51,8 @@ cc connections --json
 
 Find the `infisical` row in the `connections` array (or pipe through `jq` / the non-JSON `cc connections` rendering, which groups rows into "Ready to use" and "Available to connect"). It should now read `"secret_state": "ready"` with `"missing": []`. If it still reads `needs-connect`, double-check the account names are exactly `INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` (case-sensitive) and the service is exactly `copilot-cli`, and that `security find-generic-password -a INFISICAL_CLIENT_ID -s copilot-cli` (no `-w`) reports the item found at all.
 
+A `needs-connect` read from a headless, detached, or locked-keychain session is a probe artifact, not proof the identity is dead — re-check from an interactive session per `CLAUDE.md`'s Credentials doctrine before re-minting anything; a genuinely dead identity shows up instead as a rejection the store itself logs server-side (e.g. a 401 for this machine identity in Infisical's own audit log even though the local keychain read succeeds), and only that evidence means starting over at Step 1 above to mint a replacement.
+
 ## Doing the same thing through the app (`cc connect`)
 
 Once `cc` 2.3.0 or later is installed, the same two writes happen through one verb instead of two raw `security` invocations, and without the `ps`/shell-history exposure the manual path carries:

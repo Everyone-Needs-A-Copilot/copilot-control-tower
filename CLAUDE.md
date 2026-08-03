@@ -34,6 +34,10 @@ The [PRD](docs/02-prd/prd.md) is the plan: **WS-A (the CLI `--json`/`flock` cont
 
 The Claude Copilot framework is **installed** in this repo — agents (`.claude/agents/`, 15 specialists), the protocol and continue commands (`.claude/commands/`), memory (`.claude/memory/`), and `cc/config.json` are all present and wired to the shared registry (`shared_docs`/`knowledge_repo` → `@machine`). Codex Copilot is installed alongside it (`AGENTS.md`, `plugins/codex-copilot`). Use the protocol, agents, and memory for build work; keep this file as the project's source of truth for the invariants above. Re-run `/setup-project` only to refresh or repair the install.
 
+## Credentials doctrine
+
+This machine is fully provisioned. Standing credentials that exist and must be assumed present: the `ct-notary` `notarytool` keychain profile (team `3SYGVX2HB8`), the Developer ID Application signing identity, `~/.ssh/enac_foundation_release` (foundation signing), keychain service `copilot-cli` entries (Infisical machine identity + service tokens), and `gh auth` with `admin:org`. A **local** "not found" is a probe/session artifact — a locked keychain, a headless or detached context — until re-verified from the interactive user session; re-probe there and check keychain lock state (`security show-keychain-info`) before reporting anything as missing. Never ask the owner to create or rotate a credential on the strength of a local not-found. A **remote** rejection of a credential that reads fine locally, evidenced by server-side logs (e.g. a 401 the service itself recorded), is genuinely dead and IS owner action — report it with the server-side evidence. Never work around a credential check to get past either case: no `--skip-verify`, no `--force`, consistent with invariant #4.
+
 ## Guardrails for this session
 
 - Do not start coding the app before the WS-A CLI contract is defined — the app can't supervise a CLI it can't read machine-readably.

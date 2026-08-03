@@ -246,6 +246,16 @@ profile. The existing release workflow expects:
 Apple's current notarization tooling is `notarytool`; see:
 <https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool>
 
+### Credential troubleshooting
+
+If a probe reports the `ct-notary` profile missing, that is not by itself evidence the profile is gone. A profile provisioned through Publisher Setup.app or `scripts/setup-publisher.sh` is stored once in the login keychain and persists; it is not consumed by use and does not expire on its own. Confirm before treating it as broken:
+
+1. Re-run the same probe from an interactive Terminal session, signed in as the release owner — not a detached, headless, or bridged context: `xcrun notarytool history --keychain-profile ct-notary`.
+2. Check the keychain's lock state before trusting a "not found" from any non-interactive session: `security show-keychain-info ~/Library/Keychains/login.keychain-db`. A locked keychain in a headless or detached context reads back as "item not found," not "keychain locked" — that absence is a probe/session artifact, not evidence the credential was deleted.
+3. Only if the profile is still missing after both checks above is it actually gone. In that case, re-provision it via Publisher Setup.app or `./scripts/setup-publisher.sh` (§3–§5 above) — that is the one legitimate case for asking the owner for a fresh Apple app-specific password.
+
+Never ask the owner to generate a new Apple app-specific password, re-run Publisher Setup, or re-store the `ct-notary` profile on the strength of a single headless or detached-session "not found." See `CLAUDE.md`'s Credentials doctrine for the general rule this follows.
+
 ## 6. Create a local-only release environment file manually
 
 This repo intentionally does not commit release credentials. `.gitignore`
