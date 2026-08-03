@@ -43,10 +43,10 @@ assert_source "aggregate helper reports the full component contract" \
     docs/01-architecture/schemas/onboard.schema.json
 assert_source "UX walkthrough includes setup-incomplete recovery" \
     'Personal setup is incomplete' \
-    docs/40-initiatives/02-enac-self-onboarding/walkthroughs/09-completed-setup-topology-uxd-walkthrough.html
+    docs/40-initiatives/02-enac-self-onboarding/walkthroughs/11-completed-setup-topology-uxd-walkthrough.html
 assert_source "UI walkthrough includes focused project aftercare" \
     'Come back whenever you want' \
-    docs/40-initiatives/02-enac-self-onboarding/walkthroughs/10-completed-setup-topology-uids-walkthrough.html
+    docs/40-initiatives/02-enac-self-onboarding/walkthroughs/12-completed-setup-topology-uids-walkthrough.html
 
 scripts/build-user.command --build-only >/dev/null
 selftest="$(

@@ -458,8 +458,8 @@ Three rules the sheet must keep passing, restated because they are visual as wel
 
 ## Sources
 
-- `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/15-connect-experience-uxd-walkthrough.html` — card/row/callout/decision anatomy, the eleven floor rules, the Connect and access-request sheets
-- `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/16-self-service-provisioning-uxd-walkthrough.html` — the shipped-today Connect screen, the bridge's own terms
+- `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/17-connect-experience-uxd-walkthrough.html` — card/row/callout/decision anatomy, the eleven floor rules, the Connect and access-request sheets
+- `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/18-self-service-provisioning-uxd-walkthrough.html` — the shipped-today Connect screen, the bridge's own terms
 - `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/05-truthful-setup-recovery-uxd-walkthrough.html` — the token source (`:root` custom properties, both appearances)
 - `docs/03-design/control-tower-visual-system.md` — the ratified system this extends: §2 colour roles, §3 type registers, §4 badge vocabulary, §5 spacing/radii/materials, §9 accessibility
 - `docs/03-design/control-tower-copy-deck.md` — hard rule 6 (no celebration), §1.3 section labels, §1.6 integration rows

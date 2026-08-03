@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>16 · Self-service store provisioning — UX walkthrough</title>
+  <title>18 · Self-service store provisioning — UX walkthrough</title>
   <style>
     :root{color-scheme:light dark;--page:#ececef;--paper:#fff;--panel:#f7f7f8;--rail:#f0f0f2;--ink:#202024;--muted:#66666d;--faint:#929299;--line:#d4d4d9;--accent:#1768ca;--ok:#2b8547;--warn:#9b671e;--danger:#b93936;--shadow:0 20px 60px rgb(20 20 26 / 15%)}
     [data-theme="light"]{color-scheme:light}
@@ -37,7 +37,7 @@
     <div class="intro">
       <span class="kicker">UX WALKTHROUGH · DRAFT FOR ALIGNMENT</span>
       <h1>Bob's half of this design is a blank page. The other half is the whole job.</h1>
-      <p>Walkthrough 15 drew a receipt: a step 6 where every shared row reads Ready and nothing carries a button. This walkthrough is what makes that receipt true. On Bob's side it adds nothing, not a screen, not a button, not a word he has to learn. Everything it adds lands on the administrator, once, and on a small service nobody in accounting will ever hear of. Both halves are drawn here, because a design that shows only the empty one has hidden its own price.</p>
+      <p>Walkthrough 17 drew a receipt: a step 6 where every shared row reads Ready and nothing carries a button. This walkthrough is what makes that receipt true. On Bob's side it adds nothing, not a screen, not a button, not a word he has to learn. Everything it adds lands on the administrator, once, and on a small service nobody in accounting will ever hear of. Both halves are drawn here, because a design that shows only the empty one has hidden its own price.</p>
       <p>The job, stated as a job: <em>when my department's tools need a key I don't have and shouldn't have, I want the work to just run, so I can close the month without asking a colleague to DM me something I know I'm not supposed to have.</em></p>
     </div>
     <p class="legend"><span class="chip new">NEW</span> marks a capability today's product does not have. Nothing here is ratified: the design is at review after two security passes, screen 13 reconciles this design with the bridge that shipped today, and screen 14 is the list of things only the owner can settle. Bob's screens name no vendor, no protocol and no component; they describe effects, because that is all he can act on. The administrator's screens name things precisely, because precision is what she is owed. Every quoted string is CLI authored: the app renders the sentence, it never composes it (invariant #1).</p>
@@ -62,7 +62,7 @@
     </section>
 
     <section id="s2">
-      <div class="screen-title"><span class="number">02</span><h2>The receipt from walkthrough 15, now true for everyone entitled</h2></div>
+      <div class="screen-title"><span class="number">02</span><h2>The receipt from walkthrough 17, now true for everyone entitled</h2></div>
       <div class="layout">
         <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
           <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage current"><b>●</b><span>What your team set up</span></div><div class="stage"><b>○</b><span>Your projects</span></div><div class="stage"><b>○</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
@@ -76,11 +76,11 @@
               <div class="row"><b class="glyph muted">○</b><div><strong>Slack</strong><small>Uses your own account.</small></div><button>Sign in to Slack</button></div>
             </div>
             <div class="card next"><div class="card-title"><span>What produced those three rows</span><span class="chip new">NEW</span></div><p style="margin:0;color:var(--muted)">Bob is on the Accounting team, and he works here. Nothing was created for him, nothing was sent to him, and nobody approved anything. Two of these rows are his department's, one is everyone's, and he needs to know neither fact.</p></div>
-            <div class="card inset callout"><b class="warn">−</b><div><strong>One thing this design does not fix.</strong><p>This screen can only tell the truth after Step 8 has brought his organization's setup onto the Mac. Walkthrough 15, screen 03, named that ordering defect. It survives untouched here and still needs its own repair: move the question, or narrow it.</p></div></div>
+            <div class="card inset callout"><b class="warn">−</b><div><strong>One thing this design does not fix.</strong><p>This screen can only tell the truth after Step 8 has brought his organization's setup onto the Mac. Walkthrough 17, screen 03, named that ordering defect. It survives untouched here and still needs its own repair: move the question, or narrow it.</p></div></div>
             <div class="footer"><button>Back</button><div class="actions"><button class="plain">Skip for now</button><button class="primary">Continue</button></div></div>
           </div>
         </div></div>
-        <aside class="note"><h4>The screen did not change. The truth underneath it did.</h4><ul><li>In walkthrough 15 this was the North Star and it could not be built, because membership and access were two separate facts. They are now one fact, checked in one place, at the moment of use.</li><li>Three Ready rows, three different reasons, none of them visible. Recognition is the target: he reads NetSuite, which he opened yesterday, not a key name he has never seen.</li><li>There is still no state in this model where a shared row carries a button, because the state a button would lead to cannot occur.</li><li>The honest caveat stays on the screen rather than in this margin. A walkthrough that quietly drops a known defect teaches the reader to check the others.</li></ul></aside>
+        <aside class="note"><h4>The screen did not change. The truth underneath it did.</h4><ul><li>In walkthrough 17 this was the North Star and it could not be built, because membership and access were two separate facts. They are now one fact, checked in one place, at the moment of use.</li><li>Three Ready rows, three different reasons, none of them visible. Recognition is the target: he reads NetSuite, which he opened yesterday, not a key name he has never seen.</li><li>There is still no state in this model where a shared row carries a button, because the state a button would lead to cannot occur.</li><li>The honest caveat stays on the screen rather than in this margin. A walkthrough that quietly drops a known defect teaches the reader to check the others.</li></ul></aside>
       </div><div class="pager"><a href="#s1">← Previous</a><a href="#s3">Next →</a></div>
     </section>
 
@@ -149,7 +149,7 @@
           </div>
           <div class="footer"><span></span><button class="primary" onclick="location.hash='s6'">Cross to the other actor →</button></div>
         </div></div>
-        <aside class="note"><h4>Fifteen minutes is what "by construction" means, in a number</h4><ul><li>The shape the brief literally described would require finding and revoking every credential ever created for this person, on every Mac, in a second system. Here there is nothing standing to revoke, so there is nothing to forget.</li><li>Say the number whenever the claim is made. "Closes the gap by construction" is a sentence anyone can doubt. "Fifteen minutes, set by you, at the store" is one they can check.</li><li>The sentence on Bob's side is the same string as screen 09 of walkthrough 15. One situation, one string, wherever it surfaces.</li></ul></aside>
+        <aside class="note"><h4>Fifteen minutes is what "by construction" means, in a number</h4><ul><li>The shape the brief literally described would require finding and revoking every credential ever created for this person, on every Mac, in a second system. Here there is nothing standing to revoke, so there is nothing to forget.</li><li>Say the number whenever the claim is made. "Closes the gap by construction" is a sentence anyone can doubt. "Fifteen minutes, set by you, at the store" is one they can check.</li><li>The sentence on Bob's side is the same string as screen 09 of walkthrough 17. One situation, one string, wherever it surfaces.</li></ul></aside>
       </div><div class="pager"><a href="#s4">← Previous</a><a href="#s6">Next →</a></div>
     </section>
 
@@ -345,12 +345,12 @@
             <div class="footer"><button>Cancel</button><button class="primary">Connect</button></div>
           </div>
         </div></div>
-        <aside class="note"><h4>Both statements are true, at different times</h4><ul><li>Walkthrough 15 found a step 6 that promised a Connect button the product had never had. That promise is now kept.</li><li>The design in this walkthrough deletes the same button, because a value nobody has to carry is a value nobody can mishandle.</li><li>The bridge is not a smaller version of the destination. It is the thing the destination removes.</li></ul></aside>
+        <aside class="note"><h4>Both statements are true, at different times</h4><ul><li>Walkthrough 17 found a step 6 that promised a Connect button the product had never had. That promise is now kept.</li><li>The design in this walkthrough deletes the same button, because a value nobody has to carry is a value nobody can mishandle.</li><li>The bridge is not a smaller version of the destination. It is the thing the destination removes.</li></ul></aside>
       </div>
       <div class="layout" style="margin-top:16px">
         <div class="window" style="min-height:0"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Why both exist</span></div><div class="content">
           <span class="eyebrow">THE HONEST RECONCILIATION</span><h3>A promise kept this week, and a promise that outlives it</h3>
-          <div class="card"><div class="decision"><b>What shipped</b><span>A native secure-input sheet on the one row a person can actually resolve, and a CLI verb behind it. The value reaches the CLI on standard input and nothing else — never an argument, never an environment variable, never a file — and the CLI writes it to this Mac's keychain and re-checks. The suite fails loudly if a value ever appears anywhere else.</span></div><div class="decision"><b>Why</b><span>A member whose organization has not wired the store to GitHub teams is otherwise left exactly where walkthrough 15 found him: a heading that implies an action, over a row with no action.</span></div><div class="decision"><b>What replaces it</b><span>Everything screens 01 to 12 describe. Membership becomes the access, and the sheet has nothing left to ask for.</span></div><div class="decision"><b>What that costs</b><span>One screen, one verb, and one runbook to retire. The design was chosen partly because that retirement is cheap: nothing about the bridge is load-bearing for the destination.</span></div></div>
+          <div class="card"><div class="decision"><b>What shipped</b><span>A native secure-input sheet on the one row a person can actually resolve, and a CLI verb behind it. The value reaches the CLI on standard input and nothing else — never an argument, never an environment variable, never a file — and the CLI writes it to this Mac's keychain and re-checks. The suite fails loudly if a value ever appears anywhere else.</span></div><div class="decision"><b>Why</b><span>A member whose organization has not wired the store to GitHub teams is otherwise left exactly where walkthrough 17 found him: a heading that implies an action, over a row with no action.</span></div><div class="decision"><b>What replaces it</b><span>Everything screens 01 to 12 describe. Membership becomes the access, and the sheet has nothing left to ask for.</span></div><div class="decision"><b>What that costs</b><span>One screen, one verb, and one runbook to retire. The design was chosen partly because that retirement is cheap: nothing about the bridge is load-bearing for the destination.</span></div></div>
           <div class="card inset callout"><b class="warn">−</b><div><strong>Do not read this screen as the plan.</strong><p>The bridge is shipped and real. Screens 01 to 12 are neither: they are at review, and screen 14 is what has to be settled before any of them is built.</p></div></div>
           <div class="footer"><span></span><button class="primary" onclick="location.hash='s14'">The rulings →</button></div>
         </div></div>
@@ -379,7 +379,7 @@
           <div class="card inset callout"><b class="ok">✓</b><div><strong>Bob's screens do not change under any answer on this list.</strong><p>That is the test of whether this design put the complexity in the right place. If an answer here changed screen 02, the complexity would have leaked to the person least able to carry it.</p></div></div>
           <div class="footer"><button class="plain" onclick="location.hash='s12'">Back to what it does not claim</button><button class="primary" onclick="location.hash='s1'">Restart walkthrough</button></div>
         </div></div>
-        <aside class="note"><h4>Alignment, not approval</h4><ul><li>This walkthrough is drawn so the owner can answer eight questions by looking at consequences rather than at architecture.</li><li>Walkthrough 15 ended on one fork about whether membership should be the access. This one assumes that answer and asks only how the promise is kept, which is why it reads after it.</li><li>The one thing not on this list, because it is not the owner's to decide, is the ordering defect on screen 02. It belongs to whoever owns the wizard, and it survives every ruling above.</li></ul></aside>
+        <aside class="note"><h4>Alignment, not approval</h4><ul><li>This walkthrough is drawn so the owner can answer eight questions by looking at consequences rather than at architecture.</li><li>Walkthrough 17 ended on one fork about whether membership should be the access. This one assumes that answer and asks only how the promise is kept, which is why it reads after it.</li><li>The one thing not on this list, because it is not the owner's to decide, is the ordering defect on screen 02. It belongs to whoever owns the wizard, and it survives every ruling above.</li></ul></aside>
       </div><div class="pager"><a href="#s13">← Previous</a><a href="#s1">Restart ↺</a></div>
     </section>
   </main>

@@ -736,6 +736,23 @@ actor CliClient {
         await decodeVerb(["workspace", "plan", "--project", path, "--json"])
     }
 
+    /// Read-only census for every approved project root. Eligibility,
+    /// preservation, and holds are entirely CLI-authored; this method does
+    /// not inspect or filter the report.
+    func workspaceMigrationPlan() async -> Result<WorkspaceMigrationReport, CliError> {
+        await decodeVerb(["workspace", "migrate", "--all", "--json"])
+    }
+
+    /// Apply exactly the opaque, freshly reviewed plan. A stale id is a
+    /// decoded `blocked` business result from the CLI, never an app retry or
+    /// a reason to force the new census through.
+    func applyWorkspaceMigration(planId: String) async -> Result<WorkspaceMigrationReport, CliError> {
+        await decodeVerb([
+            "workspace", "migrate", "--all",
+            "--plan-id", planId, "--apply", "--json",
+        ])
+    }
+
     /// Persist only an opaque machine-local incomplete owner-decision hold.
     /// The CLI never writes the project or marks it Ready through this route.
     func holdWorkspaceIntegration(

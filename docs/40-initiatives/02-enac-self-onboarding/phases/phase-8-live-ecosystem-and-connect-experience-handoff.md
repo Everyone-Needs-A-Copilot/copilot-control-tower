@@ -120,6 +120,6 @@ Read in this order before touching code or running any live command:
 3. [`phase-7-transaction-fix-and-owner-runbook.md`](phase-7-transaction-fix-and-owner-runbook.md), for the transaction-fix history and the review-row resolution log this phase built on.
 4. `tc wp get 395 --json` and `tc wp get 396 --json`, for the Bob-in-accounting trace and the Connect-experience walkthrough that motivated the self-service-provisioning design.
 5. [`ADR-009-self-service-store-provisioning-rulings.md`](../decisions/ADR-009-self-service-store-provisioning-rulings.md), for the ratified B′ parameters and the one governance fix already applied live.
-6. [`walkthrough 16`](../walkthroughs/16-self-service-provisioning-uxd-walkthrough.html), for the rendered self-service provisioning experience both actors (Bob and the admin) would see if the B′ broker were built.
+6. [`walkthrough 18`](../walkthroughs/18-self-service-provisioning-uxd-walkthrough.html), for the rendered self-service provisioning experience both actors (Bob and the admin) would see if the B′ broker were built.
 
 Everything is recorded in two places: **Task Copilot** (`tc prd get 15 --json` for the phase-7 gap closure; `tc wp list --task 220/221/222 --json` for the protocol/connections/self-service work; `tc task get 217/218 --json` for the two still-pending owner-gated tasks) and **`cc memory`** (`cc memory search "<topic>"` — `prd15-transaction-fix-shipped` is the terminal-state index entry for this whole arc; `credentials-exist-probe-before-asking` is the standing doctrine now also in `CLAUDE.md`).

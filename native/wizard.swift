@@ -1210,6 +1210,17 @@ final class WizardModel: ObservableObject {
     /// This is always a CLI-authored row; the wizard never derives a plan.
     @Published var projectIntegrationDetail: WorkspaceEntry?
     @Published var projectIntegrationMessage: String?
+    /// CLI-authored deterministic-migration census for the guided cohort.
+    /// Swift never derives eligibility from `projectWorkspaces`; it only
+    /// renders the candidate states and counts carried by this report.
+    @Published var projectMigrationReport: WorkspaceMigrationReport?
+    /// Preserved after apply while the ordinary workspace register and the
+    /// next census refresh, so the completed-action ledger remains visible.
+    @Published var projectMigrationApplyReport: WorkspaceMigrationReport?
+    @Published var projectMigrationLoading = false
+    @Published var projectMigrationApplying = false
+    @Published var projectMigrationReviewOpen = false
+    @Published var projectMigrationError: String?
     /// Set only after an external assistant successfully opens. The next
     /// activation of Control Tower consumes this value and asks the CLI to
     /// verify again; assistant self-report never changes project status.
@@ -1384,6 +1395,121 @@ final class WizardModel: ObservableObject {
                 }
             selectedProjectCategory = nil
             projectIntegrationDetail = nil
+            phase = .projects
+        case "projects-bulk-migration", "projects-bulk-migration-review":
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            projectRoots = [
+                try! decoder.decode(
+                    WorkspaceRootListEntry.self,
+                    from: Data(#"{"name":"Sites","path":"/Volumes/Dev/Sites/COPILOT","project_count":62}"#.utf8)
+                )
+            ]
+            let eligibleNames = [
+                "convoco", "convoco-site", "copilot-control-tower", "insights-copilot",
+                "method-copilot", "pipeline-copilot", "research-copilot",
+                "thought-leadership", "voice-copilot",
+            ]
+            let heldNames = [
+                "convoco-policy-build", "force-readiness-assessment", "job-finder",
+                "Delphi", "clio", "hermes", "saas-financial-model",
+            ]
+            let tailoredNames = [
+                "everyone-needs-knowledge-management", "admin-server", "cli-copilot",
+                "cli-copilot-internal", "codex-copilot", "crm-automation-copilot",
+                "drip-copilot", "flow", "lars-website", "n8n-copilot",
+                "preflight-copilot", "product-creation-copilot", "project-copilot",
+                "rfp-copilot", "the-collective", "transformation", "workflow-copilot",
+            ]
+            let allGuidedNames = eligibleNames + heldNames + tailoredNames
+            projectWorkspaces = allGuidedNames.enumerated().map {
+                visualProject($0.element, index: 300 + $0.offset, classification: .guidedIntegration)
+            }
+            let opaque = "sha256:" + String(repeating: "a", count: 64)
+            let verification = WorkspaceMigrationVerification(
+                command: ["cc", "workspace", "verify", "--json"],
+                expected: "Every migrated component classifies Ready."
+            )
+            func candidate(
+                _ name: String,
+                index: Int,
+                state: WorkspaceMigrationState
+            ) -> WorkspaceMigrationCandidate {
+                let isEligible = state == .eligible
+                let detail: String
+                switch state {
+                case .eligible:
+                    detail = "A recognized older setup can be updated without replacing project-owned instructions or tools."
+                case .held:
+                    detail = "This project has work in progress or a customized check, so Control Tower left it alone."
+                case .residualGuidance:
+                    detail = "This project needs a tailored setup plan. Nothing has been changed."
+                case .notNeeded:
+                    detail = "No guided migration is needed."
+                }
+                let action = isEligible
+                    ? WorkspaceMigrationAction(
+                        id: opaque,
+                        inspectionId: opaque,
+                        migrationKinds: [.codexPortableCopy],
+                        willChange: [
+                            WorkspaceMigrationChange(path: "plugins/codex-copilot", operation: "replace-recognized-link")
+                        ],
+                        willPreserve: [
+                            WorkspaceArtifact(kind: .instruction, path: "AGENTS.md", detail: "Preserve the project Codex instructions.")
+                        ],
+                        willNotDo: ["overwrite-project-instructions"]
+                    )
+                    : nil
+                return WorkspaceMigrationCandidate(
+                    path: "/p/\(index)-\(name)",
+                    name: name,
+                    classification: .guidedIntegration,
+                    inspectionId: opaque,
+                    migrationKinds: isEligible ? [.codexPortableCopy] : [],
+                    state: state,
+                    automatable: isEligible,
+                    reasonCode: isEligible ? nil : "visual-fixture",
+                    detail: detail,
+                    action: action,
+                    verification: verification
+                )
+            }
+            let candidates = eligibleNames.enumerated().map {
+                candidate($0.element, index: 300 + $0.offset, state: .eligible)
+            } + heldNames.enumerated().map {
+                candidate($0.element, index: 309 + $0.offset, state: .held)
+            } + tailoredNames.enumerated().map {
+                candidate($0.element, index: 316 + $0.offset, state: .residualGuidance)
+            }
+            projectMigrationReport = WorkspaceMigrationReport(
+                schemaVersion: "1.0",
+                mode: "plan",
+                result: .actionRequired,
+                planId: opaque,
+                summary: WorkspaceMigrationSummary(
+                    eligible: 9,
+                    held: 7,
+                    residualGuidance: 17,
+                    totalGuided: 33
+                ),
+                candidates: candidates,
+                ledger: [],
+                requestedPlanId: nil,
+                detail: nil,
+                applySummary: nil,
+                after: nil
+            )
+            projectsSummary = WorkspaceSummary(
+                ready: 26,
+                setupAvailable: 33,
+                activationRequired: 0,
+                blocked: 3,
+                total: 62
+            )
+            selectedProjectCategory = .guidedSetup
+            projectIntegrationDetail = nil
+            projectMigrationReviewOpen = name == "projects-bulk-migration-review"
             phase = .projects
         case "projects-guided-detail", "projects-unconfirmed-detail", "projects-ready-detail":
             let decoder = JSONDecoder()
@@ -2554,7 +2680,22 @@ final class WizardModel: ObservableObject {
     }
 
     private func loadProjectWorkspaces() async {
-        guard case .success(let report) = await CliClient.shared.workspaces() else { return }
+        projectMigrationLoading = true
+        async let workspacesResult = CliClient.shared.workspaces()
+        async let migrationResult = CliClient.shared.workspaceMigrationPlan()
+        let (workspaceOutcome, migrationOutcome) = await (workspacesResult, migrationResult)
+        defer { projectMigrationLoading = false }
+
+        switch migrationOutcome {
+        case .success(let report):
+            projectMigrationReport = report
+            projectMigrationError = nil
+        case .failure:
+            projectMigrationReport = nil
+            projectMigrationError = "The grouped project update isn't available right now. You can still review projects one at a time."
+        }
+
+        guard case .success(let report) = workspaceOutcome else { return }
         self.projectWorkspaces = report.workspaces
         self.projectsSummary = report.summary
         if let category = self.selectedProjectCategory,
@@ -2615,13 +2756,62 @@ final class WizardModel: ObservableObject {
     func showProjectOverview() {
         projectIntegrationDetail = nil
         projectIntegrationMessage = nil
+        projectMigrationReviewOpen = false
         selectedProjectCategory = nil
     }
 
     func showProjectCategory(_ category: ProjectTriageCategory) {
         projectIntegrationDetail = nil
         projectIntegrationMessage = nil
+        projectMigrationReviewOpen = false
         selectedProjectCategory = category
+    }
+
+    func reviewBulkProjectMigration() {
+        guard let report = projectMigrationReport,
+              report.summary.eligible > 0,
+              !projectMigrationApplying else { return }
+        projectMigrationApplyReport = nil
+        projectMigrationError = nil
+        projectMigrationReviewOpen = true
+    }
+
+    func dismissBulkProjectMigrationReview() {
+        projectMigrationReviewOpen = false
+    }
+
+    func dismissBulkProjectMigrationResult() {
+        projectMigrationApplyReport = nil
+        projectMigrationReviewOpen = false
+    }
+
+    func refreshBulkProjectMigration() {
+        guard !projectMigrationApplying else { return }
+        projectMigrationApplyReport = nil
+        projectMigrationReport = nil
+        projectMigrationError = nil
+        projectMigrationLoading = true
+        Task { await self.loadProjectWorkspaces() }
+    }
+
+    func applyBulkProjectMigration() {
+        guard let report = projectMigrationReport,
+              report.summary.eligible > 0,
+              !projectMigrationApplying else { return }
+        let reviewedPlanId = report.planId
+        projectMigrationApplying = true
+        projectMigrationError = nil
+        Task {
+            defer { self.projectMigrationApplying = false }
+            switch await CliClient.shared.applyWorkspaceMigration(planId: reviewedPlanId) {
+            case .success(let applied):
+                self.projectMigrationApplyReport = applied
+                self.projectMigrationReviewOpen = false
+                await self.loadProjectWorkspaces()
+            case .failure:
+                self.projectMigrationError = "Control Tower couldn't start the grouped update. Nothing was confirmed as changed. Check again and review the fresh plan before trying again."
+            }
+        }
     }
 
     func includeSafeProject(_ workspace: WorkspaceEntry) {
@@ -3620,6 +3810,7 @@ struct WizardRootView: View {
     /// search and pagination are ephemeral and never affect CLI truth.
     @State private var projectSearchText = ""
     @State private var projectPage = 0
+    @State private var showsBulkMigrationConfirmation = false
     /// Copy spec §7: "focus moves to the title on entering Holding." Scoped
     /// to the Holding phase only (`h1View`...`h7View`, `honestIncompleteView`
     /// — see `StepShell.focusTitle`) — the wizard's other nine steps have no
@@ -4811,19 +5002,37 @@ struct WizardRootView: View {
                 }
             }
         } leadingActions: {
-            Button { model.backFromProjects() } label: { Text("Back") }
-                .buttonStyle(.bordered)
-        } primaryAction: {
-            Button { model.continueFromProjects() } label: {
-                Text(
-                    model.selectedProjectPaths.isEmpty
-                        ? "Continue setup"
-                        : "Set up \(model.selectedProjectPaths.count) and continue"
-                )
+            if !model.projectMigrationReviewOpen
+                && model.projectMigrationApplyReport == nil
+                && !model.projectMigrationApplying {
+                Button { model.backFromProjects() } label: { Text("Back") }
+                    .buttonStyle(.bordered)
             }
-                .buttonStyle(.borderedProminent)
+        } primaryAction: {
+            if !model.projectMigrationReviewOpen
+                && model.projectMigrationApplyReport == nil
+                && !model.projectMigrationApplying {
+                Button { model.continueFromProjects() } label: {
+                    Text(
+                        model.selectedProjectPaths.isEmpty
+                            ? "Continue setup"
+                            : "Set up \(model.selectedProjectPaths.count) and continue"
+                    )
+                }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .help("Unfinished project work stays available from Control Tower.")
+            }
+        }
+        .alert(
+            "Update \(model.projectMigrationReport?.summary.eligible ?? 0) projects?",
+            isPresented: $showsBulkMigrationConfirmation
+        ) {
+            Button("Cancel", role: .cancel) {}
+            Button("Update projects") { model.applyBulkProjectMigration() }
                 .keyboardShortcut(.defaultAction)
-                .help("Unfinished project work stays available from Control Tower.")
+        } message: {
+            Text("Control Tower will apply only the reviewed CLI plan, preserve project-owned instructions and tools, and verify every updated project independently.")
         }
     }
 
@@ -4835,6 +5044,17 @@ struct WizardRootView: View {
             case .guidedIntegration: return "\(detail.name) needs a coding assistant"
             case .ownerDecision: return "\(detail.name) needs its project owner"
             case .couldNotVerify: return "Control Tower couldn't confirm \(detail.name)"
+            }
+        }
+        if model.selectedProjectCategory == .guidedSetup {
+            if model.projectMigrationApplying {
+                return "Updating \(model.projectMigrationReport?.summary.eligible ?? 0) projects"
+            }
+            if model.projectMigrationApplyReport != nil {
+                return "Project update results"
+            }
+            if model.projectMigrationReviewOpen {
+                return "Review \(model.projectMigrationReport?.summary.eligible ?? 0) project updates"
             }
         }
         if let category = model.selectedProjectCategory {
@@ -4861,6 +5081,17 @@ struct WizardRootView: View {
                 return "Setup was found, but the helper could not prove that it matches the current Claude and Codex contract. Nothing has been changed."
             }
         }
+        if model.selectedProjectCategory == .guidedSetup {
+            if model.projectMigrationApplying {
+                return "Control Tower is applying the exact reviewed plan and verifying each project independently."
+            }
+            if model.projectMigrationApplyReport != nil {
+                return "This receipt comes from the CLI's completed-action ledger, including projects it left unchanged or rolled back."
+            }
+            if model.projectMigrationReviewOpen {
+                return "Review every project in the proven automatic cohort once. Control Tower will preserve project-owned instructions and tools."
+            }
+        }
         if let category = model.selectedProjectCategory {
             switch category {
             case .ready:
@@ -4868,7 +5099,7 @@ struct WizardRootView: View {
             case .safeFinish:
                 return "The helper found bounded, reversible work. Choose only the projects you want to finish during this setup."
             case .guidedSetup:
-                return "These projects have their own instructions or tools. A coding assistant can complete them while preserving what is already there."
+                return "Control Tower can update the proven standard cases together. Projects with active changes or tailored setup stay separate and untouched."
             case .ownerDecision:
                 return "Each project needs one named decision before guided setup can continue."
             case .couldNotConfirm:
@@ -5072,6 +5303,14 @@ struct WizardRootView: View {
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
+                if category == .guidedSetup,
+                   let summary = model.projectMigrationReport?.summary,
+                   summary.eligible > 0 {
+                    Text("\(summary.eligible) can update together · \(summary.held) held · \(summary.residualGuidance) tailored")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(Color(nsColor: .linkColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if category == .safeFinish {
                     let selected = workspaces.filter {
                         model.selectedProjectPaths.contains($0.path)
@@ -5100,6 +5339,402 @@ struct WizardRootView: View {
     }
 
     private func wizardProjectCategoryList(
+        _ category: ProjectTriageCategory
+    ) -> some View {
+        Group {
+            if category == .guidedSetup,
+               model.projectMigrationReport != nil
+                    || model.projectMigrationLoading
+                    || model.projectMigrationError != nil {
+                wizardBulkProjectMigration
+            } else {
+                wizardGenericProjectCategoryList(category)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var wizardBulkProjectMigration: some View {
+        if model.projectMigrationApplying {
+            VStack(alignment: .leading, spacing: 14) {
+                Button("‹ Back to guided setup") {}
+                    .buttonStyle(.plain)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .disabled(true)
+                sectionCard("Updating and checking every project") {
+                    HStack(alignment: .top, spacing: 12) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Keep Control Tower open while this finishes.")
+                                .font(.callout.weight(.semibold))
+                            Text("Each project is updated separately. If one cannot pass verification, its completed writes are rolled back and the other projects keep going.")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Updating and independently checking the reviewed projects")
+                }
+            }
+        } else if let applied = model.projectMigrationApplyReport {
+            wizardBulkMigrationResult(applied)
+        } else if model.projectMigrationReviewOpen,
+                  let report = model.projectMigrationReport {
+            wizardBulkMigrationReview(report)
+        } else if let report = model.projectMigrationReport {
+            wizardBulkMigrationOverview(report)
+        } else {
+            if let error = model.projectMigrationError {
+                VStack(alignment: .leading, spacing: 14) {
+                    sectionCard("Grouped updates aren't available") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(error)
+                                .font(.callout)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Check again") { model.refreshBulkProjectMigration() }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                    wizardGenericProjectCategoryList(.guidedSetup)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Button("‹ All project results") { model.showProjectOverview() }
+                        .buttonStyle(.plain)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    HStack(spacing: 10) {
+                        ProgressView().controlSize(.small)
+                        Text("Checking which projects can update together…")
+                            .font(.callout)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+    }
+
+    private func wizardBulkMigrationOverview(
+        _ report: WorkspaceMigrationReport
+    ) -> some View {
+        let eligible = report.candidates.filter { $0.state == .eligible }
+        let held = report.candidates.filter { $0.state == .held }
+        let tailored = report.candidates.filter { $0.state == .residualGuidance }
+        return VStack(alignment: .leading, spacing: 14) {
+            Button("‹ All project results") { model.showProjectOverview() }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+
+            if report.summary.eligible > 0 {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .foregroundColor(Color(nsColor: .linkColor))
+                            .font(.title3)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(report.summary.eligible) projects can be updated together")
+                                .font(.headline)
+                            Text("Control Tower found the same proven older setup in these projects. Review the complete group once before anything changes.")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Button("Review \(report.summary.eligible) updates") {
+                        model.reviewBulkProjectMigration()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityHint("Opens the full project list and preservation promise. Nothing changes yet.")
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .selectedContentBackgroundColor).opacity(0.12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color(nsColor: .linkColor).opacity(0.45), lineWidth: 1)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                sectionCard("No standard updates are ready") {
+                    Text("Control Tower did not find a proven automatic update in this group. Every project below remains unchanged and keeps its individual setup route.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            HStack(spacing: 10) {
+                wizardMigrationMetric(report.summary.eligible, title: "Can update together", color: .linkColor)
+                wizardMigrationMetric(report.summary.held, title: "Held for now", color: .systemOrange)
+                wizardMigrationMetric(report.summary.residualGuidance, title: "Tailored setup", color: .secondaryLabelColor)
+            }
+
+            wizardMigrationCandidateGroup(
+                title: "Can update together (\(eligible.count))",
+                detail: "The CLI found a proven, reversible update and a clean project state.",
+                candidates: eligible,
+                allowsIndividualReview: false
+            )
+            wizardMigrationCandidateGroup(
+                title: "Held for now (\(held.count))",
+                detail: "Control Tower found a possible standard update but left these projects alone because a safety condition needs attention first.",
+                candidates: held,
+                allowsIndividualReview: true
+            )
+            wizardMigrationCandidateGroup(
+                title: "Tailored setup (\(tailored.count))",
+                detail: "These projects do not match a proven automatic route. Their existing guided setup remains available.",
+                candidates: tailored,
+                allowsIndividualReview: true
+            )
+
+            if let error = model.projectMigrationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .systemRed))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button("Check again") { model.refreshBulkProjectMigration() }
+                .buttonStyle(.bordered)
+                .disabled(model.projectMigrationLoading)
+        }
+    }
+
+    private func wizardMigrationMetric(
+        _ count: Int,
+        title: String,
+        color: NSColor
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("\(count)")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(Color(nsColor: color))
+            Text(title)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.7))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(count), \(title)")
+    }
+
+    private func wizardMigrationCandidateGroup(
+        title: String,
+        detail: String,
+        candidates: [WorkspaceMigrationCandidate],
+        allowsIndividualReview: Bool
+    ) -> some View {
+        DisclosureGroup(title) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 8)
+                ForEach(Array(candidates.enumerated()), id: \.element.id) { index, candidate in
+                    if index > 0 { Divider() }
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(candidate.name)
+                                .font(.callout.weight(.semibold))
+                            Text(candidate.detail)
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        if allowsIndividualReview,
+                           let workspace = model.projectWorkspaces.first(where: { $0.path == candidate.path }) {
+                            Button("Review setup") { model.reviewProjectIntegration(workspace) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+        .font(.callout.weight(.semibold))
+    }
+
+    private func wizardBulkMigrationReview(
+        _ report: WorkspaceMigrationReport
+    ) -> some View {
+        let eligible = report.candidates.filter { $0.state == .eligible }
+        return VStack(alignment: .leading, spacing: 14) {
+            Button("‹ Back to guided setup") { model.dismissBulkProjectMigrationReview() }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+
+            sectionCard("What Control Tower will protect") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Project instructions, agents, skills, commands, and plugins stay in place.", systemImage: "checkmark.shield")
+                    Label("Only the recognized older Copilot wiring in the reviewed plan can change.", systemImage: "checkmark.shield")
+                    Label("Every updated component must pass a fresh CLI verification or its writes are rolled back.", systemImage: "checkmark.shield")
+                }
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            sectionCard("Projects in this update") {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(eligible.enumerated()), id: \.element.id) { index, candidate in
+                        if index > 0 { Divider() }
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(Color(nsColor: .systemGreen))
+                                .accessibilityHidden(true)
+                            Text(candidate.name)
+                                .font(.callout.weight(.semibold))
+                            Spacer()
+                            Text("Ready to update")
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        }
+                        .padding(.vertical, 8)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+
+            Text("Nothing changes until you confirm the complete \(eligible.count)-project update.")
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Button("Cancel") { model.dismissBulkProjectMigrationReview() }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Update \(eligible.count) projects…") {
+                    showsBulkMigrationConfirmation = true
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    private func wizardBulkMigrationResult(
+        _ report: WorkspaceMigrationReport
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Button("‹ All project results") {
+                model.dismissBulkProjectMigrationResult()
+                model.showProjectOverview()
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+
+            if let summary = report.applySummary {
+                HStack(spacing: 10) {
+                    wizardMigrationMetric(summary.applied, title: "Updated", color: .systemGreen)
+                    wizardMigrationMetric(summary.failed, title: "Needs attention", color: .systemRed)
+                    wizardMigrationMetric(summary.remainingGuided, title: "Still guided", color: .secondaryLabelColor)
+                }
+                sectionCard(summary.failed == 0 ? "The reviewed updates finished" : "Some projects need attention") {
+                    Text(summary.failed == 0
+                        ? "\(summary.applied) projects passed independent verification. \(summary.unchanged) projects outside the automatic cohort were left unchanged."
+                        : "\(summary.applied) projects passed verification. \(summary.failed) could not finish and were either left unchanged or rolled back.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                sectionCard("The reviewed plan is no longer current") {
+                    Text(report.detail ?? "Control Tower rechecked every project and left the reviewed group unchanged. Review the fresh plan before trying again.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if !report.ledger.isEmpty {
+                DisclosureGroup("Full project receipt (\(report.ledger.count))") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(report.ledger.enumerated()), id: \.element.id) { index, entry in
+                            if index > 0 { Divider() }
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: wizardMigrationLedgerIcon(entry.status))
+                                    .foregroundColor(wizardMigrationLedgerColor(entry.status))
+                                    .frame(width: 16)
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.name)
+                                        .font(.callout.weight(.semibold))
+                                    Text(entry.detail)
+                                        .font(.caption)
+                                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer()
+                                Text(wizardMigrationLedgerLabel(entry.status))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(wizardMigrationLedgerColor(entry.status))
+                            }
+                            .padding(.vertical, 8)
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                }
+                .font(.callout.weight(.semibold))
+            }
+
+            if let error = model.projectMigrationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .systemRed))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Button("Check again") { model.refreshBulkProjectMigration() }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Done") { model.dismissBulkProjectMigrationResult() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    private func wizardMigrationLedgerLabel(_ status: WorkspaceMigrationLedgerStatus) -> String {
+        switch status {
+        case .applied: return "Updated"
+        case .blocked: return "Unchanged"
+        case .rolledBack: return "Rolled back"
+        case .unchanged: return "Unchanged"
+        }
+    }
+
+    private func wizardMigrationLedgerIcon(_ status: WorkspaceMigrationLedgerStatus) -> String {
+        switch status {
+        case .applied: return "checkmark.circle.fill"
+        case .blocked: return "exclamationmark.circle.fill"
+        case .rolledBack: return "arrow.uturn.backward.circle.fill"
+        case .unchanged: return "minus.circle"
+        }
+    }
+
+    private func wizardMigrationLedgerColor(_ status: WorkspaceMigrationLedgerStatus) -> Color {
+        switch status {
+        case .applied: return Color(nsColor: .systemGreen)
+        case .blocked, .rolledBack: return Color(nsColor: .systemRed)
+        case .unchanged: return Color(nsColor: .secondaryLabelColor)
+        }
+    }
+
+    private func wizardGenericProjectCategoryList(
         _ category: ProjectTriageCategory
     ) -> some View {
         let all = ProjectTriageRender.workspaces(model.projectWorkspaces, in: category)

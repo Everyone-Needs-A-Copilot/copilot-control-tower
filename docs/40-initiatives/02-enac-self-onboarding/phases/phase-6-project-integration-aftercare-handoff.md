@@ -82,15 +82,17 @@ Read the numbered walkthrough index:
 
 `docs/40-initiatives/02-enac-self-onboarding/walkthroughs/README.md`
 
-The walkthroughs are intentionally ordered `01` through `14`. For the current
+The walkthroughs are intentionally ordered `01` through `18`. For the current
 setup and project-integration problem, concentrate on:
 
 1. `05-truthful-setup-recovery-uxd-walkthrough.html`
 2. `06-truthful-setup-recovery-uids-walkthrough.html`
 3. `07-project-integration-aftercare-uxd-walkthrough.html`
 4. `08-project-integration-aftercare-uids-walkthrough.html`
-5. `09-completed-setup-topology-uxd-walkthrough.html`
-6. `10-completed-setup-topology-uids-walkthrough.html`
+5. `09-bulk-project-migration-uxd-walkthrough.html`
+6. `10-bulk-project-migration-uids-walkthrough.html`
+7. `11-completed-setup-topology-uxd-walkthrough.html`
+8. `12-completed-setup-topology-uids-walkthrough.html`
 
 The UIDS walkthroughs are the high-fidelity experience. The UXD walkthroughs
 explain the interaction decisions behind them.

@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "mode": "plan",
+  "result": "action-required",
+  "plan_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "summary": {
+    "eligible": 1,
+    "held": 1,
+    "residual-guidance": 1,
+    "total_guided": 3
+  },
+  "candidates": [
+    {
+      "path": "/projects/convoco",
+      "name": "convoco",
+      "classification": "guided-integration",
+      "inspection_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "migration_kinds": ["claude-canonical-entry-v1", "codex-portable-copy-v1"],
+      "state": "eligible",
+      "automatable": true,
+      "reason_code": null,
+      "detail": "Control Tower can update this project's recognized older setup without replacing its instructions or tools. Nothing has changed yet.",
+      "action": {
+        "id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "inspection_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "migration_kinds": ["claude-canonical-entry-v1", "codex-portable-copy-v1"],
+        "will_change": [
+          {"path": "CLAUDE.md", "operation": "append-bounded-entry"}
+        ],
+        "will_preserve": [
+          {"kind": "instruction", "path": "CLAUDE.md", "detail": "Preserve the project Claude instructions."}
+        ],
+        "will_not_do": ["overwrite-project-instructions", "skip-verification"]
+      },
+      "verification": {
+        "command": ["cc", "workspace", "verify", "--project", "/projects/convoco", "--json"],
+        "expected": "Every migrated component classifies Ready from machine-verifiable evidence."
+      }
+    },
+    {
+      "path": "/projects/held",
+      "name": "held-project",
+      "classification": "guided-integration",
+      "inspection_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "migration_kinds": ["codex-portable-copy-v1"],
+      "state": "held",
+      "automatable": false,
+      "reason_code": "dirty-worktree",
+      "detail": "This project has 1 local change(s), so Control Tower left it alone.",
+      "action": null,
+      "verification": {
+        "command": ["cc", "workspace", "verify", "--project", "/projects/held", "--json"],
+        "expected": "Every migrated component classifies Ready from machine-verifiable evidence."
+      }
+    },
+    {
+      "path": "/projects/tailored",
+      "name": "tailored-project",
+      "classification": "guided-integration",
+      "inspection_id": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "migration_kinds": [],
+      "state": "residual-guidance",
+      "automatable": false,
+      "reason_code": "no-deterministic-migration",
+      "detail": "This project needs a tailored setup plan. Nothing was changed.",
+      "action": null,
+      "verification": {
+        "command": ["cc", "workspace", "verify", "--project", "/projects/tailored", "--json"],
+        "expected": "Every migrated component classifies Ready from machine-verifiable evidence."
+      }
+    }
+  ],
+  "ledger": []
+}

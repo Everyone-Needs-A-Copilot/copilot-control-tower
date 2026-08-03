@@ -1251,6 +1251,144 @@ struct WorkspacesReport: Decodable {
     let recentlySetUp: [WorkspaceRecentlySetUp]?
 }
 
+// MARK: - workspace migrate --all --json
+
+/// The migration contract is deliberately separate from `WorkspacesReport`:
+/// the workspace register describes current project truth, while this report
+/// is a guarded census plus an optional mutation ledger. The app renders both
+/// but never derives one from the other.
+enum WorkspaceMigrationResult: String, Decodable {
+    case ready
+    case actionRequired = "action-required"
+    case applied
+    case partial
+    case blocked
+}
+
+enum WorkspaceMigrationState: String, Decodable {
+    case eligible
+    case held
+    case residualGuidance = "residual-guidance"
+    case notNeeded = "not-needed"
+}
+
+enum WorkspaceMigrationKind: String, Decodable {
+    case claudeCanonicalEntry = "claude-canonical-entry-v1"
+    case codexPortableCopy = "codex-portable-copy-v1"
+}
+
+struct WorkspaceMigrationSummary: Decodable {
+    let eligible: Int
+    let held: Int
+    let residualGuidance: Int
+    let totalGuided: Int
+
+    enum CodingKeys: String, CodingKey {
+        case eligible, held, totalGuided
+        case residualGuidance = "residual-guidance"
+    }
+}
+
+struct WorkspaceMigrationVerification: Decodable {
+    let command: [String]
+    let expected: String
+}
+
+struct WorkspaceMigrationChange: Decodable {
+    let path: String
+    let operation: String
+}
+
+struct WorkspaceMigrationAction: Decodable {
+    let id: String
+    let inspectionId: String
+    let migrationKinds: [WorkspaceMigrationKind]
+    let willChange: [WorkspaceMigrationChange]
+    let willPreserve: [WorkspaceArtifact]
+    let willNotDo: [String]
+}
+
+struct WorkspaceMigrationCandidate: Decodable, Identifiable {
+    var id: String { path }
+    let path: String
+    let name: String
+    let classification: WorkspaceIntegrationClassification
+    let inspectionId: String
+    let migrationKinds: [WorkspaceMigrationKind]
+    let state: WorkspaceMigrationState
+    let automatable: Bool
+    let reasonCode: String?
+    let detail: String
+    let action: WorkspaceMigrationAction?
+    let verification: WorkspaceMigrationVerification
+}
+
+enum WorkspaceMigrationCompletedActionStatus: String, Decodable {
+    case applied
+    case rolledBack = "rolled-back"
+}
+
+struct WorkspaceMigrationCompletedAction: Decodable {
+    let path: String
+    let operation: String
+    let status: WorkspaceMigrationCompletedActionStatus
+}
+
+enum WorkspaceMigrationLedgerStatus: String, Decodable {
+    case applied
+    case blocked
+    case rolledBack = "rolled-back"
+    case unchanged
+}
+
+enum WorkspaceMigrationVerificationState: String, Decodable {
+    case ready
+    case failed
+    case notRun = "not-run"
+}
+
+struct WorkspaceMigrationLedgerEntry: Decodable, Identifiable {
+    var id: String { path }
+    let path: String
+    let name: String
+    let actionId: String?
+    let status: WorkspaceMigrationLedgerStatus
+    let detail: String
+    let completedActions: [WorkspaceMigrationCompletedAction]
+    let verification: WorkspaceMigrationVerificationState
+    /// Diagnostic-only CLI text. It is decoded so the contract remains
+    /// complete, but intentionally never rendered in the app.
+    let error: String?
+    let afterInspectionId: String?
+    let targetedComponents: [WorkspaceComponentName]?
+}
+
+struct WorkspaceMigrationApplySummary: Decodable {
+    let applied: Int
+    let failed: Int
+    let unchanged: Int
+    let remainingGuided: Int
+}
+
+struct WorkspaceMigrationAfter: Decodable {
+    let planId: String
+    let summary: WorkspaceMigrationSummary
+}
+
+struct WorkspaceMigrationReport: Decodable {
+    let schemaVersion: String
+    let mode: String
+    let result: WorkspaceMigrationResult
+    let planId: String
+    let summary: WorkspaceMigrationSummary
+    let candidates: [WorkspaceMigrationCandidate]
+    let ledger: [WorkspaceMigrationLedgerEntry]
+    let requestedPlanId: String?
+    let detail: String?
+    let applySummary: WorkspaceMigrationApplySummary?
+    let after: WorkspaceMigrationAfter?
+}
+
 /// `cc workspace revert --project <path> [--apply] --json` — a NARROWER
 /// report shape than `WorkspacesReport` above: the real command handler
 /// (`workspaces.py`'s `revert`) builds this dict by hand rather than

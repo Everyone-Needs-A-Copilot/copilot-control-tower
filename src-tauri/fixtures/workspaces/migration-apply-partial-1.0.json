@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "mode": "apply",
+  "result": "partial",
+  "plan_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "requested_plan_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "summary": {
+    "eligible": 1,
+    "held": 1,
+    "residual-guidance": 1,
+    "total_guided": 3
+  },
+  "candidates": [],
+  "ledger": [
+    {
+      "path": "/projects/updated",
+      "name": "updated-project",
+      "action_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "status": "applied",
+      "detail": "Control Tower updated this project and its independent check passed.",
+      "completed_actions": [
+        {"path": "CLAUDE.md", "operation": "append-bounded-entry", "status": "applied"}
+      ],
+      "verification": "ready",
+      "after_inspection_id": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "targeted_components": ["claude"]
+    },
+    {
+      "path": "/projects/restored",
+      "name": "restored-project",
+      "action_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "status": "rolled-back",
+      "detail": "This project did not pass its independent check, so Control Tower restored every completed change.",
+      "completed_actions": [
+        {"path": ".codex-copilot.json", "operation": "record-portable-copy", "status": "rolled-back"}
+      ],
+      "verification": "failed",
+      "error": "diagnostic text that the app must not render"
+    },
+    {
+      "path": "/projects/tailored",
+      "name": "tailored-project",
+      "action_id": null,
+      "status": "unchanged",
+      "detail": "This project needs a tailored setup plan. Control Tower did not find a proven automatic update for it.",
+      "completed_actions": [],
+      "verification": "not-run"
+    }
+  ],
+  "apply_summary": {
+    "applied": 1,
+    "failed": 1,
+    "unchanged": 1,
+    "remaining_guided": 2
+  },
+  "after": {
+    "plan_id": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "summary": {
+      "eligible": 0,
+      "held": 1,
+      "residual-guidance": 1,
+      "total_guided": 2
+    }
+  }
+}
