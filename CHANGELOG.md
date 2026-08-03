@@ -2,6 +2,26 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.5.2] - 2026-08-03
+
+### Added
+
+- The embedded helper now provides `cc workspace migrate --project PATH|--all --json`, a read-only migration census that separates guided projects into deterministic eligible actions, safety holds, and genuine project-specific exceptions.
+- A reviewed plan can be applied with `--apply --plan-id <exact-id>`. The helper re-inspects immediately before each project, refuses stale plans and dirty Git trees, changes only enumerated integration paths, verifies each targeted component independently, and emits a per-project action ledger. Handled failures restore the exact prior files and link targets.
+
+### Safety
+
+- There is no model-driven master prompt and no force/skip mode. Recognized legacy Claude entries and linked Codex plugins are the only initial migration kinds; custom gates, unknown layouts, malformed evidence, source symlinks, and dirty projects remain unchanged.
+- A live read-only census of the current 33 guided projects found 9 safely eligible, 7 held, and 17 requiring residual guidance. No live project migration was applied while preparing this release.
+
+### Changed
+
+- The embedded helper is now `cc 2.5.0`, built from signed parentless foundation snapshot `v5.13.35` and accepted by Apple notarization.
+
+### Rollback
+
+- Reinstall the signed `0.5.1` DMG to return to the previous release. Release tags are immutable; supersede a defective build with a new version.
+
 ## [0.5.1] - 2026-08-03
 
 ### Fixed
