@@ -1,0 +1,162 @@
+{
+  "claude-department-accounting": {
+    "_meta": {
+      "product": "claude",
+      "role": "department",
+      "tier": "department"
+    }
+  },
+  "claude-foundation": {
+    "_meta": {
+      "product": "claude",
+      "role": "foundation",
+      "tier": "foundation"
+    },
+    "agents": {
+      "_archive": "90b731b90329d103471c86a52701c52f7e0633bbc8d036e3053286cda9204a7e",
+      "cco": "2ff38954425770c294318b1de55900a9e775330b0f50640712fd71c692e8d019",
+      "cpa": "fa5f1b0f47f2097e4a657ef6e097e6826005631e84175626044f585657d078dc",
+      "cs": "23cf8794187a192d722ae8229d1c175a8ddcd64951c81b3f8a04327e3b50f47c",
+      "cw": "805234c2393867e8b682a5337e25b76102d97382959a4c2a86b3932435f3cf16",
+      "do": "6ba3f6b08cc117874bc0066ed7c4ae52e171054c8280e572a6e5ec1652c3d2e8",
+      "doc": "c00971ad39e992fb2b0081a56a0c067c0b3a3590741942e4d9e36e742ff0b977",
+      "ind": "e3897b4a27c49128bb2567556d84fddf152af05b64465bc47848aa08b204556e",
+      "kc": "c6e6487d4ab9a59e044a335e25645ea78d3e021687c7527a04ee222454c4b6ab",
+      "manifest": "7f3844e2643d4dcbaf3aec4ebd22153e9064930129a4ab69288144d33e663dfc",
+      "manifest.schema": "206935270b238737bfc9d17e8976eed2a9d2d327a820856acb60b13d85562809",
+      "me": "89f20687a4ab76e3ced337cecee3811e8271bd7a55faeff2bec06e76c5675b75",
+      "qa": "2869f941067e20cb5f58e1776c6ab73aec3a90c8c2d15948e1571c7f2d07fbc5",
+      "sd": "ee7a0608f7592b163ad0064e59b2ba7b0a0cff032f25fc3d65c9266f4912bc90",
+      "sec": "fff4923b8690b509bc27fbefd5e885b64dfe3914d40056e8776117a67158f715",
+      "ta": "4a62d3fff4f8b9946dd44426e42f14dd803a826e867a1d99430f1fde67648108",
+      "uid": "0a0495798fd93f73478f56ec8dccfb256ba57ba922767a0a7c40b807d1e64889",
+      "uids": "0b4156dc09b69289bd61597f78572966e5dec37ae941e0faba1c924646f4476a",
+      "uxd": "dd71474433a8cc2e94da41f4dc0eea5b1d8eda50fbd3d46247957e6d79dd9f3c"
+    },
+    "commands": {
+      "config": "e43f7a6108546018a80c0e6dff6efb3b9e1ab283d6051ead2f4ac9445830ce4a",
+      "continue": "773978787113ddf6b20de18cfd263d8a1373610afd9dc145c2b761da4b6220ee",
+      "extensions": "371decd75a7ba143930e4703e19956a667f505a9b26a455c364797868c827521",
+      "knowledge-copilot": "492c2535934be057a06e915a35fe4781ba4de11e92a3539b16ccccf9c0903d23",
+      "map": "4445b0de5192d7208f98f0a9abebb2aff5123197123bd637e3a296de5cfa2f9a",
+      "memory": "952ff7d6176d9a4eee1951b73d1ca3911b3665f5593ceeb9ac5c84d876146cdc",
+      "orchestrate": "ea627f3abeb0769c69e44effd06bef8a13367c6be05f3479353f58c6579642f5",
+      "pause": "3a7bb8800002ccbca12d8ec51f282f107227c6032556f1f7446e6a00fea98c2b",
+      "protocol": "bc1c649ea6fa6aed2a233fa007de069394fe47a02d754ed22874a6cc354e1929",
+      "reflect": "91729ddc31a3df749b9681feec2a18e55d84658b9b893fe74eae8184cbabeafa",
+      "setup": "ab128e9c42774e4cc7d077c3509cdca03075a7c5a41945992b9108721c94cdf1",
+      "setup-copilot": "7153a6d0a42bff4b9ff14e90efa718d11d8f58b0d5ef70a6f3293d24a0df1f6a",
+      "setup-knowledge-sync": "9688f5ba3f5c2a90a710c81cec4196be4526aa1d01b40e27676e7dc897ee681b",
+      "setup-project": "0de33c54de46235c4de29ab7f9e33e54df95a5e6c60eed6e5d13786d922cd16d",
+      "skills-approve": "1bd7c70762438bdb8c617f80ba3a4b5bbadf5fba87879985c5c18c8c74113e36",
+      "update-copilot": "a956f1e741574860f652ebe2470c7ed025362382aeeef33f0da287d4018df84d",
+      "update-project": "2ddfe02019584dd1c95319c3a44f4b83cdc4157554bb9169067bd0cfb3f28879"
+    },
+    "skills": {
+      "architecture": "a7b82a7ef181262bfd467e9f459219031d4f84c0e59cb07429802ef0942109af",
+      "code": "78433952384f2799ba5b53d6673458ce5a4647701355f73ac19710768afd121b",
+      "codex-copilot": "3b8c945cc84d51840f1b0bd8fb69cb1c9b0b6690e4a76a3a8cbecab88895cf47",
+      "copywriting": "576b4a8740114ea89f9b9f7a63a955852b9331ee2f54b2c3efa543178be3d983",
+      "design": "dfcf92dbd1144e2363680a2f68c3e283788c32870690c5cffe41582f99818f49",
+      "devops": "63a8a945e63f6080c94ee811715d24e63f4f46308a6d3b9904f7cd8906f5db53",
+      "documentation": "48daae96a486c368784a23e1d9a7d3f89f5142c186358a8ceeb66e75b772024a",
+      "sales": "ce8093e8d5d84d4f21b08523b96800ee343abf4878f8d7be7d4eeb690f9c735a",
+      "security": "4865a47f61ccedf39f0d2d226d5bba4a84b94fba53c2e9c4eb2c59f8de622200",
+      "testing": "fe1bffa4d718c9976fd3c9c532f1a7fc94855d54ccc54564956ba0e3ece331a9"
+    }
+  },
+  "claude-organization": {
+    "_meta": {
+      "product": "claude",
+      "role": "organization",
+      "tier": "organization"
+    }
+  },
+  "cli-department-accounting": {
+    "_meta": {
+      "product": "cli",
+      "role": "department",
+      "tier": "department"
+    }
+  },
+  "cli-personal": {
+    "_meta": {
+      "product": "cli",
+      "role": "personal",
+      "tier": "personal"
+    }
+  },
+  "codex-department-accounting": {
+    "_meta": {
+      "product": "codex",
+      "role": "department",
+      "tier": "department"
+    }
+  },
+  "codex-foundation": {
+    "_meta": {
+      "product": "codex",
+      "role": "foundation",
+      "tier": "foundation"
+    },
+    "plugins": {
+      "codex-copilot": "a00500c3a4b671b4180e9697ac40fa18a932f8a552cce18ee0adb7aea28b8c25"
+    }
+  },
+  "codex-organization": {
+    "_meta": {
+      "product": "codex",
+      "role": "organization",
+      "tier": "organization"
+    }
+  },
+  "codex-personal": {
+    "_meta": {
+      "product": "codex",
+      "role": "personal",
+      "tier": "personal"
+    }
+  },
+  "foundation": {
+    "_meta": {
+      "product": "cli",
+      "role": "foundation",
+      "tier": "foundation"
+    }
+  },
+  "knowledge-department-accounting": {
+    "_meta": {
+      "product": "knowledge",
+      "role": "department",
+      "tier": "department"
+    }
+  },
+  "knowledge-foundation": {
+    "_meta": {
+      "product": "knowledge",
+      "role": "foundation",
+      "tier": "foundation"
+    }
+  },
+  "knowledge-organization": {
+    "_meta": {
+      "product": "knowledge",
+      "role": "organization",
+      "tier": "organization"
+    }
+  },
+  "knowledge-personal": {
+    "_meta": {
+      "product": "knowledge",
+      "role": "personal",
+      "tier": "personal"
+    }
+  },
+  "org-internal": {
+    "_meta": {
+      "product": "cli",
+      "role": "organization",
+      "tier": "organization"
+    }
+  }
+}
