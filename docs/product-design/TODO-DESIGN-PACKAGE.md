@@ -2,6 +2,8 @@
 
 > **Status — rebuilt from evidence 2026-08-02.** Describes **v0.4.0** (released 2026-08-02). Product status is **DOGFOODING** — live on one organization (ENAC), sixteen of sixteen layers applied, not offered to outside organizations and not generally available.
 >
+> ⚠️ **Known stale as of 2026-08-03. The product is now v0.5.0.** The P1 visual refresh landed a formal design system (`native/design-system.swift`) that `04-experience-design/60-ui-design.md` states does not exist, and the new **Connect sheet** — a whole user-facing surface — appears in no document here. Six documents still carry `v0.3.2` in status lines or claims and fourteen carry `v0.4.0`. This is recorded, not hidden: it is finding **C2** in [`../04-validation/audit-2026-08-02-findings.md`](../04-validation/audit-2026-08-02-findings.md), and the one-day interval between a careful rebuild and its falsification is the most useful measurement this package has produced. **Re-ground before relying on the Phase 4 documents.**
+>
 > **Purpose:** the resume point. Pick this up in a new conversation to see exactly where the design package stands.
 > **How to use it:** tell Claude *"Check `docs/product-design/TODO-DESIGN-PACKAGE.md` for where I left off."*
 
@@ -145,6 +147,8 @@ None of these block the package. All are real and none were fixed during the doc
 
 | ID | Item |
 |----|------|
+| **C2** | **The Phase 4 documents were falsified by v0.5.0, one day after the rebuild.** `60-ui-design.md:74` says there is no bespoke token layer; `native/design-system.swift` (734 lines, `CTColor`/`CTType`/`CTSpace`/`CTRadius`/`CTMotion`) ships in both build targets. The Connect sheet is documented nowhere here. Re-grounding `60-ui-design.md` and `50-ux-design.md` against `native/design-system.swift` and [`../03-design/native-visual-refresh-spec.md`](../03-design/native-visual-refresh-spec.md) is a narrow two-document pass, not another rebuild |
+| **M6** | **No link-integrity check.** A wrong path to the design triad propagated from the rebuild brief into two documents and was caught by hand, not by tooling. `check-crosslinks.py` and `install-crosslinks-hook.sh` already exist in `shared-docs/scripts/`; installing the hook here is one command and the best value-to-effort item on the whole list |
 | **G-1** | **The invariants are stated but not enforced.** All 40 `fitness_*.rs` tests scan `src-tauri/src/**` — the retired Rust tree — and cannot see one line of the shipping Swift. The CI job that runs them is disabled behind `vars.RELEASE_CI_ENABLED`. Porting the suite to scan `native/` is open work |
 | **G-2** | **Invariant #2's `launchd` crash-only watchdog is not implemented** in the shipping Swift app; it exists only in the retired Rust tree |
 | **G-3** | Phase 6 never happened as the template describes — recorded above rather than left as a false resume point |

@@ -2,8 +2,9 @@
 
 | | |
 |---|---|
-| **Date** | 2026-08-02 |
+| **Date** | 2026-08-02, **updated 2026-08-03** |
 | **Product version audited** | v0.4.0 (released 2026-08-02, build 19, embedded helper `cc 2.2.0`) |
+| **Current product version** | **v0.5.0** (released 2026-08-03, embedded helper `cc 2.3.0`) — one release after the audit. See the 2026-08-03 update below; the gap between these two rows is itself finding C2 |
 | **Trigger** | A full documentation rebuild (commit `c70b66e`). The audit was a by-product: re-deriving the docs from code surfaced defects the docs had been concealing |
 | **Method** | Parallel survey of the shipping Swift, release artifacts, CHANGELOG, ADRs and initiative evidence, cross-read against every documentation claim in the repository. Findings that made security or correctness claims were then re-verified by hand before being recorded |
 | **Status** | **Findings recorded, not fixed.** The owner scoped that pass to documentation and explicitly forbade code changes ("the build is almost complete. Do NOT remove any code"). Everything below is an open item unless marked CLOSED or FIXED |
@@ -12,11 +13,24 @@ Ranked Critical → High → Medium → Low, in this repository's red-team forma
 
 ---
 
+## Update — 2026-08-03
+
+**The thing this audit warned about happened, one day later, and it is measurable.**
+
+C1 argued that nothing in this repository notices when documentation and code diverge. Within twenty-four hours of the rebuild, **v0.5.0 shipped** (`cd557bd`, `f767612`) carrying the P1 visual refresh and the Connect sheet — and the design package, rebuilt from evidence the previous day and correct when written, was falsified in three specific, checkable ways. That is recorded below as **C2**, and it is the strongest available evidence for C1: the failure took a day, not a month, and no mechanism reported it.
+
+Two further findings are added from the same period. **M6** — no link-integrity check exists, which is why a wrong path in the rebuild brief propagated into two documents unnoticed; the tool that would have caught it already exists one repository away. **L5** — two sessions worked this tree concurrently, and the collision was avoided by manual vigilance rather than by anything structural. **M4**'s verdict is revised from *Fixed* to *fixed for a snapshot, then re-drifted*, because calling it closed would be the same comfortable lie the audit is about.
+
+Nothing else below has changed. All findings remain open unless marked CLOSED.
+
+---
+
 ## Summary
 
 | ID | Finding | Severity | Status |
 |---|---|---|---|
 | **C1** | The six invariants are stated but not enforced — every fitness test scans the retired Rust tree | Critical | Open |
+| **C2** | The rebuilt documentation was falsified by the next release, one day later | Critical | Open · *added 2026-08-03* |
 | **H1** | Invariant #2's `launchd` crash-only watchdog is not implemented in the shipping app | High | Open |
 | **H2** | Raw layer jargon ships on the most-read surface, and the ban is structurally unenforceable in the app | High | Open |
 | **H3** | The primary persona has never been validated | High | Open |
@@ -24,12 +38,14 @@ Ranked Critical → High → Medium → Low, in this repository's red-team forma
 | **M1** | The ratified brand rule is violated — the logo is not bundled | Medium | Open |
 | **M2** | Two divergent badge vocabularies; two badge states unreachable | Medium | Open |
 | **M3** | No rollback instruction shipped with v0.4.0 | Medium | Open |
-| **M4** | The documentation itself had drifted into active misinformation | Medium | **Fixed** (`c70b66e`) |
+| **M4** | The documentation itself had drifted into active misinformation | Medium | **Fixed for a snapshot, then re-drifted** — see C2 |
 | **M5** | Admin mode has never been operated by anyone but its author | Medium | Open |
+| **M6** | No link-integrity check exists; a wrong path propagated unnoticed | Medium | Open · *added 2026-08-03* |
 | **L1** | No accessibility verification of any kind exists | Low | Open |
 | **L2** | Reduce Motion honored in one place; tray badge has no accessibility value | Low | Open |
 | **L3** | `copilot.lock.json` is untracked and not ignored | Low | Open |
 | **L4** | `src-tauri/Cargo.toml` frozen at 0.2.4 against a 0.4.0 product | Low | Informational |
+| **L5** | Two sessions worked one tree concurrently; collision avoided by vigilance, not structure | Low | Open · *added 2026-08-03* |
 | **CL1** | Apple Events / `NSAppleScript` command injection | — | **CLOSED — verified safe** |
 
 ---
@@ -47,6 +63,28 @@ Ranked Critical → High → Medium → Low, in this repository's red-team forma
 **Root cause:** The fitness suite was written against the Tauri core and never migrated when the product was rebuilt in Swift. The tests kept passing — against dead code — so nothing signalled the loss. This is the same failure mode already recorded elsewhere in this ecosystem, where enforcement was documented but had never fired.
 
 **Fix:** Port the fitness suite to scan `native/*.swift` and re-enable the release job. Until that happens, no document may claim the invariants are automatically enforced — the rebuilt docs now state them as architectural commitments upheld by review, with this gap named. When porting, treat the 24 review-only acceptance criteria as the priority list: they are exactly the claims with no mechanical backing today.
+
+### C2 — The rebuilt documentation was falsified by the next release, one day later — *added 2026-08-03*
+
+**Area:** Documentation integrity / the drift mechanism itself
+
+**Failure (concrete, and each item is checkable today):** The design package was rebuilt from evidence on 2026-08-02 and was accurate when written. **v0.5.0 shipped on 2026-08-03** and falsified it in three specific ways.
+
+1. **A design system now exists where the documentation says none does.** `docs/product-design/04-experience-design/60-ui-design.md:74` states: *"The substrate is the design system: `NSColor` semantic colors … There is no bespoke web-style token layer, no custom hex ramp, no restyled button, no restyled focus ring."* v0.5.0 landed **`native/design-system.swift`, 734 lines**, defining `CTColor`, `CTType`, `CTSpace`, `CTRadius`, `CTMotion`, `CTState`, `CTCardVariant` and `CTCalloutKind`, and it is compiled into both shipping targets (`scripts/build-user.command:28`, `scripts/build-admin.command:35`). That sentence is now false about the product it describes.
+2. **An entire new user-facing surface is absent from the package.** The **Connect sheet** — a secure in-app secret-entry flow reachable from any "Available to connect" row, passing values to the new `cc connect` verb over **stdin only**, never argv, never an environment variable, never a file — appears in **no document** in `docs/product-design/`. It is a first-class surface with a genuine security property worth stating, and the package does not know it exists.
+3. **Version pinning is now two releases stale in places.** Six package documents still carry `v0.3.2` in status lines or claims; fourteen carry `v0.4.0`. The product is `v0.5.0`.
+
+**Severity:** Critical — not for the individual inaccuracies, which are small and easily corrected, but because of what the timing proves. The rebuild was thorough, evidence-derived, and correct. It still went stale in **one day**, and nothing anywhere in the repository reported it. A documentation set that requires a manual audit to stay true will be false again by the time anyone reads it.
+
+**Root cause:** Exactly C1's root cause, in a different register. There is no mechanism binding a documented claim to the code that would falsify it. C1 is that gap for invariants; C2 is that gap for design documentation. Both were invisible because the only instrument pointed at the wrong target — for C1 the retired Rust tree, for C2 nothing at all.
+
+**Fix — and the shape matters more than the specific chore.** Correcting the three items above is an afternoon and would be wasted effort on its own, because the same thing happens at v0.6.0. The durable fix is to bind claims to evidence:
+
+- **Make version claims singular.** Twenty documents each independently asserting a version number is twenty things to update. One authoritative status line, referenced elsewhere, is one.
+- **Make falsifiable design claims testable.** "There is no bespoke token layer" is a claim a grep can check. Claims of that shape belong in the fitness suite C1 asks for — which is the argument for porting it to Swift becoming *more* urgent, not less.
+- **Put a doc gate on the release checklist.** A release that adds a user-facing surface should not pass without a line saying which design documents it touched, or explicitly that it touched none. The Connect sheet would have been caught by one question.
+
+Until then, the honest position — recorded in the package rather than hidden — is that these documents were true on 2026-08-02 and are re-verified only when someone re-verifies them.
 
 ---
 
@@ -142,7 +180,7 @@ This directly violates the product's own essence. The ratified position is that 
 
 **Fix:** Add a Rollback section to the release template so it cannot be omitted, and backfill v0.4.0.
 
-### M4 — The documentation had drifted into active misinformation — **FIXED**
+### M4 — The documentation had drifted into active misinformation — **fixed for a snapshot, then re-drifted**
 
 **Area:** Documentation integrity
 
@@ -153,6 +191,8 @@ This directly violates the product's own essence. The ratified position is that 
 **Root cause:** The documents were written once, at a point in time, with no mechanism tying them to the code they described. The product then changed stack, dropped a deployment mechanism, and shipped eight version lines. Nothing forced reconciliation.
 
 **Fix — applied in `c70b66e`:** all 15 facilitated documents plus `SOUL.md` re-derived from evidence; ten contradicted documents outside the package repaired; `windows-parity.md` retained in full with a superseded banner. The durable fix is not this rebuild but the practice it implies: **documentation that asserts a technology, a version, or an enforcement mechanism should be re-verified whenever that thing changes**, and a claim with no evidence behind it should be marked, not asserted.
+
+**Verdict revised 2026-08-03.** This was recorded as *Fixed* on the day of the rebuild. It is not. The rebuild corrected the accumulated drift of five weeks and the documentation was accurate for **one day** before v0.5.0 falsified it again — see **C2**. The repair was real; the mechanism that produced the drift was never touched, because a rebuild is a snapshot and the defect is the absence of anything holding a snapshot true. Leaving this marked *Fixed* would be the same species of comfortable lie this audit exists to catch, so it is marked honestly instead. It closes when C2's binding fixes land, not before.
 
 ### M5 — Admin mode has never been operated by anyone but its author
 
@@ -165,6 +205,18 @@ This directly violates the product's own essence. The ratified position is that 
 **Root cause:** Single-organization dogfooding.
 
 **Fix:** Pair the V-5 proof with an Admin run performed by someone other than the author, and record what they could not do unaided.
+
+### M6 — No link-integrity check exists, and a wrong path propagated unnoticed — *added 2026-08-03*
+
+**Area:** Documentation tooling
+
+**Failure:** The rebuild brief named the native design triad as `docs/03-design/ui-ux/control-tower-native-experience-architecture.md`, `…-interaction-spec.md` and `…-visual-system.md`. **All three paths were wrong.** The real files sit one directory up, and two of them lack the `native-` prefix: `docs/03-design/control-tower-native-experience-architecture.md`, `docs/03-design/control-tower-interaction-spec.md`, `docs/03-design/control-tower-visual-system.md`. `docs/03-design/ui-ux/` contains only a README that indexes them. The error was authored once, in a brief every writing agent read, and propagated into two documents. It was found by a manual link check run on a hunch, not by any tooling, and the repository would happily have carried three broken links to its own design of record indefinitely.
+
+**Severity:** Medium. The blast radius this time was small and it is fixed. The mechanism is what matters: a confidently-stated path that nobody checked is the same class of defect as a confidently-stated version or a confidently-stated enforcement guarantee, and it is the cheapest of the three to eliminate.
+
+**Root cause:** No link checking in this repository's pre-commit hook, which runs only the initiatives-standard and CSE-claims checks.
+
+**Fix — the tool already exists.** `check-crosslinks.py` and `install-crosslinks-hook.sh` are in `/Volumes/Dev/Sites/COPILOT/shared-docs/scripts/`, alongside a `crosslinks-baseline.json`. Installing the hook here is a single command and would have caught this at commit time. This is the highest ratio of value to effort in the entire findings list.
 
 ---
 
@@ -212,6 +264,18 @@ This directly violates the product's own essence. The ratified position is that 
 
 **Note:** The tree stays on disk by explicit owner instruction. It still supplies the app icon and bundle identifier, and it still holds the fitness suite from C1 — so it cannot be removed before that suite is ported.
 
+### L5 — Two sessions worked one tree concurrently; the collision was avoided by vigilance, not structure — *added 2026-08-03*
+
+**Area:** Working practice
+
+**Failure:** During the documentation rebuild, a second session was working the same checkout. It shipped v0.4.0 mid-audit (three commits at 09:28, 09:43, 09:48 on 2026-08-02) and later v0.5.0, and at one point had an in-flight release bump staged across `controltower.compat.json`, `package.json`, both `Info.plist` files, `packaging/cc/*` and `src-tauri/tauri.conf.json` while this session was preparing a documentation commit. A `git add` scoped by file *type* rather than by explicit path — which is how the first two commits in this rebuild were staged — would have swept an unrelated half-finished release into a docs commit.
+
+**Severity:** Low, because nothing went wrong. Recorded because the reason nothing went wrong was that someone checked, and "someone checked" is the control this entire findings list is about distrusting.
+
+**Root cause:** Two agents, one working tree, no coordination primitive. The product itself solves precisely this problem for the CLI with an `flock` on `copilot.lock`; the humans and agents editing the repository have no equivalent.
+
+**Fix:** Stage by explicit path, never by glob or `-A`, whenever a tree may be shared — the practice this rebuild adopted after the near-miss. For longer parallel work, give the second session its own worktree. Before committing in a shared tree, re-read `git status` and confirm every staged path is yours.
+
 ---
 
 ## CLOSED
@@ -238,8 +302,10 @@ This is a deliberately hardened path, not an incidental one.
 
 ## What this audit says about the product
 
-Two observations worth more than any individual finding.
+Three observations worth more than any individual finding.
 
-**The defects cluster in verification, not in construction.** C1, H1, H3, M5, L1 and L2 are all the same shape: the thing was designed carefully, built carefully, and then never checked — or checked by an instrument pointed at the wrong target. The code the audit read is notably disciplined; CL1 in particular found a security path hardened well beyond what the threat model claimed for it. What is missing is the layer that would notice if that discipline ever lapsed.
+**The defects cluster in verification, not in construction.** C1, C2, H1, H3, M5, M6, L1 and L2 are all the same shape: the thing was designed carefully, built carefully, and then never checked — or checked by an instrument pointed at the wrong target. The code the audit read is notably disciplined; CL1 in particular found a security path hardened well beyond what the threat model claimed for it. What is missing is the layer that would notice if that discipline ever lapsed.
 
-**The product's own standard is the right one to judge it by.** `SOUL.md` v2.0 ratifies *say only what you can prove* as the highest principle, above even parse-never-compute, on the strength of a 2026-07-31 incident where the app faithfully rendered a false claim. By that standard, C1 and M4 are the same defect wearing different clothes: a claim asserted without evidence to back it. The product held itself to that bar in its user-facing copy long before its documentation met it. This audit is the documentation catching up.
+**The product's own standard is the right one to judge it by.** `SOUL.md` v2.0 ratifies *say only what you can prove* as the highest principle, above even parse-never-compute, on the strength of a 2026-07-31 incident where the app faithfully rendered a false claim. By that standard, C1, C2, M4 and M6 are one defect wearing four costumes: a claim asserted without a mechanism to back it. The product held itself to that bar in its user-facing copy long before its documentation met it. This audit is the documentation catching up.
+
+**Added 2026-08-03 — the one-day result is the finding.** The most useful thing this audit produced was not any single defect but an accidental controlled experiment. A thorough, evidence-derived documentation rebuild was completed on 2026-08-02 and was demonstrably false by 2026-08-03, and no part of this repository noticed. That is the measurement. It says the answer is not "audit more carefully" — the audit was careful — but that **effort spent re-verifying documentation is spent again every release, while effort spent binding a claim to something that can falsify it is spent once.** The three cheapest such bindings are all named above and none is large: install the crosslinks hook that already exists (M6), make version claims singular rather than repeated across twenty files (C2), and port the fitness suite so falsifiable claims about the code are checked against the code that ships (C1). Do those and most of this list stops being able to recur.
