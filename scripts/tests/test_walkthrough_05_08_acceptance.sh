@@ -77,7 +77,7 @@ check_rg 07-20 "guided setup launches a visible Terminal session" 'tell applicat
 check_rg 07-21 "helper-authored read-only diagnosis launches visibly" 'Button("Diagnose in Claude Code")' native/wizard.swift critical
 check_rg 07-22 "signed User app can request Terminal automation" 'scripts/verify-user-automation.sh "${app_path}"' scripts/package-user-release.sh critical
 check_rg 07-23 "guided assistants use resolved absolute executables" 'guard let executablePath = resolveExecutable(assistant.command)' native/control-tower-tray.swift critical
-check_rg 08-V "high-fidelity popover has readable status hierarchy" 'Text(component.worstSeverity == .pass ? "Ready"' native/control-tower-tray.swift
+check_rg 08-V "high-fidelity popover has readable status hierarchy" 'case .warn: return "Needs review"' native/control-tower-tray.swift
 
 # Exact embedded-helper boundary. These are critical and intentionally fail
 # against the stale packaged helper until a new upstream artifact is pinned.

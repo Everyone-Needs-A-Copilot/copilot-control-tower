@@ -2,6 +2,17 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.5.0] - 2026-08-03
+
+### Added
+
+- The P1 visual refresh: a new native design system (`native/design-system.swift`) with a consistent type/state-color system, visible cards replacing flat rows across Settings and the wizard, and de-uppercased labels throughout.
+- The Connect sheet: a secure in-app secret-entry flow reachable from any "Available to connect" row. Values are read from the person's typed input and passed to the new `cc connect <service-id> [--check] --json` verb over **stdin only** — never argv, never an environment variable, never a file — and written straight to the OS keychain by the CLI. Control Tower never sees, logs, or persists a secret value at any point. See [`schemas/connect.schema.json`](docs/01-architecture/schemas/connect.schema.json) and `cli-contract.md`.
+
+### Changed
+
+- The embedded helper requirement is now `cc 2.3.0`. This is the first app release to carry the `cc 2.2.1` connections-honesty fixes as well: a permanent false `needs-connect` state is fixed, and `store.detail` is now always a plain-language, `cc`-authored sentence instead of a raw passthrough of an underlying command's stderr (the raw text is still available for logs only, in the additive `store.diagnostic` field).
+
 ## [0.4.0] - 2026-08-02
 
 ### Added
