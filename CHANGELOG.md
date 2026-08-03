@@ -2,6 +2,22 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.5.1] - 2026-08-03
+
+### Fixed
+
+- Projects installed by earlier Copilot versions with a shared linked Codex plugin now receive a reviewed, preservation-aware migration route instead of the dead-end "could not verify" result. The helper proves the legacy link, bridge, optional gate, and readable lock shape before offering guidance; unknown links, arbitrary framework edits, malformed locks, and custom integrations still fail closed.
+- Project diagnostics now describe legacy `installType: symlink` metadata accurately instead of saying the configuration failed to name its plugin.
+- Convoco now classifies as guided integration with an actionable project-author plan. Across the current 62-project inventory, the source-helper result changes from 26 ready / 17 guided / 19 could not verify to 26 ready / 33 guided / 3 could not verify.
+
+### Changed
+
+- The embedded helper is now `cc 2.4.0`, built from signed parentless foundation snapshot `v5.13.34` and accepted by Apple notarization.
+
+### Rollback
+
+- Reinstall the signed `0.5.0` DMG to return to the previous release. Release tags are immutable; supersede a defective build with a new version.
+
 ## [0.5.0] - 2026-08-03
 
 ### Added
