@@ -30,6 +30,11 @@
 # in NOTARIZATION.json, which proves nothing about the exact binary being
 # verified right now. The full eight-history-state, sixteen-row contract
 # lives in the dedicated gate: scripts/tests/test_packaged_cc_topology_contract.sh.
+# Phase 9 adds the same two-part proof for reconciliation: release evidence
+# must contain `finder_reconciliation_probe: "passed"`, and this verifier
+# independently drives the exact vendored executable through the schema-1.0
+# assess/plan/apply/verify/repeat/recover lifecycle against a disposable local
+# Git fixture. Static notarization metadata alone is never accepted as proof.
 
 set -euo pipefail
 
@@ -40,6 +45,8 @@ NOTARIZATION_FILE="${REPO_ROOT}/packaging/cc/NOTARIZATION.json"
 COMPAT_FILE="${REPO_ROOT}/controltower.compat.json"
 TOPOLOGY_FIXTURES="${REPO_ROOT}/scripts/tests/fixtures/onboard-topology"
 ONBOARD_SCHEMA="${REPO_ROOT}/docs/01-architecture/schemas/onboard.schema.json"
+RECONCILE_GATE="${REPO_ROOT}/scripts/tests/verify_vendored_cc_reconcile_contract.sh"
+RECONCILE_PROBE_ASSERT="${REPO_ROOT}/scripts/tests/fixtures/reconcile-contract/assert_notarization_probe.py"
 
 RELEASE_MODE=false
 if [[ "${1:-}" == "--release" ]]; then
@@ -108,6 +115,7 @@ if file "${CC_PATH}" | grep -q "Mach-O"; then
             exit 1
         }
         version_output="$("${CC_PATH}" --version)"
+        /usr/bin/python3 "${RECONCILE_PROBE_ASSERT}" "${NOTARIZATION_FILE}"
         /usr/bin/python3 - \
             "${NOTARIZATION_FILE}" \
             "${COMPAT_FILE}" \
@@ -198,6 +206,17 @@ PY
         }
     rm -rf "${topology_scratch}"
     trap - EXIT
+
+    if $RELEASE_MODE; then
+        [[ -x "${RECONCILE_GATE}" ]] || {
+            echo "error: reconciliation contract gate is missing or not executable: ${RECONCILE_GATE}" >&2
+            exit 1
+        }
+        echo "verifying reconcile schema 1.0 lifecycle (exact binary, disposable local Git fixture)..."
+        "${RECONCILE_GATE}" \
+            --cc-path "${CC_PATH}" \
+            --validator-python "${JSONSCHEMA_VENV}/bin/python3"
+    fi
 
     echo "vendored cc verified (verify-not-resign): ${CC_PATH}"
 else

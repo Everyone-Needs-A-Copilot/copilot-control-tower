@@ -1251,160 +1251,493 @@ struct WorkspacesReport: Decodable {
     let recentlySetUp: [WorkspaceRecentlySetUp]?
 }
 
-// MARK: - workspace migrate --all --json
+// MARK: - reconcile schema 1.0
 
-/// The migration contract is deliberately separate from `WorkspacesReport`:
-/// the workspace register describes current project truth, while this report
-/// is a guarded census plus an optional mutation ledger. The app renders both
-/// but never derives one from the other.
-enum WorkspaceMigrationResult: String, Decodable {
-    case ready
-    case actionRequired = "action-required"
-    case applied
-    case partial
-    case blocked
+/// Explicit user intent passed to Python. These request DTOs contain no
+/// discovery, eligibility, default-selection, or path-normalization logic.
+/// The helper validates and canonicalizes the exact bytes before inspecting
+/// or mutating any ecosystem state.
+enum ReconciliationComponent: String, Codable, Hashable {
+    case claude
+    case codex
 }
 
-enum WorkspaceMigrationState: String, Decodable {
-    case eligible
-    case held
-    case residualGuidance = "residual-guidance"
-    case notNeeded = "not-needed"
-}
+struct ReconciliationProjectSelection: Encodable {
+    let path: String
+    let components: [ReconciliationComponent]
+    let recipeIds: [ReconciliationComponent: String]
 
-enum WorkspaceMigrationKind: String, Decodable {
-    case claudeCanonicalEntry = "claude-canonical-entry-v1"
-    case codexPortableCopy = "codex-portable-copy-v1"
-}
-
-struct WorkspaceMigrationSummary: Decodable {
-    let eligible: Int
-    let held: Int
-    let residualGuidance: Int
-    let totalGuided: Int
+    init(
+        path: String,
+        components: [ReconciliationComponent],
+        recipeIds: [ReconciliationComponent: String] = [:]
+    ) {
+        self.path = path
+        self.components = components
+        self.recipeIds = recipeIds
+    }
 
     enum CodingKeys: String, CodingKey {
-        case eligible, held, totalGuided
-        case residualGuidance = "residual-guidance"
+        case path, components, recipeIds
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(path, forKey: .path)
+        try container.encode(components, forKey: .components)
+        if !recipeIds.isEmpty {
+            let wireRecipeIds = Dictionary(
+                uniqueKeysWithValues: recipeIds.map { ($0.key.rawValue, $0.value) }
+            )
+            try container.encode(wireRecipeIds, forKey: .recipeIds)
+        }
     }
 }
 
-struct WorkspaceMigrationVerification: Decodable {
-    let command: [String]
-    let expected: String
+struct ReconciliationRequest: Encodable {
+    let schemaVersion: String
+    let roots: [String]
+    let projects: [ReconciliationProjectSelection]
+
+    init(roots: [String], projects: [ReconciliationProjectSelection]) {
+        schemaVersion = "1.0"
+        self.roots = roots
+        self.projects = projects
+    }
+
+    /// Deterministic serialization only. Python remains authoritative for
+    /// normalization, validation, fingerprints, and every ecosystem decision.
+    func encoded() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(self)
+    }
 }
 
-struct WorkspaceMigrationChange: Decodable {
-    let path: String
-    let operation: String
-}
-
-struct WorkspaceMigrationAction: Decodable {
+struct ReconciliationEvidence: Decodable {
     let id: String
-    let inspectionId: String
-    let migrationKinds: [WorkspaceMigrationKind]
-    let willChange: [WorkspaceMigrationChange]
-    let willPreserve: [WorkspaceArtifact]
-    let willNotDo: [String]
-}
-
-struct WorkspaceMigrationCandidate: Decodable, Identifiable {
-    var id: String { path }
-    let path: String
-    let name: String
-    let classification: WorkspaceIntegrationClassification
-    let inspectionId: String
-    let migrationKinds: [WorkspaceMigrationKind]
-    let state: WorkspaceMigrationState
-    let automatable: Bool
-    let reasonCode: String?
+    let state: String
     let detail: String
-    let action: WorkspaceMigrationAction?
-    let verification: WorkspaceMigrationVerification
 }
 
-enum WorkspaceMigrationCompletedActionStatus: String, Decodable {
-    case applied
-    case rolledBack = "rolled-back"
+struct ReconciliationBlocker: Decodable {
+    let code: String
+    let responsibleActor: String
+    let evidence: [ReconciliationEvidence]
+    let nextAction: String
 }
 
-struct WorkspaceMigrationCompletedAction: Decodable {
+struct ReconciliationRecipeOption: Decodable {
+    let recipeId: String
+    let component: ReconciliationComponent
+    let summary: String
+}
+
+enum ReconciliationProjectPresence: String, Decodable {
+    case none
+    case claudeOnly = "claude-only"
+    case codexOnly = "codex-only"
+    case both
+    case unknown
+}
+
+enum ReconciliationProjectRoute: String, Decodable {
+    case ready
+    case copilotNotPresent = "copilot-not-present"
+    case safeSetupAvailable = "safe-setup-available"
+    case safeUpdateAvailable = "safe-update-available"
+    case customizedGuidedRoute = "customized-guided-route"
+    case held
+    case ownerDecision = "owner-decision"
+    case couldNotVerify = "could-not-verify"
+    case excluded
+}
+
+enum ReconciliationComponentRoute: String, Decodable {
+    case ready
+    case notPresent = "not-present"
+    case notSelected = "not-selected"
+    case safeSetupAvailable = "safe-setup-available"
+    case safeUpdateAvailable = "safe-update-available"
+    case customizedGuidedRoute = "customized-guided-route"
+    case held
+    case ownerDecision = "owner-decision"
+    case couldNotVerify = "could-not-verify"
+    case excluded
+}
+
+struct ReconciliationComponentAssessment: Decodable {
+    let component: ReconciliationComponent
+    let state: ReconciliationComponentRoute
+    let selected: Bool
+    let recommended: Bool
+    let recommendationReason: String
+    let responsibleActor: String
+    let evidence: [ReconciliationEvidence]
+    let missingRequirements: [ReconciliationEvidence]
+    let nextAction: String
+    let recipeOptions: [ReconciliationRecipeOption]
+}
+
+struct ReconciliationArtifact: Decodable {
+    let kind: String
     let path: String
-    let operation: String
-    let status: WorkspaceMigrationCompletedActionStatus
+    let detail: String
 }
 
-enum WorkspaceMigrationLedgerStatus: String, Decodable {
+struct ReconciliationDossier: Decodable {
+    let inspectionId: String
+    let currentEvidence: [ReconciliationEvidence]
+    let missingRequirements: [ReconciliationEvidence]
+    let preservation: [ReconciliationArtifact]
+    let allowedTargets: [String]
+    let prohibitedActions: [String]
+    let verification: [String]
+    let stopConditions: [String]
+}
+
+struct ReconciliationProject: Decodable {
+    let path: String
+    let root: String
+    let name: String
+    let inspectionId: String
+    let presence: ReconciliationProjectPresence
+    let route: ReconciliationProjectRoute
+    let selectedComponents: [ReconciliationComponent]
+    let components: [ReconciliationComponentAssessment]
+    let blockers: [ReconciliationBlocker]
+    let nextAction: String
+    let dossier: ReconciliationDossier?
+}
+
+enum ReconciliationMachineState: String, Decodable {
+    case ready
+    case actionRequired = "action-required"
+    case couldNotVerify = "could-not-verify"
+}
+
+struct ReconciliationHelper: Decodable {
+    let state: String
+    let version: String?
+    let path: String?
+    let detail: String
+}
+
+struct ReconciliationFramework: Decodable {
+    let component: ReconciliationComponent
+    let state: String
+    let path: String?
+    let version: String?
+    let detail: String
+}
+
+struct ReconciliationConfiguration: Decodable {
+    let state: String
+    let path: String?
+    let approvedRoots: [String]
+    let detail: String
+}
+
+struct ReconciliationAuthentication: Decodable {
+    let state: String
+    let credentialState: String
+    let detail: String
+}
+
+struct ReconciliationConnectivity: Decodable {
+    let state: String
+    let detail: String
+}
+
+struct ReconciliationLayers: Decodable {
+    let state: String
+    let ready: Int
+    let total: Int
+    let detail: String
+}
+
+struct ReconciliationDependency: Decodable {
+    let id: String
+    let state: String
+    let detail: String
+}
+
+struct ReconciliationMachine: Decodable {
+    let state: ReconciliationMachineState
+    let helper: ReconciliationHelper
+    let frameworks: [ReconciliationFramework]
+    let configuration: ReconciliationConfiguration
+    let authentication: ReconciliationAuthentication
+    let connectivity: ReconciliationConnectivity
+    let layers: ReconciliationLayers
+    let dependencies: [ReconciliationDependency]
+    let blockers: [ReconciliationBlocker]
+    let nextAction: String
+}
+
+struct ReconciliationProjectCounts: Decodable {
+    let ready: Int
+    let copilotNotPresent: Int
+    let safeSetupAvailable: Int
+    let safeUpdateAvailable: Int
+    let customizedGuidedRoute: Int
+    let held: Int
+    let ownerDecision: Int
+    let couldNotVerify: Int
+    let excluded: Int
+    let total: Int
+
+    enum CodingKeys: String, CodingKey {
+        case ready, held, excluded, total
+        case copilotNotPresent = "copilot-not-present"
+        case safeSetupAvailable = "safe-setup-available"
+        case safeUpdateAvailable = "safe-update-available"
+        case customizedGuidedRoute = "customized-guided-route"
+        case ownerDecision = "owner-decision"
+        case couldNotVerify = "could-not-verify"
+    }
+}
+
+struct ReconciliationSummary: Decodable {
+    let projectCounts: ReconciliationProjectCounts
+    let selectedProjects: Int
+    let overlapExplanation: String
+}
+
+enum ReconciliationOperationKind: String, Decodable {
+    case createFileFromSource = "create-file-from-source"
+    case copyFileFromSource = "copy-file-from-source"
+    case copyTreeFromSource = "copy-tree-from-source"
+    case appendManagedBlock = "append-managed-block"
+    case mergeJSONKeys = "merge-json-keys"
+    case replaceRecognizedSymlinkWithCopy = "replace-recognized-symlink-with-copy"
+    case createInternalRelativeSymlink = "create-internal-relative-symlink"
+    case upsertLockComponent = "upsert-lock-component"
+    case writeProjectDeclaration = "write-project-declaration"
+    case associatePersonalProject = "associate-personal-project"
+}
+
+struct ReconciliationOperation: Decodable {
+    let id: String
+    let kind: ReconciliationOperationKind
+    let component: ReconciliationComponent
+    let target: String
+    let description: String
+    let expectedBeforeFingerprint: String
+    let sourceFingerprint: String?
+}
+
+struct ReconciliationRecipeBinding: Decodable {
+    let component: ReconciliationComponent
+    let recipeId: String
+}
+
+struct ReconciliationSourceBinding: Decodable {
+    let component: ReconciliationComponent
+    let version: String
+    let fingerprint: String
+}
+
+struct ReconciliationProjectPlan: Decodable {
+    let path: String
+    let inspectionId: String
+    let recipes: [ReconciliationRecipeBinding]
+    let sources: [ReconciliationSourceBinding]
+    let operations: [ReconciliationOperation]
+    let preservation: [ReconciliationArtifact]
+    let prohibitedActions: [String]
+    let verification: [String]
+}
+
+enum ReconciliationRollbackStatus: String, Decodable {
+    case restored
+    case mismatch
+    case conflict
+    case unreadable
+}
+
+struct ReconciliationRollbackTarget: Decodable {
+    let target: String
+    let status: ReconciliationRollbackStatus
+    let detail: String
+}
+
+enum ReconciliationLedgerStatus: String, Decodable {
     case applied
     case blocked
     case rolledBack = "rolled-back"
+    case incompleteRollback = "incomplete-rollback"
     case unchanged
 }
 
-enum WorkspaceMigrationVerificationState: String, Decodable {
+enum ReconciliationVerificationState: String, Decodable {
     case ready
     case failed
     case notRun = "not-run"
 }
 
-struct WorkspaceMigrationLedgerEntry: Decodable, Identifiable {
-    var id: String { path }
+struct ReconciliationLedgerEntry: Decodable {
     let path: String
-    let name: String
-    let actionId: String?
-    let status: WorkspaceMigrationLedgerStatus
+    let status: ReconciliationLedgerStatus
     let detail: String
-    let completedActions: [WorkspaceMigrationCompletedAction]
-    let verification: WorkspaceMigrationVerificationState
-    /// Diagnostic-only CLI text. It is decoded so the contract remains
-    /// complete, but intentionally never rendered in the app.
-    let error: String?
-    let afterInspectionId: String?
-    let targetedComponents: [WorkspaceComponentName]?
+    let completedOperationIds: [String]
+    let verification: ReconciliationVerificationState
+    let rollback: [ReconciliationRollbackTarget]
 }
 
-struct WorkspaceMigrationApplySummary: Decodable {
-    let applied: Int
-    let failed: Int
-    let unchanged: Int
-    let remainingGuided: Int
-    let updatedStillGuided: Int
-    let failedStillGuided: Int
-    let detail: String
-}
-
-enum WorkspaceMigrationDiagnosticState: String, Decodable {
+enum ReconciliationDiagnosticState: String, Decodable {
     case available
     case unavailable
 }
 
-struct WorkspaceMigrationDiagnosticReference: Decodable {
+struct ReconciliationDiagnosticReference: Decodable {
     let schemaVersion: String
     let id: String
-    let state: WorkspaceMigrationDiagnosticState
+    let state: ReconciliationDiagnosticState
     let path: String?
     let createdAt: String
     let detail: String
 }
 
-struct WorkspaceMigrationAfter: Decodable {
-    let planId: String
-    let summary: WorkspaceMigrationSummary
+enum ReconciliationAssessPhase: String, Decodable { case assess }
+enum ReconciliationPlanPhase: String, Decodable { case plan }
+enum ReconciliationApplyPhase: String, Decodable { case apply }
+enum ReconciliationVerifyPhase: String, Decodable { case verify }
+enum ReconciliationRecoverPhase: String, Decodable { case recover }
+enum ReconciliationErrorPhase: String, Decodable { case error }
+
+enum ReconciliationReadResult: String, Decodable {
+    case ready
+    case actionRequired = "action-required"
+    case blocked
 }
 
-struct WorkspaceMigrationReport: Decodable {
+enum ReconciliationApplyResult: String, Decodable {
+    case applied
+    case partial
+    case blocked
+}
+
+enum ReconciliationRecoverResult: String, Decodable {
+    case ready
+    case partial
+    case blocked
+}
+
+struct ReconciliationAssessReport: Decodable {
     let schemaVersion: String
-    let mode: String
-    let result: WorkspaceMigrationResult
+    let phase: ReconciliationAssessPhase
+    let result: ReconciliationReadResult
+    let runId: String
+    let generatedAt: String
+    let machine: ReconciliationMachine
+    let projects: [ReconciliationProject]
+    let summary: ReconciliationSummary
+    let nextActions: [String]
+}
+
+struct ReconciliationPlanReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationPlanPhase
+    let result: ReconciliationReadResult
+    let runId: String
+    let generatedAt: String
+    let machine: ReconciliationMachine
+    let projects: [ReconciliationProject]
+    let summary: ReconciliationSummary
+    let nextActions: [String]
+    let requestFingerprint: String
     let planId: String
-    let summary: WorkspaceMigrationSummary
-    let candidates: [WorkspaceMigrationCandidate]
-    let ledger: [WorkspaceMigrationLedgerEntry]
-    let requestedPlanId: String?
-    let detail: String?
-    let applySummary: WorkspaceMigrationApplySummary?
-    let after: WorkspaceMigrationAfter?
-    let diagnostics: WorkspaceMigrationDiagnosticReference?
+    let expiresAt: String
+    let plans: [ReconciliationProjectPlan]
+}
+
+struct ReconciliationApplyReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationApplyPhase
+    let result: ReconciliationApplyResult
+    let runId: String
+    let generatedAt: String
+    let machine: ReconciliationMachine
+    let projects: [ReconciliationProject]
+    let summary: ReconciliationSummary
+    let nextActions: [String]
+    let requestFingerprint: String
+    let requestedPlanId: String
+    let planId: String
+    let ledger: [ReconciliationLedgerEntry]
+    let diagnostics: ReconciliationDiagnosticReference
+}
+
+struct ReconciliationVerifyReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationVerifyPhase
+    let result: ReconciliationReadResult
+    let runId: String
+    let generatedAt: String
+    let machine: ReconciliationMachine
+    let projects: [ReconciliationProject]
+    let summary: ReconciliationSummary
+    let nextActions: [String]
+    let requestFingerprint: String
+}
+
+enum ReconciliationRecoveryOutcome: String, Decodable {
+    case applied
+    case rolledBack = "rolled-back"
+    case blocked
+    case incompleteRollback = "incomplete-rollback"
+}
+
+struct ReconciliationRecoveryEntry: Decodable {
+    let interruptedRunId: String
+    let requestedPlanId: String
+    let outcome: ReconciliationRecoveryOutcome
+    let ledger: [ReconciliationLedgerEntry]
+    let diagnostics: ReconciliationDiagnosticReference
+}
+
+struct ReconciliationRecoverReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationRecoverPhase
+    let result: ReconciliationRecoverResult
+    let runId: String
+    let generatedAt: String
+    let recoveries: [ReconciliationRecoveryEntry]
+    let nextActions: [String]
+}
+
+enum ReconciliationErrorResult: String, Decodable { case error }
+
+struct ReconciliationErrorBody: Decodable {
+    let code: String
+    let detail: String
+}
+
+struct ReconciliationErrorReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationErrorPhase
+    let result: ReconciliationErrorResult
+    let exitCode: Int
+    let error: ReconciliationErrorBody
+}
+
+/// Reconcile's schema defines structured error reports for both exit 1 and
+/// exit 2. Preserve those Python-authored details as a renderable outcome;
+/// `CliError` remains reserved for launch, schema, and decode failures where
+/// no compatible reconciliation truth is available.
+enum ReconciliationOutcome<Report: Decodable>: Decodable {
+    case report(Report)
+    case error(ReconciliationErrorReport)
+
+    init(from decoder: Decoder) throws {
+        if let error = try? ReconciliationErrorReport(from: decoder) {
+            self = .error(error)
+        } else {
+            self = .report(try Report(from: decoder))
+        }
+    }
 }
 
 /// `cc workspace revert --project <path> [--apply] --json` — a NARROWER

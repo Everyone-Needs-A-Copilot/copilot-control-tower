@@ -1,6 +1,6 @@
 # Copilot Control Tower
 
-> **Status line — rebuilt from evidence, 2026-08-02.** This document was rewritten against the shipped product, not a plan. Current version at time of writing: **v0.4.0** (notarized, stapled, released 2026-08-02). The retrofit brief this rewrite was commissioned against pinned v0.3.2 as the evidence snapshot; v0.4.0 shipped the same day this document was rebuilt, adding the "Your connections" bridge (see [`CHANGELOG.md`](CHANGELOG.md)). The narrative below — native SwiftUI/AppKit, DOGFOODING on one org, 16/16 live apply — is unaffected by that point release.
+> **Status line — refreshed from release evidence, 2026-08-04.** Current version: **v0.5.5**, the native SwiftUI/AppKit release that adds the Python-owned ecosystem reconciliation workflow and embeds notarized `cc 2.6.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
 
 **The always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem — the technical superpowers of a deeply skilled engineer, in the hands of someone who has never opened a terminal.**
 

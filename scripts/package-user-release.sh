@@ -162,6 +162,7 @@ embedded_cc="${app_path}/Contents/Resources/cc"
 embedded_cc_sha="$(shasum -a 256 "${embedded_cc}" | awk '{print $1}')"
 [[ "${embedded_cc_sha}" == "${vendored_cc_sha}" ]] ||
     die "embedded cc changed while building the app"
+echo "release: verifying helper provenance and disposable reconciliation contract"
 scripts/verify-vendored-cc.sh --release "${embedded_cc}"
 
 echo "release: exercising the exact app Detect seam without UI"

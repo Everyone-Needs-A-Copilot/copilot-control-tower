@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "phase": "recover",
+  "result": "partial",
+  "run_id": "run_44444444444444444444444444444444",
+  "generated_at": "2026-08-04T18:02:00Z",
+  "recoveries": [
+    {
+      "interrupted_run_id": "run_11111111111111111111111111111111",
+      "requested_plan_id": "plan_22222222222222222222222222222222",
+      "outcome": "rolled-back",
+      "ledger": [
+        {
+          "path": "/Projects/One",
+          "status": "rolled-back",
+          "detail": "The interrupted project was restored.",
+          "completed_operation_ids": [
+            "op_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          ],
+          "verification": "not-run",
+          "rollback": [
+            {
+              "target": "CLAUDE.md",
+              "status": "restored",
+              "detail": "The target was restored."
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "schema_version": "1.0",
+        "id": "diagnostic_55555555555555555555555555555555",
+        "state": "available",
+        "path": "/private/diagnostics/recovered.json",
+        "created_at": "2026-08-04T18:02:00Z",
+        "detail": "Recovery evidence is available."
+      }
+    }
+  ],
+  "next_actions": [
+    "Review the recovery receipt."
+  ]
+}

@@ -2,6 +2,28 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.5.5] - 2026-08-04
+
+### Added
+
+- Control Tower now presents the Python-owned `cc reconcile` workflow end to end: complete Mac and project assessment, explicit project/component selection, exact plan review, guarded apply, fresh verification, durable diagnostic receipt, and interrupted-run recovery.
+- Projects with no Copilot integration can receive independently recommended Claude and Codex setup routes. Customized, dirty, ambiguous, excluded, and unsafe projects retain distinct Python-authored routes and explanations instead of disappearing into overlapping totals.
+
+### Changed
+
+- The embedded helper is now `cc 2.6.0`, built from signed parentless foundation snapshot `v5.13.39` and accepted by Apple notarization. The app now requires `cc >=2.6.0,<3.0.0`.
+- The old grouped `workspace migrate` presentation is replaced by the reconciliation schema `1.0` contract. This is a new versioned verb contract, not a breaking change to an existing reconciliation consumer; the app's declared schema compatibility remains `>=1.0,<2.0`.
+- Project totals are one primary state per project. Claude and Codex outcomes remain independent within each project, with the overlap explanation authored by Python.
+
+### Security
+
+- Swift passes explicit intent through an owner-only temporary request and never inspects project files or invents operations. Python re-inspects before mutation, claims one fresh opaque plan, constrains paths, rejects unsafe symlinks, snapshots bounded targets, locks projects, verifies components independently, and records truthful per-target rollback outcomes.
+- Reconciliation diagnostics use private `0700` directories and atomic `0600` records, retain a bounded history, and omit credentials, environment values, stdin, file contents, and raw subprocess streams.
+
+### Rollback
+
+- Reinstall the signed `0.5.4` DMG to return to the previous app and helper. A successful project reconciliation is intentionally not undone by reinstalling the app; its Python-authored receipt remains the authoritative record. Release tags are immutable, so a defective build is superseded with a new version.
+
 ## [0.5.2] - 2026-08-03
 
 ### Added

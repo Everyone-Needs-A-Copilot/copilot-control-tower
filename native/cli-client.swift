@@ -37,6 +37,7 @@
 // this is safe to call from a view's `.task { }` or a button action, never
 // from a property-wrapper initializer.
 
+import Darwin
 import Foundation
 
 // MARK: - Shared process-pipe plumbing
@@ -736,21 +737,52 @@ actor CliClient {
         await decodeVerb(["workspace", "plan", "--project", path, "--json"])
     }
 
-    /// Read-only census for every approved project root. Eligibility,
-    /// preservation, and holds are entirely CLI-authored; this method does
-    /// not inspect or filter the report.
-    func workspaceMigrationPlan() async -> Result<WorkspaceMigrationReport, CliError> {
-        await decodeVerb(["workspace", "migrate", "--all", "--json"])
+    // MARK: Python-owned ecosystem reconciliation
+
+    /// Complete read-only machine and project truth. The app does not merge
+    /// this report with `doctor`, `workspace`, or any other local inference.
+    func reconciliationAssess() async -> Result<ReconciliationOutcome<ReconciliationAssessReport>, CliError> {
+        await decodeReconciliationVerb(["reconcile", "assess", "--json"])
     }
 
-    /// Apply exactly the opaque, freshly reviewed plan. A stale id is a
-    /// decoded `blocked` business result from the CLI, never an app retry or
-    /// a reason to force the new census through.
-    func applyWorkspaceMigration(planId: String) async -> Result<WorkspaceMigrationReport, CliError> {
-        await decodeVerb([
-            "workspace", "migrate", "--all",
-            "--plan-id", planId, "--apply", "--json",
-        ])
+    /// Fresh exact plan for the person's explicit roots/projects/components.
+    /// The exact encoded request bytes travel through a private mode-0600 file
+    /// because the helper's frozen contract accepts `--request <path>`.
+    func reconciliationPlan(
+        request: ReconciliationRequest
+    ) async -> Result<ReconciliationOutcome<ReconciliationPlanReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            ["reconcile", "plan", "--request", requestPath, "--json"]
+        }
+    }
+
+    /// Claim and apply exactly the Python-issued opaque plan id. No retry,
+    /// replacement-plan adoption, or operation construction exists in Swift.
+    func reconciliationApply(
+        request: ReconciliationRequest,
+        planId: String
+    ) async -> Result<ReconciliationOutcome<ReconciliationApplyReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            [
+                "reconcile", "apply", "--request", requestPath,
+                "--plan-id", planId, "--json",
+            ]
+        }
+    }
+
+    /// Fresh Python verification for the exact explicit selection.
+    func reconciliationVerify(
+        request: ReconciliationRequest
+    ) async -> Result<ReconciliationOutcome<ReconciliationVerifyReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            ["reconcile", "verify", "--request", requestPath, "--json"]
+        }
+    }
+
+    /// Finalize interrupted private transaction evidence. Recovery needs no
+    /// app-authored project selection because Python owns the durable intent.
+    func reconciliationRecover() async -> Result<ReconciliationOutcome<ReconciliationRecoverReport>, CliError> {
+        await decodeReconciliationVerb(["reconcile", "recover", "--json"])
     }
 
     /// Persist only an opaque machine-local incomplete owner-decision hold.
@@ -833,6 +865,136 @@ actor CliClient {
     }
 
     // MARK: Shared decode pipeline
+
+    /// Encode only explicit person intent and preserve those exact bytes in a
+    /// private request file for the duration of one helper invocation. The
+    /// helper remains solely responsible for validation and canonicalization.
+    private func withReconciliationRequest<Report: Decodable>(
+        _ request: ReconciliationRequest,
+        arguments: (String) -> [String]
+    ) async -> Result<ReconciliationOutcome<Report>, CliError> {
+        guard let payload = try? request.encoded() else {
+            return .failure(.parse)
+        }
+        guard let requestURL = Self.writePrivateReconciliationRequest(payload) else {
+            return .failure(.launchFailed)
+        }
+        defer { _ = Darwin.unlink(requestURL.path) }
+        return await decodeReconciliationVerb(arguments(requestURL.path))
+    }
+
+    /// Creates a no-follow, exclusive, current-user-owned mode-0600 file
+    /// below the app's private runtime directory. The random path is passed as
+    /// one literal Process argument and is never rendered or logged.
+    private static func writePrivateReconciliationRequest(_ payload: Data) -> URL? {
+        guard
+            let environment = CliRuntimeEnvironment.childProcessEnvironment(),
+            let runtimePath = environment["TMPDIR"]
+        else {
+            return nil
+        }
+
+        let runtimeURL = URL(fileURLWithPath: runtimePath, isDirectory: true)
+        let requestDirectory = runtimeURL.appendingPathComponent(
+            "reconciliation-requests",
+            isDirectory: true
+        )
+        guard Self.isPrivateDirectory(runtimeURL) else {
+            return nil
+        }
+        let directoryResult = Darwin.mkdir(
+            requestDirectory.path,
+            mode_t(S_IRWXU)
+        )
+        guard directoryResult == 0 || errno == EEXIST else { return nil }
+        guard Self.isPrivateDirectory(requestDirectory) else { return nil }
+
+        let requestURL = requestDirectory.appendingPathComponent(
+            "request-\(UUID().uuidString.lowercased()).json",
+            isDirectory: false
+        )
+        let descriptor = Darwin.open(
+            requestURL.path,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+            mode_t(S_IRUSR | S_IWUSR)
+        )
+        guard descriptor >= 0 else { return nil }
+        defer { Darwin.close(descriptor) }
+
+        guard Darwin.fchmod(descriptor, mode_t(S_IRUSR | S_IWUSR)) == 0 else {
+            _ = Darwin.unlink(requestURL.path)
+            return nil
+        }
+        let wroteAllBytes = payload.withUnsafeBytes { bytes -> Bool in
+            guard let baseAddress = bytes.baseAddress else { return payload.isEmpty }
+            var offset = 0
+            while offset < bytes.count {
+                let written = Darwin.write(
+                    descriptor,
+                    baseAddress.advanced(by: offset),
+                    bytes.count - offset
+                )
+                guard written > 0 else { return false }
+                offset += written
+            }
+            return true
+        }
+        guard wroteAllBytes, Darwin.fsync(descriptor) == 0 else {
+            _ = Darwin.unlink(requestURL.path)
+            return nil
+        }
+        return requestURL
+    }
+
+    private static func isPrivateDirectory(_ url: URL) -> Bool {
+        var metadata = stat()
+        guard Darwin.lstat(url.path, &metadata) == 0 else {
+            return false
+        }
+        return metadata.st_mode & S_IFMT == S_IFDIR
+            && metadata.st_uid == Darwin.geteuid()
+            && metadata.st_mode & 0o077 == 0
+    }
+
+    /// Reconciliation defines its own structured error branch on exit 1 or
+    /// exit 2. Gate schema 1.0 first, then preserve either the strict expected
+    /// phase report or Python's safe error report as typed truth.
+    private func decodeReconciliationVerb<Report: Decodable>(
+        _ args: [String]
+    ) async -> Result<ReconciliationOutcome<Report>, CliError> {
+        switch await runRaw(args) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let raw):
+            guard [Int32(0), Int32(1), Int32(2)].contains(raw.exit) else {
+                return .failure(.parse)
+            }
+            if case .failure(let gateError) = SchemaGate.check(raw.stdout, verb: "reconcile") {
+                return .failure(gateError)
+            }
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            do {
+                let outcome = try decoder.decode(
+                    ReconciliationOutcome<Report>.self,
+                    from: raw.stdout
+                )
+                switch outcome {
+                case .error(let report):
+                    guard report.exitCode == Int(raw.exit) else {
+                        return .failure(.parse)
+                    }
+                case .report:
+                    guard raw.exit != 2 else {
+                        return .failure(.parse)
+                    }
+                }
+                return .success(outcome)
+            } catch {
+                return .failure(.parse)
+            }
+        }
+    }
 
     /// The shared `{schema_version, error:{code,message}}` envelope every
     /// verb emits on exit 2 (`cli-contract.md`'s "Requirements" section;

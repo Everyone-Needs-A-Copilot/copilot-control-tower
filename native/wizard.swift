@@ -164,6 +164,20 @@ enum ProjectRowGroup: String {
     case keptAsIs
 }
 
+/// Presentation state for Python's schema-1.0 reconciliation workflow.
+/// The state machine never classifies projects or predicts an outcome; it
+/// only controls which already-decoded CLI report is visible.
+enum ProjectReconciliationStage: Equatable {
+    case assessing
+    case selecting
+    case planning
+    case reviewing
+    case applying
+    case verifying
+    case receipt
+    case recovering
+}
+
 /// Presentation-only navigation for the five CLI-authored project
 /// classifications. The category never classifies a project; it only filters
 /// rows whose `WorkspaceEntry.classification` already came from `cc`.
@@ -1210,17 +1224,20 @@ final class WizardModel: ObservableObject {
     /// This is always a CLI-authored row; the wizard never derives a plan.
     @Published var projectIntegrationDetail: WorkspaceEntry?
     @Published var projectIntegrationMessage: String?
-    /// CLI-authored deterministic-migration census for the guided cohort.
-    /// Swift never derives eligibility from `projectWorkspaces`; it only
-    /// renders the candidate states and counts carried by this report.
-    @Published var projectMigrationReport: WorkspaceMigrationReport?
-    /// Preserved after apply while the ordinary workspace register and the
-    /// next census refresh, so the completed-action ledger remains visible.
-    @Published var projectMigrationApplyReport: WorkspaceMigrationReport?
-    @Published var projectMigrationLoading = false
-    @Published var projectMigrationApplying = false
-    @Published var projectMigrationReviewOpen = false
-    @Published var projectMigrationError: String?
+    /// Python-authored schema-1.0 reconciliation reports. Swift owns only the
+    /// person's explicit selection and this presentation state machine.
+    @Published var reconciliationStage: ProjectReconciliationStage = .assessing
+    @Published var reconciliationAssessReport: ReconciliationAssessReport?
+    @Published var reconciliationPlanReport: ReconciliationPlanReport?
+    @Published var reconciliationApplyReport: ReconciliationApplyReport?
+    @Published var reconciliationVerifyReport: ReconciliationVerifyReport?
+    @Published var reconciliationRecoverReport: ReconciliationRecoverReport?
+    @Published var reconciliationErrorDetail: String?
+    @Published var reconciliationSelectedComponents: [String: Set<ReconciliationComponent>] = [:]
+    @Published var reconciliationSelectedRecipes: [String: [ReconciliationComponent: String]] = [:]
+    /// Constructed once when the person asks for a plan, then reused without
+    /// mutation for plan, apply, and fresh verify.
+    private var reviewedReconciliationRequest: ReconciliationRequest?
     /// Set only after an external assistant successfully opens. The next
     /// activation of Control Tower consumes this value and asks the CLI to
     /// verify again; assistant self-report never changes project status.
@@ -1293,47 +1310,35 @@ final class WizardModel: ObservableObject {
             return try! decoder.decode(EcosystemOnboardStage.self, from: data)
         }
 
-        func workspace(
-            _ json: String,
-            classification: WorkspaceIntegrationClassification
-        ) -> WorkspaceEntry {
+        func reconciliationFixture<T: Decodable>(
+            _ filename: String,
+            as type: T.Type
+        ) -> T {
+            let defaultRoot = FileManager.default.currentDirectoryPath
+                + "/scripts/tests/fixtures/reconciliation"
+            let root = ProcessInfo.processInfo.environment[
+                "CT_VISUAL_RECONCILIATION_FIXTURES"
+            ] ?? defaultRoot
+            let url = URL(fileURLWithPath: root)
+                .appendingPathComponent(filename, isDirectory: false)
+            let data = try! Data(contentsOf: url)
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try! decoder.decode(
-                WorkspaceEntry.self,
-                from: WorkspaceContractSelftestFixture.entry(
-                    json,
-                    classification: classification
+            return try! decoder.decode(type, from: data)
+        }
+
+        func loadVisualProjectRoot() {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            projectRoots = [
+                try! decoder.decode(
+                    WorkspaceRootListEntry.self,
+                    from: Data(
+                        #"{"name":"Projects","path":"/Projects","project_count":1}"#.utf8
+                    )
                 )
-            )
+            ]
         }
-
-        func visualProject(
-            _ name: String,
-            index: Int,
-            classification: WorkspaceIntegrationClassification
-        ) -> WorkspaceEntry {
-            let ready = classification == .ready
-            let state = ready ? "ready" : (classification == .couldNotVerify ? "blocked" : "setup-available")
-            let detail: String
-            switch classification {
-            case .ready:
-                detail = "Claude and Codex passed authoritative project verification."
-            case .guidedIntegration:
-                detail = "Project-owned instructions or capabilities need guided setup."
-            case .couldNotVerify:
-                detail = "Required project integration evidence could not be confirmed."
-            case .safeFinish:
-                detail = "Control Tower can add only the missing project integration files."
-            case .ownerDecision:
-                detail = "This project needs a decision from the person who manages its setup."
-            }
-            let json = """
-            {"path":"/p/\(index)-\(name)","name":"\(name)","project_id":null,"state":"\(state)","detail":"\(detail)","declared_components":["claude","codex"],"installed_components":["claude","codex"],"recommended_components":["claude","codex"],"personal_profile":{"state":"\(ready ? "associated" : "local-only")","project_id":null},"setup_policy":"\(ready ? "not-offered" : "ask")","policy_detail":"\(ready ? "Copilot is already set up here, so there is nothing to ask." : "Existing project setup is preserved until its route is completed.")","can_apply_now":false,"apply_blocked_detail":\(ready ? "null" : "\"Nothing was changed.\""),"undo":{"available":false,"detail":"There is nothing here to undo."}}
-            """
-            return workspace(json, classification: classification)
-        }
-
         let heldItem = inventoryItem(
             id: "device-ssh",
             scope: "machine",
@@ -1353,188 +1358,55 @@ final class WizardModel: ObservableObject {
         case "connections":
             authorizedLogin = "pablo"
             phase = .integrations
-        case "projects-feedback":
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            projectRoots = [
-                try! decoder.decode(
-                    WorkspaceRootListEntry.self,
-                    from: Data(#"{"name":"Developer","path":"/Users/pablo/Developer","project_count":53}"#.utf8)
-                )
-            ]
-            let readyNames = [
-                "BM", "claude-copilot-private", "copilot-news", "knowledge-copilot",
-                "test-pilot", "financial-tracker", "investr-app", "revenue-projections",
-                "runway", "spanish-copilot", "sproutworks", "thoughts",
-                "tigers-toads-fl-weekend", "tigers-toads-weekend-2026", "tracker", "h1", "h2",
-            ]
-            let guidedNames = [
-                "admin-server", "cli-copilot", "cli-copilot-internal", "codex-copilot",
-                "crm-automation-copilot", "drip-copilot", "flow", "lars-website",
-                "n8n-copilot", "preflight-copilot", "product-creation-copilot",
-                "project-copilot", "rfp-copilot", "the-collective", "transformation",
-                "workflow-copilot", "h3",
-            ]
-            let unconfirmedNames = [
-                "everyone-needs-knowledge-management", "claude-copilot", "convoco",
-                "convoco-policy-build", "convoco-site", "copilot-control-tower",
-                "force-readiness-assessment", "insights-copilot",
-                "knowledge-copilot-internal", "method-copilot", "pipeline-copilot",
-                "research-copilot", "saas-financial-model", "thought-leadership",
-                "voice-copilot", "job-finder", "Delphi", "clio", "hermes",
-            ]
-            projectWorkspaces =
-                readyNames.enumerated().map {
-                    visualProject($0.element, index: $0.offset, classification: .ready)
-                }
-                + guidedNames.enumerated().map {
-                    visualProject($0.element, index: 100 + $0.offset, classification: .guidedIntegration)
-                }
-                + unconfirmedNames.enumerated().map {
-                    visualProject($0.element, index: 200 + $0.offset, classification: .couldNotVerify)
-                }
-            selectedProjectCategory = nil
-            projectIntegrationDetail = nil
-            phase = .projects
-        case "projects-bulk-migration", "projects-bulk-migration-review":
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            projectRoots = [
-                try! decoder.decode(
-                    WorkspaceRootListEntry.self,
-                    from: Data(#"{"name":"Sites","path":"/Volumes/Dev/Sites/COPILOT","project_count":62}"#.utf8)
-                )
-            ]
-            let eligibleNames = [
-                "convoco", "convoco-site", "copilot-control-tower", "insights-copilot",
-                "method-copilot", "pipeline-copilot", "research-copilot",
-                "thought-leadership", "voice-copilot",
-            ]
-            let heldNames = [
-                "convoco-policy-build", "force-readiness-assessment", "job-finder",
-                "Delphi", "clio", "hermes", "saas-financial-model",
-            ]
-            let tailoredNames = [
-                "everyone-needs-knowledge-management", "admin-server", "cli-copilot",
-                "cli-copilot-internal", "codex-copilot", "crm-automation-copilot",
-                "drip-copilot", "flow", "lars-website", "n8n-copilot",
-                "preflight-copilot", "product-creation-copilot", "project-copilot",
-                "rfp-copilot", "the-collective", "transformation", "workflow-copilot",
-            ]
-            let allGuidedNames = eligibleNames + heldNames + tailoredNames
-            projectWorkspaces = allGuidedNames.enumerated().map {
-                visualProject($0.element, index: 300 + $0.offset, classification: .guidedIntegration)
-            }
-            let opaque = "sha256:" + String(repeating: "a", count: 64)
-            let verification = WorkspaceMigrationVerification(
-                command: ["cc", "workspace", "verify", "--json"],
-                expected: "Every migrated component classifies Ready."
+        case "projects-feedback", "projects-reconciliation-select":
+            loadVisualProjectRoot()
+            reconciliationAssessReport = reconciliationFixture(
+                "assess.json",
+                as: ReconciliationAssessReport.self
             )
-            func candidate(
-                _ name: String,
-                index: Int,
-                state: WorkspaceMigrationState
-            ) -> WorkspaceMigrationCandidate {
-                let isEligible = state == .eligible
-                let detail: String
-                switch state {
-                case .eligible:
-                    detail = "A recognized older setup can be updated without replacing project-owned instructions or tools."
-                case .held:
-                    detail = "This project has work in progress or a customized check, so Control Tower left it alone."
-                case .residualGuidance:
-                    detail = "This project needs a tailored setup plan. Nothing has been changed."
-                case .notNeeded:
-                    detail = "No guided migration is needed."
-                }
-                let action = isEligible
-                    ? WorkspaceMigrationAction(
-                        id: opaque,
-                        inspectionId: opaque,
-                        migrationKinds: [.codexPortableCopy],
-                        willChange: [
-                            WorkspaceMigrationChange(path: "plugins/codex-copilot", operation: "replace-recognized-link")
-                        ],
-                        willPreserve: [
-                            WorkspaceArtifact(kind: .instruction, path: "AGENTS.md", detail: "Preserve the project Codex instructions.")
-                        ],
-                        willNotDo: ["overwrite-project-instructions"]
+            reconciliationStage = .selecting
+            phase = .projects
+        case "projects-reconciliation-review":
+            loadVisualProjectRoot()
+            reconciliationAssessReport = reconciliationFixture(
+                "assess.json",
+                as: ReconciliationAssessReport.self
+            )
+            reconciliationPlanReport = reconciliationFixture(
+                "plan.json",
+                as: ReconciliationPlanReport.self
+            )
+            reviewedReconciliationRequest = ReconciliationRequest(
+                roots: ["/Projects"],
+                projects: [
+                    ReconciliationProjectSelection(
+                        path: "/Projects/One",
+                        components: [.claude],
+                        recipeIds: [.claude: "claude-project-setup-v1"]
                     )
-                    : nil
-                return WorkspaceMigrationCandidate(
-                    path: "/p/\(index)-\(name)",
-                    name: name,
-                    classification: .guidedIntegration,
-                    inspectionId: opaque,
-                    migrationKinds: isEligible ? [.codexPortableCopy] : [],
-                    state: state,
-                    automatable: isEligible,
-                    reasonCode: isEligible ? nil : "visual-fixture",
-                    detail: detail,
-                    action: action,
-                    verification: verification
-                )
-            }
-            let candidates = eligibleNames.enumerated().map {
-                candidate($0.element, index: 300 + $0.offset, state: .eligible)
-            } + heldNames.enumerated().map {
-                candidate($0.element, index: 309 + $0.offset, state: .held)
-            } + tailoredNames.enumerated().map {
-                candidate($0.element, index: 316 + $0.offset, state: .residualGuidance)
-            }
-            projectMigrationReport = WorkspaceMigrationReport(
-                schemaVersion: "1.1",
-                mode: "plan",
-                result: .actionRequired,
-                planId: opaque,
-                summary: WorkspaceMigrationSummary(
-                    eligible: 9,
-                    held: 7,
-                    residualGuidance: 17,
-                    totalGuided: 33
-                ),
-                candidates: candidates,
-                ledger: [],
-                requestedPlanId: nil,
-                detail: nil,
-                applySummary: nil,
-                after: nil,
-                diagnostics: nil
+                ]
             )
-            projectsSummary = WorkspaceSummary(
-                ready: 26,
-                setupAvailable: 33,
-                activationRequired: 0,
-                blocked: 3,
-                total: 62
-            )
-            selectedProjectCategory = .guidedSetup
-            projectIntegrationDetail = nil
-            projectMigrationReviewOpen = name == "projects-bulk-migration-review"
+            reconciliationStage = .reviewing
             phase = .projects
-        case "projects-guided-detail", "projects-unconfirmed-detail", "projects-ready-detail":
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            projectRoots = [
-                try! decoder.decode(
-                    WorkspaceRootListEntry.self,
-                    from: Data(#"{"name":"Developer","path":"/Users/pablo/Developer","project_count":53}"#.utf8)
-                )
-            ]
-            let classification: WorkspaceIntegrationClassification =
-                name == "projects-guided-detail"
-                    ? .guidedIntegration
-                    : (name == "projects-unconfirmed-detail" ? .couldNotVerify : .ready)
-            let projectName =
-                classification == .guidedIntegration
-                    ? "admin-server"
-                    : (classification == .couldNotVerify ? "convoco" : "BM")
-            let detail = visualProject(projectName, index: 1, classification: classification)
-            projectWorkspaces = [detail]
-            selectedProjectCategory = ProjectTriageCategory.allCases.first {
-                $0.classification == classification
-            }
-            projectIntegrationDetail = detail
+        case "projects-reconciliation-receipt":
+            loadVisualProjectRoot()
+            reconciliationApplyReport = reconciliationFixture(
+                "apply.json",
+                as: ReconciliationApplyReport.self
+            )
+            reconciliationVerifyReport = reconciliationFixture(
+                "verify.json",
+                as: ReconciliationVerifyReport.self
+            )
+            reconciliationStage = .receipt
+            phase = .projects
+        case "projects-reconciliation-recovery":
+            loadVisualProjectRoot()
+            reconciliationRecoverReport = reconciliationFixture(
+                "recover.json",
+                as: ReconciliationRecoverReport.self
+            )
+            reconciliationStage = .receipt
             phase = .projects
         case "project-failure":
             setupProgress.callRow.state = .done(detail: "Copilot on this Mac is ready.")
@@ -2655,9 +2527,10 @@ final class WizardModel: ObservableObject {
     // MARK: Step 7, Your projects (adopt-and-project-setup spec)
 
     /// Loads folder-grant state (`workspace roots`) and, if at least one
-    /// folder is already granted, the discovered project list
-    /// (`workspace --all`) — same read-only calls the menu bar uses,
-    /// nothing written here. Runs once per wizard visit to this step
+    /// folder is already granted, asks Python for a fresh schema-1.0
+    /// reconciliation assessment. The legacy workspace register is refreshed
+    /// only for existing aftercare flows; it never drives reconciliation.
+    /// Nothing is written here. Runs once per wizard visit to this step
     /// (`hasLoadedProjectsStep`); the sidebar's own "completed rows are
     /// tappable, read-only" review affordance re-enters this phase without
     /// re-fetching.
@@ -2681,31 +2554,41 @@ final class WizardModel: ObservableObject {
     }
 
     private func loadProjectWorkspaces() async {
-        projectMigrationLoading = true
+        reconciliationStage = .assessing
+        reconciliationErrorDetail = nil
+        reconciliationAssessReport = nil
+        reconciliationPlanReport = nil
+        reconciliationApplyReport = nil
+        reconciliationVerifyReport = nil
+        reconciliationRecoverReport = nil
+        reconciliationSelectedComponents = [:]
+        reconciliationSelectedRecipes = [:]
+        reviewedReconciliationRequest = nil
+
         async let workspacesResult = CliClient.shared.workspaces()
-        async let migrationResult = CliClient.shared.workspaceMigrationPlan()
-        let (workspaceOutcome, migrationOutcome) = await (workspacesResult, migrationResult)
-        defer { projectMigrationLoading = false }
+        async let reconciliationResult = CliClient.shared.reconciliationAssess()
+        let (workspaceOutcome, reconciliationOutcome) = await (
+            workspacesResult,
+            reconciliationResult
+        )
 
-        switch migrationOutcome {
-        case .success(let report):
-            projectMigrationReport = report
-            projectMigrationError = nil
+        if case .success(let report) = workspaceOutcome {
+            self.projectWorkspaces = report.workspaces
+            self.projectsSummary = report.summary
+            self.selectedProjectPaths = Self.preselectedProjectPaths(from: report.workspaces)
+        }
+
+        switch reconciliationOutcome {
+        case .success(.report(let report)):
+            reconciliationAssessReport = report
+            reconciliationStage = .selecting
+        case .success(.error(let report)):
+            reconciliationErrorDetail = report.error.detail
+            reconciliationStage = .selecting
         case .failure:
-            projectMigrationReport = nil
-            projectMigrationError = "The grouped project update isn't available right now. You can still review projects one at a time."
+            reconciliationErrorDetail = "Control Tower couldn't read a compatible reconciliation report. No project changes are available from this screen."
+            reconciliationStage = .selecting
         }
-
-        guard case .success(let report) = workspaceOutcome else { return }
-        self.projectWorkspaces = report.workspaces
-        self.projectsSummary = report.summary
-        if let category = self.selectedProjectCategory,
-           ProjectTriageRender.workspaces(report.workspaces, in: category).isEmpty {
-            self.selectedProjectCategory = nil
-        }
-        // A discovered project is never consent. Start with no selections;
-        // the person chooses from rows the CLI says are safe to apply now.
-        self.selectedProjectPaths = Self.preselectedProjectPaths(from: report.workspaces)
     }
 
     /// Pure: project setup is always opt-in. This takes the rows so the
@@ -2757,60 +2640,187 @@ final class WizardModel: ObservableObject {
     func showProjectOverview() {
         projectIntegrationDetail = nil
         projectIntegrationMessage = nil
-        projectMigrationReviewOpen = false
         selectedProjectCategory = nil
     }
 
     func showProjectCategory(_ category: ProjectTriageCategory) {
         projectIntegrationDetail = nil
         projectIntegrationMessage = nil
-        projectMigrationReviewOpen = false
         selectedProjectCategory = category
     }
 
-    func reviewBulkProjectMigration() {
-        guard let report = projectMigrationReport,
-              report.summary.eligible > 0,
-              !projectMigrationApplying else { return }
-        projectMigrationApplyReport = nil
-        projectMigrationError = nil
-        projectMigrationReviewOpen = true
+    func toggleReconciliationComponent(
+        project: ReconciliationProject,
+        assessment: ReconciliationComponentAssessment
+    ) {
+        guard assessment.recommended else { return }
+        var components = reconciliationSelectedComponents[project.path] ?? []
+        if components.contains(assessment.component) {
+            components.remove(assessment.component)
+            reconciliationSelectedRecipes[project.path]?[assessment.component] = nil
+        } else {
+            components.insert(assessment.component)
+            if assessment.recipeOptions.count == 1 {
+                reconciliationSelectedRecipes[project.path, default: [:]][assessment.component] =
+                    assessment.recipeOptions[0].recipeId
+            }
+        }
+        reconciliationSelectedComponents[project.path] = components
     }
 
-    func dismissBulkProjectMigrationReview() {
-        projectMigrationReviewOpen = false
+    func selectReconciliationRecipe(
+        projectPath: String,
+        component: ReconciliationComponent,
+        recipeId: String
+    ) {
+        guard reconciliationSelectedComponents[projectPath]?.contains(component) == true,
+              let project = reconciliationAssessReport?.projects.first(where: { $0.path == projectPath }),
+              let assessment = project.components.first(where: { $0.component == component }),
+              assessment.recipeOptions.contains(where: { $0.recipeId == recipeId }) else { return }
+        reconciliationSelectedRecipes[projectPath, default: [:]][component] = recipeId
     }
 
-    func dismissBulkProjectMigrationResult() {
-        projectMigrationApplyReport = nil
-        projectMigrationReviewOpen = false
+    var canPlanReconciliation: Bool {
+        guard reconciliationStage == .selecting,
+              let report = reconciliationAssessReport else { return false }
+        let selected = report.projects.filter {
+            !(reconciliationSelectedComponents[$0.path] ?? []).isEmpty
+        }
+        guard !selected.isEmpty else { return false }
+        return selected.allSatisfy { project in
+            let components = reconciliationSelectedComponents[project.path] ?? []
+            return components.allSatisfy { component in
+                guard let assessment = project.components.first(where: {
+                    $0.component == component
+                }) else { return false }
+                return assessment.recipeOptions.count <= 1
+                    || reconciliationSelectedRecipes[project.path]?[component] != nil
+            }
+        }
     }
 
-    func refreshBulkProjectMigration() {
-        guard !projectMigrationApplying else { return }
-        projectMigrationApplyReport = nil
-        projectMigrationReport = nil
-        projectMigrationError = nil
-        projectMigrationLoading = true
+    private func makeReconciliationRequest() -> ReconciliationRequest? {
+        guard canPlanReconciliation,
+              let report = reconciliationAssessReport else { return nil }
+        let projects = report.projects.compactMap { project -> ReconciliationProjectSelection? in
+            let selected = reconciliationSelectedComponents[project.path] ?? []
+            let components = project.components
+                .map(\.component)
+                .filter { selected.contains($0) }
+            guard !components.isEmpty else { return nil }
+            let recipes = reconciliationSelectedRecipes[project.path] ?? [:]
+            return ReconciliationProjectSelection(
+                path: project.path,
+                components: components,
+                recipeIds: recipes
+            )
+        }
+        guard !projects.isEmpty else { return nil }
+        return ReconciliationRequest(
+            roots: projectRoots.map(\.path),
+            projects: projects
+        )
+    }
+
+    func planReconciliation() {
+        guard reviewedReconciliationRequest == nil,
+              let request = makeReconciliationRequest() else { return }
+        reviewedReconciliationRequest = request
+        reconciliationPlanReport = nil
+        reconciliationApplyReport = nil
+        reconciliationVerifyReport = nil
+        reconciliationRecoverReport = nil
+        reconciliationErrorDetail = nil
+        reconciliationStage = .planning
+        Task {
+            switch await CliClient.shared.reconciliationPlan(request: request) {
+            case .success(.report(let report)):
+                self.reconciliationPlanReport = report
+                self.reconciliationStage = .reviewing
+            case .success(.error(let report)):
+                self.reconciliationErrorDetail = report.error.detail
+                self.reviewedReconciliationRequest = nil
+                self.reconciliationStage = .selecting
+            case .failure:
+                self.reconciliationErrorDetail = "Control Tower couldn't read a compatible plan. No project changes were started."
+                self.reviewedReconciliationRequest = nil
+                self.reconciliationStage = .selecting
+            }
+        }
+    }
+
+    func cancelReconciliationReview() {
+        guard reconciliationStage == .reviewing else { return }
+        reconciliationPlanReport = nil
+        reviewedReconciliationRequest = nil
+        reconciliationErrorDetail = nil
+        reconciliationStage = .selecting
+    }
+
+    func applyReconciliation() {
+        guard reconciliationStage == .reviewing,
+              let request = reviewedReconciliationRequest,
+              let plan = reconciliationPlanReport,
+              !plan.plans.isEmpty else { return }
+        reconciliationErrorDetail = nil
+        reconciliationStage = .applying
+        Task {
+            switch await CliClient.shared.reconciliationApply(
+                request: request,
+                planId: plan.planId
+            ) {
+            case .success(.report(let report)):
+                self.reconciliationApplyReport = report
+                await self.verifyReconciliation(request: request)
+            case .success(.error(let report)):
+                self.reconciliationErrorDetail = report.error.detail
+                self.reviewedReconciliationRequest = nil
+                self.reconciliationStage = .receipt
+            case .failure:
+                self.reconciliationErrorDetail = "Control Tower couldn't read a compatible apply receipt. No result is being inferred."
+                self.reviewedReconciliationRequest = nil
+                self.reconciliationStage = .receipt
+            }
+        }
+    }
+
+    private func verifyReconciliation(request: ReconciliationRequest) async {
+        reconciliationStage = .verifying
+        switch await CliClient.shared.reconciliationVerify(request: request) {
+        case .success(.report(let report)):
+            reconciliationVerifyReport = report
+        case .success(.error(let report)):
+            reconciliationErrorDetail = report.error.detail
+        case .failure:
+            reconciliationErrorDetail = "Fresh verification didn't return a compatible report. The apply receipt remains visible without a verification claim."
+        }
+        reconciliationStage = .receipt
+    }
+
+    func refreshReconciliation() {
+        guard reconciliationStage != .applying,
+              reconciliationStage != .verifying,
+              reconciliationStage != .recovering else { return }
         Task { await self.loadProjectWorkspaces() }
     }
 
-    func applyBulkProjectMigration() {
-        guard let report = projectMigrationReport,
-              report.summary.eligible > 0,
-              !projectMigrationApplying else { return }
-        let reviewedPlanId = report.planId
-        projectMigrationApplying = true
-        projectMigrationError = nil
+    func recoverReconciliation() {
+        guard reconciliationStage != .applying,
+              reconciliationStage != .verifying,
+              reconciliationStage != .recovering else { return }
+        reconciliationErrorDetail = nil
+        reconciliationStage = .recovering
         Task {
-            defer { self.projectMigrationApplying = false }
-            switch await CliClient.shared.applyWorkspaceMigration(planId: reviewedPlanId) {
-            case .success(let applied):
-                self.projectMigrationApplyReport = applied
-                self.projectMigrationReviewOpen = false
-                await self.loadProjectWorkspaces()
+            switch await CliClient.shared.reconciliationRecover() {
+            case .success(.report(let report)):
+                self.reconciliationRecoverReport = report
+                self.reconciliationStage = .receipt
+            case .success(.error(let report)):
+                self.reconciliationErrorDetail = report.error.detail
+                self.reconciliationStage = .receipt
             case .failure:
-                self.projectMigrationError = "Control Tower couldn't start the grouped update. Nothing was confirmed as changed. Check again and review the fresh plan before trying again."
+                self.reconciliationErrorDetail = "Control Tower couldn't read a compatible recovery report. No recovery outcome is being inferred."
+                self.reconciliationStage = .receipt
             }
         }
     }
@@ -3811,7 +3821,7 @@ struct WizardRootView: View {
     /// search and pagination are ephemeral and never affect CLI truth.
     @State private var projectSearchText = ""
     @State private var projectPage = 0
-    @State private var showsBulkMigrationConfirmation = false
+    @State private var showsReconciliationConfirmation = false
     /// Copy spec §7: "focus moves to the title on entering Holding." Scoped
     /// to the Holding phase only (`h1View`...`h7View`, `honestIncompleteView`
     /// — see `StepShell.focusTitle`) — the wizard's other nine steps have no
@@ -4966,9 +4976,9 @@ struct WizardRootView: View {
         }
     }
 
-    // MARK: 7. Your projects (adopt-and-project-setup spec) — a real step,
-    // never conditional on Codex, positioned immediately before Set up so
-    // every write still happens there.
+    // MARK: 7. Your projects — Python-owned reconciliation. Project writes
+    // require the confirmation on this step; personal ecosystem setup still
+    // proceeds separately on Step 8.
 
     private var projectsView: some View {
         stepShell(
@@ -4976,22 +4986,17 @@ struct WizardRootView: View {
             title: projectsStepTitle,
             intro: projectsStepIntro
         ) {
-            if model.projectsLoading && model.projectRoots.isEmpty && model.projectWorkspaces.isEmpty {
+            if model.projectsLoading && model.projectRoots.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Checking only the folders you selected…")
                         .font(.callout.weight(.semibold))
                     ProgressView()
                         .controlSize(.small)
                         .accessibilityLabel("Checking your projects")
-                    Text("Control Tower is checking Claude and Codex setup. You can continue when the results are ready.")
+                    Text("Control Tower is asking the helper for a fresh project assessment.")
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
-                    ForEach(0..<3, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                            .frame(height: 72)
-                    }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 20) {
@@ -5003,116 +5008,79 @@ struct WizardRootView: View {
                 }
             }
         } leadingActions: {
-            if !model.projectMigrationReviewOpen
-                && model.projectMigrationApplyReport == nil
-                && !model.projectMigrationApplying {
+            if model.reconciliationStage != .reviewing
+                && model.reconciliationStage != .applying
+                && model.reconciliationStage != .verifying
+                && model.reconciliationStage != .recovering {
                 Button { model.backFromProjects() } label: { Text("Back") }
                     .buttonStyle(.bordered)
             }
         } primaryAction: {
-            if !model.projectMigrationReviewOpen
-                && model.projectMigrationApplyReport == nil
-                && !model.projectMigrationApplying {
+            if model.reconciliationStage == .selecting
+                || model.reconciliationStage == .receipt {
                 Button { model.continueFromProjects() } label: {
-                    Text(
-                        model.selectedProjectPaths.isEmpty
-                            ? "Continue setup"
-                            : "Set up \(model.selectedProjectPaths.count) and continue"
-                    )
+                    Text("Continue setup")
                 }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .help("Unfinished project work stays available from Control Tower.")
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .help("Unfinished project routes stay available in Control Tower.")
             }
         }
         .alert(
-            "Update \(model.projectMigrationReport?.summary.eligible ?? 0) projects?",
-            isPresented: $showsBulkMigrationConfirmation
+            "Apply the reviewed project plan?",
+            isPresented: $showsReconciliationConfirmation
         ) {
             Button("Cancel", role: .cancel) {}
-            Button("Update projects") { model.applyBulkProjectMigration() }
+            Button("Apply reviewed plan") { model.applyReconciliation() }
                 .keyboardShortcut(.defaultAction)
         } message: {
-            Text("Control Tower will apply only the reviewed CLI plan, preserve project-owned instructions and tools, and verify every updated project independently.")
+            Text("Control Tower will send the same explicit selection and reviewed plan ID back to the helper, then request a fresh independent verification.")
         }
     }
 
     private var projectsStepTitle: String {
-        if let detail = model.projectIntegrationDetail {
-            switch detail.classification {
-            case .ready: return "\(detail.name) is ready"
-            case .safeFinish: return "\(detail.name) can finish automatically"
-            case .guidedIntegration: return "\(detail.name) needs a coding assistant"
-            case .ownerDecision: return "\(detail.name) needs its project owner"
-            case .couldNotVerify: return "Control Tower couldn't confirm \(detail.name)"
-            }
+        switch model.reconciliationStage {
+        case .assessing:
+            return "Checking your projects"
+        case .selecting:
+            return model.reconciliationAssessReport == nil
+                ? "Project reconciliation isn't available"
+                : "Choose projects and copilots"
+        case .planning:
+            return "Building the exact plan"
+        case .reviewing:
+            return "Review every planned change"
+        case .applying:
+            return "Applying the reviewed plan"
+        case .verifying:
+            return "Checking the result again"
+        case .receipt:
+            return "Project reconciliation receipt"
+        case .recovering:
+            return "Checking interrupted work"
         }
-        if model.selectedProjectCategory == .guidedSetup {
-            if model.projectMigrationApplying {
-                return "Updating \(model.projectMigrationReport?.summary.eligible ?? 0) projects"
-            }
-            if model.projectMigrationApplyReport != nil {
-                return "Project update results"
-            }
-            if model.projectMigrationReviewOpen {
-                return "Review \(model.projectMigrationReport?.summary.eligible ?? 0) project updates"
-            }
-        }
-        if let category = model.selectedProjectCategory {
-            return category.title
-        }
-        if !model.projectWorkspaces.isEmpty {
-            return "\(model.projectWorkspaces.count) projects found"
-        }
-        return "Where do you keep your projects?"
     }
 
     private var projectsStepIntro: String {
-        if let detail = model.projectIntegrationDetail {
-            switch detail.classification {
-            case .ready:
-                return "Claude and Codex passed authoritative verification. Nothing else is needed."
-            case .safeFinish:
-                return "Review the exact additions and preservation boundaries before including this project."
-            case .guidedIntegration:
-                return "This project has its own instructions or tools. Run the CLI-generated plan in a visible Terminal session, then Control Tower will verify the result independently."
-            case .ownerDecision:
-                return "The helper found a decision only the project owner can make. Nothing has been changed."
-            case .couldNotVerify:
-                return "Setup was found, but the helper could not prove that it matches the current Claude and Codex contract. Nothing has been changed."
-            }
+        switch model.reconciliationStage {
+        case .assessing:
+            return "The helper is inspecting approved folders without changing them."
+        case .selecting:
+            return "The helper recommends applicable Claude and Codex routes. Select each component explicitly before requesting a plan."
+        case .planning:
+            return "Nothing has changed. The helper is turning your exact selection into reviewable operations and preservation boundaries."
+        case .reviewing:
+            return "Review the helper's exact operations, protected files, prohibited actions, and verification steps before confirming."
+        case .applying:
+            return "Keep Control Tower open while the helper applies only the reviewed plan."
+        case .verifying:
+            return "The apply call has finished. A separate helper invocation is freshly inspecting the same explicit selection."
+        case .receipt:
+            return "Outcomes, verification, overlap explanation, next actions, and diagnostics below come directly from the helper."
+        case .recovering:
+            return "The helper is inspecting durable run evidence and reporting any safe recovery outcome."
         }
-        if model.selectedProjectCategory == .guidedSetup {
-            if model.projectMigrationApplying {
-                return "Control Tower is applying the exact reviewed plan and verifying each project independently."
-            }
-            if model.projectMigrationApplyReport != nil {
-                return "This receipt comes from the CLI's completed-action ledger, including projects it left unchanged or rolled back."
-            }
-            if model.projectMigrationReviewOpen {
-                return "Review every project in the proven automatic cohort once. Control Tower will preserve project-owned instructions and tools."
-            }
-        }
-        if let category = model.selectedProjectCategory {
-            switch category {
-            case .ready:
-                return "These projects already passed Claude and Codex verification. Review them only if you want reassurance."
-            case .safeFinish:
-                return "The helper found bounded, reversible work. Choose only the projects you want to finish during this setup."
-            case .guidedSetup:
-                return "Control Tower can update the proven standard cases together. Projects with active changes or tailored setup stay separate and untouched."
-            case .ownerDecision:
-                return "Each project needs one named decision before guided setup can continue."
-            case .couldNotConfirm:
-                return "Control Tower found setup, but could not prove that it matches the current contract. Review the exact evidence before deciding what to do."
-            }
-        }
-        if !model.projectWorkspaces.isEmpty {
-            return ProjectTriageRender.summary(model.projectWorkspaces)
-        }
-        return "If you build things on this Mac, Control Tower can set your copilots up inside each project too. Choose the folder where your projects live. Control Tower looks only inside folders you approve."
     }
-
     private var projectsDeferredAftercareNote: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "clock.arrow.circlepath")
@@ -5212,22 +5180,7 @@ struct WizardRootView: View {
     }
 
     private var projectsListCard: some View {
-        Group {
-            if let detail = model.projectIntegrationDetail {
-                wizardProjectIntegrationDetail(detail)
-            } else if model.projectWorkspaces.isEmpty {
-                sectionCard("No projects found") {
-                    Text("Control Tower checked the folders above and did not find projects with Claude or Codex setup. Choose another folder, or continue setup and add one later.")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } else if let category = model.selectedProjectCategory {
-                wizardProjectCategoryList(category)
-            } else {
-                wizardProjectOverview
-            }
-        }
+        reconciliationContent
     }
 
     private var wizardProjectOverview: some View {
@@ -5304,14 +5257,6 @@ struct WizardRootView: View {
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
-                if category == .guidedSetup,
-                   let summary = model.projectMigrationReport?.summary,
-                   summary.eligible > 0 {
-                    Text("\(summary.eligible) can update together · \(summary.held) held · \(summary.residualGuidance) tailored")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundColor(Color(nsColor: .linkColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 if category == .safeFinish {
                     let selected = workspaces.filter {
                         model.selectedProjectPaths.contains($0.path)
@@ -5339,429 +5284,793 @@ struct WizardRootView: View {
         .accessibilityHint("Shows only projects in this category.")
     }
 
-    private func wizardProjectCategoryList(
-        _ category: ProjectTriageCategory
-    ) -> some View {
-        Group {
-            if category == .guidedSetup,
-               model.projectMigrationReport != nil
-                    || model.projectMigrationLoading
-                    || model.projectMigrationError != nil {
-                wizardBulkProjectMigration
+    @ViewBuilder
+    private var reconciliationContent: some View {
+        switch model.reconciliationStage {
+        case .assessing:
+            reconciliationBusyCard(
+                title: "Assessing approved projects",
+                detail: "The helper is reading machine and project evidence. It is not applying a plan."
+            )
+        case .selecting:
+            if let report = model.reconciliationAssessReport {
+                reconciliationAssessment(report)
             } else {
-                wizardGenericProjectCategoryList(category)
+                reconciliationUnavailable
+            }
+        case .planning:
+            reconciliationBusyCard(
+                title: "Preparing the exact plan",
+                detail: "The helper is planning only the projects, components, and recipe choices you selected."
+            )
+        case .reviewing:
+            if let report = model.reconciliationPlanReport {
+                reconciliationPlanReview(report)
+            } else {
+                reconciliationUnavailable
+            }
+        case .applying:
+            reconciliationBusyCard(
+                title: "Applying the reviewed plan",
+                detail: "The helper is re-inspecting every target, enforcing project boundaries, and recording each outcome."
+            )
+        case .verifying:
+            reconciliationBusyCard(
+                title: "Running fresh verification",
+                detail: "A separate helper invocation is checking the same immutable request after apply."
+            )
+        case .receipt:
+            reconciliationReceipt
+        case .recovering:
+            reconciliationBusyCard(
+                title: "Checking durable run evidence",
+                detail: "The helper is deciding whether interrupted work was already applied, safely rolled back, or still blocked."
+            )
+        }
+    }
+
+    private func reconciliationBusyCard(title: String, detail: String) -> some View {
+        sectionCard(title) {
+            HStack(alignment: .top, spacing: CTSpace.sm) {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: CTSpace.xs) {
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Keep Control Tower open while this finishes.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title). \(detail)")
+        }
+    }
+
+    private var reconciliationUnavailable: some View {
+        sectionCard("No compatible project report") {
+            VStack(alignment: .leading, spacing: CTSpace.sm) {
+                Text(
+                    model.reconciliationErrorDetail
+                        ?? "The helper did not return a schema-1.0 reconciliation report. No project action is available from this screen."
+                )
+                .font(.callout)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+                Button("Check again") { model.refreshReconciliation() }
+                    .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func reconciliationAssessment(
+        _ report: ReconciliationAssessReport
+    ) -> some View {
+        VStack(alignment: .leading, spacing: CTSpace.lg) {
+            reconciliationSummary(report.summary)
+
+            sectionCard("Machine readiness") {
+                VStack(alignment: .leading, spacing: CTSpace.xs) {
+                    Text(report.machine.nextAction)
+                        .font(.callout.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(report.machine.helper.detail)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(Array(report.machine.blockers.enumerated()), id: \.offset) { _, blocker in
+                        Text(blocker.nextAction)
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemOrange))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            sectionCard("Projects and recommended copilots") {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(report.projects.enumerated()), id: \.element.path) { index, project in
+                        if index > 0 { Divider() }
+                        reconciliationProjectSelectionRow(project)
+                    }
+                }
+            }
+
+            reconciliationNextActions(report.nextActions)
+
+            if let error = model.reconciliationErrorDetail {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .systemRed))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack {
+                Button("Check again") { model.refreshReconciliation() }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Review exact plan") { model.planReconciliation() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!model.canPlanReconciliation)
+                    .accessibilityHint("Requests a read-only plan for only the selected components.")
+            }
+        }
+    }
+
+    private func reconciliationSummary(_ summary: ReconciliationSummary) -> some View {
+        let counts = summary.projectCounts
+        return sectionCard("Project census") {
+            VStack(alignment: .leading, spacing: CTSpace.sm) {
+                Text(
+                    "\(counts.total) projects in this report · "
+                        + "\(summary.selectedProjects) selected"
+                )
+                .font(.callout.weight(.semibold))
+                Text(summary.overlapExplanation)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                DisclosureGroup("All project-route counts") {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: CTSpace.sm),
+                            GridItem(.flexible(), spacing: CTSpace.sm),
+                            GridItem(.flexible(), spacing: CTSpace.sm),
+                        ],
+                        spacing: CTSpace.sm
+                    ) {
+                        reconciliationMetric(counts.ready, title: "Ready")
+                        reconciliationMetric(counts.copilotNotPresent, title: "No Copilot present")
+                        reconciliationMetric(counts.safeSetupAvailable, title: "Safe setup available")
+                        reconciliationMetric(counts.safeUpdateAvailable, title: "Safe update available")
+                        reconciliationMetric(counts.customizedGuidedRoute, title: "Customized route")
+                        reconciliationMetric(counts.held, title: "Held")
+                        reconciliationMetric(counts.ownerDecision, title: "Owner decision")
+                        reconciliationMetric(counts.couldNotVerify, title: "Couldn't verify")
+                        reconciliationMetric(counts.excluded, title: "Excluded")
+                    }
+                    .padding(.top, CTSpace.xs)
+                }
+                .font(.caption.weight(.semibold))
+            }
+            .accessibilityElement(children: .contain)
+        }
+    }
+
+    private func reconciliationMetric(_ count: Int, title: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(count)")
+                .font(.title3.weight(.semibold))
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(CTSpace.sm)
+        .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(count), \(title)")
+    }
+
+    private func reconciliationProjectSelectionRow(
+        _ project: ReconciliationProject
+    ) -> some View {
+        VStack(alignment: .leading, spacing: CTSpace.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(project.name)
+                    .font(.callout.weight(.semibold))
+                Spacer()
+                Text(reconciliationProjectRouteLabel(project.route))
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(reconciliationProjectRouteColor(project.route))
+            }
+            Text(project.nextAction)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(Array(project.components.enumerated()), id: \.offset) { _, assessment in
+                reconciliationComponentSelection(project: project, assessment: assessment)
+            }
+
+            if let dossier = project.dossier {
+                DisclosureGroup("Project-specific route") {
+                    VStack(alignment: .leading, spacing: CTSpace.xs) {
+                        ForEach(Array(dossier.currentEvidence.enumerated()), id: \.offset) { _, evidence in
+                            Label(evidence.detail, systemImage: "doc.text.magnifyingglass")
+                        }
+                        ForEach(Array(dossier.preservation.enumerated()), id: \.offset) { _, artifact in
+                            Label(artifact.detail, systemImage: "checkmark.shield")
+                        }
+                        ForEach(Array(dossier.prohibitedActions.enumerated()), id: \.offset) { _, action in
+                            Label(action, systemImage: "hand.raised")
+                        }
+                        ForEach(Array(dossier.verification.enumerated()), id: \.offset) { _, check in
+                            Label(check, systemImage: "checkmark.circle")
+                        }
+                        ForEach(Array(dossier.stopConditions.enumerated()), id: \.offset) { _, condition in
+                            Label(condition, systemImage: "stop.circle")
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, CTSpace.xs)
+                }
+                .font(.caption.weight(.semibold))
+            }
+        }
+        .padding(.vertical, CTSpace.sm)
+    }
+
+    @ViewBuilder
+    private func reconciliationComponentSelection(
+        project: ReconciliationProject,
+        assessment: ReconciliationComponentAssessment
+    ) -> some View {
+        let isSelected =
+            model.reconciliationSelectedComponents[project.path]?.contains(assessment.component)
+                == true
+        VStack(alignment: .leading, spacing: CTSpace.xs) {
+            HStack(alignment: .top, spacing: CTSpace.sm) {
+                if assessment.recommended {
+                    Toggle(
+                        isOn: Binding(
+                            get: { isSelected },
+                            set: { _ in
+                                model.toggleReconciliationComponent(
+                                    project: project,
+                                    assessment: assessment
+                                )
+                            }
+                        )
+                    ) {
+                        Text(reconciliationComponentName(assessment.component))
+                            .font(.callout.weight(.semibold))
+                    }
+                    .toggleStyle(.checkbox)
+                    .accessibilityHint(assessment.recommendationReason)
+                } else {
+                    Label(
+                        reconciliationComponentName(assessment.component),
+                        systemImage: "minus.circle"
+                    )
+                    .font(.callout.weight(.semibold))
+                }
+                Spacer()
+                Text(reconciliationComponentRouteLabel(assessment.state))
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+            Text(assessment.recommendationReason)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(assessment.nextAction)
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if isSelected {
+                if assessment.recipeOptions.count == 1,
+                   let option = assessment.recipeOptions.first {
+                    Label(option.summary, systemImage: "arrow.right.circle")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if assessment.recipeOptions.count > 1 {
+                    Picker(
+                        "Setup route",
+                        selection: Binding(
+                            get: {
+                                model.reconciliationSelectedRecipes[project.path]?[assessment.component]
+                                    ?? ""
+                            },
+                            set: {
+                                model.selectReconciliationRecipe(
+                                    projectPath: project.path,
+                                    component: assessment.component,
+                                    recipeId: $0
+                                )
+                            }
+                        )
+                    ) {
+                        Text("Choose a route").tag("")
+                        ForEach(assessment.recipeOptions, id: \.recipeId) { option in
+                            Text(option.summary).tag(option.recipeId)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityLabel(
+                        "\(reconciliationComponentName(assessment.component)) setup route for \(project.name)"
+                    )
+                }
+            }
+
+            DisclosureGroup("Evidence and requirements") {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(assessment.evidence.enumerated()), id: \.offset) { _, evidence in
+                        Text(evidence.detail)
+                    }
+                    ForEach(Array(assessment.missingRequirements.enumerated()), id: \.offset) { _, evidence in
+                        Text(evidence.detail)
+                    }
+                }
+                .font(.caption)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
+            }
+            .font(.caption.weight(.semibold))
+        }
+        .padding(CTSpace.sm)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func reconciliationPlanReview(
+        _ report: ReconciliationPlanReport
+    ) -> some View {
+        VStack(alignment: .leading, spacing: CTSpace.lg) {
+            reconciliationSummary(report.summary)
+
+            sectionCard(reconciliationReadResultLabel(report.result)) {
+                VStack(alignment: .leading, spacing: CTSpace.xs) {
+                    Text("Valid until \(report.expiresAt)")
+                        .font(.caption.weight(.semibold))
+                    Text(report.machine.nextAction)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            ForEach(Array(report.plans.enumerated()), id: \.element.path) { _, plan in
+                reconciliationProjectPlan(plan, report: report)
+            }
+
+            reconciliationNextActions(report.nextActions)
+
+            if let error = model.reconciliationErrorDetail {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .systemRed))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack {
+                Button("Change selection") { model.cancelReconciliationReview() }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Apply reviewed plan…") {
+                    showsReconciliationConfirmation = true
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(report.plans.isEmpty)
+                .accessibilityHint("Opens a final confirmation before the helper can write.")
+            }
+        }
+    }
+
+    private func reconciliationProjectPlan(
+        _ plan: ReconciliationProjectPlan,
+        report: ReconciliationPlanReport
+    ) -> some View {
+        let name = report.projects.first(where: { $0.path == plan.path })?.name ?? plan.path
+        return sectionCard(name) {
+            VStack(alignment: .leading, spacing: CTSpace.sm) {
+                if plan.operations.isEmpty {
+                    Text("The helper planned no operations for this project.")
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                } else {
+                    Text("Planned changes")
+                        .font(.callout.weight(.semibold))
+                    ForEach(Array(plan.operations.enumerated()), id: \.element.id) { _, operation in
+                        Label(operation.description, systemImage: "arrow.right.circle")
+                            .font(.caption)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                if !plan.preservation.isEmpty {
+                    Text("Will preserve")
+                        .font(.callout.weight(.semibold))
+                    ForEach(Array(plan.preservation.enumerated()), id: \.offset) { _, artifact in
+                        Label(artifact.detail, systemImage: "checkmark.shield")
+                            .font(.caption)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                if !plan.prohibitedActions.isEmpty {
+                    Text("Will not do")
+                        .font(.callout.weight(.semibold))
+                    ForEach(Array(plan.prohibitedActions.enumerated()), id: \.offset) { _, action in
+                        Label(action, systemImage: "hand.raised")
+                            .font(.caption)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Text("Fresh verification")
+                    .font(.callout.weight(.semibold))
+                ForEach(Array(plan.verification.enumerated()), id: \.offset) { _, check in
+                    Label(check, systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        }
+    }
+
+    @ViewBuilder
+    private var reconciliationReceipt: some View {
+        VStack(alignment: .leading, spacing: CTSpace.lg) {
+            if let report = model.reconciliationApplyReport {
+                reconciliationApplyReceipt(report)
+            }
+            if let report = model.reconciliationVerifyReport {
+                reconciliationVerifyReceipt(report)
+            }
+            if let report = model.reconciliationRecoverReport {
+                reconciliationRecoveryReceipt(report)
+            }
+            if model.reconciliationApplyReport == nil
+                && model.reconciliationVerifyReport == nil
+                && model.reconciliationRecoverReport == nil {
+                reconciliationUnavailable
+            } else if let error = model.reconciliationErrorDetail {
+                sectionCard("A report is incomplete") {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .systemRed))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            HStack {
+                Button("Check interrupted work") { model.recoverReconciliation() }
+                    .buttonStyle(.bordered)
+                    .accessibilityHint("Asks the helper to inspect durable interrupted-run evidence.")
+                Spacer()
+                Button("Run a fresh assessment") { model.refreshReconciliation() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    private func reconciliationApplyReceipt(
+        _ report: ReconciliationApplyReport
+    ) -> some View {
+        VStack(alignment: .leading, spacing: CTSpace.lg) {
+            reconciliationSummary(report.summary)
+            sectionCard(reconciliationApplyResultLabel(report.result)) {
+                reconciliationLedger(report.ledger, projects: report.projects)
+            }
+            reconciliationDiagnostics(report.diagnostics)
+            reconciliationNextActions(report.nextActions)
+        }
+    }
+
+    private func reconciliationVerifyReceipt(
+        _ report: ReconciliationVerifyReport
+    ) -> some View {
+        sectionCard("Fresh verification: \(reconciliationReadResultLabel(report.result))") {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(report.summary.overlapExplanation)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, CTSpace.xs)
+                ForEach(Array(report.projects.enumerated()), id: \.element.path) { index, project in
+                    if index > 0 { Divider() }
+                    VStack(alignment: .leading, spacing: CTSpace.xs) {
+                        HStack {
+                            Text(project.name)
+                                .font(.callout.weight(.semibold))
+                            Spacer()
+                            Text(reconciliationProjectRouteLabel(project.route))
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(reconciliationProjectRouteColor(project.route))
+                        }
+                        Text(project.nextAction)
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
+                        ForEach(Array(project.components.enumerated()), id: \.offset) { _, component in
+                            Text(
+                                "\(reconciliationComponentName(component.component)): "
+                                    + reconciliationComponentRouteLabel(component.state)
+                                    + ". " + component.nextAction
+                            )
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.vertical, CTSpace.sm)
+                    .accessibilityElement(children: .combine)
+                }
+                reconciliationNextActions(report.nextActions)
+                    .padding(.top, CTSpace.xs)
+            }
+        }
+    }
+
+    private func reconciliationRecoveryReceipt(
+        _ report: ReconciliationRecoverReport
+    ) -> some View {
+        VStack(alignment: .leading, spacing: CTSpace.lg) {
+            sectionCard("Interrupted-run recovery: \(reconciliationRecoverResultLabel(report.result))") {
+                VStack(alignment: .leading, spacing: CTSpace.sm) {
+                    ForEach(Array(report.recoveries.enumerated()), id: \.element.interruptedRunId) { index, recovery in
+                        if index > 0 { Divider() }
+                        Text(reconciliationRecoveryLabel(recovery.outcome))
+                            .font(.callout.weight(.semibold))
+                        reconciliationLedger(recovery.ledger, projects: [])
+                        reconciliationDiagnosticsContent(recovery.diagnostics)
+                    }
+                    if report.recoveries.isEmpty {
+                        Text("The helper reported no interrupted runs to recover.")
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                }
+            }
+            reconciliationNextActions(report.nextActions)
+        }
+    }
+
+    private func reconciliationLedger(
+        _ ledger: [ReconciliationLedgerEntry],
+        projects: [ReconciliationProject]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(ledger.enumerated()), id: \.element.path) { index, entry in
+                if index > 0 { Divider() }
+                VStack(alignment: .leading, spacing: CTSpace.xs) {
+                    HStack {
+                        Text(
+                            projects.first(where: { $0.path == entry.path })?.name
+                                ?? entry.path
+                        )
+                        .font(.callout.weight(.semibold))
+                        Spacer()
+                        Text(reconciliationLedgerLabel(entry.status))
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(reconciliationLedgerColor(entry.status))
+                    }
+                    Text(entry.detail)
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Verification: \(reconciliationVerificationLabel(entry.verification))")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    ForEach(Array(entry.rollback.enumerated()), id: \.offset) { _, rollback in
+                        Text(rollback.detail)
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .systemOrange))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.vertical, CTSpace.sm)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    private func reconciliationDiagnostics(
+        _ diagnostics: ReconciliationDiagnosticReference
+    ) -> some View {
+        sectionCard(
+            diagnostics.state == .available
+                ? "Diagnostic record saved"
+                : "Diagnostic record unavailable"
+        ) {
+            reconciliationDiagnosticsContent(diagnostics)
+        }
+    }
+
+    @ViewBuilder
+    private func reconciliationDiagnosticsContent(
+        _ diagnostics: ReconciliationDiagnosticReference
+    ) -> some View {
+        VStack(alignment: .leading, spacing: CTSpace.sm) {
+            Text(diagnostics.detail)
+                .font(.callout)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+            if diagnostics.state == .available,
+               let path = diagnostics.path {
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([
+                        URL(fileURLWithPath: path)
+                    ])
+                }
+                .buttonStyle(.bordered)
             }
         }
     }
 
     @ViewBuilder
-    private var wizardBulkProjectMigration: some View {
-        if model.projectMigrationApplying {
-            VStack(alignment: .leading, spacing: 14) {
-                Button("‹ Back to guided setup") {}
-                    .buttonStyle(.plain)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .disabled(true)
-                sectionCard("Updating and checking every project") {
-                    HStack(alignment: .top, spacing: 12) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Keep Control Tower open while this finishes.")
-                                .font(.callout.weight(.semibold))
-                            Text("Each project is updated separately. If one cannot pass verification, its completed writes are rolled back and the other projects keep going.")
-                                .font(.caption)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Updating and independently checking the reviewed projects")
-                }
-            }
-        } else if let applied = model.projectMigrationApplyReport {
-            wizardBulkMigrationResult(applied)
-        } else if model.projectMigrationReviewOpen,
-                  let report = model.projectMigrationReport {
-            wizardBulkMigrationReview(report)
-        } else if let report = model.projectMigrationReport {
-            wizardBulkMigrationOverview(report)
-        } else {
-            if let error = model.projectMigrationError {
-                VStack(alignment: .leading, spacing: 14) {
-                    sectionCard("Grouped updates aren't available") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(error)
-                                .font(.callout)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .fixedSize(horizontal: false, vertical: true)
-                            Button("Check again") { model.refreshBulkProjectMigration() }
-                                .buttonStyle(.bordered)
-                        }
-                    }
-                    wizardGenericProjectCategoryList(.guidedSetup)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    Button("‹ All project results") { model.showProjectOverview() }
-                        .buttonStyle(.plain)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    HStack(spacing: 10) {
-                        ProgressView().controlSize(.small)
-                        Text("Checking which projects can update together…")
-                            .font(.callout)
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-            }
-        }
-    }
-
-    private func wizardBulkMigrationOverview(
-        _ report: WorkspaceMigrationReport
-    ) -> some View {
-        let eligible = report.candidates.filter { $0.state == .eligible }
-        let held = report.candidates.filter { $0.state == .held }
-        let tailored = report.candidates.filter { $0.state == .residualGuidance }
-        return VStack(alignment: .leading, spacing: 14) {
-            Button("‹ All project results") { model.showProjectOverview() }
-                .buttonStyle(.plain)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-
-            if report.summary.eligible > 0 {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "square.stack.3d.up.fill")
-                            .foregroundColor(Color(nsColor: .linkColor))
-                            .font(.title3)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("\(report.summary.eligible) projects can be updated together")
-                                .font(.headline)
-                            Text("Control Tower found the same proven older setup in these projects. Review the complete group once before anything changes.")
-                                .font(.caption)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    Button("Review \(report.summary.eligible) updates") {
-                        model.reviewBulkProjectMigration()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .accessibilityHint("Opens the full project list and preservation promise. Nothing changes yet.")
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(nsColor: .selectedContentBackgroundColor).opacity(0.12))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color(nsColor: .linkColor).opacity(0.45), lineWidth: 1)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            } else {
-                sectionCard("No standard updates are ready") {
-                    Text("Control Tower did not find a proven automatic update in this group. Every project below remains unchanged and keeps its individual setup route.")
-                        .font(.callout)
+    private func reconciliationNextActions(_ actions: [String]) -> some View {
+        if !actions.isEmpty {
+            VStack(alignment: .leading, spacing: CTSpace.xs) {
+                Text("Next actions")
+                    .font(.callout.weight(.semibold))
+                ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
+                    Text(action)
+                        .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-
-            HStack(spacing: 10) {
-                wizardMigrationMetric(report.summary.eligible, title: "Can update together", color: .linkColor)
-                wizardMigrationMetric(report.summary.held, title: "Held for now", color: .systemOrange)
-                wizardMigrationMetric(report.summary.residualGuidance, title: "Tailored setup", color: .secondaryLabelColor)
-            }
-
-            wizardMigrationCandidateGroup(
-                title: "Can update together (\(eligible.count))",
-                detail: "The CLI found a proven, reversible update and a clean project state.",
-                candidates: eligible,
-                allowsIndividualReview: false
-            )
-            wizardMigrationCandidateGroup(
-                title: "Held for now (\(held.count))",
-                detail: "Control Tower found a possible standard update but left these projects alone because a safety condition needs attention first.",
-                candidates: held,
-                allowsIndividualReview: true
-            )
-            wizardMigrationCandidateGroup(
-                title: "Tailored setup (\(tailored.count))",
-                detail: "These projects do not match a proven automatic route. Their existing guided setup remains available.",
-                candidates: tailored,
-                allowsIndividualReview: true
-            )
-
-            if let error = model.projectMigrationError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .systemRed))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Button("Check again") { model.refreshBulkProjectMigration() }
-                .buttonStyle(.bordered)
-                .disabled(model.projectMigrationLoading)
         }
     }
 
-    private func wizardMigrationMetric(
-        _ count: Int,
-        title: String,
-        color: NSColor
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("\(count)")
-                .font(.title2.weight(.semibold))
-                .foregroundColor(Color(nsColor: color))
-            Text(title)
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.7))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(count), \(title)")
-    }
-
-    private func wizardMigrationCandidateGroup(
-        title: String,
-        detail: String,
-        candidates: [WorkspaceMigrationCandidate],
-        allowsIndividualReview: Bool
-    ) -> some View {
-        DisclosureGroup(title) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(detail)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.vertical, 8)
-                ForEach(Array(candidates.enumerated()), id: \.element.id) { index, candidate in
-                    if index > 0 { Divider() }
-                    HStack(alignment: .top, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(candidate.name)
-                                .font(.callout.weight(.semibold))
-                            Text(candidate.detail)
-                                .font(.caption)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer()
-                        if allowsIndividualReview,
-                           let workspace = model.projectWorkspaces.first(where: { $0.path == candidate.path }) {
-                            Button("Review setup") { model.reviewProjectIntegration(workspace) }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                        }
-                    }
-                    .padding(.vertical, 8)
-                    .accessibilityElement(children: .combine)
-                }
-            }
-        }
-        .font(.callout.weight(.semibold))
-    }
-
-    private func wizardBulkMigrationReview(
-        _ report: WorkspaceMigrationReport
-    ) -> some View {
-        let eligible = report.candidates.filter { $0.state == .eligible }
-        return VStack(alignment: .leading, spacing: 14) {
-            Button("‹ Back to guided setup") { model.dismissBulkProjectMigrationReview() }
-                .buttonStyle(.plain)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-
-            sectionCard("What Control Tower will protect") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Project instructions, agents, skills, commands, and plugins stay in place.", systemImage: "checkmark.shield")
-                    Label("Only the recognized older Copilot wiring in the reviewed plan can change.", systemImage: "checkmark.shield")
-                    Label("Every updated component must pass a fresh CLI verification or its writes are rolled back.", systemImage: "checkmark.shield")
-                }
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
-            }
-
-            sectionCard("Projects in this update") {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(eligible.enumerated()), id: \.element.id) { index, candidate in
-                        if index > 0 { Divider() }
-                        HStack(spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(Color(nsColor: .systemGreen))
-                                .accessibilityHidden(true)
-                            Text(candidate.name)
-                                .font(.callout.weight(.semibold))
-                            Spacer()
-                            Text("Ready to update")
-                                .font(.caption)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        }
-                        .padding(.vertical, 8)
-                        .accessibilityElement(children: .combine)
-                    }
-                }
-            }
-
-            Text("Nothing changes until you confirm the complete \(eligible.count)-project update.")
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack {
-                Button("Cancel") { model.dismissBulkProjectMigrationReview() }
-                    .buttonStyle(.bordered)
-                Spacer()
-                Button("Update \(eligible.count) projects…") {
-                    showsBulkMigrationConfirmation = true
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-            }
+    private func reconciliationComponentName(
+        _ component: ReconciliationComponent
+    ) -> String {
+        switch component {
+        case .claude: return "Claude"
+        case .codex: return "Codex"
         }
     }
 
-    private func wizardBulkMigrationResult(
-        _ report: WorkspaceMigrationReport
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Button("‹ All project results") {
-                model.dismissBulkProjectMigrationResult()
-                model.showProjectOverview()
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-
-            if let summary = report.applySummary {
-                HStack(spacing: 10) {
-                    wizardMigrationMetric(summary.applied, title: "Updated this run", color: .systemGreen)
-                    wizardMigrationMetric(summary.failed, title: "Could not finish", color: .systemRed)
-                    wizardMigrationMetric(summary.remainingGuided, title: "Guided now", color: .secondaryLabelColor)
-                }
-                sectionCard(summary.failed == 0 ? "The reviewed updates finished" : "Some projects need attention") {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(summary.failed == 0
-                            ? "\(summary.applied) projects passed independent verification. \(summary.unchanged) projects outside the automatic cohort were left unchanged."
-                            : "\(summary.applied) projects passed verification. \(summary.failed) could not finish and were either left unchanged or rolled back.")
-                        Text(summary.detail)
-                    }
-                    .font(.callout)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-            } else {
-                sectionCard("The reviewed plan is no longer current") {
-                    Text(report.detail ?? "Control Tower rechecked every project and left the reviewed group unchanged. Review the fresh plan before trying again.")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            if !report.ledger.isEmpty {
-                DisclosureGroup("Full project receipt (\(report.ledger.count))") {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(report.ledger.enumerated()), id: \.element.id) { index, entry in
-                            if index > 0 { Divider() }
-                            HStack(alignment: .top, spacing: 10) {
-                                Image(systemName: wizardMigrationLedgerIcon(entry.status))
-                                    .foregroundColor(wizardMigrationLedgerColor(entry.status))
-                                    .frame(width: 16)
-                                    .accessibilityHidden(true)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.name)
-                                        .font(.callout.weight(.semibold))
-                                    Text(entry.detail)
-                                        .font(.caption)
-                                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer()
-                                Text(wizardMigrationLedgerLabel(entry.status))
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(wizardMigrationLedgerColor(entry.status))
-                            }
-                            .padding(.vertical, 8)
-                            .accessibilityElement(children: .combine)
-                        }
-                    }
-                }
-                .font(.callout.weight(.semibold))
-            }
-
-            if let diagnostics = report.diagnostics {
-                sectionCard(
-                    diagnostics.state == .available
-                        ? "Diagnostic record saved"
-                        : "Diagnostic record unavailable"
-                ) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(diagnostics.detail)
-                            .font(.callout)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                            .fixedSize(horizontal: false, vertical: true)
-                        if diagnostics.state == .available,
-                           let path = diagnostics.path {
-                            Button("Show in Finder") {
-                                NSWorkspace.shared.activateFileViewerSelecting([
-                                    URL(fileURLWithPath: path)
-                                ])
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                }
-            }
-
-            if let error = model.projectMigrationError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .systemRed))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack {
-                Button("Check again") { model.refreshBulkProjectMigration() }
-                    .buttonStyle(.bordered)
-                Spacer()
-                Button("Done") { model.dismissBulkProjectMigrationResult() }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-            }
+    private func reconciliationProjectRouteLabel(
+        _ route: ReconciliationProjectRoute
+    ) -> String {
+        switch route {
+        case .ready: return "Ready"
+        case .copilotNotPresent: return "No Copilot present"
+        case .safeSetupAvailable: return "Safe setup available"
+        case .safeUpdateAvailable: return "Safe update available"
+        case .customizedGuidedRoute: return "Customized route"
+        case .held: return "Held"
+        case .ownerDecision: return "Owner decision"
+        case .couldNotVerify: return "Couldn't verify"
+        case .excluded: return "Excluded"
         }
     }
 
-    private func wizardMigrationLedgerLabel(_ status: WorkspaceMigrationLedgerStatus) -> String {
+    private func reconciliationComponentRouteLabel(
+        _ route: ReconciliationComponentRoute
+    ) -> String {
+        switch route {
+        case .ready: return "Ready"
+        case .notPresent: return "Not present"
+        case .notSelected: return "Not selected"
+        case .safeSetupAvailable: return "Safe setup available"
+        case .safeUpdateAvailable: return "Safe update available"
+        case .customizedGuidedRoute: return "Customized route"
+        case .held: return "Held"
+        case .ownerDecision: return "Owner decision"
+        case .couldNotVerify: return "Couldn't verify"
+        case .excluded: return "Excluded"
+        }
+    }
+
+    private func reconciliationProjectRouteColor(
+        _ route: ReconciliationProjectRoute
+    ) -> Color {
+        switch route {
+        case .ready:
+            return Color(nsColor: .systemGreen)
+        case .safeSetupAvailable, .safeUpdateAvailable:
+            return Color(nsColor: .linkColor)
+        case .held, .ownerDecision:
+            return Color(nsColor: .systemOrange)
+        case .copilotNotPresent, .customizedGuidedRoute, .couldNotVerify, .excluded:
+            return Color(nsColor: .secondaryLabelColor)
+        }
+    }
+
+    private func reconciliationLedgerLabel(
+        _ status: ReconciliationLedgerStatus
+    ) -> String {
         switch status {
-        case .applied: return "Updated"
-        case .blocked: return "Unchanged"
+        case .applied: return "Applied"
+        case .blocked: return "Blocked"
         case .rolledBack: return "Rolled back"
+        case .incompleteRollback: return "Rollback incomplete"
         case .unchanged: return "Unchanged"
         }
     }
 
-    private func wizardMigrationLedgerIcon(_ status: WorkspaceMigrationLedgerStatus) -> String {
+    private func reconciliationLedgerColor(
+        _ status: ReconciliationLedgerStatus
+    ) -> Color {
         switch status {
-        case .applied: return "checkmark.circle.fill"
-        case .blocked: return "exclamationmark.circle.fill"
-        case .rolledBack: return "arrow.uturn.backward.circle.fill"
-        case .unchanged: return "minus.circle"
+        case .applied:
+            return Color(nsColor: .systemGreen)
+        case .blocked, .rolledBack, .incompleteRollback:
+            return Color(nsColor: .systemRed)
+        case .unchanged:
+            return Color(nsColor: .secondaryLabelColor)
         }
     }
 
-    private func wizardMigrationLedgerColor(_ status: WorkspaceMigrationLedgerStatus) -> Color {
-        switch status {
-        case .applied: return Color(nsColor: .systemGreen)
-        case .blocked, .rolledBack: return Color(nsColor: .systemRed)
-        case .unchanged: return Color(nsColor: .secondaryLabelColor)
+    private func reconciliationVerificationLabel(
+        _ state: ReconciliationVerificationState
+    ) -> String {
+        switch state {
+        case .ready: return "Ready"
+        case .failed: return "Failed"
+        case .notRun: return "Not run"
         }
     }
 
+    private func reconciliationRecoveryLabel(
+        _ outcome: ReconciliationRecoveryOutcome
+    ) -> String {
+        switch outcome {
+        case .applied: return "Applied before interruption"
+        case .rolledBack: return "Rolled back"
+        case .blocked: return "Recovery blocked"
+        case .incompleteRollback: return "Rollback incomplete"
+        }
+    }
+
+    private func reconciliationReadResultLabel(
+        _ result: ReconciliationReadResult
+    ) -> String {
+        switch result {
+        case .ready: return "Ready"
+        case .actionRequired: return "Action required"
+        case .blocked: return "Blocked"
+        }
+    }
+
+    private func reconciliationApplyResultLabel(
+        _ result: ReconciliationApplyResult
+    ) -> String {
+        switch result {
+        case .applied: return "Apply complete"
+        case .partial: return "Apply partially complete"
+        case .blocked: return "Apply blocked"
+        }
+    }
+
+    private func reconciliationRecoverResultLabel(
+        _ result: ReconciliationRecoverResult
+    ) -> String {
+        switch result {
+        case .ready: return "Ready"
+        case .partial: return "Partially recovered"
+        case .blocked: return "Blocked"
+        }
+    }
     private func wizardGenericProjectCategoryList(
         _ category: ProjectTriageCategory
     ) -> some View {
