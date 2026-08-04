@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Drive one exact cc executable through the Phase 9 schema-1.0 lifecycle.
+# Drive one exact cc executable through the Phase 9 schema-1.0 deterministic
+# and bounded-assistant lifecycles.
 # Every read and write is isolated below a fresh temporary directory.
 
 set -euo pipefail
@@ -91,20 +92,38 @@ HOME_DIR="${SCRATCH}/home"
 MACHINE_ROOT="${SCRATCH}/machine"
 PROJECTS_ROOT="${SCRATCH}/projects"
 PROJECT="${PROJECTS_ROOT}/fixture-project"
+ASSISTANT_PROJECT="${PROJECTS_ROOT}/customized-project"
 SOURCE="${SCRATCH}/claude-source"
 BIN_DIR="${SCRATCH}/bin"
 TMP_ROOT="${SCRATCH}/tmp"
 REQUEST="${SCRATCH}/request.json"
+ASSISTANT_REQUEST="${SCRATCH}/assistant-request.json"
+ASSISTANT_CAPTURE="${SCRATCH}/assistant-claude-capture.json"
 REPORTS="${SCRATCH}/reports"
 LAYER_MANIFEST="${SCRATCH}/copilot.layers.yml"
 mkdir -p \
-    "${HOME_DIR}" "${MACHINE_ROOT}/diagnostics" "${PROJECT}" "${SOURCE}" \
+    "${HOME_DIR}" "${MACHINE_ROOT}/diagnostics" "${PROJECT}" \
+    "${ASSISTANT_PROJECT}" "${SOURCE}" \
     "${BIN_DIR}" "${TMP_ROOT}" "${REPORTS}"
 chmod 0700 "${HOME_DIR}" "${MACHINE_ROOT}" "${TMP_ROOT}"
 
 git -C "${PROJECT}" init -q -b main
 git -C "${PROJECT}" config user.email fixture@example.invalid
 git -C "${PROJECT}" config user.name "Reconciliation Fixture"
+
+git -C "${ASSISTANT_PROJECT}" init -q -b main
+git -C "${ASSISTANT_PROJECT}" config user.email fixture@example.invalid
+git -C "${ASSISTANT_PROJECT}" config user.name "Reconciliation Fixture"
+mkdir -p \
+    "${ASSISTANT_PROJECT}/.claude/agents" \
+    "${ASSISTANT_PROJECT}/.claude/commands"
+printf '%s\n' '# Project-owned instructions' > "${ASSISTANT_PROJECT}/CLAUDE.md"
+printf '%s\n' 'project-owned agent' > \
+    "${ASSISTANT_PROJECT}/.claude/agents/me.md"
+printf '%s\n' 'project-owned command' > \
+    "${ASSISTANT_PROJECT}/.claude/commands/project.md"
+git -C "${ASSISTANT_PROJECT}" add .
+git -C "${ASSISTANT_PROJECT}" commit -q -m "customized fixture"
 
 mkdir -p \
     "${SOURCE}/.claude/commands" \
@@ -185,6 +204,21 @@ payload = {
 path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
 
+"${VALIDATOR_PY}" - \
+    "${ASSISTANT_REQUEST}" "${PROJECTS_ROOT}" "${ASSISTANT_PROJECT}" <<'PY'
+import json
+import pathlib
+import sys
+
+path, root, project = map(pathlib.Path, sys.argv[1:])
+payload = {
+    "schema_version": "1.0",
+    "roots": [str(root)],
+    "projects": [{"path": str(project), "components": ["claude"]}],
+}
+path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+
 cat > "${BIN_DIR}/copilot" <<'SH'
 #!/bin/sh
 if [ "$#" -eq 2 ] && [ "$1" = "--json" ] && [ "$2" = "layers" ]; then
@@ -198,17 +232,71 @@ fi
 exit 2
 SH
 chmod 0755 "${BIN_DIR}/copilot"
-for command in gh claude codex; do
+for command in gh codex; do
     cat > "${BIN_DIR}/${command}" <<SH
 #!/bin/sh
 printf '%s\\n' '${command} version fixture'
 SH
     chmod 0755 "${BIN_DIR}/${command}"
 done
+cat > "${BIN_DIR}/claude" <<'PY'
+#!/usr/bin/env python3
+"""Inert Claude CLI double for the exact-binary assistant release probe."""
+
+import base64
+import hashlib
+import json
+import os
+import pathlib
+import sys
+
+
+if "--version" in sys.argv[1:]:
+    print("2.1.221 (Claude Code)")
+    raise SystemExit(0)
+
+stdin = sys.stdin.buffer.read()
+capture_path = pathlib.Path(os.environ["FAKE_CLAUDE_CAPTURE"])
+capture_path.write_text(
+    json.dumps(
+        {
+            "argv": sys.argv[1:],
+            "cwd": os.getcwd(),
+            "environment_keys": sorted(os.environ),
+            "stdin_size": len(stdin),
+            "stdin_sha256": hashlib.sha256(stdin).hexdigest(),
+            "stdin_base64": base64.b64encode(stdin).decode("ascii"),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ),
+    encoding="utf-8",
+)
+capture_path.chmod(0o600)
+
+prompt = json.loads(stdin)
+selections = []
+for project in prompt["packet"]["projects"]:
+    for component in project["components"]:
+        selections.append({"candidate_id": component["candidate_ids"][0]})
+print(
+    json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "structured_output": {"selections": selections},
+        },
+        separators=(",", ":"),
+    )
+)
+PY
+chmod 0755 "${BIN_DIR}/claude"
 ln -s "${CC_PATH}" "${BIN_DIR}/cc"
 
 tree_digest() {
-    "${VALIDATOR_PY}" - "${PROJECT}" <<'PY'
+    local root="${1:-${PROJECT}}"
+    "${VALIDATOR_PY}" - "${root}" <<'PY'
 import hashlib
 import json
 import os
@@ -250,6 +338,13 @@ run_cc() {
             HTTPS_PROXY="http://127.0.0.1:9" \
             ALL_PROXY="http://127.0.0.1:9" \
             NO_PROXY="localhost,127.0.0.1" \
+            CC_ASSISTANT_TEST_MODE="1" \
+            FAKE_CLAUDE_CAPTURE="${ASSISTANT_CAPTURE}" \
+            ASSISTANT_SECRET_CANARY="must-not-reach-child" \
+            ANTHROPIC_API_KEY="assistant-api-secret-canary" \
+            GITHUB_TOKEN="github-secret-canary" \
+            GIT_CONFIG_GLOBAL="${SCRATCH}/secret-git-config" \
+            SSH_AUTH_SOCK="${SCRATCH}/secret-agent.sock" \
             "${CC_PATH}" "$@" --json
     ) > "${REPORTS}/${report}.json" 2> "${REPORTS}/${report}.err"
     exit_code=$?
@@ -299,6 +394,25 @@ run_cc recover reconcile recover
 [[ "$(tree_digest)" == "${stable_digest}" ]] ||
     die "recovery changed a terminal disposable project"
 
+assistant_digest="$(tree_digest "${ASSISTANT_PROJECT}")"
+run_cc assistant-prepare reconcile assistant-prepare \
+    --request "${ASSISTANT_REQUEST}"
+[[ "$(tree_digest "${ASSISTANT_PROJECT}")" == "${assistant_digest}" ]] ||
+    die "assistant preparation changed the customized disposable project"
+assistant_session_id="$("${VALIDATOR_PY}" -c \
+    'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["session_id"])' \
+    "${REPORTS}/assistant-prepare.json")"
+
+run_cc assistant-run reconcile assistant-run \
+    --session-id "${assistant_session_id}"
+[[ "$(tree_digest "${ASSISTANT_PROJECT}")" == "${assistant_digest}" ]] ||
+    die "bounded Claude Code assistant run changed the disposable project"
+
+run_cc assistant-status reconcile assistant-status \
+    --session-id "${assistant_session_id}"
+[[ "$(tree_digest "${ASSISTANT_PROJECT}")" == "${assistant_digest}" ]] ||
+    die "assistant proposal validation changed the disposable project"
+
 "${VALIDATOR_PY}" "${ASSERT_SCRIPT}" \
     --schema "${SCHEMA_PATH}" \
     --request-schema "${REQUEST_SCHEMA_PATH}" \
@@ -313,5 +427,177 @@ run_cc recover reconcile recover
     --repeat-apply "${REPORTS}/repeat-apply.json" \
     --recover "${REPORTS}/recover.json" \
     --expected-stable-digest "${stable_digest}"
+
+"${VALIDATOR_PY}" - \
+    "${SCHEMA_PATH}" "${REQUEST_SCHEMA_PATH}" "${ASSISTANT_REQUEST}" \
+    "${ASSISTANT_PROJECT}" "${MACHINE_ROOT}" "${ASSISTANT_CAPTURE}" \
+    "${REPORTS}/assistant-prepare.json" \
+    "${REPORTS}/assistant-run.json" \
+    "${REPORTS}/assistant-status.json" <<'PY'
+import base64
+import json
+import pathlib
+import re
+import sys
+
+from jsonschema import Draft202012Validator, FormatChecker
+
+(
+    schema_path,
+    request_schema_path,
+    request_path,
+    project_path,
+    machine_root,
+    capture_path,
+    prepare_path,
+    run_path,
+    status_path,
+) = map(pathlib.Path, sys.argv[1:])
+
+
+def load(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def validate(schema, value, label):
+    errors = sorted(
+        Draft202012Validator(
+            schema, format_checker=FormatChecker()
+        ).iter_errors(value),
+        key=lambda error: list(error.path),
+    )
+    if errors:
+        rendered = "; ".join(
+            f"{'.'.join(map(str, error.path)) or '<root>'}: {error.message}"
+            for error in errors[:5]
+        )
+        raise SystemExit(f"{label} does not satisfy schema 1.0: {rendered}")
+
+
+schema = load(schema_path)
+request = load(request_path)
+validate(load(request_schema_path), request, "assistant request")
+reports = {
+    "assistant-prepare": load(prepare_path),
+    "assistant-run": load(run_path),
+    "assistant-status": load(status_path),
+}
+for phase, report in reports.items():
+    validate(schema, report, phase)
+    if report.get("phase") != phase or report.get("result") != "ready":
+        raise SystemExit(f"{phase} did not return a ready {phase} report")
+
+project = str(project_path.resolve())
+root = str(project_path.parent.resolve())
+expected_request = {
+    "schema_version": "1.0",
+    "roots": [root],
+    "projects": [{"path": project, "components": ["claude"]}],
+}
+if request != expected_request:
+    raise SystemExit("assistant request is not the exact customized fixture selection")
+
+session_id = reports["assistant-prepare"].get("session_id")
+if not isinstance(session_id, str) or not re.fullmatch(
+    r"session_[0-9a-f]{32}", session_id
+):
+    raise SystemExit("assistant prepare did not issue an opaque session id")
+for report in reports.values():
+    if report.get("session_id") != session_id:
+        raise SystemExit("assistant lifecycle changed session identity")
+    if report.get("selected_projects") != [project]:
+        raise SystemExit("assistant lifecycle changed the selected project batch")
+proposal_id = reports["assistant-status"].get("proposal_id")
+if not isinstance(proposal_id, str) or not re.fullmatch(
+    r"proposal_[0-9a-f]{32}", proposal_id
+):
+    raise SystemExit("assistant status did not issue an opaque proposal id")
+
+capture = load(capture_path)
+expected_arguments = [
+    "--safe-mode",
+    "--tools",
+    "",
+    "--permission-mode",
+    "plan",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--no-session-persistence",
+    "--no-chrome",
+    "--print",
+    "--input-format",
+    "text",
+    "--output-format",
+    "json",
+    "--json-schema",
+]
+arguments = capture.get("argv")
+if not isinstance(arguments, list) or arguments[:-1] != expected_arguments:
+    raise SystemExit("assistant run did not use the protected Claude Code arguments")
+if project in json.dumps(arguments):
+    raise SystemExit("assistant run leaked the project path through Claude arguments")
+
+expected_work = (
+    machine_root.resolve()
+    / "diagnostics"
+    / "reconciliation"
+    / "assistant"
+    / "sessions"
+    / session_id
+    / "work"
+)
+if pathlib.Path(capture.get("cwd", "")).resolve() != expected_work:
+    raise SystemExit("assistant run did not use its private machine-state workspace")
+
+environment_keys = set(capture.get("environment_keys") or [])
+if {
+    "ASSISTANT_SECRET_CANARY",
+    "ANTHROPIC_API_KEY",
+    "GITHUB_TOKEN",
+    "GIT_CONFIG_GLOBAL",
+    "SSH_AUTH_SOCK",
+} & environment_keys:
+    raise SystemExit("assistant run forwarded a secret-bearing environment variable")
+
+prompt = base64.b64decode(capture["stdin_base64"], validate=True)
+if len(prompt) != capture.get("stdin_size"):
+    raise SystemExit("assistant capture recorded an inconsistent prompt size")
+prompt_value = json.loads(prompt)
+prompt_rendered = json.dumps(prompt_value, sort_keys=True)
+for forbidden in (
+    project,
+    project_path.name,
+    "Project-owned instructions",
+    "project-owned agent",
+    "project-owned command",
+    "claude-source",
+):
+    if forbidden in prompt_rendered:
+        raise SystemExit("assistant run leaked project-authored context to Claude")
+packet = prompt_value.get("packet") or {}
+if packet.get("task") != "select-bounded-project-reconciliation-candidates":
+    raise SystemExit("assistant run did not send the bounded selection task")
+if packet.get("rules") != {
+    "select_exactly_one_candidate_per_component": True,
+    "author_commands_paths_content_patches_operations": False,
+}:
+    raise SystemExit("assistant run weakened the bounded selection rules")
+
+output_schema = json.loads(arguments[-1])
+selections = output_schema.get("properties", {}).get("selections", {})
+item_schema = selections.get("items", {})
+if (
+    output_schema.get("additionalProperties") is not False
+    or item_schema.get("additionalProperties") is not False
+    or item_schema.get("required") != ["candidate_id"]
+    or set(item_schema.get("properties", {})) != {"candidate_id"}
+):
+    raise SystemExit("assistant run did not constrain Claude to candidate ids")
+
+print(
+    "reconcile schema 1.0 assistant lifecycle PASS: "
+    "assistant-prepare -> assistant-run -> assistant-status"
+)
+PY
 
 echo "vendored-cc reconcile contract: PASS (${CC_PATH})"

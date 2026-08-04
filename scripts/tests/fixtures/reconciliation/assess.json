@@ -164,6 +164,15 @@
       "category": "new-setup"
     }
   ],
+  "assistant_selection": [],
+  "resolution_summary": {
+    "automatic": 1,
+    "claude_assisted": 0,
+    "held": 0,
+    "total_actionable": 1,
+    "new_setup": 1,
+    "correction": 0
+  },
   "batch_summary": {
     "new_setup": 1,
     "correction": 0,

@@ -67,6 +67,64 @@ struct ReconciliationContractDriver {
         precondition(decodedAssess.defaultSelection.first?.components == [.claude, .codex])
         precondition(decodedAssess.defaultSelection.first?.category == .newSetup)
         precondition(decodedAssess.machineSummary.state == .ready)
+        precondition(decodedAssess.assistantSelection?.isEmpty == true)
+        precondition(decodedAssess.resolutionSummary?.totalActionable == 1)
+        var assistedObject = try JSONSerialization.jsonObject(
+            with: fixture("assess", in: fixtureDirectory)
+        ) as! [String: Any]
+        assistedObject["assistant_selection"] = [
+            [
+                "path": "/Projects/Two",
+                "components": ["claude", "codex"],
+                "category": "correction",
+            ]
+        ]
+        assistedObject["resolution_summary"] = [
+            "automatic": 1,
+            "claude_assisted": 1,
+            "held": 0,
+            "total_actionable": 2,
+            "new_setup": 1,
+            "correction": 1,
+        ]
+        let assistedAssess = try decoder.decode(
+            ReconciliationAssessReport.self,
+            from: JSONSerialization.data(withJSONObject: assistedObject)
+        )
+        precondition(
+            assistedAssess.authorizedSelectionPaths
+                == Set(["/Projects/One", "/Projects/Two"])
+        )
+        precondition(assistedAssess.authoredSelectionCount == 2)
+        precondition(
+            assistedAssess.requestSelections(
+                selectedPaths: assistedAssess.authorizedSelectionPaths
+            ).map(\.path) == ["/Projects/One", "/Projects/Two"]
+        )
+        precondition(
+            assistedAssess.assistantSelection?.first?.components == [.claude, .codex]
+        )
+        precondition(assistedAssess.resolutionSummary?.totalActionable == 2)
+        precondition(assistedAssess.resolutionSummary?.newSetup == 1)
+        precondition(assistedAssess.resolutionSummary?.correction == 1)
+        let decodedPrepare = try decoder.decode(
+            ReconciliationAssistantPrepareReport.self,
+            from: fixture("assistant-prepare", in: fixtureDirectory)
+        )
+        precondition(decodedPrepare.phase == .assistantPrepare)
+        precondition(decodedPrepare.selectedProjects == ["/Projects/Team; literal/One"])
+        let decodedRunning = try decoder.decode(
+            ReconciliationAssistantStatusReport.self,
+            from: fixture("assistant-status-running", in: fixtureDirectory)
+        )
+        precondition(decodedRunning.result == .running)
+        precondition(decodedRunning.proposalId == nil)
+        let decodedReady = try decoder.decode(
+            ReconciliationAssistantStatusReport.self,
+            from: fixture("assistant-status-ready", in: fixtureDirectory)
+        )
+        precondition(decodedReady.result == .ready)
+        precondition(decodedReady.proposalId == "proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
         let decodedPlan = try decoder.decode(
             ReconciliationPlanReport.self,
             from: fixture("plan", in: fixtureDirectory)
@@ -101,6 +159,62 @@ struct ReconciliationContractDriver {
         let requestBytes = try request.encoded()
         let expectedRequest = Data(#"{"projects":[{"components":["claude","codex"],"path":"\/Projects\/Team; literal\/One","recipe_ids":{"claude":"claude-safe-1","codex":"codex-safe-1"}}],"roots":["\/Projects\/Team; literal"],"schema_version":"1.0"}"#.utf8)
         precondition(requestBytes == expectedRequest)
+        precondition(decodedPrepare.matches(request: request))
+        precondition(
+            decodedRunning.transition(
+                expectedSessionId: decodedPrepare.sessionId,
+                request: request
+            ) == .running
+        )
+        precondition(
+            decodedReady.transition(
+                expectedSessionId: decodedPrepare.sessionId,
+                request: request
+            ) == .ready(
+                proposalId: "proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            )
+        )
+        precondition(
+            decodedReady.transition(
+                expectedSessionId: "session_tampered",
+                request: request
+            ) == .incompatible
+        )
+        var tamperedStatusObject = try JSONSerialization.jsonObject(
+            with: fixture("assistant-status-ready", in: fixtureDirectory)
+        ) as! [String: Any]
+        tamperedStatusObject["selected_projects"] = ["/Projects/Other"]
+        let tamperedStatus = try decoder.decode(
+            ReconciliationAssistantStatusReport.self,
+            from: JSONSerialization.data(withJSONObject: tamperedStatusObject)
+        )
+        precondition(
+            tamperedStatus.transition(
+                expectedSessionId: decodedPrepare.sessionId,
+                request: request
+            ) == .incompatible
+        )
+        let proposalRequest = request.attachingAssistantProposal(
+            "proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        )
+        let proposalRequestBytes = try proposalRequest.encoded()
+        let expectedProposalRequest = Data(#"{"assistant_proposal_id":"proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","projects":[{"components":["claude","codex"],"path":"\/Projects\/Team; literal\/One","recipe_ids":{"claude":"claude-safe-1","codex":"codex-safe-1"}}],"roots":["\/Projects\/Team; literal"],"schema_version":"1.0"}"#.utf8)
+        precondition(proposalRequestBytes == expectedProposalRequest)
+
+        let opaqueSession = "session_O'Brien;$(touch /tmp/ct-must-not-run)"
+        let terminalCommand = ReconciliationAssistantTerminalCommand(
+            executableURL: URL(fileURLWithPath: "/Applications/Control Tower/cc"),
+            sessionId: opaqueSession
+        )
+        precondition(
+            terminalCommand.arguments
+                == ["reconcile", "assistant-run", "--session-id", opaqueSession]
+        )
+        precondition(terminalCommand.executableURL.path == "/Applications/Control Tower/cc")
+        precondition(!terminalCommand.commandLine.contains("/Projects/Team; literal/One"))
+        precondition(!terminalCommand.commandLine.contains("prompt"))
+        precondition(!terminalCommand.commandLine.contains("patch"))
+        precondition(terminalCommand.commandLine.contains("'\"'\"'"))
 
         let client = CliClient.shared
         switch await client.reconciliationAssess() {
@@ -111,21 +225,71 @@ struct ReconciliationContractDriver {
             fatalError("assess did not preserve its report")
         }
 
-        switch await client.reconciliationPlan(request: request) {
+
+        switch await client.reconciliationAssistantPrepare(request: request) {
+        case .success(.report(let report)):
+            precondition(report.phase == .assistantPrepare)
+            precondition(report.sessionId == "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        default:
+            fatalError("assistant prepare did not preserve its report")
+        }
+        try assertRequest(
+            phase: "assistant-prepare",
+            captureDirectory: captureDirectory,
+            expected: requestBytes
+        ) { argv in
+            argv.count == 5
+                && argv[0...2] == ["reconcile", "assistant-prepare", "--request"]
+                && argv[4] == "--json"
+        }
+
+        setenv("CT_RECONCILE_RESPONSE", "assistant-status-running", 1)
+        switch await client.reconciliationAssistantStatus(
+            sessionId: "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ) {
+        case .success(.report(let report)):
+            precondition(report.result == .running)
+            precondition(report.proposalId == nil)
+        default:
+            fatalError("assistant running status did not preserve its report")
+        }
+        setenv("CT_RECONCILE_RESPONSE", "assistant-status-ready", 1)
+        switch await client.reconciliationAssistantStatus(
+            sessionId: "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ) {
+        case .success(.report(let report)):
+            precondition(report.result == .ready)
+            precondition(report.proposalId == "proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        default:
+            fatalError("assistant ready status did not preserve its report")
+        }
+        let assistantStatusArguments = try lines(
+            "\(captureDirectory)/assistant-status.argv"
+        )
+        precondition(
+            assistantStatusArguments
+                == [
+                    "reconcile", "assistant-status", "--session-id",
+                    "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "--json",
+                ]
+        )
+        unsetenv("CT_RECONCILE_RESPONSE")
+
+        switch await client.reconciliationPlan(request: proposalRequest) {
         case .success(.report(let report)):
             precondition(report.phase == .plan)
             precondition(report.planId == "plan_22222222222222222222222222222222")
         default:
             fatalError("plan did not preserve its report")
         }
-        try assertRequest(phase: "plan", captureDirectory: captureDirectory, expected: requestBytes) { argv in
+        try assertRequest(phase: "plan", captureDirectory: captureDirectory, expected: proposalRequestBytes) { argv in
             argv.count == 5
                 && argv[0...2] == ["reconcile", "plan", "--request"]
                 && argv[4] == "--json"
         }
 
         switch await client.reconciliationApply(
-            request: request,
+            request: proposalRequest,
             planId: "plan_22222222222222222222222222222222"
         ) {
         case .success(.report(let report)):
@@ -135,20 +299,20 @@ struct ReconciliationContractDriver {
         default:
             fatalError("apply did not preserve its partial report")
         }
-        try assertRequest(phase: "apply", captureDirectory: captureDirectory, expected: requestBytes) { argv in
+        try assertRequest(phase: "apply", captureDirectory: captureDirectory, expected: proposalRequestBytes) { argv in
             argv.count == 7
                 && argv[0...2] == ["reconcile", "apply", "--request"]
                 && argv[4...6] == ["--plan-id", "plan_22222222222222222222222222222222", "--json"]
         }
 
-        switch await client.reconciliationVerify(request: request) {
+        switch await client.reconciliationVerify(request: proposalRequest) {
         case .success(.report(let report)):
             precondition(report.phase == .verify)
             precondition(report.result == .blocked)
         default:
             fatalError("verify did not preserve its blocked report")
         }
-        try assertRequest(phase: "verify", captureDirectory: captureDirectory, expected: requestBytes) { argv in
+        try assertRequest(phase: "verify", captureDirectory: captureDirectory, expected: proposalRequestBytes) { argv in
             argv.count == 5
                 && argv[0...2] == ["reconcile", "verify", "--request"]
                 && argv[4] == "--json"
@@ -163,14 +327,14 @@ struct ReconciliationContractDriver {
         }
 
         setenv("CT_RECONCILE_RESPONSE", "error", 1)
-        switch await client.reconciliationPlan(request: request) {
+        switch await client.reconciliationPlan(request: proposalRequest) {
         case .success(.error(let report)):
             precondition(report.exitCode == 2)
             precondition(report.error.code == "invalid-request")
         default:
             fatalError("structured Python error was not preserved")
         }
-        try assertRequest(phase: "plan", captureDirectory: captureDirectory, expected: requestBytes) { argv in
+        try assertRequest(phase: "plan", captureDirectory: captureDirectory, expected: proposalRequestBytes) { argv in
             argv.count == 5
                 && argv[0...2] == ["reconcile", "plan", "--request"]
                 && argv[4] == "--json"

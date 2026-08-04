@@ -170,12 +170,58 @@ enum ProjectRowGroup: String {
 enum ProjectReconciliationStage: Equatable {
     case assessing
     case selecting
+    case assistantPreparing
+    case assistantRunning
+    case assistantReady
     case planning
     case reviewing
     case applying
     case verifying
     case receipt
     case recovering
+}
+
+enum ReconciliationAssistantLaunchIssue: Equatable {
+    case helperUnavailable
+    case automationPermissionDenied
+    case terminalUnavailable
+}
+
+/// Dedicated launcher for reconciliation preparation. This intentionally does
+/// not share `ProjectIntegrationLauncher`: no generated prompt is copied, no
+/// project directory is passed, and no assistant executable is resolved from
+/// the shell. Terminal receives only the exact `cc` URL from `CliLocator` and
+/// the opaque session id Python just issued.
+enum ReconciliationAssistantLauncher {
+    enum LaunchResult: Equatable {
+        case openedInTerminal
+        case helperUnavailable
+        case automationPermissionDenied
+        case terminalUnavailable
+    }
+
+    static func open(sessionId: String) -> LaunchResult {
+        guard let executableURL = CliLocator.locate() else {
+            return .helperUnavailable
+        }
+        let command = ReconciliationAssistantTerminalCommand(
+            executableURL: executableURL,
+            sessionId: sessionId
+        )
+        var error: NSDictionary?
+        guard NSAppleScript(source: command.appleScriptSource)?
+            .executeAndReturnError(&error) != nil else {
+            return launchFailure(forAppleScriptError: error)
+        }
+        return .openedInTerminal
+    }
+
+    static func launchFailure(forAppleScriptError error: NSDictionary?) -> LaunchResult {
+        let errorNumber = (error?["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue
+        return errorNumber == -1743 || errorNumber == -1744
+            ? .automationPermissionDenied
+            : .terminalUnavailable
+    }
 }
 
 /// Presentation-only navigation for the five CLI-authored project
@@ -1233,12 +1279,21 @@ final class WizardModel: ObservableObject {
     @Published var reconciliationApplyReport: ReconciliationApplyReport?
     @Published var reconciliationVerifyReport: ReconciliationVerifyReport?
     @Published var reconciliationRecoverReport: ReconciliationRecoverReport?
+    @Published var reconciliationAssistantPrepareReport: ReconciliationAssistantPrepareReport?
+    @Published var reconciliationAssistantStatusReport: ReconciliationAssistantStatusReport?
+    @Published var reconciliationAssistantLaunchIssue: ReconciliationAssistantLaunchIssue?
     @Published var reconciliationErrorDetail: String?
     @Published var reconciliationSelectedProjectPaths: Set<String> = []
     @Published var reconciliationUsesIndividualSelection = false
     /// Constructed once when the person asks for a plan, then reused without
     /// mutation for plan, apply, and fresh verify.
     private var reviewedReconciliationRequest: ReconciliationRequest?
+    /// Frozen before assistant preparation and retained until Python returns
+    /// the proposal id that is attached to this exact request.
+    private var pendingAssistantReconciliationRequest: ReconciliationRequest?
+    private var reconciliationAssistantAttemptId: UUID?
+    private var reconciliationAssistantPreparationTask: Task<Void, Never>?
+    private var reconciliationAssistantStatusTask: Task<Void, Never>?
     /// Set only after an external assistant successfully opens. The next
     /// activation of Control Tower consumes this value and asks the CLI to
     /// verify again; assistant self-report never changes project status.
@@ -1328,6 +1383,47 @@ final class WizardModel: ObservableObject {
             return try! decoder.decode(type, from: data)
         }
 
+        func reconciliationAssistantAssessment() -> ReconciliationAssessReport {
+            let defaultRoot = FileManager.default.currentDirectoryPath
+                + "/scripts/tests/fixtures/reconciliation"
+            let root = ProcessInfo.processInfo.environment[
+                "CT_VISUAL_RECONCILIATION_FIXTURES"
+            ] ?? defaultRoot
+            let data = try! Data(
+                contentsOf: URL(fileURLWithPath: root)
+                    .appendingPathComponent("assess.json", isDirectory: false)
+            )
+            var object = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+            var projects = object["projects"] as! [[String: Any]]
+            var assistedProject = projects[0]
+            assistedProject["path"] = "/Projects/Two"
+            assistedProject["name"] = "Two"
+            assistedProject["route"] = "customized-guided-route"
+            projects.append(assistedProject)
+            object["projects"] = projects
+            object["assistant_selection"] = [
+                [
+                    "path": "/Projects/Two",
+                    "components": ["claude", "codex"],
+                    "category": "correction",
+                ]
+            ]
+            object["resolution_summary"] = [
+                "automatic": 1,
+                "claude_assisted": 1,
+                "held": 2,
+                "total_actionable": 2,
+                "new_setup": 1,
+                "correction": 1,
+            ]
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try! decoder.decode(
+                ReconciliationAssessReport.self,
+                from: JSONSerialization.data(withJSONObject: object)
+            )
+        }
+
         func loadVisualProjectRoot() {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -1366,9 +1462,63 @@ final class WizardModel: ObservableObject {
                 as: ReconciliationAssessReport.self
             )
             reconciliationAssessReport = report
-            reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
+            reconciliationSelectedProjectPaths = Self.reconciliationAuthorizedPaths(
+                from: report
+            )
             reconciliationUsesIndividualSelection = name == "projects-reconciliation-individual"
             reconciliationStage = .selecting
+            phase = .projects
+        case "projects-reconciliation-assistant-select",
+             "projects-reconciliation-assistant-individual",
+             "projects-reconciliation-assistant-preparing",
+             "projects-reconciliation-assistant-running",
+             "projects-reconciliation-assistant-ready",
+             "projects-reconciliation-assistant-permission",
+             "projects-reconciliation-assistant-unavailable":
+            loadVisualProjectRoot()
+            let report = reconciliationAssistantAssessment()
+            reconciliationAssessReport = report
+            reconciliationSelectedProjectPaths = Self.reconciliationAuthorizedPaths(
+                from: report
+            )
+            reconciliationUsesIndividualSelection = name
+                == "projects-reconciliation-assistant-individual"
+            switch name {
+            case "projects-reconciliation-assistant-preparing":
+                reconciliationStage = .assistantPreparing
+            case "projects-reconciliation-assistant-running":
+                reconciliationAssistantPrepareReport = reconciliationFixture(
+                    "assistant-prepare.json",
+                    as: ReconciliationAssistantPrepareReport.self
+                )
+                reconciliationAssistantStatusReport = reconciliationFixture(
+                    "assistant-status-running.json",
+                    as: ReconciliationAssistantStatusReport.self
+                )
+                reconciliationStage = .assistantRunning
+            case "projects-reconciliation-assistant-ready":
+                let status = reconciliationFixture(
+                    "assistant-status-ready.json",
+                    as: ReconciliationAssistantStatusReport.self
+                )
+                reconciliationAssistantStatusReport = status
+                reviewedReconciliationRequest = ReconciliationRequest(
+                    roots: ["/Projects"],
+                    projects: report.requestSelections(
+                        selectedPaths: report.authorizedSelectionPaths
+                    ),
+                    assistantProposalId: status.proposalId
+                )
+                reconciliationStage = .assistantReady
+            case "projects-reconciliation-assistant-permission":
+                reconciliationAssistantLaunchIssue = .automationPermissionDenied
+                reconciliationStage = .selecting
+            case "projects-reconciliation-assistant-unavailable":
+                reconciliationAssistantLaunchIssue = .helperUnavailable
+                reconciliationStage = .selecting
+            default:
+                reconciliationStage = .selecting
+            }
             phase = .projects
         case "projects-reconciliation-review":
             loadVisualProjectRoot()
@@ -1377,7 +1527,9 @@ final class WizardModel: ObservableObject {
                 as: ReconciliationAssessReport.self
             )
             reconciliationAssessReport = report
-            reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
+            reconciliationSelectedProjectPaths = Self.reconciliationAuthorizedPaths(
+                from: report
+            )
             reconciliationPlanReport = reconciliationFixture(
                 "plan.json",
                 as: ReconciliationPlanReport.self
@@ -2567,9 +2719,18 @@ final class WizardModel: ObservableObject {
         reconciliationApplyReport = nil
         reconciliationVerifyReport = nil
         reconciliationRecoverReport = nil
+        reconciliationAssistantPrepareReport = nil
+        reconciliationAssistantStatusReport = nil
+        reconciliationAssistantLaunchIssue = nil
         reconciliationSelectedProjectPaths = []
         reconciliationUsesIndividualSelection = false
         reviewedReconciliationRequest = nil
+        pendingAssistantReconciliationRequest = nil
+        reconciliationAssistantAttemptId = nil
+        reconciliationAssistantPreparationTask?.cancel()
+        reconciliationAssistantPreparationTask = nil
+        reconciliationAssistantStatusTask?.cancel()
+        reconciliationAssistantStatusTask = nil
 
         async let workspacesResult = CliClient.shared.workspaces()
         async let reconciliationResult = CliClient.shared.reconciliationAssess()
@@ -2587,7 +2748,9 @@ final class WizardModel: ObservableObject {
         switch reconciliationOutcome {
         case .success(.report(let report)):
             reconciliationAssessReport = report
-            reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
+            reconciliationSelectedProjectPaths = Self.reconciliationAuthorizedPaths(
+                from: report
+            )
             reconciliationStage = .selecting
         case .success(.error(let report)):
             reconciliationErrorDetail = report.error.detail
@@ -2660,17 +2823,39 @@ final class WizardModel: ObservableObject {
         reconciliationSelectedProjectPaths.count
     }
 
+    var reconciliationSelectedAssistantProjectCount: Int {
+        guard let report = reconciliationAssessReport else { return 0 }
+        return (report.assistantSelection ?? []).filter {
+            reconciliationSelectedProjectPaths.contains($0.path)
+        }.count
+    }
+
+    var reconciliationHasAutomaticSelection: Bool {
+        guard let report = reconciliationAssessReport else { return false }
+        return report.defaultSelection.contains {
+            reconciliationSelectedProjectPaths.contains($0.path)
+        }
+    }
+
+    nonisolated static func reconciliationAuthorizedPaths(
+        from report: ReconciliationAssessReport
+    ) -> Set<String> {
+        report.authorizedSelectionPaths
+    }
+
     var reconciliationAllProjectsSelected: Bool {
         guard let report = reconciliationAssessReport,
-              !report.defaultSelection.isEmpty else { return false }
+              !Self.reconciliationAuthorizedPaths(from: report).isEmpty else { return false }
         return reconciliationSelectedProjectPaths
-            == Set(report.defaultSelection.map(\.path))
+            == Self.reconciliationAuthorizedPaths(from: report)
     }
 
     func setReconciliationAllProjects(_ selected: Bool) {
         guard let report = reconciliationAssessReport else { return }
         if selected {
-            reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
+            reconciliationSelectedProjectPaths = Self.reconciliationAuthorizedPaths(
+                from: report
+            )
             reconciliationUsesIndividualSelection = false
         } else {
             reconciliationSelectedProjectPaths = []
@@ -2683,9 +2868,8 @@ final class WizardModel: ObservableObject {
     }
 
     func toggleReconciliationProject(_ path: String) {
-        guard reconciliationAssessReport?.defaultSelection.contains(where: {
-            $0.path == path
-        }) == true else { return }
+        guard let report = reconciliationAssessReport,
+              Self.reconciliationAuthorizedPaths(from: report).contains(path) else { return }
         if reconciliationSelectedProjectPaths.contains(path) {
             reconciliationSelectedProjectPaths.remove(path)
         } else {
@@ -2695,7 +2879,7 @@ final class WizardModel: ObservableObject {
 
     func selectAllReconciliationProjects() {
         guard let report = reconciliationAssessReport else { return }
-        reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
+        reconciliationSelectedProjectPaths = Self.reconciliationAuthorizedPaths(from: report)
     }
 
     func selectNoReconciliationProjects() {
@@ -2705,20 +2889,20 @@ final class WizardModel: ObservableObject {
     var canPlanReconciliation: Bool {
         guard reconciliationStage == .selecting,
               let report = reconciliationAssessReport else { return false }
-        let allowed = Set(report.defaultSelection.map(\.path))
+        let allowed = Self.reconciliationAuthorizedPaths(from: report)
+        let authoredSelectionCount = report.authoredSelectionCount
         return !reconciliationSelectedProjectPaths.isEmpty
             && reconciliationSelectedProjectPaths.isSubset(of: allowed)
+            && allowed.count == authoredSelectionCount
             && report.machine.state != .couldNotVerify
     }
 
     private func makeReconciliationRequest() -> ReconciliationRequest? {
         guard canPlanReconciliation,
               let report = reconciliationAssessReport else { return nil }
-        let projects = report.defaultSelection.compactMap { selection in
-            reconciliationSelectedProjectPaths.contains(selection.path)
-                ? selection.requestSelection
-                : nil
-        }
+        let projects = report.requestSelections(
+            selectedPaths: reconciliationSelectedProjectPaths
+        )
         guard !projects.isEmpty else { return nil }
         return ReconciliationRequest(
             roots: projectRoots.map(\.path),
@@ -2729,6 +2913,200 @@ final class WizardModel: ObservableObject {
     func planReconciliation() {
         guard reviewedReconciliationRequest == nil,
               let request = makeReconciliationRequest() else { return }
+        if reconciliationSelectedAssistantProjectCount > 0 {
+            prepareReconciliationAssistant(request: request)
+        } else {
+            requestReconciliationPlan(request)
+        }
+    }
+
+    private func prepareReconciliationAssistant(request: ReconciliationRequest) {
+        reconciliationAssistantPreparationTask?.cancel()
+        reconciliationAssistantStatusTask?.cancel()
+        let attemptId = UUID()
+        reconciliationAssistantAttemptId = attemptId
+        pendingAssistantReconciliationRequest = request
+        reconciliationAssistantPrepareReport = nil
+        reconciliationAssistantStatusReport = nil
+        reconciliationAssistantLaunchIssue = nil
+        reconciliationPlanReport = nil
+        reconciliationApplyReport = nil
+        reconciliationVerifyReport = nil
+        reconciliationRecoverReport = nil
+        reconciliationErrorDetail = nil
+        reconciliationStage = .assistantPreparing
+        reconciliationAssistantPreparationTask = Task { [weak self] in
+            let outcome = await CliClient.shared.reconciliationAssistantPrepare(
+                request: request
+            )
+            guard !Task.isCancelled,
+                  let self,
+                  self.reconciliationAssistantAttemptId == attemptId,
+                  self.reconciliationStage == .assistantPreparing else { return }
+            switch outcome {
+            case .success(.report(let report)):
+                guard report.matches(request: request) else {
+                    self.failReconciliationAssistant(
+                        "The helper returned a preparation session for a different project selection. No project changes were started."
+                    )
+                    return
+                }
+                self.reconciliationAssistantPrepareReport = report
+                switch ReconciliationAssistantLauncher.open(sessionId: report.sessionId) {
+                case .openedInTerminal:
+                    self.reconciliationAssistantPreparationTask = nil
+                    self.reconciliationStage = .assistantRunning
+                    self.pollReconciliationAssistant(
+                        sessionId: report.sessionId,
+                        request: request
+                    )
+                case .helperUnavailable:
+                    self.reconciliationAssistantLaunchIssue = .helperUnavailable
+                    self.reconciliationAssistantAttemptId = nil
+                    self.reconciliationAssistantPreparationTask = nil
+                    self.pendingAssistantReconciliationRequest = nil
+                    self.reconciliationStage = .selecting
+                case .automationPermissionDenied:
+                    self.reconciliationAssistantLaunchIssue = .automationPermissionDenied
+                    self.reconciliationAssistantAttemptId = nil
+                    self.reconciliationAssistantPreparationTask = nil
+                    self.pendingAssistantReconciliationRequest = nil
+                    self.reconciliationStage = .selecting
+                case .terminalUnavailable:
+                    self.reconciliationAssistantLaunchIssue = .terminalUnavailable
+                    self.reconciliationAssistantAttemptId = nil
+                    self.reconciliationAssistantPreparationTask = nil
+                    self.pendingAssistantReconciliationRequest = nil
+                    self.reconciliationStage = .selecting
+                }
+            case .success(.error(let report)):
+                self.failReconciliationAssistant(report.error.detail)
+            case .failure:
+                self.failReconciliationAssistant(
+                    "Control Tower couldn't read a compatible preparation report. No project changes were started."
+                )
+            }
+        }
+    }
+
+    private func pollReconciliationAssistant(
+        sessionId: String,
+        request: ReconciliationRequest
+    ) {
+        reconciliationAssistantStatusTask?.cancel()
+        reconciliationAssistantStatusTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                switch await CliClient.shared.reconciliationAssistantStatus(
+                    sessionId: sessionId
+                ) {
+                case .success(.report(let report)):
+                    self.reconciliationAssistantStatusReport = report
+                    switch report.transition(
+                        expectedSessionId: sessionId,
+                        request: request
+                    ) {
+                    case .running:
+                        break
+                    case .ready(let proposalId):
+                        self.reviewedReconciliationRequest = request
+                            .attachingAssistantProposal(proposalId)
+                        self.pendingAssistantReconciliationRequest = nil
+                        self.reconciliationAssistantAttemptId = nil
+                        self.reconciliationAssistantStatusTask = nil
+                        self.reconciliationStage = .assistantReady
+                        return
+                    case .blocked(let detail):
+                        self.failReconciliationAssistant(detail)
+                        return
+                    case .incompatible:
+                        self.failReconciliationAssistant(
+                            "The helper returned status for a different or incompatible preparation session. No project changes were started."
+                        )
+                        return
+                    }
+                case .success(.error(let report)):
+                    self.failReconciliationAssistant(report.error.detail)
+                    return
+                case .failure:
+                    self.failReconciliationAssistant(
+                        "Control Tower couldn't read compatible preparation status. No project changes were started."
+                    )
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+        }
+    }
+
+    private func failReconciliationAssistant(_ detail: String) {
+        reconciliationAssistantPreparationTask?.cancel()
+        reconciliationAssistantPreparationTask = nil
+        reconciliationAssistantStatusTask?.cancel()
+        reconciliationAssistantStatusTask = nil
+        reconciliationAssistantAttemptId = nil
+        pendingAssistantReconciliationRequest = nil
+        reviewedReconciliationRequest = nil
+        reconciliationErrorDetail = detail
+        reconciliationStage = .selecting
+    }
+
+    func stopReconciliationAssistantPreparation() {
+        guard reconciliationStage == .assistantPreparing
+                || reconciliationStage == .assistantRunning else { return }
+        failReconciliationAssistant(
+            "Preparation checking stopped. Nothing was changed. Start again when you're ready."
+        )
+    }
+
+    func retryReconciliationAssistant() {
+        guard reconciliationStage == .selecting else { return }
+        reconciliationAssistantLaunchIssue = nil
+        reconciliationErrorDetail = nil
+        planReconciliation()
+    }
+
+    func useStandardReconciliationOnly() {
+        guard let report = reconciliationAssessReport else { return }
+        let automaticPaths = Set(report.defaultSelection.map(\.path))
+        reconciliationSelectedProjectPaths.formIntersection(automaticPaths)
+        reconciliationAssistantLaunchIssue = nil
+        reconciliationErrorDetail = nil
+        reconciliationStage = .selecting
+        reviewedReconciliationRequest = nil
+        pendingAssistantReconciliationRequest = nil
+        reconciliationAssistantAttemptId = nil
+        reconciliationAssistantPreparationTask?.cancel()
+        reconciliationAssistantPreparationTask = nil
+        reconciliationAssistantStatusTask?.cancel()
+        reconciliationAssistantStatusTask = nil
+        guard let request = makeReconciliationRequest() else { return }
+        requestReconciliationPlan(request)
+    }
+
+    func openAutomationPrivacySettings() {
+        guard let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+        ) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func reviewPreparedReconciliation() {
+        guard reconciliationStage == .assistantReady,
+              let request = reviewedReconciliationRequest else { return }
+        requestReconciliationPlan(request)
+    }
+
+    func changePreparedReconciliationSelection() {
+        guard reconciliationStage == .assistantReady else { return }
+        reviewedReconciliationRequest = nil
+        reconciliationAssistantPrepareReport = nil
+        reconciliationAssistantStatusReport = nil
+        reconciliationErrorDetail = nil
+        reconciliationStage = .selecting
+    }
+
+    private func requestReconciliationPlan(_ request: ReconciliationRequest) {
         reviewedReconciliationRequest = request
         reconciliationPlanReport = nil
         reconciliationApplyReport = nil
@@ -2804,7 +3182,9 @@ final class WizardModel: ObservableObject {
     func refreshReconciliation() {
         guard reconciliationStage != .applying,
               reconciliationStage != .verifying,
-              reconciliationStage != .recovering else { return }
+              reconciliationStage != .recovering,
+              reconciliationStage != .assistantPreparing,
+              reconciliationStage != .assistantRunning else { return }
         Task { await self.loadProjectWorkspaces() }
     }
 
@@ -5015,23 +5395,46 @@ struct WizardRootView: View {
             if model.reconciliationStage != .reviewing
                 && model.reconciliationStage != .applying
                 && model.reconciliationStage != .verifying
-                && model.reconciliationStage != .recovering {
+                && model.reconciliationStage != .recovering
+                && model.reconciliationStage != .assistantPreparing
+                && model.reconciliationStage != .assistantRunning {
                 Button { model.backFromProjects() } label: { Text("Back") }
                     .buttonStyle(.bordered)
             }
         } primaryAction: {
             if model.reconciliationStage == .selecting,
-               model.reconciliationAssessReport?.defaultSelection.isEmpty == false {
+               let report = model.reconciliationAssessReport,
+               !WizardModel.reconciliationAuthorizedPaths(from: report).isEmpty {
                 Button { model.planReconciliation() } label: {
-                    Text(
-                        "Review changes for \(model.reconciliationSelectedProjectCount) "
-                            + (model.reconciliationSelectedProjectCount == 1 ? "project" : "projects")
-                    )
+                    if model.reconciliationSelectedAssistantProjectCount > 0 {
+                        Label(
+                            "Resolve \(model.reconciliationSelectedProjectCount) "
+                                + (model.reconciliationSelectedProjectCount == 1 ? "project" : "projects")
+                                + " with Claude Code",
+                            systemImage: "sparkles"
+                        )
+                    } else {
+                        Text(
+                            "Review changes for \(model.reconciliationSelectedProjectCount) "
+                                + (model.reconciliationSelectedProjectCount == 1 ? "project" : "projects")
+                        )
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.canPlanReconciliation)
-                .accessibilityHint("Requests a read-only plan for the selected projects. Each receives both copilots.")
+                .accessibilityHint(
+                    model.reconciliationSelectedAssistantProjectCount > 0
+                        ? "Opens one visible, bounded preparation session. Nothing changes until you review and apply a Python plan."
+                        : "Requests a read-only plan for the selected projects. Each receives both copilots."
+                )
+            } else if model.reconciliationStage == .assistantReady {
+                Button("Review proposed changes") {
+                    model.reviewPreparedReconciliation()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .accessibilityHint("Requests Python's exact plan using the validated proposal and the same project selection.")
             } else if model.reconciliationStage == .selecting
                         || model.reconciliationStage == .receipt {
                 Button { model.continueFromProjects() } label: {
@@ -5062,6 +5465,10 @@ struct WizardRootView: View {
             return model.reconciliationAssessReport == nil
                 ? "Project reconciliation isn't available"
                 : "Set up and fix your projects"
+        case .assistantPreparing, .assistantRunning:
+            return "Preparing project proposals"
+        case .assistantReady:
+            return "Proposals ready to review"
         case .planning:
             return "Building the exact plan"
         case .reviewing:
@@ -5083,6 +5490,10 @@ struct WizardRootView: View {
             return "The helper is inspecting approved folders without changing them."
         case .selecting:
             return "Every project selected here gets Claude Copilot and Codex Copilot. Projects that are already ready stay out of the way."
+        case .assistantPreparing, .assistantRunning:
+            return "Claude Code is preparing bounded proposals in Terminal. Nothing is changing yet."
+        case .assistantReady:
+            return "Control Tower received Python-validated proposals for the same selected batch. Review the exact plan before anything can change."
         case .planning:
             return "Nothing has changed. The helper is turning your exact selection into reviewable operations and preservation boundaries."
         case .reviewing:
@@ -5314,6 +5725,10 @@ struct WizardRootView: View {
             } else {
                 reconciliationUnavailable
             }
+        case .assistantPreparing, .assistantRunning:
+            reconciliationAssistantPreparation
+        case .assistantReady:
+            reconciliationAssistantReady
         case .planning:
             reconciliationBusyCard(
                 title: "Preparing the exact plan",
@@ -5343,6 +5758,88 @@ struct WizardRootView: View {
                 detail: "The helper is deciding whether interrupted work was already applied, safely rolled back, or still blocked."
             )
         }
+    }
+
+    private var reconciliationAssistantPreparation: some View {
+        sectionCard("Preparing project proposals") {
+            VStack(alignment: .leading, spacing: CTSpace.md) {
+                HStack(alignment: .top, spacing: CTSpace.sm) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: CTSpace.xs) {
+                        Text(
+                            model.reconciliationAssistantStatusReport?.detail
+                                ?? (model.reconciliationAssistantPrepareReport == nil
+                                    ? "Opening the approved batch with the helper."
+                                    : "Claude Code is drafting bounded proposals in Terminal while Control Tower waits for Python validation.")
+                        )
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                        Text("Nothing is changing yet.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "Preparing project proposals. "
+                        + (model.reconciliationAssistantStatusReport?.detail
+                            ?? "Nothing is changing yet.")
+                )
+
+                Button("Stop checking") {
+                    model.stopReconciliationAssistantPreparation()
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+        }
+    }
+
+    private var reconciliationAssistantReady: some View {
+        VStack(alignment: .leading, spacing: CTSpace.lg) {
+            sectionCard("Proposals ready to review") {
+                VStack(alignment: .leading, spacing: CTSpace.md) {
+                    Label(
+                        "\(model.reconciliationSelectedAssistantProjectCount) "
+                            + (model.reconciliationSelectedAssistantProjectCount == 1
+                                ? "proposal is ready to review"
+                                : "proposals are ready to review"),
+                        systemImage: "arrow.right.circle"
+                    )
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(Color(nsColor: .linkColor))
+
+                    if let held = model.reconciliationAssessReport?
+                        .resolutionSummary?.held, held > 0 {
+                        Label(
+                            "\(held) "
+                                + (held == 1 ? "project was left" : "projects were left")
+                                + " unchanged to protect your work",
+                            systemImage: "hand.raised"
+                        )
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+
+                    Text("Claude Code prepared proposals only. Control Tower has not changed any project.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let status = model.reconciliationAssistantStatusReport {
+                        reconciliationNextActions(status.nextActions)
+                    }
+
+                    Button("Change selection") {
+                        model.changePreparedReconciliationSelection()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
     }
 
     private func reconciliationBusyCard(title: String, detail: String) -> some View {
@@ -5397,7 +5894,11 @@ struct WizardRootView: View {
                 }
             }
 
-            if !report.defaultSelection.isEmpty {
+            if let issue = model.reconciliationAssistantLaunchIssue {
+                reconciliationAssistantLaunchIssue(issue)
+            }
+
+            if !WizardModel.reconciliationAuthorizedPaths(from: report).isEmpty {
                 if model.reconciliationUsesIndividualSelection {
                     reconciliationIndividualSelection(report)
                 } else {
@@ -5417,13 +5918,92 @@ struct WizardRootView: View {
         }
     }
 
+    private func reconciliationAssistantLaunchIssue(
+        _ issue: ReconciliationAssistantLaunchIssue
+    ) -> some View {
+        sectionCard(
+            issue == .automationPermissionDenied
+                ? "Allow Control Tower to open Claude Code"
+                : "Claude Code is not available on this Mac"
+        ) {
+            VStack(alignment: .leading, spacing: CTSpace.md) {
+                Label(
+                    issue == .automationPermissionDenied
+                        ? "Allow Control Tower to control Terminal in System Settings, then come back and try again. No projects were changed."
+                        : "Control Tower could not open the bounded preparation session in Terminal. No projects were changed.",
+                    systemImage: issue == .automationPermissionDenied
+                        ? "gearshape"
+                        : "terminal"
+                )
+                .font(.callout)
+                .foregroundColor(
+                    issue == .automationPermissionDenied
+                        ? Color(nsColor: .systemOrange)
+                        : Color(nsColor: .secondaryLabelColor)
+                )
+                .fixedSize(horizontal: false, vertical: true)
+
+                HStack {
+                    if issue == .automationPermissionDenied {
+                        Button("Open System Settings") {
+                            model.openAutomationPrivacySettings()
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityHint("Opens Privacy & Security settings.")
+                    }
+                    Button(issue == .automationPermissionDenied ? "Try again" : "Check again") {
+                        model.retryReconciliationAssistant()
+                    }
+                    .buttonStyle(.bordered)
+                    if model.reconciliationHasAutomaticSelection {
+                        Button("Use standard setup only") {
+                            model.useStandardReconciliationOnly()
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
     private func reconciliationBatchSummary(
         _ report: ReconciliationAssessReport
     ) -> some View {
         let batch = report.batchSummary
         return sectionCard("Your project setup") {
             VStack(alignment: .leading, spacing: CTSpace.md) {
-                if batch.selected > 0 {
+                if let resolution = report.resolutionSummary,
+                   resolution.totalActionable > 0 {
+                    Text(
+                        "\(resolution.totalActionable) "
+                            + (resolution.totalActionable == 1
+                                ? "project has a supported route. It is"
+                                : "projects have supported routes. They are")
+                            + " selected."
+                    )
+                    .font(.callout.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(alignment: .top, spacing: CTSpace.sm) {
+                        reconciliationBatchMetric(
+                            resolution.newSetup,
+                            title: "New setup",
+                            detail: "Set up from the ground up"
+                        )
+                        reconciliationBatchMetric(
+                            resolution.correction,
+                            title: "Needs correction",
+                            detail: "Bring existing setup up to date"
+                        )
+                    }
+                    Text(
+                        "\(resolution.automatic) handled directly by Control Tower · "
+                            + "\(resolution.claudeAssisted) prepared with Claude Code"
+                    )
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                } else if report.resolutionSummary == nil, batch.selected > 0 {
                     Text(
                         "\(batch.selected) "
                             + (batch.selected == 1 ? "project can" : "projects can")
@@ -5466,20 +6046,19 @@ struct WizardRootView: View {
                         "\(batch.ready) "
                             + (batch.ready == 1 ? "project is" : "projects are")
                             + " already set up. Nothing else is needed.",
-                        systemImage: "checkmark.circle.fill"
+                        systemImage: "checkmark.circle"
                     )
                     .font(.caption)
-                    .foregroundColor(Color(nsColor: .systemGreen))
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
                 }
-                if batch.needsReview > 0 {
+                let held = report.resolutionSummary?.held ?? batch.needsReview
+                if held > 0 {
                     Label(
-                        "\(batch.needsReview) "
-                            + (batch.needsReview == 1 ? "project needs" : "projects need")
-                            + " someone to review "
-                            + (batch.needsReview == 1 ? "it" : "them")
-                            + ". They will not be changed.",
-                        systemImage: "hand.raised.fill"
+                        "\(held) "
+                            + (held == 1 ? "project is" : "projects are")
+                            + " left unchanged to protect your work.",
+                        systemImage: "hand.raised"
                     )
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -5528,7 +6107,10 @@ struct WizardRootView: View {
                     )
                 ) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Set up and fix all \(report.batchSummary.selected) projects")
+                        Text(
+                            "Set up and fix all "
+                                + "\(WizardModel.reconciliationAuthorizedPaths(from: report).count) projects"
+                        )
                             .font(.callout.weight(.semibold))
                         Text("Every project gets Claude Copilot and Codex Copilot.")
                             .font(.caption)
@@ -5543,6 +6125,15 @@ struct WizardRootView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .linkColor))
+
+                if !(report.assistantSelection ?? []).isEmpty,
+                   model.reconciliationHasAutomaticSelection {
+                    Button("Use standard setup only") {
+                        model.useStandardReconciliationOnly()
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Keeps your selected automatic projects and excludes Claude Code proposal work.")
+                }
             }
         }
     }
@@ -5553,7 +6144,9 @@ struct WizardRootView: View {
         sectionCard("Choose projects individually") {
             VStack(alignment: .leading, spacing: CTSpace.sm) {
                 HStack {
-                    Button("Do all \(report.batchSummary.selected)") {
+                    Button(
+                        "Do all \(WizardModel.reconciliationAuthorizedPaths(from: report).count)"
+                    ) {
                         model.setReconciliationAllProjects(true)
                     }
                     .buttonStyle(.plain)
@@ -5579,6 +6172,10 @@ struct WizardRootView: View {
                     ForEach(Array(report.defaultSelection.enumerated()), id: \.element.path) { index, selection in
                         if index > 0 { Divider() }
                         reconciliationProjectSelectionRow(selection, report: report)
+                    }
+                    ForEach(Array((report.assistantSelection ?? []).enumerated()), id: \.element.path) { index, selection in
+                        if index > 0 || !report.defaultSelection.isEmpty { Divider() }
+                        reconciliationAssistantProjectSelectionRow(selection, report: report)
                     }
                 }
             }
@@ -5673,6 +6270,41 @@ struct WizardRootView: View {
         .padding(.vertical, CTSpace.sm)
         .contentShape(Rectangle())
         .accessibilityHint("Includes Claude Copilot and Codex Copilot.")
+    }
+
+    private func reconciliationAssistantProjectSelectionRow(
+        _ selection: ReconciliationAssistantSelection,
+        report: ReconciliationAssessReport
+    ) -> some View {
+        let projectName = report.projects.first(where: {
+            $0.path == selection.path
+        })?.name ?? selection.path
+        let isSelected = model.reconciliationSelectedProjectPaths.contains(selection.path)
+        return Toggle(
+            isOn: Binding(
+                get: { isSelected },
+                set: { _ in model.toggleReconciliationProject(selection.path) }
+            )
+        ) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(projectName)
+                    .font(.callout.weight(.semibold))
+                Spacer()
+                Text(
+                    selection.category == "new-setup"
+                        ? "New setup"
+                        : "Needs correction"
+                )
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            }
+        }
+        .toggleStyle(.checkbox)
+        .padding(.vertical, CTSpace.sm)
+        .contentShape(Rectangle())
+        .accessibilityHint(
+            "Includes Claude Copilot and Codex Copilot in one bounded proposal preparation session."
+        )
     }
 
     private func reconciliationPlanReview(

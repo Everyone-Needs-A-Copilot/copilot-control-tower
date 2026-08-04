@@ -1,6 +1,6 @@
 # Copilot Control Tower
 
-> **Status line — refreshed from release evidence, 2026-08-04.** Current version: **v0.5.6**, the native SwiftUI/AppKit release that defaults to setting up or correcting every safe project with both Claude Copilot and Codex Copilot, and embeds notarized `cc 2.6.1`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
+> **Status line — prepared for the 2026-08-04 release.** Version: **v0.6.0** (build **27**), the native SwiftUI/AppKit release that can resolve the complete Python-authorized project batch through one bounded Claude Code preparation session, then uses the existing reviewed Python plan/apply/verify transaction. The bundle requires and carries exactly `cc 2.7.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
 
 **The always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem — the technical superpowers of a deeply skilled engineer, in the hands of someone who has never opened a terminal.**
 
@@ -32,6 +32,7 @@ The real user surface, in the product's own vocabulary:
 
 - **The tray** — a 12-state badge vocabulary (pass, ring, key, update, triangle, wrench, clock, cloud-slash, bang, spinner, hollow, none) on a single 300-second poll, plus refresh on launch and on popover open. Actions: Sync now, What changed, Settings, Quit (Admin builds add Open Administration).
 - **The first-run wizard** — nine stages: Welcome, Connect GitHub, Detect, What you're getting, Departments, Your connections, Your projects, Set up, Verify.
+- **Your projects** — starts with every Python-authorized new setup and correction selected. Customized projects that have a bounded route can be prepared in one visible Claude Code Terminal session without prompt copy/paste; Claude Code proposes only from Python-authored choices, while Control Tower still requires exact-plan review and Python remains the only writer and verifier.
 - **Settings** — four components (Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot) across four tiers (foundation, organization, department, personal), plus a project list and a connections card.
 - **Admin mode** — 16 surfaces across an 11-stage onboarding flow (orientation through done) and a 5-stage governance flow (add a department, someone left, connect the shared store, org setup, analytics), driven by a deterministic bash engine (`scripts/admin_bootstrap.sh`), never by the app computing org state itself.
 

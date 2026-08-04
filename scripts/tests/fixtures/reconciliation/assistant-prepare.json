@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "phase": "assistant-prepare",
+  "result": "ready",
+  "run_id": "run_11111111111111111111111111111111",
+  "generated_at": "2026-08-04T18:00:00Z",
+  "session_id": "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expires_at": "2026-08-04T18:30:00Z",
+  "selected_projects": [
+    "/Projects/Team; literal/One"
+  ],
+  "next_actions": [
+    "Open the bounded preparation session."
+  ]
+}

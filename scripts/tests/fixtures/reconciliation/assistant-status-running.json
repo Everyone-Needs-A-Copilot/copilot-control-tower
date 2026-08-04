@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "phase": "assistant-status",
+  "result": "running",
+  "run_id": "run_22222222222222222222222222222222",
+  "generated_at": "2026-08-04T18:02:00Z",
+  "session_id": "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "proposal_id": null,
+  "selected_projects": [
+    "/Projects/Team; literal/One"
+  ],
+  "detail": "Claude Code is preparing bounded proposals.",
+  "next_actions": [
+    "Wait for Python validation."
+  ]
+}

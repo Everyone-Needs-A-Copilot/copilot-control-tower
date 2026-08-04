@@ -1341,6 +1341,32 @@ struct ReconciliationDefaultSelection: Decodable {
     }
 }
 
+/// A customized project Python has explicitly authorized for bounded Claude
+/// Code proposal preparation. The category is intentionally opaque to Swift:
+/// Python owns routing semantics, while the app uses only the item membership,
+/// path, and universal component selection it was handed.
+struct ReconciliationAssistantSelection: Decodable {
+    let path: String
+    let components: [ReconciliationComponent]
+    let category: String
+
+    var requestSelection: ReconciliationProjectSelection {
+        ReconciliationProjectSelection(path: path, components: components)
+    }
+}
+
+/// Python-authored, mutually exclusive presentation counts for the default
+/// reconciliation surface. Swift displays these values without attempting to
+/// rebuild them from project routes.
+struct ReconciliationResolutionSummary: Decodable {
+    let automatic: Int
+    let claudeAssisted: Int
+    let held: Int
+    let totalActionable: Int
+    let newSetup: Int
+    let correction: Int
+}
+
 struct ReconciliationBatchSummary: Decodable {
     let newSetup: Int
     let correction: Int
@@ -1360,11 +1386,27 @@ struct ReconciliationRequest: Encodable {
     let schemaVersion: String
     let roots: [String]
     let projects: [ReconciliationProjectSelection]
+    let assistantProposalId: String?
 
-    init(roots: [String], projects: [ReconciliationProjectSelection]) {
+    init(
+        roots: [String],
+        projects: [ReconciliationProjectSelection],
+        assistantProposalId: String? = nil
+    ) {
         schemaVersion = "1.0"
         self.roots = roots
         self.projects = projects
+        self.assistantProposalId = assistantProposalId
+    }
+
+    /// Preserve the exact root/project/component request while attaching the
+    /// one opaque Python-validated proposal chosen by assistant-status.
+    func attachingAssistantProposal(_ proposalId: String) -> ReconciliationRequest {
+        ReconciliationRequest(
+            roots: roots,
+            projects: projects,
+            assistantProposalId: proposalId
+        )
     }
 
     /// Deterministic serialization only. Python remains authoritative for
@@ -1663,6 +1705,12 @@ struct ReconciliationDiagnosticReference: Decodable {
 }
 
 enum ReconciliationAssessPhase: String, Decodable { case assess }
+enum ReconciliationAssistantPreparePhase: String, Decodable {
+    case assistantPrepare = "assistant-prepare"
+}
+enum ReconciliationAssistantStatusPhase: String, Decodable {
+    case assistantStatus = "assistant-status"
+}
 enum ReconciliationPlanPhase: String, Decodable { case plan }
 enum ReconciliationApplyPhase: String, Decodable { case apply }
 enum ReconciliationVerifyPhase: String, Decodable { case verify }
@@ -1672,6 +1720,14 @@ enum ReconciliationErrorPhase: String, Decodable { case error }
 enum ReconciliationReadResult: String, Decodable {
     case ready
     case actionRequired = "action-required"
+    case blocked
+}
+
+enum ReconciliationAssistantPrepareResult: String, Decodable { case ready }
+
+enum ReconciliationAssistantStatusResult: String, Decodable {
+    case running
+    case ready
     case blocked
 }
 
@@ -1697,9 +1753,81 @@ struct ReconciliationAssessReport: Decodable {
     let machineSummary: ReconciliationMachineSummary
     let projects: [ReconciliationProject]
     let defaultSelection: [ReconciliationDefaultSelection]
+    let assistantSelection: [ReconciliationAssistantSelection]?
     let batchSummary: ReconciliationBatchSummary
+    let resolutionSummary: ReconciliationResolutionSummary?
     let summary: ReconciliationSummary
     let nextActions: [String]
+
+    /// The complete default-all set is the union of Python's two authored
+    /// lists. This is membership plumbing only; Swift does not add, classify,
+    /// or infer an eligible project.
+    var authorizedSelectionPaths: Set<String> {
+        Set(defaultSelection.map(\.path) + (assistantSelection ?? []).map(\.path))
+    }
+
+    var authoredSelectionCount: Int {
+        defaultSelection.count + (assistantSelection ?? []).count
+    }
+
+    func requestSelections(selectedPaths: Set<String>) -> [ReconciliationProjectSelection] {
+        defaultSelection.compactMap { selection in
+            selectedPaths.contains(selection.path) ? selection.requestSelection : nil
+        } + (assistantSelection ?? []).compactMap { selection in
+            selectedPaths.contains(selection.path) ? selection.requestSelection : nil
+        }
+    }
+}
+
+struct ReconciliationAssistantPrepareReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationAssistantPreparePhase
+    let result: ReconciliationAssistantPrepareResult
+    let sessionId: String
+    let expiresAt: String
+    let selectedProjects: [String]
+    let nextActions: [String]
+
+    func matches(request: ReconciliationRequest) -> Bool {
+        selectedProjects == request.projects.map(\.path)
+    }
+}
+
+enum ReconciliationAssistantStatusTransition: Equatable {
+    case running
+    case ready(proposalId: String)
+    case blocked(detail: String)
+    case incompatible
+}
+
+struct ReconciliationAssistantStatusReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationAssistantStatusPhase
+    let result: ReconciliationAssistantStatusResult
+    let sessionId: String
+    let proposalId: String?
+    let selectedProjects: [String]
+    let detail: String
+    let nextActions: [String]
+
+    func transition(
+        expectedSessionId: String,
+        request: ReconciliationRequest
+    ) -> ReconciliationAssistantStatusTransition {
+        guard sessionId == expectedSessionId,
+              selectedProjects == request.projects.map(\.path) else {
+            return .incompatible
+        }
+        switch result {
+        case .running:
+            return proposalId == nil ? .running : .incompatible
+        case .ready:
+            guard let proposalId, !proposalId.isEmpty else { return .incompatible }
+            return .ready(proposalId: proposalId)
+        case .blocked:
+            return proposalId == nil ? .blocked(detail: detail) : .incompatible
+        }
+    }
 }
 
 struct ReconciliationPlanReport: Decodable {

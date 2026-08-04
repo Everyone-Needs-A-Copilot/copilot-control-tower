@@ -2,6 +2,29 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.0] - 2026-08-04
+
+### Added
+
+- **Resolve with Claude Code** extends the default-all project workflow to customized projects that Python has explicitly authorized for bounded preparation. One action creates a private expiring helper session, opens one visible Terminal session, waits for Python-validated results, and converges on the existing exact-plan review, explicit apply confirmation, receipt, and fresh verification flow.
+- The project summary now counts every authorized route as either a new setup or a correction while separately identifying work Control Tower can handle directly, work prepared with Claude Code, projects already ready, and projects held unchanged. Individual project opt-out remains available; Claude Copilot and Codex Copilot remain universal for every selected project.
+- The reconciliation contract adds `assistant-prepare`, `assistant-run`, and `assistant-status` reports, Python-authored `assistant_selection` and `resolution_summary` assessment fields, and an opaque `assistant_proposal_id` on the otherwise unchanged exact request.
+
+### Changed
+
+- The app and Admin bundle are version `0.6.0` build `27`. The release requires and bundles exactly `cc 2.7.0`; `controltower.compat.json` now declares `cc >=2.7.0,<3.0.0`.
+- Reconciliation remains schema `1.0`, and the declared schema range remains `>=1.0,<2.0`. The assistant reports and assessment fields are additive to that contract; the higher helper floor ensures the app never offers this workflow against a helper that lacks them.
+
+### Security
+
+- Terminal receives only the exact bundled `cc` executable plus `reconcile assistant-run --session-id <opaque-id>`. It receives no project path, copied prompt, proposal content, patch, or free-form instruction.
+- Claude Code runs in a private helper-owned working directory with a constrained environment, safe/plan-only settings, no tools, no project filesystem access, and no session persistence. It can return only one offered opaque candidate identifier per Python-authored project/component group. Unknown, repeated, incomplete, malformed, oversized, stale, expired, concurrently claimed, or content-bearing output is rejected without changing a project.
+- Python binds a validated selection to one expiring proposal, attaches only its opaque identifier to the exact selected request, re-inspects before planning and applying, and remains the sole planner, project writer, rollback authority, and verifier.
+
+### Rollback
+
+- Reinstall the signed `0.5.6` DMG, `Copilot-Control-Tower_0.5.6_arm64.dmg`, to return to the previous app and bundled `cc 2.6.1`. Reinstalling an app changes the app/helper version only: it does **not** undo project changes that were already reviewed and applied. Retain the Python-authored receipt and resolve any desired project-content reversal separately. Release tags are immutable, so a defective build is superseded with a new version.
+
 ## [0.5.6] - 2026-08-04
 
 ### Changed

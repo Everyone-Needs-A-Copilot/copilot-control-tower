@@ -38,19 +38,23 @@ request_schema = json.loads(request_path.read_text())
 Draft202012Validator.check_schema(response_schema)
 Draft202012Validator.check_schema(request_schema)
 Draft202012Validator(request_schema).validate(
-    json.loads((capture / "plan.request").read_text())
+    json.loads((capture / "assistant-prepare.request").read_text())
 )
 validator = Draft202012Validator(response_schema)
 fixtures = root / "scripts/tests/fixtures/reconciliation"
-for name in ("assess", "plan", "apply", "verify", "recover", "error"):
+for name in (
+    "assess", "assistant-prepare", "assistant-run",
+    "assistant-status-running", "assistant-status-ready",
+    "plan", "apply", "verify", "recover", "error",
+):
     validator.validate(json.loads((fixtures / f"{name}.json").read_text()))
 if not list(validator.iter_errors(json.loads((fixtures / "schema-high.json").read_text()))):
     raise SystemExit("schema-high fixture unexpectedly conforms to schema 1.0")
 print("reconciliation JSON schemas/fixtures: PASS")
 PY
 
-expected_request_sha="45119371a319f3982d6b61d99bdd3c7a42b8755a408669835120ecf1b384a1f8"
-expected_response_sha="9abe724faf9edea0879d016e81f67774588a9d06ab9305705c4300407acd6708"
+expected_request_sha="a39cf5b9ce00dca1e632f5584c308bf4ab4af1726c26654422743e0c2fae056c"
+expected_response_sha="e134f84c6712d95af1921d0846a98d5ecab497e70cb3afdefde84bbabb836606"
 actual_request_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/reconcile-request.schema.json" | awk '{print $1}')"
 actual_response_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/reconcile.schema.json" | awk '{print $1}')"
 [[ "${actual_request_sha}" == "${expected_request_sha}" ]]

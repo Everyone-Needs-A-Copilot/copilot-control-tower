@@ -42,15 +42,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
-printf '%s\n' '{"finder_reconciliation_probe":"passed"}' \
+printf '%s\n' \
+    '{"finder_reconciliation_probe":"passed","finder_reconciliation_assistant_probe":"passed"}' \
     > "${scratch}/passed.json"
-printf '%s\n' '{"finder_reconciliation_probe":"failed"}' \
-    > "${scratch}/failed.json"
+printf '%s\n' \
+    '{"finder_reconciliation_probe":"failed","finder_reconciliation_assistant_probe":"passed"}' \
+    > "${scratch}/failed-base.json"
+printf '%s\n' \
+    '{"finder_reconciliation_probe":"passed","finder_reconciliation_assistant_probe":"failed"}' \
+    > "${scratch}/failed-assistant.json"
+printf '%s\n' '{"finder_reconciliation_probe":"passed"}' \
+    > "${scratch}/missing-assistant.json"
 printf '%s\n' '{}' > "${scratch}/missing.json"
 printf '%s\n' 'not-json' > "${scratch}/unreadable.json"
 
 python3 "${PROBE_ASSERT}" "${scratch}/passed.json"
-for evidence in failed missing unreadable; do
+for evidence in failed-base failed-assistant missing-assistant missing unreadable; do
     if python3 "${PROBE_ASSERT}" "${scratch}/${evidence}.json" >/dev/null 2>&1; then
         die "${evidence} notarization evidence passed the release probe gate"
     fi
@@ -58,12 +65,22 @@ done
 
 python3 - \
     "${REPO_ROOT}/scripts/verify-vendored-cc.sh" \
-    "${REPO_ROOT}/scripts/package-user-release.sh" <<'PY'
+    "${REPO_ROOT}/scripts/package-user-release.sh" \
+    "${PROBE_ASSERT}" \
+    "${GATE}" <<'PY'
 import pathlib
 import sys
 
 verify = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 package = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
+probe_assert = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")
+reconcile_gate = pathlib.Path(sys.argv[4]).read_text(encoding="utf-8")
+
+if "finder_reconciliation_assistant_probe" not in probe_assert:
+    raise SystemExit("release evidence does not require the Finder assistant probe")
+for verb in ("assistant-prepare", "assistant-run", "assistant-status"):
+    if verb not in reconcile_gate:
+        raise SystemExit(f"exact-binary reconciliation gate omits {verb}")
 
 probe = verify.index('/usr/bin/python3 "${RECONCILE_PROBE_ASSERT}"')
 topology = verify.index('"${TOPOLOGY_FIXTURES}/assert_onboard_schema.py"')

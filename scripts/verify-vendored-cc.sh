@@ -31,10 +31,12 @@
 # verified right now. The full eight-history-state, sixteen-row contract
 # lives in the dedicated gate: scripts/tests/test_packaged_cc_topology_contract.sh.
 # Phase 9 adds the same two-part proof for reconciliation: release evidence
-# must contain `finder_reconciliation_probe: "passed"`, and this verifier
+# must contain both `finder_reconciliation_probe: "passed"` and
+# `finder_reconciliation_assistant_probe: "passed"`, and this verifier
 # independently drives the exact vendored executable through the schema-1.0
-# assess/plan/apply/verify/repeat/recover lifecycle against a disposable local
-# Git fixture. Static notarization metadata alone is never accepted as proof.
+# assess/plan/apply/verify/repeat/recover and bounded
+# assistant-prepare/assistant-run/assistant-status lifecycles against disposable
+# local Git fixtures. Static notarization metadata alone is never accepted as proof.
 
 set -euo pipefail
 
@@ -212,7 +214,7 @@ PY
             echo "error: reconciliation contract gate is missing or not executable: ${RECONCILE_GATE}" >&2
             exit 1
         }
-        echo "verifying reconcile schema 1.0 lifecycle (exact binary, disposable local Git fixture)..."
+        echo "verifying reconcile schema 1.0 deterministic and assistant lifecycles (exact binary, disposable local Git fixtures)..."
         "${RECONCILE_GATE}" \
             --cc-path "${CC_PATH}" \
             --validator-python "${JSONSCHEMA_VENV}/bin/python3"

@@ -264,6 +264,50 @@ enum CliLocator {
     }
 }
 
+/// The complete command handed to Terminal for one bounded reconciliation
+/// preparation session. Keeping the executable URL and argv as structured
+/// values makes the security boundary reviewable: the command contains only
+/// the exact `cc` selected by `CliLocator` and one opaque Python session id.
+/// It never carries a project path, generated prompt, proposal content, or
+/// free-form instruction.
+struct ReconciliationAssistantTerminalCommand: Equatable {
+    let executableURL: URL
+    let arguments: [String]
+
+    init(executableURL: URL, sessionId: String) {
+        self.executableURL = executableURL
+        arguments = ["reconcile", "assistant-run", "--session-id", sessionId]
+    }
+
+    var commandLine: String {
+        ([executableURL.path] + arguments)
+            .map(Self.shellQuote)
+            .joined(separator: " ")
+    }
+
+    var appleScriptSource: String {
+        """
+        tell application "Terminal"
+            do script \(Self.appleScriptLiteral(commandLine))
+            activate
+        end tell
+        """
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+
+    private static func appleScriptLiteral(_ value: String) -> String {
+        "\""
+            + value
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+            + "\""
+    }
+}
+
 // MARK: - Errors
 
 /// Every way a CLI call can fail to produce a trustworthy result. This is
@@ -743,6 +787,27 @@ actor CliClient {
     /// this report with `doctor`, `workspace`, or any other local inference.
     func reconciliationAssess() async -> Result<ReconciliationOutcome<ReconciliationAssessReport>, CliError> {
         await decodeReconciliationVerb(["reconcile", "assess", "--json"])
+    }
+
+    /// Create one bounded, opaque assistant-preparation session for the exact
+    /// request bytes selected by the person. Project paths stay in the private
+    /// request file and are never copied onto the visible Terminal command.
+    func reconciliationAssistantPrepare(
+        request: ReconciliationRequest
+    ) async -> Result<ReconciliationOutcome<ReconciliationAssistantPrepareReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            ["reconcile", "assistant-prepare", "--request", requestPath, "--json"]
+        }
+    }
+
+    /// Poll Python-owned session truth. The opaque identifier is the only
+    /// value Swift sends; proposal content remains inside the helper boundary.
+    func reconciliationAssistantStatus(
+        sessionId: String
+    ) async -> Result<ReconciliationOutcome<ReconciliationAssistantStatusReport>, CliError> {
+        await decodeReconciliationVerb([
+            "reconcile", "assistant-status", "--session-id", sessionId, "--json",
+        ])
     }
 
     /// Fresh exact plan for the person's explicit roots/projects/components.

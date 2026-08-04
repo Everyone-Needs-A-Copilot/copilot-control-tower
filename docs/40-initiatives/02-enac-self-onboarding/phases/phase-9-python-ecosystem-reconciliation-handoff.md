@@ -1,5 +1,12 @@
 # Phase 9 handoff: Python ecosystem reconciliation
 
+> **Current continuation point (2026-08-04):** Phase 9.2 implementation and
+> changed-scope QA are complete, but the `0.6.0` release is **not published or
+> installed**. The exact release blocker and continuation commands are in
+> [section 19](#19-phase-92-implementation-complete-release-blocked-on-owner-notarization-credential-2026-08-04).
+> That section supersedes older version and status statements in this rolling
+> handoff.
+
 > **Start instruction:** Read this document completely and begin. Do not ask the
 > owner to restate the objective or reconstruct the prior conversation. Use the
 > available simultaneous multi-agent sessions in parallel, with non-overlapping
@@ -639,3 +646,332 @@ The accepted behavior is:
 
 The service, UX, and UI artifacts are in `../walkthroughs/` under
 `default-project-batch-*.md` and walkthroughs 19–20.
+
+## 18. Phase 9.2 bounded Claude Code reconciliation work record (2026-08-04)
+
+PRD 18 extends the Phase 9.1 default-all batch without moving project write
+authority out of Python. Its release version is Control Tower `0.6.0` build
+`27`, paired with exactly `cc 2.7.0` and a declared helper range of
+`>=2.7.0,<3.0.0`. Reconciliation remains schema `1.0` with a declared app
+range of `>=1.0,<2.0`.
+
+### Accepted product behavior
+
+- Assessment now supplies two disjoint Python-authored selection lists:
+  deterministic `default_selection` work and bounded `assistant_selection`
+  work. Their union is selected by default; a person may remove only whole
+  projects. Both Claude Copilot and Codex Copilot remain universal for every
+  selected project.
+- `resolution_summary` authors the automatic, Claude-assisted, held, total
+  actionable, new-setup, and correction counts. Swift renders those counts and
+  does not derive category membership or reconcile totals.
+- One **Resolve with Claude Code** action creates a private expiring session and
+  launches a visible Terminal command containing only the exact bundled `cc`
+  path and `reconcile assistant-run --session-id <opaque-id>`. There is no
+  prompt copy/paste and no project path, prompt, proposal content, patch, or
+  free-form instruction on that command line.
+- Claude Code receives only a content-free Python-authored candidate packet in
+  a private helper workspace. It selects opaque candidates; it cannot inspect
+  or write a live selected project, invent operations, or decide that work
+  passed verification.
+- Python rejects malformed, unknown, repeated, incomplete, stale, expired,
+  tampered, unsafe, or concurrently claimed results. A validated selection is
+  bound to one opaque proposal. The app attaches only that identifier to the
+  unchanged request and resumes the existing exact plan review, explicit apply,
+  rollback, receipt, and fresh verify transaction.
+- Dirty, held, unsafe, unreadable, owner-dependent, or otherwise unauthorized
+  work remains unchanged with Python-authored detail. The standard
+  deterministic-only path remains available when assistant preparation cannot
+  be opened.
+
+### Implementation and evidence record
+
+- Task 245 completed the service, UX, UI, architecture, and security contract.
+  Its approved walkthroughs and durable specs are under `../walkthroughs/` as
+  walkthroughs 21–22 and `resolve-with-claude-code-*.md`.
+- Task 246 owns the Python helper lifecycle and adversarial tests. The helper
+  source identifies itself as `cc 2.7.0` and implements `assistant-prepare`,
+  `assistant-run`, `assistant-status`, proposal binding, constrained Claude
+  invocation, and fail-closed candidate validation.
+- Task 247 owns the native DTO, client, exact Terminal launcher, status polling,
+  default-all/individual-selection presentation, proposal attachment, and
+  convergence on the existing plan/apply/verify flow. Architecture,
+  implementation, and focused QA are recorded as work products 514–516.
+- Task 248 owns integrated live-machine, security, packaged-helper, canary, and
+  installed-app evidence. Task 249 owns the immutable helper release and the
+  app build/sign/notarize/staple/publish/install sequence. These gates remain
+  authoritative; this work record does not mark them complete merely because
+  the version and release notes are staged.
+
+### Release and rollback boundary
+
+The release pipeline must vendor the exact independently signed/notarized
+`cc 2.7.0` artifact, build Control Tower from immutable pushed source, sign the
+outer app, notarize and staple the app and DMG, verify Gatekeeper and checksums,
+publish provenance, and install the published artifact before Phase 9.2 is
+closed.
+
+The known-good rollback artifact is the signed
+`Copilot-Control-Tower_0.5.6_arm64.dmg` retained under
+`release/control-tower-0.5.6-c3a0455/`. Reinstalling it rolls back the app and
+bundled helper to `0.5.6` / `cc 2.6.1`; it does **not** undo project changes
+that Python already applied after explicit plan approval. Project receipts
+remain the durable record of those changes.
+
+## 19. Phase 9.2 implementation complete; release blocked on owner notarization credential (2026-08-04)
+
+This is the authoritative continuation point for the next developer. Do not
+reconstruct the work from chat history, and do not describe the app as released
+or ready for owner testing yet.
+
+### 19.1 What is complete
+
+The Python helper and native app implementation are complete for the accepted
+bounded-Claude workflow:
+
+- Python assessment partitions work into deterministic `default_selection`,
+  bounded `assistant_selection`, and held projects. Both actionable lists are
+  selected by default in the app.
+- A selected project always targets both Claude Copilot and Codex Copilot; the
+  app does not expose per-product toggles.
+- Customized projects use the private
+  `assistant-prepare -> assistant-run -> assistant-status` lifecycle. The app
+  launches the exact bundled helper in visible Terminal with only an opaque
+  session id.
+- Claude Code receives a content-free, candidate-id-only packet from a private
+  workspace. It receives no project path, project content, patch, command, or
+  write authority.
+- Python validates and binds one expiring proposal, authors the exact plan,
+  applies only after the existing review/consent step, rolls back bounded
+  writes on failure, and performs fresh verification.
+- The app presents Python-authored new-setup, correction, automatic,
+  Claude-assisted, and held counts. It defaults to all actionable projects and
+  retains a whole-project deselection fallback.
+- The exact vendored-binary release gate now exercises both the deterministic
+  reconciliation lifecycle and the bounded assistant lifecycle against clean,
+  disposable Git repositories. It proves zero mutation before apply and checks
+  the protected Claude invocation, private workspace, environment filtering,
+  opaque ids, closed schema, and schema-valid reports.
+
+The helper repository is clean and pushed:
+
+- repository: `/Volumes/Dev/Sites/COPILOT/claude-copilot`
+- branch: `feat/adopt-and-project-setup`
+- release-tool head: `3630821e2cca34e13f588595ad57a67f263be39f`
+- signed foundation ref: `v5.13.42`
+- signed foundation source commit:
+  `ee94af0fce9e64d6a53fd72bb93bc161c27e77be`
+- helper version: `cc 2.7.0`
+
+The key helper implementation/release commits after the main feature commit
+are:
+
+```text
+3630821 fix(release): account for macOS probe launcher env
+5d84237 test(release): harden frozen assistant probe
+9704e14 fix(release): canonicalize assistant state root
+4c08daa fix(cc): include assistant modules in frozen helper
+32a81d2 fix(release): canonicalize assistant fixture paths
+56a61b1 fix(release): use complete config in assistant probe
+9d88a9d feat(cc): prepare customized projects with bounded Claude
+```
+
+Do not create another foundation snapshot unless runtime Python source changes.
+The commits after the signed snapshot change only the release tool/probe; the
+release metadata must therefore identify `3630821...` as the release-tool
+commit and `ee94af...` as the immutable runtime source commit.
+
+### 19.2 Evidence already obtained
+
+Changed-scope helper QA passed:
+
+- 239 reconciliation tests passed;
+- 75 of those tests cover the assistant lifecycle and adversarial cases;
+- Python compilation and `git diff --check` passed;
+- the release probe's shell syntax and all embedded Python blocks passed static
+  validation; and
+- a real Claude Code `2.1.221` invocation returned an accepted structured
+  result. No live selected project was applied or mutated.
+
+Task Copilot evidence includes:
+
+- task 248 implementation work product `517`;
+- task 248 QA work product `518`, containing `VERDICT: APPROVED`;
+- task 248 security work product `519`; and
+- task 249 documentation work product `520`.
+
+Control Tower checks passed against a freshly frozen `cc 2.7.0` binary from
+the signed source snapshot:
+
+```text
+reconciliation DTO/client contract: PASS
+reconciliation JSON schemas/fixtures: PASS
+reconciliation wizard source contract: PASS
+reconcile schema 1.0 lifecycle PASS
+reconcile schema 1.0 assistant lifecycle PASS
+vendored-cc reconcile release gate test: PASS
+Swift user-source typecheck: PASS (three existing macOS 14 deprecation warnings)
+user app bundle tests: PASS
+```
+
+The hardened universal helper packaging run reached
+`cc release: submitting helper to Apple notarization`. Reaching that line
+proves that the exact frozen universal binary had already passed its code-sign
+verification, Finder-environment assessment probe, deterministic
+reconciliation probe, and bounded-assistant probe. It then stopped because the
+notarization credential was unavailable; no `cc 2.7.0` release directory was
+emitted.
+
+The latest live **read-only** assessment accounted for 63 projects exactly
+once:
+
+| Route | Projects | Meaning |
+|---|---:|---|
+| Already ready | 16 | The app should acknowledge these and not include them in the update batch. |
+| Actionable now | 17 | Selected by default: 1 deterministic correction and 16 bounded Claude-assisted corrections. |
+| Held | 30 | Intentionally unchanged because Python did not authorize a safe route. These must not be described as automatically fixable. |
+| Total | 63 | Complete current census. |
+
+The assessment reported zero machine-level next actions. The actionable split
+was 0 new setups and 17 corrections at the time of that scan. Re-run the
+read-only assessment before release because project state may change.
+
+### 19.3 Exact blocker
+
+The Developer ID signing identity is present and usable. The separate Apple
+notarization credential is not available:
+
+```text
+Error: No Keychain password item found for profile: ct-notary
+```
+
+This was reproduced both from the agent process and from a command launched in
+the signed-in Terminal application. The repository's `.env.release.local`
+contains only the non-secret profile name. No alternative App Store Connect
+`.p8` key, `CT_NOTARY_KEY_*` environment, or configured GitHub release secret
+was found. Accepted `0.5.6` evidence proves the profile existed previously but
+does not restore its secret.
+
+This is correctly owner-only. Never request that the password be pasted into
+chat, placed in an environment file, committed, or handed to an agent. The
+owner must use `scripts/publisher-setup.command` and, with **Skip notarization
+off**, store profile `ct-notary` using the Apple Developer email and an
+Apple-generated app-specific password. Because `.env.release.local` already
+exists, **Replace existing file** must be enabled. Stop Publisher Setup at
+**Ready to build the release**; do not use its build button against an
+uncommitted or unpinned checkout.
+
+Confirm restoration without exposing the credential:
+
+```bash
+xcrun notarytool history \
+  --keychain-profile ct-notary \
+  --output-format json \
+  --no-progress >/dev/null
+```
+
+### 19.4 Control Tower checkpoint state
+
+The commit containing this section on branch `app-build` is the implementation
+handoff checkpoint. It stages app version `0.6.0` build `27`, the `cc 2.7.0`
+compatibility floor, native implementation, schemas, fixtures, walkthroughs,
+release gates, README, changelog, and this handoff.
+
+It is deliberately **not** a releasable artifact commit yet:
+
+- `packaging/cc/cc` is still the published `cc 2.6.1` binary;
+- `packaging/cc/VERSION`, `PINNED_SHA256`, and `NOTARIZATION.json` still
+  describe `cc 2.6.1`; and
+- no Control Tower `0.6.0` app, DMG, release provenance, tag, GitHub release,
+  or installed application exists.
+
+Do not run the app release script until the exact notarized `cc 2.7.0` binary
+and its metadata replace those four `packaging/cc` artifacts and all release
+gates pass.
+
+### 19.5 Continuation procedure
+
+After the owner restores `ct-notary`, complete these steps in order.
+
+1. Verify both repositories are on the documented branches, clean, and equal
+   to their pushed refs. Do not package from uncommitted source.
+
+2. Build, sign, probe, and notarize the helper from the signed foundation
+   snapshot:
+
+   ```bash
+   cd /Volumes/Dev/Sites/COPILOT/claude-copilot
+   source /Volumes/Dev/Sites/COPILOT/copilot-control-tower/.env.release.local
+   scripts/package-cc-macos-release.sh \
+     --source-ref v5.13.42 \
+     --source-commit ee94af0fce9e64d6a53fd72bb93bc161c27e77be \
+     --output-dir /Volumes/Dev/Sites/COPILOT/claude-copilot/dist/cc-2.7.0-v5.13.42
+   ```
+
+   The output must report `cc 2.7.0`, both `arm64` and `x86_64`, Apple status
+   `Accepted`, release-tool commit `3630821...`, source commit `ee94af...`, and
+   all four probe claims as `passed`, including
+   `finder_reconciliation_assistant_probe`.
+
+3. Vendor the exact upstream output into Control Tower without re-signing it:
+
+   - copy the output `cc` to `packaging/cc/cc`, preserving its signature;
+   - set `packaging/cc/VERSION` to `2.7.0`;
+   - set `packaging/cc/PINNED_SHA256` to the exact output SHA-256; and
+   - copy the complete helper `release-metadata.json` to
+     `packaging/cc/NOTARIZATION.json`.
+
+4. Run the exact-artifact gates:
+
+   ```bash
+   cd /Volumes/Dev/Sites/COPILOT/copilot-control-tower
+   ./scripts/tests/test_reconciliation_contract.sh
+   ./scripts/tests/test_reconciliation_wizard.sh
+   ./scripts/tests/test_vendored_cc_reconcile_release_gate.sh
+   ./scripts/verify-vendored-cc.sh --release packaging/cc/cc
+   CT_FORCE_REBUILD=1 ./scripts/tests/test_user_app_bundle.sh
+   git diff --check
+   ```
+
+5. Commit the vendored helper and final provenance changes, push `app-build`,
+   and prove local HEAD equals `origin/app-build`. This produces the immutable
+   app source commit used by the release script.
+
+6. Build the native release from that pushed source into a new output
+   directory:
+
+   ```bash
+   source .env.release.local
+   ./scripts/package-user-release.sh \
+     --source-ref app-build \
+     --output-dir dist/user-release-v0.6.0
+   ```
+
+   Verify the embedded helper SHA equals `PINNED_SHA256`; verify Developer ID
+   signatures, Apple notarization, app and DMG staples, Gatekeeper, release
+   metadata, compatibility metadata, and the DMG checksum.
+
+7. Copy the verified release set into
+   `release/control-tower-0.6.0-<source-short-sha>/`, commit and push release
+   provenance, create and verify immutable tag `v0.6.0`, and publish the GitHub
+   release with the DMG, checksum, compatibility file, helper notarization
+   evidence, and release metadata.
+
+8. Preserve the currently installed app as a recoverable backup, install the
+   published `0.6.0` app in `/Applications`, launch it, verify its embedded
+   helper reports `cc 2.7.0`, and run a final read-only assessment. Do not
+   authorize a live project apply merely to prove installation.
+
+9. Store final packaged-artifact QA, security, and release work products in
+   tasks 248–249. Only then complete tasks 246–249 and close Phase 9.2.
+
+### 19.6 Final honesty requirements
+
+- Passing source and disposable-project tests does not mean `0.6.0` is
+  released.
+- The signed foundation snapshot is not the same thing as a signed/notarized
+  standalone helper artifact.
+- The app must never claim it can correct the 30 currently held projects.
+- Reinstalling `0.5.6` rolls back the app/helper only; it does not reverse
+  project changes already applied by Python.
+- No live selected project was mutated while producing this checkpoint.

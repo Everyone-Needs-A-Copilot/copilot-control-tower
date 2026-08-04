@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "phase": "assistant-status",
+  "result": "ready",
+  "run_id": "run_33333333333333333333333333333333",
+  "generated_at": "2026-08-04T18:05:00Z",
+  "session_id": "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "proposal_id": "proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "selected_projects": [
+    "/Projects/Team; literal/One"
+  ],
+  "detail": "Python validated the prepared proposal.",
+  "next_actions": [
+    "Review the exact plan."
+  ]
+}

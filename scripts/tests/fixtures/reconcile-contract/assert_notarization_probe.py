@@ -22,6 +22,10 @@ def main() -> None:
         raise SystemExit(
             "upstream helper did not pass the Finder-environment reconciliation probe"
         )
+    if payload.get("finder_reconciliation_assistant_probe") != "passed":
+        raise SystemExit(
+            "upstream helper did not pass the Finder-environment reconciliation assistant probe"
+        )
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ capture_dir="${CT_RECONCILE_CAPTURE_DIR:?missing CT_RECONCILE_CAPTURE_DIR}"
 [[ "${1:-}" == "reconcile" ]] || exit 64
 phase="${2:-}"
 case "${phase}" in
-  assess|plan|apply|verify|recover) ;;
+  assess|assistant-prepare|assistant-status|plan|apply|verify|recover) ;;
   *) exit 64 ;;
 esac
 
@@ -35,7 +35,7 @@ fi
 response="${CT_RECONCILE_RESPONSE:-${phase}}"
 exit_code=0
 case "${response}" in
-  apply|verify|recover) exit_code=1 ;;
+  apply|verify|recover|assistant-status-blocked) exit_code=1 ;;
   error) exit_code=2 ;;
   schema-high) exit_code=0 ;;
   error-mismatch)
