@@ -615,3 +615,27 @@ The deliverable is not a larger app and not a prettier receipt. It is a
 trustworthy Python reconciliation engine that can explain, plan, execute,
 restore, verify, and account for the complete selected ecosystem. The macOS app
 is one thin view over that proven engine.
+
+## 17. Phase 9.1 default-batch addendum (2026-08-04)
+
+The owner simplified the project-selection decision after reviewing the shipped
+`0.5.5` screen. The follow-up contract and native surface are tracked in PRD 17.
+
+The accepted behavior is:
+
+- Python re-assesses every project that is not fully ready with both Claude and
+  Codex selected.
+- Only deterministic, safe selected assessments enter `default_selection`.
+- Dirty, excluded, ambiguous, unverifiable, owner-dependent, missing-source,
+  and multi-recipe projects remain outside the batch.
+- `batch_summary` partitions the complete census into new setup, correction,
+  ready, and needs review exactly once.
+- The app starts with the complete safe batch selected and exposes only a
+  project-level individual fallback. It never exposes separate product toggles.
+- `machine_summary` replaces the repeated blocker-action list with one useful
+  status and next step.
+- Exact-plan review, explicit apply consent, freshness checks, bounded writes,
+  rollback, receipts, and independent verification are unchanged.
+
+The service, UX, and UI artifacts are in `../walkthroughs/` under
+`default-project-batch-*.md` and walkthroughs 19–20.

@@ -55,7 +55,7 @@ check_rg 06-V "high-fidelity wizard uses native cards, hierarchy, and status lab
 
 # Walkthrough 07 / 08: project integration and aftercare.
 check_rg 07-01 "schema fixture covers all five project classifications" '"could-not-verify": 1' src-tauri/fixtures/workspaces/status-all-1.1.json critical
-check_rg 07-02 "project register renders each Python-authored reconciliation route" 'reconciliationProjectSelectionRow(project)' native/wizard.swift
+check_rg 07-02 "individual register renders only Python-authored default selections" 'reconciliationProjectSelectionRow(selection, report: report)' native/wizard.swift
 check_rg 07-03 "Ready details expose capability and evidence" 'wizardProjectEvidencePanel(workspace)' native/wizard.swift
 check_rg 07-04 "safe finish is review-first" 'case .safeFinish, .excluded: return "Review"' native/control-tower-tray.swift critical
 check_rg 07-05 "safe finishing passes the opaque action id" 'actionId: action.id' native/wizard.swift critical

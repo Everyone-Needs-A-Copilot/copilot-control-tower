@@ -24,8 +24,14 @@ aftercare before moving to the Admin experience.
 | 16 | [Admin completion and departments — UI](16-admin-completion-departments-uids-walkthrough.html) | The final high-fidelity Admin completion and department experience. |
 | 17 | [The connect experience — UX](17-connect-experience-uxd-walkthrough.html) | Bob's journey to his team's shared keys under both credential models, the shipped dead ends they replace, and the one open fork. |
 | 18 | [Self-service store provisioning — UX](18-self-service-provisioning-uxd-walkthrough.html) | Both actors of the design that makes 17's North Star receipt real: Bob's unchanged day one, and the administrator's one-time setup, mapping governance, audit, rotation, bootstrap, the Connect sheet that shipped as a bridge and is built to be deleted, and the eight owner rulings. |
+| 19 | [Default project batch — UX](19-default-project-batch-uxd-walkthrough.html) | The owner-directed default-all flow, individual project fallback, consolidated Mac prerequisite, and quiet all-ready state. |
+| 20 | [Default project batch — UI](20-default-project-batch-uids-walkthrough.html) | The native visual hierarchy for one selected batch, two explanatory counts, quiet acknowledgements, and project-only checkboxes. |
 
 Walkthroughs 17 and 18 read last as a pair, and not merely because they are newest. 17 poses the question — what Bob's connect experience should be, and the one fork left undecided — and 18 assumes the answer the owner ratified, rendering both actors of the mechanism that makes 17's receipt true along with what the security passes qualified about it. Both span the member's wizard and Admin governance, both still carry undecided items, and their user-side screens depend on the setup and completion model established by 01 to 12.
+
+Walkthroughs 19 and 20 supersede the project-selection surface shown in 09 and
+10. The exact-plan, transaction, and receipt safety model remains; only the
+default decision and its presentation change.
 
 ## Naming Convention
 

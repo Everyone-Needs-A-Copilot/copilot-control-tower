@@ -1294,6 +1294,68 @@ struct ReconciliationProjectSelection: Encodable {
     }
 }
 
+enum ReconciliationBatchCategory: String, Decodable {
+    case newSetup = "new-setup"
+    case correction
+}
+
+struct ReconciliationDefaultSelection: Decodable {
+    let path: String
+    let components: [ReconciliationComponent]
+    let category: ReconciliationBatchCategory
+    let recipeIds: [ReconciliationComponent: String]
+
+    enum CodingKeys: String, CodingKey {
+        case path, components, category, recipeIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        path = try container.decode(String.self, forKey: .path)
+        components = try container.decode([ReconciliationComponent].self, forKey: .components)
+        category = try container.decode(ReconciliationBatchCategory.self, forKey: .category)
+        let wireRecipeIds = try container.decodeIfPresent(
+            [String: String].self,
+            forKey: .recipeIds
+        ) ?? [:]
+        var decodedRecipeIds: [ReconciliationComponent: String] = [:]
+        for (key, value) in wireRecipeIds {
+            guard let component = ReconciliationComponent(rawValue: key) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .recipeIds,
+                    in: container,
+                    debugDescription: "Default recipe keys must name Claude or Codex."
+                )
+            }
+            decodedRecipeIds[component] = value
+        }
+        recipeIds = decodedRecipeIds
+    }
+
+    var requestSelection: ReconciliationProjectSelection {
+        ReconciliationProjectSelection(
+            path: path,
+            components: components,
+            recipeIds: recipeIds
+        )
+    }
+}
+
+struct ReconciliationBatchSummary: Decodable {
+    let newSetup: Int
+    let correction: Int
+    let ready: Int
+    let needsReview: Int
+    let selected: Int
+    let total: Int
+}
+
+struct ReconciliationMachineSummary: Decodable {
+    let state: ReconciliationMachineState
+    let title: String
+    let detail: String
+}
+
 struct ReconciliationRequest: Encodable {
     let schemaVersion: String
     let roots: [String]
@@ -1632,7 +1694,10 @@ struct ReconciliationAssessReport: Decodable {
     let runId: String
     let generatedAt: String
     let machine: ReconciliationMachine
+    let machineSummary: ReconciliationMachineSummary
     let projects: [ReconciliationProject]
+    let defaultSelection: [ReconciliationDefaultSelection]
+    let batchSummary: ReconciliationBatchSummary
     let summary: ReconciliationSummary
     let nextActions: [String]
 }

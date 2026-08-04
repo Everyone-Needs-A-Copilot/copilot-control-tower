@@ -2,6 +2,23 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.5.6] - 2026-08-04
+
+### Changed
+
+- Project setup now starts with every project that can be handled safely already selected. The screen says how many are new setups and how many need correction, quietly acknowledges projects that are already ready, and keeps projects requiring a judgment outside the automatic batch.
+- Claude Copilot and Codex Copilot are now one universal project setup choice. A selected project always receives both; there are no separate product or recipe controls. People who do not want the full safe batch can switch to individual project selection and use Select all or Select none.
+- Repeated “Machine readiness” instructions are replaced by one plain-language Mac status and next step. The primary action remains visible as “Review changes for N projects,” after which the exact Python-authored plan must still be reviewed and approved before anything changes.
+- The embedded helper is now `cc 2.6.1`, built from signed parentless foundation snapshot `v5.13.40` and accepted by Apple notarization. The app now requires `cc >=2.6.1,<3.0.0`; reconciliation schema compatibility remains `>=1.0,<2.0`.
+
+### Safety
+
+- The automatic batch is authored entirely by Python after a second assessment with both copilots selected. Dirty, held, excluded, ambiguous, owner-dependent, missing-source, multi-recipe, and unverifiable projects are never selected automatically. Swift can only remove projects from that safe list; it cannot add an ineligible project or alter Python’s component and recipe bindings.
+
+### Rollback
+
+- Reinstall the signed `0.5.5` DMG to return to the previous selection screen and helper. Project changes already approved and verified are not undone by reinstalling the app. Release tags are immutable, so a defective build is superseded with a new version.
+
 ## [0.5.5] - 2026-08-04
 
 ### Added

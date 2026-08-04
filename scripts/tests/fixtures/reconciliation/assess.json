@@ -6,7 +6,7 @@
     "state": "ready",
     "helper": {
       "state": "ready",
-      "version": "2.6.0",
+      "version": "2.6.1",
       "path": "/Applications/Copilot Control Tower.app/Contents/Resources/cc",
       "detail": "The helper is available."
     },
@@ -53,6 +53,11 @@
     "blockers": [],
     "next_action": "Choose the projects you want to set up."
   },
+  "machine_summary": {
+    "state": "ready",
+    "title": "This Mac has what it needs.",
+    "detail": "Control Tower can safely prepare reviewed project plans."
+  },
   "projects": [
     {
       "path": "/Projects/One",
@@ -62,7 +67,8 @@
       "presence": "none",
       "route": "safe-setup-available",
       "selected_components": [
-        "claude"
+        "claude",
+        "codex"
       ],
       "components": [
         {
@@ -91,10 +97,10 @@
         },
         {
           "component": "codex",
-          "state": "not-selected",
-          "selected": false,
+          "state": "safe-setup-available",
+          "selected": true,
           "recommended": true,
-          "recommendation_reason": "Codex is available but was not selected.",
+          "recommendation_reason": "Codex can be added without replacing project-owned work.",
           "responsible_actor": "person",
           "evidence": [],
           "missing_requirements": [
@@ -104,7 +110,7 @@
               "detail": "Codex project setup is absent."
             }
           ],
-          "next_action": "Choose Codex if you want it in this project.",
+          "next_action": "Review the Codex setup plan.",
           "recipe_options": [
             {
               "recipe_id": "codex-project-setup-v1",
@@ -148,6 +154,24 @@
       }
     }
   ],
+  "default_selection": [
+    {
+      "path": "/Projects/One",
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "category": "new-setup"
+    }
+  ],
+  "batch_summary": {
+    "new_setup": 1,
+    "correction": 0,
+    "ready": 0,
+    "needs_review": 0,
+    "selected": 1,
+    "total": 1
+  },
   "summary": {
     "project_counts": {
       "ready": 0,

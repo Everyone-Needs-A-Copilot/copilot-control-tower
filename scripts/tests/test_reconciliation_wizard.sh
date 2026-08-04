@@ -38,19 +38,27 @@ require_source "verifyReconciliation(request: request)"
 require_source "reconciliationVerify(request: request)"
 require_source "reconciliationRecover()"
 
-# Selection is empty until a person acts, and Swift can only expose a
-# Python-recommended component with a Python-authored recipe option.
-require_source "reconciliationSelectedComponents: [String: Set<ReconciliationComponent>] = [:]"
-require_source "guard assessment.recommended else { return }"
-require_source "assessment.recipeOptions.count <= 1"
-require_source "assessment.recommendationReason"
-require_source "option.summary"
+# Python authors the complete safe default batch. Swift may only subtract
+# projects from it; it never exposes a per-component or recipe choice.
+require_source "reconciliationSelectedProjectPaths: Set<String> = []"
+require_source "Set(report.defaultSelection.map(\\.path))"
+require_source "selection.requestSelection"
+require_source "reconciliationSelectedProjectPaths.isSubset(of: allowed)"
+require_source "Set up and fix all"
+require_source "Choose projects individually"
+require_source "Every project gets Claude Copilot and Codex Copilot."
+reject_source "toggleReconciliationComponent"
+reject_source "selectReconciliationRecipe"
+reject_source "reconciliationComponentSelection"
 
 # The renderer must use contract-authored counts, explanations, operations,
 # outcomes, verification, diagnostics, and next actions.
 for field in \
     "summary.projectCounts" \
     "summary.overlapExplanation" \
+    "report.batchSummary" \
+    "report.machineSummary" \
+    "report.defaultSelection" \
     "operation.description" \
     "entry.detail" \
     "entry.verification" \
@@ -64,6 +72,7 @@ done
 # native contract test, without inspecting or changing live projects.
 for scenario in \
     "projects-reconciliation-select" \
+    "projects-reconciliation-individual" \
     "projects-reconciliation-review" \
     "projects-reconciliation-receipt" \
     "projects-reconciliation-recovery"; do

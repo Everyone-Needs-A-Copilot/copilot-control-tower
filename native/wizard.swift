@@ -1225,7 +1225,8 @@ final class WizardModel: ObservableObject {
     @Published var projectIntegrationDetail: WorkspaceEntry?
     @Published var projectIntegrationMessage: String?
     /// Python-authored schema-1.0 reconciliation reports. Swift owns only the
-    /// person's explicit selection and this presentation state machine.
+    /// person's project-level subtraction from Python's safe default batch and
+    /// this presentation state machine.
     @Published var reconciliationStage: ProjectReconciliationStage = .assessing
     @Published var reconciliationAssessReport: ReconciliationAssessReport?
     @Published var reconciliationPlanReport: ReconciliationPlanReport?
@@ -1233,8 +1234,8 @@ final class WizardModel: ObservableObject {
     @Published var reconciliationVerifyReport: ReconciliationVerifyReport?
     @Published var reconciliationRecoverReport: ReconciliationRecoverReport?
     @Published var reconciliationErrorDetail: String?
-    @Published var reconciliationSelectedComponents: [String: Set<ReconciliationComponent>] = [:]
-    @Published var reconciliationSelectedRecipes: [String: [ReconciliationComponent: String]] = [:]
+    @Published var reconciliationSelectedProjectPaths: Set<String> = []
+    @Published var reconciliationUsesIndividualSelection = false
     /// Constructed once when the person asks for a plan, then reused without
     /// mutation for plan, apply, and fresh verify.
     private var reviewedReconciliationRequest: ReconciliationRequest?
@@ -1358,20 +1359,25 @@ final class WizardModel: ObservableObject {
         case "connections":
             authorizedLogin = "pablo"
             phase = .integrations
-        case "projects-feedback", "projects-reconciliation-select":
+        case "projects-feedback", "projects-reconciliation-select", "projects-reconciliation-individual":
             loadVisualProjectRoot()
-            reconciliationAssessReport = reconciliationFixture(
+            let report = reconciliationFixture(
                 "assess.json",
                 as: ReconciliationAssessReport.self
             )
+            reconciliationAssessReport = report
+            reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
+            reconciliationUsesIndividualSelection = name == "projects-reconciliation-individual"
             reconciliationStage = .selecting
             phase = .projects
         case "projects-reconciliation-review":
             loadVisualProjectRoot()
-            reconciliationAssessReport = reconciliationFixture(
+            let report = reconciliationFixture(
                 "assess.json",
                 as: ReconciliationAssessReport.self
             )
+            reconciliationAssessReport = report
+            reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
             reconciliationPlanReport = reconciliationFixture(
                 "plan.json",
                 as: ReconciliationPlanReport.self
@@ -2561,8 +2567,8 @@ final class WizardModel: ObservableObject {
         reconciliationApplyReport = nil
         reconciliationVerifyReport = nil
         reconciliationRecoverReport = nil
-        reconciliationSelectedComponents = [:]
-        reconciliationSelectedRecipes = [:]
+        reconciliationSelectedProjectPaths = []
+        reconciliationUsesIndividualSelection = false
         reviewedReconciliationRequest = nil
 
         async let workspacesResult = CliClient.shared.workspaces()
@@ -2581,6 +2587,7 @@ final class WizardModel: ObservableObject {
         switch reconciliationOutcome {
         case .success(.report(let report)):
             reconciliationAssessReport = report
+            reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
             reconciliationStage = .selecting
         case .success(.error(let report)):
             reconciliationErrorDetail = report.error.detail
@@ -2649,71 +2656,68 @@ final class WizardModel: ObservableObject {
         selectedProjectCategory = category
     }
 
-    func toggleReconciliationComponent(
-        project: ReconciliationProject,
-        assessment: ReconciliationComponentAssessment
-    ) {
-        guard assessment.recommended else { return }
-        var components = reconciliationSelectedComponents[project.path] ?? []
-        if components.contains(assessment.component) {
-            components.remove(assessment.component)
-            reconciliationSelectedRecipes[project.path]?[assessment.component] = nil
-        } else {
-            components.insert(assessment.component)
-            if assessment.recipeOptions.count == 1 {
-                reconciliationSelectedRecipes[project.path, default: [:]][assessment.component] =
-                    assessment.recipeOptions[0].recipeId
-            }
-        }
-        reconciliationSelectedComponents[project.path] = components
+    var reconciliationSelectedProjectCount: Int {
+        reconciliationSelectedProjectPaths.count
     }
 
-    func selectReconciliationRecipe(
-        projectPath: String,
-        component: ReconciliationComponent,
-        recipeId: String
-    ) {
-        guard reconciliationSelectedComponents[projectPath]?.contains(component) == true,
-              let project = reconciliationAssessReport?.projects.first(where: { $0.path == projectPath }),
-              let assessment = project.components.first(where: { $0.component == component }),
-              assessment.recipeOptions.contains(where: { $0.recipeId == recipeId }) else { return }
-        reconciliationSelectedRecipes[projectPath, default: [:]][component] = recipeId
+    var reconciliationAllProjectsSelected: Bool {
+        guard let report = reconciliationAssessReport,
+              !report.defaultSelection.isEmpty else { return false }
+        return reconciliationSelectedProjectPaths
+            == Set(report.defaultSelection.map(\.path))
+    }
+
+    func setReconciliationAllProjects(_ selected: Bool) {
+        guard let report = reconciliationAssessReport else { return }
+        if selected {
+            reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
+            reconciliationUsesIndividualSelection = false
+        } else {
+            reconciliationSelectedProjectPaths = []
+            reconciliationUsesIndividualSelection = true
+        }
+    }
+
+    func chooseReconciliationProjectsIndividually() {
+        reconciliationUsesIndividualSelection = true
+    }
+
+    func toggleReconciliationProject(_ path: String) {
+        guard reconciliationAssessReport?.defaultSelection.contains(where: {
+            $0.path == path
+        }) == true else { return }
+        if reconciliationSelectedProjectPaths.contains(path) {
+            reconciliationSelectedProjectPaths.remove(path)
+        } else {
+            reconciliationSelectedProjectPaths.insert(path)
+        }
+    }
+
+    func selectAllReconciliationProjects() {
+        guard let report = reconciliationAssessReport else { return }
+        reconciliationSelectedProjectPaths = Set(report.defaultSelection.map(\.path))
+    }
+
+    func selectNoReconciliationProjects() {
+        reconciliationSelectedProjectPaths = []
     }
 
     var canPlanReconciliation: Bool {
         guard reconciliationStage == .selecting,
               let report = reconciliationAssessReport else { return false }
-        let selected = report.projects.filter {
-            !(reconciliationSelectedComponents[$0.path] ?? []).isEmpty
-        }
-        guard !selected.isEmpty else { return false }
-        return selected.allSatisfy { project in
-            let components = reconciliationSelectedComponents[project.path] ?? []
-            return components.allSatisfy { component in
-                guard let assessment = project.components.first(where: {
-                    $0.component == component
-                }) else { return false }
-                return assessment.recipeOptions.count <= 1
-                    || reconciliationSelectedRecipes[project.path]?[component] != nil
-            }
-        }
+        let allowed = Set(report.defaultSelection.map(\.path))
+        return !reconciliationSelectedProjectPaths.isEmpty
+            && reconciliationSelectedProjectPaths.isSubset(of: allowed)
+            && report.machine.state != .couldNotVerify
     }
 
     private func makeReconciliationRequest() -> ReconciliationRequest? {
         guard canPlanReconciliation,
               let report = reconciliationAssessReport else { return nil }
-        let projects = report.projects.compactMap { project -> ReconciliationProjectSelection? in
-            let selected = reconciliationSelectedComponents[project.path] ?? []
-            let components = project.components
-                .map(\.component)
-                .filter { selected.contains($0) }
-            guard !components.isEmpty else { return nil }
-            let recipes = reconciliationSelectedRecipes[project.path] ?? [:]
-            return ReconciliationProjectSelection(
-                path: project.path,
-                components: components,
-                recipeIds: recipes
-            )
+        let projects = report.defaultSelection.compactMap { selection in
+            reconciliationSelectedProjectPaths.contains(selection.path)
+                ? selection.requestSelection
+                : nil
         }
         guard !projects.isEmpty else { return nil }
         return ReconciliationRequest(
@@ -5016,8 +5020,20 @@ struct WizardRootView: View {
                     .buttonStyle(.bordered)
             }
         } primaryAction: {
-            if model.reconciliationStage == .selecting
-                || model.reconciliationStage == .receipt {
+            if model.reconciliationStage == .selecting,
+               model.reconciliationAssessReport?.defaultSelection.isEmpty == false {
+                Button { model.planReconciliation() } label: {
+                    Text(
+                        "Review changes for \(model.reconciliationSelectedProjectCount) "
+                            + (model.reconciliationSelectedProjectCount == 1 ? "project" : "projects")
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!model.canPlanReconciliation)
+                .accessibilityHint("Requests a read-only plan for the selected projects. Each receives both copilots.")
+            } else if model.reconciliationStage == .selecting
+                        || model.reconciliationStage == .receipt {
                 Button { model.continueFromProjects() } label: {
                     Text("Continue setup")
                 }
@@ -5045,7 +5061,7 @@ struct WizardRootView: View {
         case .selecting:
             return model.reconciliationAssessReport == nil
                 ? "Project reconciliation isn't available"
-                : "Choose projects and copilots"
+                : "Set up and fix your projects"
         case .planning:
             return "Building the exact plan"
         case .reviewing:
@@ -5066,7 +5082,7 @@ struct WizardRootView: View {
         case .assessing:
             return "The helper is inspecting approved folders without changing them."
         case .selecting:
-            return "The helper recommends applicable Claude and Codex routes. Select each component explicitly before requesting a plan."
+            return "Every project selected here gets Claude Copilot and Codex Copilot. Projects that are already ready stay out of the way."
         case .planning:
             return "Nothing has changed. The helper is turning your exact selection into reviewable operations and preservation boundaries."
         case .reviewing:
@@ -5370,36 +5386,24 @@ struct WizardRootView: View {
         _ report: ReconciliationAssessReport
     ) -> some View {
         VStack(alignment: .leading, spacing: CTSpace.lg) {
-            reconciliationSummary(report.summary)
+            reconciliationBatchSummary(report)
 
-            sectionCard("Machine readiness") {
-                VStack(alignment: .leading, spacing: CTSpace.xs) {
-                    Text(report.machine.nextAction)
-                        .font(.callout.weight(.semibold))
+            if report.machineSummary.state != .ready {
+                sectionCard(report.machineSummary.title) {
+                    Text(report.machineSummary.detail)
+                        .font(.callout)
+                        .foregroundColor(Color(nsColor: .systemOrange))
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(report.machine.helper.detail)
-                        .font(.caption)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                    ForEach(Array(report.machine.blockers.enumerated()), id: \.offset) { _, blocker in
-                        Text(blocker.nextAction)
-                            .font(.caption)
-                            .foregroundColor(Color(nsColor: .systemOrange))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                 }
             }
 
-            sectionCard("Projects and recommended copilots") {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(report.projects.enumerated()), id: \.element.path) { index, project in
-                        if index > 0 { Divider() }
-                        reconciliationProjectSelectionRow(project)
-                    }
+            if !report.defaultSelection.isEmpty {
+                if model.reconciliationUsesIndividualSelection {
+                    reconciliationIndividualSelection(report)
+                } else {
+                    reconciliationAllSelection(report)
                 }
             }
-
-            reconciliationNextActions(report.nextActions)
 
             if let error = model.reconciliationErrorDetail {
                 Text(error)
@@ -5408,15 +5412,175 @@ struct WizardRootView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack {
-                Button("Check again") { model.refreshReconciliation() }
-                    .buttonStyle(.bordered)
-                Spacer()
-                Button("Review exact plan") { model.planReconciliation() }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!model.canPlanReconciliation)
-                    .accessibilityHint("Requests a read-only plan for only the selected components.")
+            Button("Check again") { model.refreshReconciliation() }
+                .buttonStyle(.bordered)
+        }
+    }
+
+    private func reconciliationBatchSummary(
+        _ report: ReconciliationAssessReport
+    ) -> some View {
+        let batch = report.batchSummary
+        return sectionCard("Your project setup") {
+            VStack(alignment: .leading, spacing: CTSpace.md) {
+                if batch.selected > 0 {
+                    Text(
+                        "\(batch.selected) "
+                            + (batch.selected == 1 ? "project can" : "projects can")
+                            + " be handled safely. "
+                            + (batch.selected == 1 ? "It is" : "They are")
+                            + " selected."
+                    )
+                    .font(.callout.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(alignment: .top, spacing: CTSpace.sm) {
+                        reconciliationBatchMetric(
+                            batch.newSetup,
+                            title: "New setup",
+                            detail: "Set up from the ground up"
+                        )
+                        reconciliationBatchMetric(
+                            batch.correction,
+                            title: "Needs correction",
+                            detail: "Bring existing setup up to date"
+                        )
+                    }
+                } else if batch.ready == batch.total, batch.total > 0 {
+                    Text("All \(batch.total) projects are already set up.")
+                        .font(.callout.weight(.semibold))
+                    Text("Claude Copilot and Codex Copilot passed the latest check. Nothing needs to change.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("No projects can be changed safely right now.")
+                        .font(.callout.weight(.semibold))
+                    Text("The projects that need attention will stay unchanged.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                }
+
+                if batch.ready > 0, batch.ready != batch.total {
+                    Label(
+                        "\(batch.ready) "
+                            + (batch.ready == 1 ? "project is" : "projects are")
+                            + " already set up. Nothing else is needed.",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .systemGreen))
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                if batch.needsReview > 0 {
+                    Label(
+                        "\(batch.needsReview) "
+                            + (batch.needsReview == 1 ? "project needs" : "projects need")
+                            + " someone to review "
+                            + (batch.needsReview == 1 ? "it" : "them")
+                            + ". They will not be changed.",
+                        systemImage: "hand.raised.fill"
+                    )
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                if report.machineSummary.state == .ready {
+                    Label(report.machineSummary.title, systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                }
+            }
+        }
+    }
+
+    private func reconciliationBatchMetric(
+        _ count: Int,
+        title: String,
+        detail: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(count)")
+                .font(.title2.weight(.semibold))
+            Text(title)
+                .font(.callout.weight(.semibold))
+            Text(detail)
+                .font(.caption2)
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        }
+        .padding(CTSpace.sm)
+        .frame(maxWidth: .infinity, minHeight: 86, alignment: .topLeading)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(count), \(title), \(detail)")
+    }
+
+    private func reconciliationAllSelection(
+        _ report: ReconciliationAssessReport
+    ) -> some View {
+        sectionCard("Projects to update") {
+            VStack(alignment: .leading, spacing: CTSpace.md) {
+                Toggle(
+                    isOn: Binding(
+                        get: { model.reconciliationAllProjectsSelected },
+                        set: { model.setReconciliationAllProjects($0) }
+                    )
+                ) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Set up and fix all \(report.batchSummary.selected) projects")
+                            .font(.callout.weight(.semibold))
+                        Text("Every project gets Claude Copilot and Codex Copilot.")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    }
+                }
+                .toggleStyle(.checkbox)
+                .accessibilityHint("Turn this off to choose projects individually.")
+
+                Button("Choose projects individually") {
+                    model.chooseReconciliationProjectsIndividually()
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(Color(nsColor: .linkColor))
+            }
+        }
+    }
+
+    private func reconciliationIndividualSelection(
+        _ report: ReconciliationAssessReport
+    ) -> some View {
+        sectionCard("Choose projects individually") {
+            VStack(alignment: .leading, spacing: CTSpace.sm) {
+                HStack {
+                    Button("Do all \(report.batchSummary.selected)") {
+                        model.setReconciliationAllProjects(true)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Color(nsColor: .linkColor))
+                    Spacer()
+                    Button("Select none") { model.selectNoReconciliationProjects() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    Button("Select all") { model.selectAllReconciliationProjects() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+
+                Text(
+                    "\(model.reconciliationSelectedProjectCount) "
+                        + (model.reconciliationSelectedProjectCount == 1 ? "project selected" : "projects selected")
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .accessibilityAddTraits(.updatesFrequently)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(report.defaultSelection.enumerated()), id: \.element.path) { index, selection in
+                        if index > 0 { Divider() }
+                        reconciliationProjectSelectionRow(selection, report: report)
+                    }
+                }
             }
         }
     }
@@ -5479,159 +5643,36 @@ struct WizardRootView: View {
     }
 
     private func reconciliationProjectSelectionRow(
-        _ project: ReconciliationProject
+        _ selection: ReconciliationDefaultSelection,
+        report: ReconciliationAssessReport
     ) -> some View {
-        VStack(alignment: .leading, spacing: CTSpace.sm) {
+        let projectName = report.projects.first(where: {
+            $0.path == selection.path
+        })?.name ?? selection.path
+        let isSelected = model.reconciliationSelectedProjectPaths.contains(selection.path)
+        return Toggle(
+            isOn: Binding(
+                get: { isSelected },
+                set: { _ in model.toggleReconciliationProject(selection.path) }
+            )
+        ) {
             HStack(alignment: .firstTextBaseline) {
-                Text(project.name)
+                Text(projectName)
                     .font(.callout.weight(.semibold))
                 Spacer()
-                Text(reconciliationProjectRouteLabel(project.route))
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(reconciliationProjectRouteColor(project.route))
-            }
-            Text(project.nextAction)
+                Text(
+                    selection.category == .newSetup
+                        ? "New setup"
+                        : "Needs correction"
+                )
                 .font(.caption)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
-
-            ForEach(Array(project.components.enumerated()), id: \.offset) { _, assessment in
-                reconciliationComponentSelection(project: project, assessment: assessment)
-            }
-
-            if let dossier = project.dossier {
-                DisclosureGroup("Project-specific route") {
-                    VStack(alignment: .leading, spacing: CTSpace.xs) {
-                        ForEach(Array(dossier.currentEvidence.enumerated()), id: \.offset) { _, evidence in
-                            Label(evidence.detail, systemImage: "doc.text.magnifyingglass")
-                        }
-                        ForEach(Array(dossier.preservation.enumerated()), id: \.offset) { _, artifact in
-                            Label(artifact.detail, systemImage: "checkmark.shield")
-                        }
-                        ForEach(Array(dossier.prohibitedActions.enumerated()), id: \.offset) { _, action in
-                            Label(action, systemImage: "hand.raised")
-                        }
-                        ForEach(Array(dossier.verification.enumerated()), id: \.offset) { _, check in
-                            Label(check, systemImage: "checkmark.circle")
-                        }
-                        ForEach(Array(dossier.stopConditions.enumerated()), id: \.offset) { _, condition in
-                            Label(condition, systemImage: "stop.circle")
-                        }
-                    }
-                    .font(.caption)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, CTSpace.xs)
-                }
-                .font(.caption.weight(.semibold))
             }
         }
+        .toggleStyle(.checkbox)
         .padding(.vertical, CTSpace.sm)
-    }
-
-    @ViewBuilder
-    private func reconciliationComponentSelection(
-        project: ReconciliationProject,
-        assessment: ReconciliationComponentAssessment
-    ) -> some View {
-        let isSelected =
-            model.reconciliationSelectedComponents[project.path]?.contains(assessment.component)
-                == true
-        VStack(alignment: .leading, spacing: CTSpace.xs) {
-            HStack(alignment: .top, spacing: CTSpace.sm) {
-                if assessment.recommended {
-                    Toggle(
-                        isOn: Binding(
-                            get: { isSelected },
-                            set: { _ in
-                                model.toggleReconciliationComponent(
-                                    project: project,
-                                    assessment: assessment
-                                )
-                            }
-                        )
-                    ) {
-                        Text(reconciliationComponentName(assessment.component))
-                            .font(.callout.weight(.semibold))
-                    }
-                    .toggleStyle(.checkbox)
-                    .accessibilityHint(assessment.recommendationReason)
-                } else {
-                    Label(
-                        reconciliationComponentName(assessment.component),
-                        systemImage: "minus.circle"
-                    )
-                    .font(.callout.weight(.semibold))
-                }
-                Spacer()
-                Text(reconciliationComponentRouteLabel(assessment.state))
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-            }
-            Text(assessment.recommendationReason)
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
-            Text(assessment.nextAction)
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .tertiaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
-
-            if isSelected {
-                if assessment.recipeOptions.count == 1,
-                   let option = assessment.recipeOptions.first {
-                    Label(option.summary, systemImage: "arrow.right.circle")
-                        .font(.caption)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if assessment.recipeOptions.count > 1 {
-                    Picker(
-                        "Setup route",
-                        selection: Binding(
-                            get: {
-                                model.reconciliationSelectedRecipes[project.path]?[assessment.component]
-                                    ?? ""
-                            },
-                            set: {
-                                model.selectReconciliationRecipe(
-                                    projectPath: project.path,
-                                    component: assessment.component,
-                                    recipeId: $0
-                                )
-                            }
-                        )
-                    ) {
-                        Text("Choose a route").tag("")
-                        ForEach(assessment.recipeOptions, id: \.recipeId) { option in
-                            Text(option.summary).tag(option.recipeId)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityLabel(
-                        "\(reconciliationComponentName(assessment.component)) setup route for \(project.name)"
-                    )
-                }
-            }
-
-            DisclosureGroup("Evidence and requirements") {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(assessment.evidence.enumerated()), id: \.offset) { _, evidence in
-                        Text(evidence.detail)
-                    }
-                    ForEach(Array(assessment.missingRequirements.enumerated()), id: \.offset) { _, evidence in
-                        Text(evidence.detail)
-                    }
-                }
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
-            }
-            .font(.caption.weight(.semibold))
-        }
-        .padding(CTSpace.sm)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.62))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(Rectangle())
+        .accessibilityHint("Includes Claude Copilot and Codex Copilot.")
     }
 
     private func reconciliationPlanReview(

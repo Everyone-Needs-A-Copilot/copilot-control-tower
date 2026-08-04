@@ -1,6 +1,6 @@
 # Copilot Control Tower
 
-> **Status line — refreshed from release evidence, 2026-08-04.** Current version: **v0.5.5**, the native SwiftUI/AppKit release that adds the Python-owned ecosystem reconciliation workflow and embeds notarized `cc 2.6.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
+> **Status line — refreshed from release evidence, 2026-08-04.** Current version: **v0.5.6**, the native SwiftUI/AppKit release that defaults to setting up or correcting every safe project with both Claude Copilot and Codex Copilot, and embeds notarized `cc 2.6.1`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
 
 **The always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem — the technical superpowers of a deeply skilled engineer, in the hands of someone who has never opened a terminal.**
 
@@ -47,7 +47,7 @@ This and the five other invariants in [`CLAUDE.md`](CLAUDE.md) are architectural
 - The Tauri v2 source tree (`src-tauri/`, `package.json`, `dist/`) remains on disk as a retired reference implementation. It is not built, not tested in CI (the job that would run its tests is disabled), and not part of any release. Do not read it as describing the current app.
 - Windows was designed against under the retired Rust core and is now formally out of scope; see the superseded banner on [`docs/01-architecture/windows-parity.md`](docs/01-architecture/windows-parity.md).
 - A vendored, independently notarized copy of the `cc` CLI helper ships inside each app bundle (`Contents/Resources/cc`) and is preferred over any machine-installed copy.
-- Developer ID signed, hardened runtime, notarized and stapled. Signing identity: `Developer ID Application: Pablo Alejo Jr (3SYGVX2HB8)`. 16 git tags, 8 signed releases retained under [`release/`](release/).
+- Developer ID signed, hardened runtime, notarized and stapled. Signing identity: `Developer ID Application: Pablo Alejo Jr (3SYGVX2HB8)`. Signed releases and their provenance are retained under [`release/`](release/).
 
 ## Read next
 

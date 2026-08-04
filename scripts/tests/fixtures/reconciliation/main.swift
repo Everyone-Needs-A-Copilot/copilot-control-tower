@@ -63,6 +63,10 @@ struct ReconciliationContractDriver {
         )
         precondition(decodedAssess.result == .actionRequired)
         precondition(decodedAssess.projects.first?.route == .safeSetupAvailable)
+        precondition(decodedAssess.batchSummary.selected == 1)
+        precondition(decodedAssess.defaultSelection.first?.components == [.claude, .codex])
+        precondition(decodedAssess.defaultSelection.first?.category == .newSetup)
+        precondition(decodedAssess.machineSummary.state == .ready)
         let decodedPlan = try decoder.decode(
             ReconciliationPlanReport.self,
             from: fixture("plan", in: fixtureDirectory)
