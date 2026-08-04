@@ -13,10 +13,10 @@ CC=/usr/bin/cc PATH=/usr/bin:$PATH /usr/bin/env swiftc \
   -o "${BUILD_DIR}/project-migration-contract"
 
 "${BUILD_DIR}/project-migration-contract" \
-  "${ROOT_DIR}/src-tauri/fixtures/workspaces/migration-plan-1.0.json" \
-  "${ROOT_DIR}/src-tauri/fixtures/workspaces/migration-apply-partial-1.0.json"
+  "${ROOT_DIR}/src-tauri/fixtures/workspaces/migration-plan-1.1.json" \
+  "${ROOT_DIR}/src-tauri/fixtures/workspaces/migration-apply-partial-1.1.json"
 
-expected_schema_sha="8ffa5e2ac8902546ed58bd3a2560dbae195f97668a79ec06397fb5cdfc6dd268"
+expected_schema_sha="3c0f3c781cc4f407106ed85a6fa91ec1ff2ac74c3879d72c0ea0d957886b5b19"
 actual_schema_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/workspace-migrations.schema.json" | awk '{print $1}')"
 if [[ "${actual_schema_sha}" != "${expected_schema_sha}" ]]; then
   echo "workspace migrations schema is not the frozen CLI schema" >&2
@@ -28,6 +28,9 @@ rg -Fq '"--plan-id", planId, "--apply", "--json"' "${ROOT_DIR}/native/cli-client
 rg -Fq 'Review \(report.summary.eligible) updates' "${ROOT_DIR}/native/wizard.swift"
 rg -Fq 'showsBulkMigrationConfirmation = true' "${ROOT_DIR}/native/wizard.swift"
 rg -Fq 'Full project receipt' "${ROOT_DIR}/native/wizard.swift"
+rg -Fq 'Updated this run' "${ROOT_DIR}/native/wizard.swift"
+rg -Fq 'Guided now' "${ROOT_DIR}/native/wizard.swift"
+rg -Fq 'Show in Finder' "${ROOT_DIR}/native/wizard.swift"
 rg -Fq 'projectMigrationApplyReport = applied' "${ROOT_DIR}/native/wizard.swift"
 rg -Fq 'CT_VISUAL_SCENARIO' "${ROOT_DIR}/native/wizard.swift"
 

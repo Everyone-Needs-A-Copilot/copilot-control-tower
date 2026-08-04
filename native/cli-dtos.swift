@@ -1368,6 +1368,23 @@ struct WorkspaceMigrationApplySummary: Decodable {
     let failed: Int
     let unchanged: Int
     let remainingGuided: Int
+    let updatedStillGuided: Int
+    let failedStillGuided: Int
+    let detail: String
+}
+
+enum WorkspaceMigrationDiagnosticState: String, Decodable {
+    case available
+    case unavailable
+}
+
+struct WorkspaceMigrationDiagnosticReference: Decodable {
+    let schemaVersion: String
+    let id: String
+    let state: WorkspaceMigrationDiagnosticState
+    let path: String?
+    let createdAt: String
+    let detail: String
 }
 
 struct WorkspaceMigrationAfter: Decodable {
@@ -1387,6 +1404,7 @@ struct WorkspaceMigrationReport: Decodable {
     let detail: String?
     let applySummary: WorkspaceMigrationApplySummary?
     let after: WorkspaceMigrationAfter?
+    let diagnostics: WorkspaceMigrationDiagnosticReference?
 }
 
 /// `cc workspace revert --project <path> [--apply] --json` — a NARROWER

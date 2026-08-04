@@ -1483,7 +1483,7 @@ final class WizardModel: ObservableObject {
                 candidate($0.element, index: 316 + $0.offset, state: .residualGuidance)
             }
             projectMigrationReport = WorkspaceMigrationReport(
-                schemaVersion: "1.0",
+                schemaVersion: "1.1",
                 mode: "plan",
                 result: .actionRequired,
                 planId: opaque,
@@ -1498,7 +1498,8 @@ final class WizardModel: ObservableObject {
                 requestedPlanId: nil,
                 detail: nil,
                 applySummary: nil,
-                after: nil
+                after: nil,
+                diagnostics: nil
             )
             projectsSummary = WorkspaceSummary(
                 ready: 26,
@@ -5639,17 +5640,20 @@ struct WizardRootView: View {
 
             if let summary = report.applySummary {
                 HStack(spacing: 10) {
-                    wizardMigrationMetric(summary.applied, title: "Updated", color: .systemGreen)
-                    wizardMigrationMetric(summary.failed, title: "Needs attention", color: .systemRed)
-                    wizardMigrationMetric(summary.remainingGuided, title: "Still guided", color: .secondaryLabelColor)
+                    wizardMigrationMetric(summary.applied, title: "Updated this run", color: .systemGreen)
+                    wizardMigrationMetric(summary.failed, title: "Could not finish", color: .systemRed)
+                    wizardMigrationMetric(summary.remainingGuided, title: "Guided now", color: .secondaryLabelColor)
                 }
                 sectionCard(summary.failed == 0 ? "The reviewed updates finished" : "Some projects need attention") {
-                    Text(summary.failed == 0
-                        ? "\(summary.applied) projects passed independent verification. \(summary.unchanged) projects outside the automatic cohort were left unchanged."
-                        : "\(summary.applied) projects passed verification. \(summary.failed) could not finish and were either left unchanged or rolled back.")
-                        .font(.callout)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(summary.failed == 0
+                            ? "\(summary.applied) projects passed independent verification. \(summary.unchanged) projects outside the automatic cohort were left unchanged."
+                            : "\(summary.applied) projects passed verification. \(summary.failed) could not finish and were either left unchanged or rolled back.")
+                        Text(summary.detail)
+                    }
+                    .font(.callout)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
                 sectionCard("The reviewed plan is no longer current") {
@@ -5689,6 +5693,30 @@ struct WizardRootView: View {
                     }
                 }
                 .font(.callout.weight(.semibold))
+            }
+
+            if let diagnostics = report.diagnostics {
+                sectionCard(
+                    diagnostics.state == .available
+                        ? "Diagnostic record saved"
+                        : "Diagnostic record unavailable"
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(diagnostics.detail)
+                            .font(.callout)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
+                        if diagnostics.state == .available,
+                           let path = diagnostics.path {
+                            Button("Show in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([
+                                    URL(fileURLWithPath: path)
+                                ])
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
             }
 
             if let error = model.projectMigrationError {

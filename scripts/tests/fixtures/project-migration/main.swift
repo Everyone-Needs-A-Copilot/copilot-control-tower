@@ -13,7 +13,7 @@ struct ProjectMigrationContractDriver {
             from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
         )
 
-        precondition(report.schemaVersion == "1.0")
+        precondition(report.schemaVersion == "1.1")
         precondition(report.result == .actionRequired)
         precondition(report.summary.eligible == 1)
         precondition(report.summary.held == 1)
@@ -36,7 +36,12 @@ struct ProjectMigrationContractDriver {
         precondition(applied.applySummary?.applied == 1)
         precondition(applied.applySummary?.failed == 1)
         precondition(applied.applySummary?.remainingGuided == 2)
+        precondition(applied.applySummary?.updatedStillGuided == 0)
+        precondition(applied.applySummary?.failedStillGuided == 1)
+        precondition(applied.applySummary?.detail.hasPrefix("2 projects still need") == true)
         precondition(applied.after?.summary.totalGuided == 2)
+        precondition(applied.diagnostics?.state == .available)
+        precondition(applied.diagnostics?.path?.hasSuffix("fixture-run.json") == true)
 
         print("project-migration DTO fixtures: PASS")
     }

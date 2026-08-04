@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "mode": "apply",
   "result": "partial",
   "plan_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -51,7 +51,10 @@
     "applied": 1,
     "failed": 1,
     "unchanged": 1,
-    "remaining_guided": 2
+    "remaining_guided": 2,
+    "updated_still_guided": 0,
+    "failed_still_guided": 1,
+    "detail": "2 projects still need guided setup. That includes 0 updated in one component but still needing another, and 1 whose update could not finish."
   },
   "after": {
     "plan_id": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -61,5 +64,13 @@
       "residual-guidance": 1,
       "total_guided": 2
     }
+  },
+  "diagnostics": {
+    "schema_version": "1.0",
+    "id": "fixture-run",
+    "state": "available",
+    "path": "/Users/example/.claude/cc/diagnostics/workspace-migrations/workspace-migration-fixture-run.json",
+    "created_at": "2026-08-04T16:00:00Z",
+    "detail": "A private, redacted diagnostic record was saved for this update."
   }
 }
