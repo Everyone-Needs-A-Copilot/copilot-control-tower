@@ -2,6 +2,18 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.1] - 2026-08-05
+
+### Security
+
+- The `CT_CLI_PATH` environment override can no longer redirect a signed release build to an unverified `cc` binary. A compiled-in trust root now requires any override to carry the same Developer ID signature the app itself is released under, verified fresh against the file's own embedded signature on every resolution. Ad-hoc-signed development and test builds are unaffected, so the override remains a working development seam. This closes a gap present in `0.6.0`, in which a local attacker able to set the app's process environment could have redirected every helper invocation, including the Terminal-launched reconciliation assistant.
+- The bundled helper no longer lets `PATH` ordering decide which `claude` executable it invokes. Resolution now consults an explicit override, then a closed registry of known install locations, and only consults `PATH` as a last resort when nothing earlier matches; a `PATH` result can never preempt a known location, and every candidate is still subject to the existing ownership and permission checks. When no trustworthy executable can be resolved, bounded preparation refuses cleanly and the deterministic reconciliation route remains available.
+
+### Changed
+
+- The app and Admin bundle are version `0.6.1` build `28`. The release requires and bundles exactly `cc 2.7.2`; `controltower.compat.json` now declares `cc >=2.7.2,<3.0.0`.
+- Reconciliation remains schema `1.0` with the declared range `>=1.0,<2.0`. There are no contract or behavior changes beyond the two security fixes above.
+
 ## [0.6.0] - 2026-08-04
 
 ### Added
