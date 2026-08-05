@@ -39,6 +39,7 @@
 
 import Darwin
 import Foundation
+import Security
 
 // MARK: - Shared process-pipe plumbing
 //
@@ -205,6 +206,60 @@ enum ProcessDrain {
     }
 }
 
+// MARK: - The compiled-in production trust root (invariant #4)
+
+/// The one Developer ID team this app and its vendored `cc` helper are ever
+/// released under (see `docs/01-architecture/architecture.md`'s "Signing
+/// identity" line and `CLAUDE.md`'s credentials doctrine — this string is
+/// already public: it is printed by `codesign -dvv` on every artifact this
+/// project ships, and is not a secret). It is a literal, compiled-in
+/// constant, never read from a file, environment variable, or any other
+/// user-editable local config, matching invariant #4 ("nothing
+/// security-critical comes from user-editable local config").
+enum ProductionTrustAnchor {
+    static let teamIdentifier = "3SYGVX2HB8"
+
+    /// "Signed by Apple's real Developer ID chain, AND by this exact team" —
+    /// the standard macOS pattern an app uses to recognize its own other
+    /// artifacts (the same shape Sparkle-style updaters use to accept a
+    /// downloaded update). `anchor apple generic` requires the certificate
+    /// to genuinely chain to Apple's built-in root, which is what makes this
+    /// unforgeable by a locally-generated self-signed certificate — a bare
+    /// string compare against `kSecCodeInfoTeamIdentifier` without this
+    /// anchor clause would NOT be, since that field is parsed from the
+    /// binary's own embedded certificate without verifying who issued it.
+    private static let requirementString =
+        "anchor apple generic and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
+
+    /// True when the file at `path` is validly signed (its signature is
+    /// internally consistent with its own contents — this alone rejects a
+    /// tampered or truncated binary) AND that signature satisfies
+    /// `requirementString` above. Inspects the file's own embedded signature
+    /// fresh on every call; never trusts a cached Gatekeeper assessment,
+    /// never trusts the caller's claim about what the file is.
+    static func isSatisfied(byFileAt path: String) -> Bool {
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(
+            requirementString as CFString,
+            SecCSFlags(),
+            &requirement
+        ) == errSecSuccess, let requirement else {
+            return false
+        }
+
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(
+            URL(fileURLWithPath: path) as CFURL,
+            SecCSFlags(),
+            &staticCode
+        ) == errSecSuccess, let staticCode else {
+            return false
+        }
+
+        return SecStaticCodeCheckValidity(staticCode, SecCSFlags(), requirement) == errSecSuccess
+    }
+}
+
 // MARK: - Locating the CLI binary
 
 /// Resolves the absolute path to the `cc` CLI binary this app supervises.
@@ -216,11 +271,13 @@ enum ProcessDrain {
 /// it.
 enum CliLocator {
     /// Dev/test override — wins over every standard location, but ONLY when
-    /// it actually points at an executable file. An unset or non-executable
-    /// override is not an error here; it just falls through to the standard
-    /// search below (the standard locations remain a legitimate real-machine
-    /// answer even when a stale/typo'd `CT_CLI_PATH` is sitting in the
-    /// environment).
+    /// it actually points at an executable file, AND (see `locate(_:_:)`
+    /// below) only when this process is not itself the production-signed
+    /// article. An unset, non-executable, or (in a signed release build)
+    /// unverified override is not an error here; it just falls through to
+    /// the standard search below (the standard locations remain a legitimate
+    /// real-machine answer even when a stale/typo'd `CT_CLI_PATH` is sitting
+    /// in the environment).
     private static let overrideEnvVar = "CT_CLI_PATH"
 
     /// Standard install locations, checked in this order. Mirrors the
@@ -232,13 +289,38 @@ enum CliLocator {
         "/usr/local/bin/cc",
     ]
 
+    /// SECURITY (Phase 9.2 review finding A, `tc wp get 525`): `CT_CLI_PATH`
+    /// used to win over every other location with nothing stronger than
+    /// "is this file executable" — in the shipped, notarized app, a local
+    /// attacker able to set the app's process environment (e.g.
+    /// `launchctl setenv CT_CLI_PATH ...`) could redirect EVERY `cc`
+    /// invocation this app makes, including the Terminal-launched
+    /// reconciliation assistant, to an arbitrary unverified binary. That
+    /// contradicts invariant #4 outright.
+    ///
+    /// The fix does not touch the override's behavior in a dev/test build —
+    /// every existing harness under `scripts/`/`scripts/tests/` builds an
+    /// ad-hoc-signed (or, mid-release-pipeline, briefly unsigned) app, which
+    /// never satisfies `ProductionTrustAnchor`, so `isProductionSignedBuild`
+    /// is false there and the override behaves exactly as it always has.
+    /// Only once THIS process is itself running as the compiled-in-trusted,
+    /// Developer-ID-signed article (the one shape Gatekeeper/notarization
+    /// ever lets an ordinary user launch) does the override additionally
+    /// have to satisfy that same trust anchor before it can preempt the
+    /// bundled/standard resolution below — an unverified override never
+    /// wins over a trusted running app's own trust decision.
     static func locate(
-        bundledResourceURL: URL? = Bundle.main.resourceURL
+        bundledResourceURL: URL? = Bundle.main.resourceURL,
+        runningExecutablePath: String? = Bundle.main.executablePath
     ) -> URL? {
         let env = ProcessInfo.processInfo.environment
+        let isProductionSignedBuild = runningExecutablePath
+            .map(ProductionTrustAnchor.isSatisfied(byFileAt:)) ?? false
+
         if let override = env[overrideEnvVar], !override.isEmpty {
             let expanded = (override as NSString).expandingTildeInPath
-            if FileManager.default.isExecutableFile(atPath: expanded) {
+            if FileManager.default.isExecutableFile(atPath: expanded),
+               !isProductionSignedBuild || ProductionTrustAnchor.isSatisfied(byFileAt: expanded) {
                 return URL(fileURLWithPath: expanded)
             }
         }

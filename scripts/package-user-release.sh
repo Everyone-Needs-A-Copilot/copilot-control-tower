@@ -155,6 +155,28 @@ vendored_cc_sha="$(shasum -a 256 "${vendored_cc}" | awk '{print $1}')"
 CT_FORCE_REBUILD=1 CT_SKIP_ADHOC_SIGN=1 CT_VENDORED_CC_PATH="${vendored_cc}" \
     bash scripts/build-user.command --build-only >/dev/null
 
+# These two headless proofs run BEFORE Developer ID signing, deliberately.
+# `CliLocator.locate()` (native/cli-client.swift, Finding A / `tc wp get 525`)
+# only honors CT_CLI_PATH's mock-cc override for a process that is not
+# itself running as the compiled-in-trusted, Developer-ID-signed article —
+# that is what makes the override safe against a local attacker in the
+# SHIPPED app. At this point in the pipeline `${app_path}` is still only
+# ad-hoc/linker-signed (CT_SKIP_ADHOC_SIGN=1 above skips the bundle-level
+# ad-hoc pass, but swiftc's own linker still ad-hoc-signs the raw binary),
+# so it correctly satisfies neither `ProductionTrustAnchor` nor these
+# proofs' need for the override — exactly like every dev/test build. Moving
+# either call below `scripts/sign.sh` would make CliLocator refuse mock-cc
+# and silently fall back to the REAL vendored cc, turning this inert proof
+# into a live `onboard --apply` against whatever this build machine's HOME
+# happens to be. Never move these below the signing step.
+echo "release: exercising the exact app Detect seam without UI"
+headless_detect_report="${stage_dir}/headless-detect.json"
+scripts/headless-detect.sh --app "${app_path}" > "${headless_detect_report}"
+
+echo "release: exercising the exact app Set up -> Verify orchestration without live writes"
+headless_setup_report="${stage_dir}/headless-setup-transaction.txt"
+scripts/headless-setup-transaction.sh --app "${app_path}" > "${headless_setup_report}"
+
 echo "release: applying Developer ID signature"
 scripts/sign.sh "${app_path}"
 scripts/verify-user-automation.sh "${app_path}"
@@ -164,14 +186,6 @@ embedded_cc_sha="$(shasum -a 256 "${embedded_cc}" | awk '{print $1}')"
     die "embedded cc changed while building the app"
 echo "release: verifying helper provenance and disposable reconciliation contract"
 scripts/verify-vendored-cc.sh --release "${embedded_cc}"
-
-echo "release: exercising the exact app Detect seam without UI"
-headless_detect_report="${stage_dir}/headless-detect.json"
-scripts/headless-detect.sh --app "${app_path}" > "${headless_detect_report}"
-
-echo "release: exercising the exact app Set up -> Verify orchestration without live writes"
-headless_setup_report="${stage_dir}/headless-setup-transaction.txt"
-scripts/headless-setup-transaction.sh --app "${app_path}" > "${headless_setup_report}"
 
 echo "release: notarizing and stapling the app before assembling the DMG"
 scripts/notarize.sh app "${app_path}"
