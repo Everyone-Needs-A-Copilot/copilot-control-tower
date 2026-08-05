@@ -2,6 +2,22 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.2] - 2026-08-05
+
+### Fixed
+
+- A clean Claude Copilot authoring checkout no longer appears as **Foundation — Needs review** merely because release tooling or metadata outside the active `.claude` payload differs from the parentless Foundation snapshot. Control Tower still leaves the checkout untouched; the bundled helper now proves that the exact Copilot content in use matches the current release and reports the layer as current.
+- The exception is intentionally narrow. A dirty checkout, wrong origin, missing or changed `.claude` content, unreadable repository, non-parentless divergent history, or any other unproven state still fails closed and remains visible for review.
+
+### Changed
+
+- The app and Admin bundle are version `0.6.2` build `29`. The release requires and bundles exactly `cc 2.7.3`, built from signed parentless Foundation snapshot `v5.13.45` and accepted by Apple notarization; `controltower.compat.json` now declares `cc >=2.7.3,<3.0.0`.
+- The Swift app and onboarding schema are unchanged. The fix remains in the Python-owned history classifier so Control Tower continues to render the helper's proven state instead of computing repository truth itself.
+
+### Rollback
+
+- Reinstall the signed `0.6.1` DMG, `Copilot-Control-Tower_0.6.1_arm64.dmg`, to return to the prior app and bundled `cc 2.7.2`. Reinstalling changes the app/helper version only and does not alter any Copilot checkout or project content. Release tags are immutable, so a defective build is superseded with a new version.
+
 ## [0.6.1] - 2026-08-05
 
 ### Security
