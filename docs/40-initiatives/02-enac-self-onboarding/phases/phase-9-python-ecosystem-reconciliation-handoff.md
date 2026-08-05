@@ -1069,7 +1069,7 @@ Finding B (Medium — `claude` resolved via ambient PATH lookup) is fixed upstre
 
 An intermediate `cc 2.7.1` (foundation snapshot `v5.13.43`, commit `c835b09a`) removed PATH consultation entirely. That was over-tightened and FAILED two Control Tower gates — `test_vendored_cc_reconcile_release_gate.sh` and `verify-vendored-cc.sh --release` — with "assistant-run did not return a ready assistant-run report", because resolution then depended solely on HOME-relative registry entries and broke under the gate's sandboxed HOME (`verify-vendored-cc.sh` line 188). It would equally have broken any real user whose `claude` is installed outside the registry. `cc 2.7.1` was built and notarized but NEVER released or vendored into a published app; the gates caught it, and `2.7.2` corrects the ordering. This is the reason the gates exist.
 
-There is a related gap worth remembering: the helper's own release probe did not catch this, because `scripts/package-cc-macos-release.sh` sets `CC_ASSISTANT_CLAUDE_PATH` explicitly (line 635), which masks default resolution. Only Control Tower's sandboxed-HOME gates exposed it.
+There was a related gap in the release process itself: the helper's own release probes did not catch this, because the assistant probe in `scripts/package-cc-macos-release.sh` sets `CC_ASSISTANT_CLAUDE_PATH` explicitly, which short-circuits resolution and so never exercised the default path. A broken helper therefore passed all four of its own probes and was signed and notarized; only Control Tower's sandboxed-HOME gates exposed it. That gap is now closed — see section 21.8.
 
 ### 21.4 Helper and app release
 
@@ -1095,3 +1095,15 @@ None of the WP-525 findings remain open. The environmental `machine_summary` ite
 - Both security findings from `WP-525` are closed in the shipped `0.6.1` artifact: finding A by commit `6e8d882` (compiled-in `ProductionTrustAnchor`), finding B by upstream `cc 2.7.2`.
 - `cc 2.7.1` was built and notarized but never released or vendored into a published app; it was caught by Control Tower's own gates before it could ship, and the gates exist for exactly this reason.
 - No live selected project was mutated while producing or verifying this release.
+
+### 21.8 Release-process hardening: the helper can no longer self-certify a broken default resolution
+
+The `cc 2.7.1` episode exposed a defect in the release process itself, not just in the runtime. The bounded-assistant release probe in `scripts/package-cc-macos-release.sh` sets `CC_ASSISTANT_CLAUDE_PATH` before invoking the frozen helper. That override short-circuits resolution, so the probe only ever proved that the bounded lifecycle works when it is handed an explicit path — it never exercised the default resolution the shipped product actually relies on. A helper whose default resolution was completely broken therefore passed all four of its own probes and went on to be Developer ID signed and Apple notarized. Downstream verification was the only thing standing between that artifact and a release.
+
+This is closed in claude-copilot commit `3a22f7e`, which adds three probe legs and emits a new `finder_reconciliation_assistant_default_resolution_probe` claim in `release-metadata.json`, additive alongside the existing four claims so existing consumers keep parsing. The legs are: registry-only resolution succeeds; PATH-fallback resolution succeeds when the closed registry is empty; and resolution fails closed with `claude-code-unavailable` when no `claude` is resolvable anywhere.
+
+The second leg is the one that carries the regression-detection weight, and the reason it was chosen is worth recording. The obvious design — place a fake `claude` at a known closed-registry location and assert the lifecycle completes — was tried first and **passes on the defective 2.7.1 binary**, because 2.7.1 broke only the PATH fallback for installs outside the registry, not registry resolution itself. A probe built that way would have looked thorough and caught nothing. The three legs were instead validated against both frozen artifacts, `dist/cc-2.7.1-v5.13.43/cc` and `dist/cc-2.7.2-v5.13.44/cc`, confirming the PATH-fallback leg fails on 2.7.1 and passes on 2.7.2.
+
+The general rule this establishes: a regression probe must be run against the known-bad artifact and shown to fail there before it is trusted. A probe that has only ever been observed passing on a good build proves nothing about its ability to detect the defect it was written for. The same rule applies to any future probe added to this pipeline.
+
+This change is release tooling only. No runtime Python under `tools/cc/src/cc/` was touched, so the shipped `cc 2.7.2` and Control Tower `0.6.1` artifacts are unaffected and no re-cut was required. It was validated by `bash -n`, static parsing of every embedded Python block, and running all three legs end to end against both frozen binaries; the full packaging and notarization pipeline was deliberately not re-run.
