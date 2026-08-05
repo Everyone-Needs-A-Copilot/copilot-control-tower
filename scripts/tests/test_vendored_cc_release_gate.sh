@@ -2,17 +2,10 @@
 # Keeps the native release honest by requiring full verification for the
 # signed Mach-O helper and fail-closed behavior for any development placeholder.
 #
-# G-6 (task 209): verify-vendored-cc.sh now also runs the vendored binary's
-# `onboard --json` against a minimal local Git fixture and validates the
-# report against the canonical schema (docs/01-architecture/schemas/
-# onboard.schema.json, v2.0). packaging/cc/cc is currently the STALE
-# pre-G-5/G-6 artifact (schema 1.0, no layers_state/completed_actions/
-# resume) -- this gate is expected to FAIL until release engineering pins a
-# fresh onboard.py-carrying artifact (see scripts/build-fresh-vendored-cc.sh
-# and scripts/tests/test_packaged_cc_topology_contract.sh for the tooling
-# that builds and proves such an artifact). This mirrors the same
-# intentional-failure-until-re-pin state already documented for PKG-01b in
-# scripts/tests/test_walkthrough_05_08_acceptance.sh.
+# The release gate runs the exact vendored binary against both the onboard
+# schema-2.0 topology fixture and the reconcile response-schema-2.0/request-
+# schema-1.0 deterministic and assistant lifecycles. A stale or placeholder
+# helper must fail before the app can be packaged.
 
 set -euo pipefail
 

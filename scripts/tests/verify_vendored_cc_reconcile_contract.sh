@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Drive one exact cc executable through the Phase 9 schema-1.0 deterministic
+# Drive one exact cc executable through the response-schema-2.0/request-schema-1.0 deterministic
 # and bounded-assistant lifecycles.
 # Every read and write is isolated below a fresh temporary directory.
 
@@ -471,7 +471,7 @@ def validate(schema, value, label):
             f"{'.'.join(map(str, error.path)) or '<root>'}: {error.message}"
             for error in errors[:5]
         )
-        raise SystemExit(f"{label} does not satisfy schema 1.0: {rendered}")
+        raise SystemExit(f"{label} does not satisfy response schema 2.0: {rendered}")
 
 
 schema = load(schema_path)
@@ -595,7 +595,7 @@ if (
     raise SystemExit("assistant run did not constrain Claude to candidate ids")
 
 print(
-    "reconcile schema 1.0 assistant lifecycle PASS: "
+    "reconcile response schema 2.0/request schema 1.0 assistant lifecycle PASS: "
     "assistant-prepare -> assistant-run -> assistant-status"
 )
 PY

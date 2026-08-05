@@ -7,7 +7,7 @@ Companion: `21-resolve-with-claude-code-uxd-walkthrough.html`
 ## Service promise
 
 **Resolve with Claude Code** starts one visible, bounded preparation session for
-the complete Python-authorized project batch. Claude Code may read the helper's
+the complete Python-authorized product-project batch. Claude Code may read the helper's
 project summaries and draft proposals. It does not edit live projects, decide
 that verification passed, or bypass the reviewed Python apply boundary.
 
@@ -19,20 +19,24 @@ Python applies and freshly verifies it.
 ## Primary flow
 
 1. The existing default-all project summary remains the entry surface. Every
-   Python-authorized safe project and every project with an assistant-ready
-   dossier is included by default. Ready projects are acknowledged quietly.
+   Python-authorized safe product project and every product project with an
+   assistant-ready dossier is included by default. Ready projects are
+   acknowledged quietly. Verified Copilot ecosystem repositories are shown
+   separately and never enter project setup.
 2. The primary action is **Resolve with Claude Code**. Individual project choice
    remains a secondary escape hatch before starting.
 3. Control Tower opens one visible Claude Code preparation session. The screen
    moves immediately to **Preparing project proposals** and states **Nothing is
    changing yet**.
-4. Progress advances only from real service events: opening the approved batch,
-   drafting bounded proposals, and Python validating those proposals. There is
-   no invented percentage, timer, or project-complete claim.
+4. Progress advances only from Python-authored events: session prepared, Claude
+   Code running, Python validating selections, Python validating the exact plan,
+   ready, or blocked. Liveness is waiting, active, stale, complete, or blocked.
+   There is no invented percentage, timer, or project-complete claim.
 5. The result separates:
    - proposals ready for review;
    - owner decisions that need an answer;
-   - held projects that remain unchanged; and
+   - product projects left unchanged, grouped by exact protective reason;
+   - verified Copilot ecosystem repositories managed separately; and
    - projects already ready.
 6. The person answers each owner decision or chooses **Leave unchanged**.
    Unanswered decisions never enter the plan.
@@ -48,8 +52,9 @@ Python applies and freshly verifies it.
 
 - Default-all means every project Python explicitly authorizes for this run. It
   never means every folder regardless of safety.
-- Claude Copilot and Codex Copilot stay universal. There are no component
-  switches or recipe controls.
+- Python may authorize Claude Copilot only, Codex Copilot only, or both for each
+  project. The exact component scope is visible on each selection row. There
+  are no component switches or recipe controls in Swift.
 - **Choose projects individually** shows one checkbox per authorized project.
 - The assistant cannot add a project that Python omitted or held.
 - Returning to default-all restores the complete Python-authored set.
@@ -90,6 +95,11 @@ Preserve the latest Python-authored batch and state what completed. Offer
 otherwise offer **Start again**. Never label a missing assistant response as a
 project failure.
 
+When Python reports stale liveness, replace the spinner-only impression with a
+static attention symbol and Python's heartbeat explanation. Continue polling so
+a later verified stage can recover naturally, while **Stop checking** remains
+available. Control Tower never decides by itself that the session is stale.
+
 ### Owner decisions
 
 Each decision is one plain-language question with radio choices authored or
@@ -103,6 +113,20 @@ Held is protective, not failed. A compact **Left unchanged to protect your
 work** section names each project, its plain-language reason, and its next safe
 action. Dirty work, unreadable roots, missing sources, and policy holds never
 enter assistant preparation, the reviewed plan, or apply.
+
+This section also gives the exact Python-authored reason counts: protected work,
+owner decision, could not verify, excluded by policy, source unavailable, and
+other protective condition. Those counts are not reconstructed from routes in
+Swift.
+
+### Copilot ecosystem repositories
+
+Knowledge Copilot, Claude Copilot, Codex Copilot, CLI Copilot, and their proven
+Foundation/Organization/Department/Personal checkouts are outside project
+reconciliation. Show them neutrally as **managed separately** with an optional
+name disclosure. Do not show internal role, layer, repository-identity, or
+manifest evidence on the customer surface. A similar name alone is never enough
+to exclude an ordinary product project; Python supplies the verified scope.
 
 ### Apply, verify, and rollback
 
@@ -150,9 +174,10 @@ check found**, never **Claude Code fixed**.
 
 ## Dependencies and non-negotiable boundaries
 
-- Python must author the eligible assistant batch, project summaries, owner
-  decision choices, held reasons, validated proposals, exact plan, outcomes,
-  next actions, and diagnostic references.
+- Python must author repository scope, component-level selections, all totals,
+  the eligible assistant batch, project summaries, owner decision choices,
+  exact unchanged reasons, progress and liveness, validated proposals, exact
+  plan, outcomes, next actions, and diagnostic references.
 - Claude Code must be constrained to proposal generation. It receives no
   authority to write selected projects directly.
 - Control Tower owns presentation, explicit person choices, focus, and the

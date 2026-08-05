@@ -26,7 +26,7 @@ def _validate(schema: dict[str, Any], value: Any, *, label: str) -> None:
             f"{'.'.join(map(str, error.path)) or '<root>'}: {error.message}"
             for error in errors[:5]
         )
-        raise SystemExit(f"{label} does not satisfy schema 1.0: {rendered}")
+        raise SystemExit(f"{label} does not satisfy response schema 2.0: {rendered}")
 
 
 def _project(report: dict[str, Any], path: str) -> dict[str, Any]:
@@ -119,7 +119,7 @@ def main() -> None:
     for label, report in reports.items():
         _validate(schema, report, label=label)
         expected_phase = label.removeprefix("repeat-")
-        if report.get("schema_version") != "1.0" or report.get("phase") != expected_phase:
+        if report.get("schema_version") != "2.0" or report.get("phase") != expected_phase:
             raise SystemExit(f"{label} returned the wrong schema or phase")
 
     project_path = str(args.project.resolve())
@@ -185,7 +185,7 @@ def main() -> None:
         raise SystemExit("verify/repeat/recover changed the disposable project tree")
 
     print(
-        "reconcile schema 1.0 lifecycle PASS: "
+        "reconcile response schema 2.0/request schema 1.0 lifecycle PASS: "
         "assess -> plan -> apply -> verify -> zero-work repeat -> recover"
     )
 

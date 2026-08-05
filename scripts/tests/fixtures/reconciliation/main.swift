@@ -64,26 +64,59 @@ struct ReconciliationContractDriver {
         precondition(decodedAssess.result == .actionRequired)
         precondition(decodedAssess.projects.first?.route == .safeSetupAvailable)
         precondition(decodedAssess.batchSummary.selected == 1)
-        precondition(decodedAssess.defaultSelection.first?.components == [.claude, .codex])
+        precondition(decodedAssess.defaultSelection.first?.components == [.claude])
         precondition(decodedAssess.defaultSelection.first?.category == .newSetup)
         precondition(decodedAssess.machineSummary.state == .ready)
-        precondition(decodedAssess.assistantSelection?.isEmpty == true)
-        precondition(decodedAssess.resolutionSummary?.totalActionable == 1)
+        precondition(decodedAssess.assistantSelection.isEmpty)
+        precondition(decodedAssess.resolutionSummary.totalActionable == 1)
+        precondition(decodedAssess.resolutionSummary.managedSeparately == 1)
+        precondition(decodedAssess.summary.scopeCounts.productProjects == 1)
+        precondition(decodedAssess.summary.scopeCounts.ecosystemRepositories == 1)
+        precondition(decodedAssess.projects.last?.route == .ecosystemManaged)
+        precondition(decodedAssess.projects.last?.scope.isEcosystemRepository == true)
+        var contradictoryScopeObject = try JSONSerialization.jsonObject(
+            with: fixture("assess", in: fixtureDirectory)
+        ) as! [String: Any]
+        var contradictoryProjects = contradictoryScopeObject["projects"]
+            as! [[String: Any]]
+        contradictoryProjects[0]["scope"] = [
+            "kind": "product-project",
+            "product": "claude",
+        ]
+        contradictoryScopeObject["projects"] = contradictoryProjects
+        do {
+            _ = try decoder.decode(
+                ReconciliationAssessReport.self,
+                from: JSONSerialization.data(withJSONObject: contradictoryScopeObject)
+            )
+            preconditionFailure("contradictory repository scope decoded successfully")
+        } catch {
+            // Product projects cannot smuggle ecosystem provenance past the
+            // conditional response contract.
+        }
         var assistedObject = try JSONSerialization.jsonObject(
             with: fixture("assess", in: fixtureDirectory)
         ) as! [String: Any]
         assistedObject["assistant_selection"] = [
             [
                 "path": "/Projects/Two",
-                "components": ["claude", "codex"],
+                "components": ["codex"],
                 "category": "correction",
             ]
         ]
         assistedObject["resolution_summary"] = [
             "automatic": 1,
             "claude_assisted": 1,
-            "held": 0,
             "total_actionable": 2,
+            "managed_separately": 1,
+            "left_unchanged": [
+                "held": 0,
+                "owner_decision": 0,
+                "could_not_verify": 0,
+                "excluded": 0,
+                "source_unavailable": 0,
+                "other": 0,
+            ],
             "new_setup": 1,
             "correction": 1,
         ]
@@ -102,29 +135,40 @@ struct ReconciliationContractDriver {
             ).map(\.path) == ["/Projects/One", "/Projects/Two"]
         )
         precondition(
-            assistedAssess.assistantSelection?.first?.components == [.claude, .codex]
+            assistedAssess.assistantSelection.first?.components == [.codex]
         )
-        precondition(assistedAssess.resolutionSummary?.totalActionable == 2)
-        precondition(assistedAssess.resolutionSummary?.newSetup == 1)
-        precondition(assistedAssess.resolutionSummary?.correction == 1)
+        precondition(assistedAssess.resolutionSummary.totalActionable == 2)
+        precondition(assistedAssess.resolutionSummary.newSetup == 1)
+        precondition(assistedAssess.resolutionSummary.correction == 1)
         let decodedPrepare = try decoder.decode(
             ReconciliationAssistantPrepareReport.self,
             from: fixture("assistant-prepare", in: fixtureDirectory)
         )
         precondition(decodedPrepare.phase == .assistantPrepare)
         precondition(decodedPrepare.selectedProjects == ["/Projects/Team; literal/One"])
+        precondition(decodedPrepare.progress.stage == .sessionPrepared)
+        precondition(decodedPrepare.progress.liveness == .waiting)
         let decodedRunning = try decoder.decode(
             ReconciliationAssistantStatusReport.self,
             from: fixture("assistant-status-running", in: fixtureDirectory)
         )
         precondition(decodedRunning.result == .running)
         precondition(decodedRunning.proposalId == nil)
+        precondition(decodedRunning.progress.stage == .claudeCodeRunning)
+        precondition(decodedRunning.progress.liveness == .active)
+        let decodedStale = try decoder.decode(
+            ReconciliationAssistantStatusReport.self,
+            from: fixture("assistant-status-stale", in: fixtureDirectory)
+        )
+        precondition(decodedStale.progress.liveness == .stale)
         let decodedReady = try decoder.decode(
             ReconciliationAssistantStatusReport.self,
             from: fixture("assistant-status-ready", in: fixtureDirectory)
         )
         precondition(decodedReady.result == .ready)
         precondition(decodedReady.proposalId == "proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        precondition(decodedReady.progress.stage == .ready)
+        precondition(decodedReady.progress.liveness == .complete)
         let decodedPlan = try decoder.decode(
             ReconciliationPlanReport.self,
             from: fixture("plan", in: fixtureDirectory)
@@ -162,6 +206,12 @@ struct ReconciliationContractDriver {
         precondition(decodedPrepare.matches(request: request))
         precondition(
             decodedRunning.transition(
+                expectedSessionId: decodedPrepare.sessionId,
+                request: request
+            ) == .running
+        )
+        precondition(
+            decodedStale.transition(
                 expectedSessionId: decodedPrepare.sessionId,
                 request: request
             ) == .running

@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "phase": "assistant-status",
   "result": "ready",
   "run_id": "run_33333333333333333333333333333333",
@@ -9,6 +9,17 @@
   "selected_projects": [
     "/Projects/Team; literal/One"
   ],
+  "progress": {
+    "stage": "ready",
+    "liveness": "complete",
+    "detail": "Python validated the exact plan and it is ready for review.",
+    "started_at": "2026-08-04T18:00:00Z",
+    "last_activity_at": "2026-08-04T18:05:00Z",
+    "elapsed_seconds": 300,
+    "selected_project_count": 1,
+    "candidate_group_count": 1,
+    "candidate_count": 2
+  },
   "detail": "Python validated the prepared proposal.",
   "next_actions": [
     "Review the exact plan."

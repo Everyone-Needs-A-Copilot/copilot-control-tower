@@ -164,7 +164,7 @@ enum ProjectRowGroup: String {
     case keptAsIs
 }
 
-/// Presentation state for Python's schema-1.0 reconciliation workflow.
+/// Presentation state for Python's schema-2.0 reconciliation workflow.
 /// The state machine never classifies projects or predicts an outcome; it
 /// only controls which already-decoded CLI report is visible.
 enum ProjectReconciliationStage: Equatable {
@@ -1270,7 +1270,7 @@ final class WizardModel: ObservableObject {
     /// This is always a CLI-authored row; the wizard never derives a plan.
     @Published var projectIntegrationDetail: WorkspaceEntry?
     @Published var projectIntegrationMessage: String?
-    /// Python-authored schema-1.0 reconciliation reports. Swift owns only the
+    /// Python-authored schema-2.0 reconciliation reports. Swift owns only the
     /// person's project-level subtraction from Python's safe default batch and
     /// this presentation state machine.
     @Published var reconciliationStage: ProjectReconciliationStage = .assessing
@@ -1411,8 +1411,16 @@ final class WizardModel: ObservableObject {
             object["resolution_summary"] = [
                 "automatic": 1,
                 "claude_assisted": 1,
-                "held": 2,
                 "total_actionable": 2,
+                "managed_separately": 1,
+                "left_unchanged": [
+                    "held": 2,
+                    "owner_decision": 0,
+                    "could_not_verify": 0,
+                    "excluded": 0,
+                    "source_unavailable": 0,
+                    "other": 0,
+                ],
                 "new_setup": 1,
                 "correction": 1,
             ]
@@ -1472,6 +1480,7 @@ final class WizardModel: ObservableObject {
              "projects-reconciliation-assistant-individual",
              "projects-reconciliation-assistant-preparing",
              "projects-reconciliation-assistant-running",
+             "projects-reconciliation-assistant-stale",
              "projects-reconciliation-assistant-ready",
              "projects-reconciliation-assistant-permission",
              "projects-reconciliation-assistant-unavailable":
@@ -1493,6 +1502,16 @@ final class WizardModel: ObservableObject {
                 )
                 reconciliationAssistantStatusReport = reconciliationFixture(
                     "assistant-status-running.json",
+                    as: ReconciliationAssistantStatusReport.self
+                )
+                reconciliationStage = .assistantRunning
+            case "projects-reconciliation-assistant-stale":
+                reconciliationAssistantPrepareReport = reconciliationFixture(
+                    "assistant-prepare.json",
+                    as: ReconciliationAssistantPrepareReport.self
+                )
+                reconciliationAssistantStatusReport = reconciliationFixture(
+                    "assistant-status-stale.json",
                     as: ReconciliationAssistantStatusReport.self
                 )
                 reconciliationStage = .assistantRunning
@@ -2685,7 +2704,7 @@ final class WizardModel: ObservableObject {
     // MARK: Step 7, Your projects (adopt-and-project-setup spec)
 
     /// Loads folder-grant state (`workspace roots`) and, if at least one
-    /// folder is already granted, asks Python for a fresh schema-1.0
+    /// folder is already granted, asks Python for a fresh schema-2.0
     /// reconciliation assessment. The legacy workspace register is refreshed
     /// only for existing aftercare flows; it never drives reconciliation.
     /// Nothing is written here. Runs once per wizard visit to this step
@@ -2825,7 +2844,7 @@ final class WizardModel: ObservableObject {
 
     var reconciliationSelectedAssistantProjectCount: Int {
         guard let report = reconciliationAssessReport else { return 0 }
-        return (report.assistantSelection ?? []).filter {
+        return report.assistantSelection.filter {
             reconciliationSelectedProjectPaths.contains($0.path)
         }.count
     }
@@ -5763,19 +5782,41 @@ struct WizardRootView: View {
     private var reconciliationAssistantPreparation: some View {
         sectionCard("Preparing project proposals") {
             VStack(alignment: .leading, spacing: CTSpace.md) {
+                let progress = model.reconciliationAssistantStatusReport?.progress
+                    ?? model.reconciliationAssistantPrepareReport?.progress
                 HStack(alignment: .top, spacing: CTSpace.sm) {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityHidden(true)
+                    if progress?.liveness == .stale {
+                        Image(systemName: "exclamationmark.circle")
+                            .foregroundColor(Color(nsColor: .systemOrange))
+                            .accessibilityHidden(true)
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityHidden(true)
+                    }
                     VStack(alignment: .leading, spacing: CTSpace.xs) {
+                        if let progress {
+                            Text(reconciliationAssistantStageLabel(progress.stage))
+                                .font(.callout.weight(.semibold))
+                        }
                         Text(
-                            model.reconciliationAssistantStatusReport?.detail
+                            progress?.detail
                                 ?? (model.reconciliationAssistantPrepareReport == nil
                                     ? "Opening the approved batch with the helper."
-                                    : "Claude Code is drafting bounded proposals in Terminal while Control Tower waits for Python validation.")
+                                    : "The approved preparation session is ready to start in Terminal.")
                         )
                         .font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
+                        if let progress {
+                            Text(
+                                "\(progress.selectedProjectCount) "
+                                    + (progress.selectedProjectCount == 1
+                                        ? "selected project"
+                                        : "selected projects")
+                            )
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        }
                         Text("Nothing is changing yet.")
                             .font(.caption.weight(.semibold))
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -5784,7 +5825,7 @@ struct WizardRootView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(
                     "Preparing project proposals. "
-                        + (model.reconciliationAssistantStatusReport?.detail
+                        + (progress?.detail
                             ?? "Nothing is changing yet.")
                 )
 
@@ -5794,6 +5835,19 @@ struct WizardRootView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
+        }
+    }
+
+    private func reconciliationAssistantStageLabel(
+        _ stage: ReconciliationAssistantProgressStage
+    ) -> String {
+        switch stage {
+        case .sessionPrepared: return "Session prepared"
+        case .claudeCodeRunning: return "Claude Code is preparing proposals"
+        case .pythonValidatingSelections: return "Control Tower is checking the selections"
+        case .pythonValidatingPlan: return "Control Tower is checking the exact plan"
+        case .ready: return "Ready to review"
+        case .blocked: return "Preparation stopped safely"
         }
     }
 
@@ -5811,16 +5865,11 @@ struct WizardRootView: View {
                     .font(.callout.weight(.semibold))
                     .foregroundColor(Color(nsColor: .linkColor))
 
-                    if let held = model.reconciliationAssessReport?
-                        .resolutionSummary?.held, held > 0 {
-                        Label(
-                            "\(held) "
-                                + (held == 1 ? "project was left" : "projects were left")
-                                + " unchanged to protect your work",
-                            systemImage: "hand.raised"
-                        )
-                        .font(.caption)
-                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    if let status = model.reconciliationAssistantStatusReport {
+                        Label(status.progress.detail, systemImage: "checkmark.circle")
+                            .font(.caption)
+                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Text("Claude Code prepared proposals only. Control Tower has not changed any project.")
@@ -5868,7 +5917,7 @@ struct WizardRootView: View {
             VStack(alignment: .leading, spacing: CTSpace.sm) {
                 Text(
                     model.reconciliationErrorDetail
-                        ?? "The helper did not return a schema-1.0 reconciliation report. No project action is available from this screen."
+                        ?? "The helper did not return a compatible project report. No project action is available from this screen."
                 )
                 .font(.callout)
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
@@ -5970,10 +6019,25 @@ struct WizardRootView: View {
         _ report: ReconciliationAssessReport
     ) -> some View {
         let batch = report.batchSummary
+        let resolution = report.resolutionSummary
+        let managedProjects = report.projects.filter { $0.scope.isEcosystemRepository }
+        let actionablePaths = report.authorizedSelectionPaths
+        let untouchedProjects = report.projects.filter {
+            !$0.scope.isEcosystemRepository
+                && $0.route != .ready
+                && !actionablePaths.contains($0.path)
+        }
         return sectionCard("Your project setup") {
             VStack(alignment: .leading, spacing: CTSpace.md) {
-                if let resolution = report.resolutionSummary,
-                   resolution.totalActionable > 0 {
+                Text(
+                    "\(batch.productProjects) "
+                        + (batch.productProjects == 1 ? "product project" : "product projects")
+                        + " checked · \(resolution.totalActionable) ready to continue"
+                )
+                .font(.callout.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+
+                if resolution.totalActionable > 0 {
                     Text(
                         "\(resolution.totalActionable) "
                             + (resolution.totalActionable == 1
@@ -6003,33 +6067,10 @@ struct WizardRootView: View {
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
-                } else if report.resolutionSummary == nil, batch.selected > 0 {
-                    Text(
-                        "\(batch.selected) "
-                            + (batch.selected == 1 ? "project can" : "projects can")
-                            + " be handled safely. "
-                            + (batch.selected == 1 ? "It is" : "They are")
-                            + " selected."
-                    )
-                    .font(.callout.weight(.semibold))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                    HStack(alignment: .top, spacing: CTSpace.sm) {
-                        reconciliationBatchMetric(
-                            batch.newSetup,
-                            title: "New setup",
-                            detail: "Set up from the ground up"
-                        )
-                        reconciliationBatchMetric(
-                            batch.correction,
-                            title: "Needs correction",
-                            detail: "Bring existing setup up to date"
-                        )
-                    }
-                } else if batch.ready == batch.total, batch.total > 0 {
-                    Text("All \(batch.total) projects are already set up.")
+                } else if batch.ready == batch.productProjects, batch.productProjects > 0 {
+                    Text("All \(batch.productProjects) product projects are already set up.")
                         .font(.callout.weight(.semibold))
-                    Text("Claude Copilot and Codex Copilot passed the latest check. Nothing needs to change.")
+                    Text("The selected Copilot components passed the latest check. Nothing needs to change.")
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
@@ -6041,7 +6082,7 @@ struct WizardRootView: View {
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
 
-                if batch.ready > 0, batch.ready != batch.total {
+                if batch.ready > 0, batch.ready != batch.productProjects {
                     Label(
                         "\(batch.ready) "
                             + (batch.ready == 1 ? "project is" : "projects are")
@@ -6052,17 +6093,56 @@ struct WizardRootView: View {
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
                 }
-                let held = report.resolutionSummary?.held ?? batch.needsReview
-                if held > 0 {
+
+                if resolution.managedSeparately > 0 {
+                    Divider()
                     Label(
-                        "\(held) "
-                            + (held == 1 ? "project is" : "projects are")
-                            + " left unchanged to protect your work.",
-                        systemImage: "hand.raised"
+                        "\(resolution.managedSeparately) Copilot setup "
+                            + (resolution.managedSeparately == 1 ? "repository is" : "repositories are")
+                            + " managed separately and will not receive project changes here.",
+                        systemImage: "shippingbox"
                     )
-                    .font(.caption)
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     .fixedSize(horizontal: false, vertical: true)
+
+                    if !managedProjects.isEmpty {
+                        DisclosureGroup("See managed Copilot repositories") {
+                            VStack(alignment: .leading, spacing: CTSpace.xs) {
+                                ForEach(managedProjects, id: \.path) { project in
+                                    Label(project.name, systemImage: "minus.circle")
+                                        .font(.caption)
+                                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                }
+                            }
+                            .padding(.top, CTSpace.xs)
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                }
+
+                if !untouchedProjects.isEmpty
+                    || reconciliationHasLeftUnchangedReasons(resolution.leftUnchanged) {
+                    Divider()
+                    Label("Left unchanged to protect your work", systemImage: "hand.raised")
+                        .font(.callout.weight(.semibold))
+                    reconciliationLeftUnchangedReasons(resolution.leftUnchanged)
+
+                    ForEach(untouchedProjects, id: \.path) { project in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(project.name)
+                                .font(.caption.weight(.semibold))
+                            Text(reconciliationUntouchedRouteLabel(project.route))
+                                .font(.caption2.weight(.semibold))
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                            Text(project.nextAction)
+                                .font(.caption)
+                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, CTSpace.xs)
+                        .accessibilityElement(children: .combine)
+                    }
                 }
                 if report.machineSummary.state == .ready {
                     Label(report.machineSummary.title, systemImage: "checkmark.circle")
@@ -6071,6 +6151,64 @@ struct WizardRootView: View {
                 }
             }
         }
+    }
+
+    private func reconciliationUntouchedRouteLabel(_ route: ReconciliationProjectRoute) -> String {
+        switch route {
+        case .held: return "Protected work"
+        case .ownerDecision: return "Needs your decision"
+        case .couldNotVerify: return "Could not verify safely"
+        case .excluded: return "Excluded by project policy"
+        case .sourceUnavailable: return "Required setup source unavailable"
+        case .copilotNotPresent: return "No project integration selected"
+        case .customizedGuidedRoute: return "No approved bounded route"
+        default: return "Left unchanged"
+        }
+    }
+
+    private func reconciliationHasLeftUnchangedReasons(
+        _ reasons: ReconciliationLeftUnchangedSummary
+    ) -> Bool {
+        reasons.held > 0
+            || reasons.ownerDecision > 0
+            || reasons.couldNotVerify > 0
+            || reasons.excluded > 0
+            || reasons.sourceUnavailable > 0
+            || reasons.other > 0
+    }
+
+    @ViewBuilder
+    private func reconciliationLeftUnchangedReasons(
+        _ reasons: ReconciliationLeftUnchangedSummary
+    ) -> some View {
+        if reasons.held > 0 {
+            reconciliationReasonRow(reasons.held, "held to protect existing work")
+        }
+        if reasons.ownerDecision > 0 {
+            reconciliationReasonRow(reasons.ownerDecision, "waiting for your decision")
+        }
+        if reasons.couldNotVerify > 0 {
+            reconciliationReasonRow(reasons.couldNotVerify, "that could not be verified safely")
+        }
+        if reasons.excluded > 0 {
+            reconciliationReasonRow(reasons.excluded, "excluded by project policy")
+        }
+        if reasons.sourceUnavailable > 0 {
+            reconciliationReasonRow(reasons.sourceUnavailable, "with required setup sources unavailable")
+        }
+        if reasons.other > 0 {
+            reconciliationReasonRow(reasons.other, "with another protective condition")
+        }
+    }
+
+    private func reconciliationReasonRow(_ count: Int, _ reason: String) -> some View {
+        Label(
+            "\(count) " + (count == 1 ? "project " : "projects ") + reason,
+            systemImage: "minus.circle"
+        )
+        .font(.caption)
+        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func reconciliationBatchMetric(
@@ -6112,7 +6250,7 @@ struct WizardRootView: View {
                                 + "\(WizardModel.reconciliationAuthorizedPaths(from: report).count) projects"
                         )
                             .font(.callout.weight(.semibold))
-                        Text("Every project gets Claude Copilot and Codex Copilot.")
+                        Text("Each project keeps the exact Claude Copilot, Codex Copilot, or combined setup approved for it.")
                             .font(.caption)
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     }
@@ -6126,7 +6264,7 @@ struct WizardRootView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(Color(nsColor: .linkColor))
 
-                if !(report.assistantSelection ?? []).isEmpty,
+                if !report.assistantSelection.isEmpty,
                    model.reconciliationHasAutomaticSelection {
                     Button("Use standard setup only") {
                         model.useStandardReconciliationOnly()
@@ -6173,7 +6311,7 @@ struct WizardRootView: View {
                         if index > 0 { Divider() }
                         reconciliationProjectSelectionRow(selection, report: report)
                     }
-                    ForEach(Array((report.assistantSelection ?? []).enumerated()), id: \.element.path) { index, selection in
+                    ForEach(Array(report.assistantSelection.enumerated()), id: \.element.path) { index, selection in
                         if index > 0 || !report.defaultSelection.isEmpty { Divider() }
                         reconciliationAssistantProjectSelectionRow(selection, report: report)
                     }
@@ -6187,8 +6325,9 @@ struct WizardRootView: View {
         return sectionCard("Project census") {
             VStack(alignment: .leading, spacing: CTSpace.sm) {
                 Text(
-                    "\(counts.total) projects in this report · "
-                        + "\(summary.selectedProjects) selected"
+                    "\(summary.scopeCounts.totalRepositories) repositories checked · "
+                        + "\(summary.scopeCounts.productProjects) product projects · "
+                        + "\(summary.scopeCounts.ecosystemRepositories) managed separately"
                 )
                 .font(.callout.weight(.semibold))
                 Text(summary.overlapExplanation)
@@ -6213,6 +6352,8 @@ struct WizardRootView: View {
                         reconciliationMetric(counts.ownerDecision, title: "Owner decision")
                         reconciliationMetric(counts.couldNotVerify, title: "Couldn't verify")
                         reconciliationMetric(counts.excluded, title: "Excluded")
+                        reconciliationMetric(counts.sourceUnavailable, title: "Source unavailable")
+                        reconciliationMetric(counts.ecosystemManaged, title: "Managed separately")
                     }
                     .padding(.top, CTSpace.xs)
                 }
@@ -6253,23 +6394,28 @@ struct WizardRootView: View {
                 set: { _ in model.toggleReconciliationProject(selection.path) }
             )
         ) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(projectName)
-                    .font(.callout.weight(.semibold))
-                Spacer()
-                Text(
-                    selection.category == .newSetup
-                        ? "New setup"
-                        : "Needs correction"
-                )
-                .font(.caption)
-                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(projectName)
+                        .font(.callout.weight(.semibold))
+                    Spacer()
+                    Text(
+                        selection.category == .newSetup
+                            ? "New setup"
+                            : "Needs correction"
+                    )
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                }
+                Text(reconciliationComponentScopeLabel(selection.components))
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
         }
         .toggleStyle(.checkbox)
         .padding(.vertical, CTSpace.sm)
         .contentShape(Rectangle())
-        .accessibilityHint("Includes Claude Copilot and Codex Copilot.")
+        .accessibilityHint("Includes \(reconciliationComponentScopeLabel(selection.components)).")
     }
 
     private func reconciliationAssistantProjectSelectionRow(
@@ -6286,15 +6432,20 @@ struct WizardRootView: View {
                 set: { _ in model.toggleReconciliationProject(selection.path) }
             )
         ) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(projectName)
-                    .font(.callout.weight(.semibold))
-                Spacer()
-                Text(
-                    selection.category == "new-setup"
-                        ? "New setup"
-                        : "Needs correction"
-                )
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(projectName)
+                        .font(.callout.weight(.semibold))
+                    Spacer()
+                    Text(
+                        selection.category == .newSetup
+                            ? "New setup"
+                            : "Needs correction"
+                    )
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                }
+                Text(reconciliationComponentScopeLabel(selection.components))
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             }
@@ -6303,8 +6454,19 @@ struct WizardRootView: View {
         .padding(.vertical, CTSpace.sm)
         .contentShape(Rectangle())
         .accessibilityHint(
-            "Includes Claude Copilot and Codex Copilot in one bounded proposal preparation session."
+            "Includes \(reconciliationComponentScopeLabel(selection.components)) in one bounded proposal preparation session."
         )
+    }
+
+    private func reconciliationComponentScopeLabel(
+        _ components: [ReconciliationComponent]
+    ) -> String {
+        switch components {
+        case [.claude]: return "Claude Copilot only"
+        case [.codex]: return "Codex Copilot only"
+        case [.claude, .codex]: return "Claude Copilot and Codex Copilot"
+        default: return "Approved Copilot setup"
+        }
     }
 
     private func reconciliationPlanReview(
@@ -6634,6 +6796,8 @@ struct WizardRootView: View {
         case .ownerDecision: return "Owner decision"
         case .couldNotVerify: return "Couldn't verify"
         case .excluded: return "Excluded"
+        case .sourceUnavailable: return "Setup source unavailable"
+        case .ecosystemManaged: return "Managed separately"
         }
     }
 
@@ -6651,6 +6815,8 @@ struct WizardRootView: View {
         case .ownerDecision: return "Owner decision"
         case .couldNotVerify: return "Couldn't verify"
         case .excluded: return "Excluded"
+        case .sourceUnavailable: return "Setup source unavailable"
+        case .notApplicable: return "Not applicable"
         }
     }
 
@@ -6664,7 +6830,8 @@ struct WizardRootView: View {
             return Color(nsColor: .linkColor)
         case .held, .ownerDecision:
             return Color(nsColor: .systemOrange)
-        case .copilotNotPresent, .customizedGuidedRoute, .couldNotVerify, .excluded:
+        case .copilotNotPresent, .customizedGuidedRoute, .couldNotVerify, .excluded,
+             .sourceUnavailable, .ecosystemManaged:
             return Color(nsColor: .secondaryLabelColor)
         }
     }

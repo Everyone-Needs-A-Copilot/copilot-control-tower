@@ -40,15 +40,20 @@ require_source "verifyReconciliation(request: request)"
 require_source "reconciliationVerify(request: request)"
 require_source "reconciliationRecover()"
 
-# Python authors the complete safe default batch. Swift may only subtract
-# projects from it; it never exposes a per-component or recipe choice.
+# Python authors the complete safe default batch and the exact component scope
+# for each project. Swift may only subtract projects; it never exposes a
+# per-component or recipe choice.
 require_source "reconciliationSelectedProjectPaths: Set<String> = []"
 require_source "report.authorizedSelectionPaths"
 require_source "report.requestSelections("
 require_source "reconciliationSelectedProjectPaths.isSubset(of: allowed)"
 require_source "Set up and fix all"
 require_source "Choose projects individually"
-require_source "Every project gets Claude Copilot and Codex Copilot."
+require_source "Each project keeps the exact Claude Copilot, Codex Copilot, or combined setup approved for it."
+require_source "reconciliationComponentScopeLabel"
+require_source "Claude Copilot only"
+require_source "Codex Copilot only"
+reject_source "Every project gets Claude Copilot and Codex Copilot."
 require_source "Resolve \\(model.reconciliationSelectedProjectCount)"
 require_source "reconciliationAssistantProjectSelectionRow"
 reject_source "toggleReconciliationComponent"
@@ -81,6 +86,16 @@ for field in 'assistantSelection' 'resolutionSummary' 'assistantProposalId'; do
         exit 1
     fi
 done
+for field in 'scopeCounts' 'managedSeparately' 'leftUnchanged' 'progress'; do
+    if ! rg -Fq -- "${field}" "${DTOS}"; then
+        echo "reconciliation wizard: missing schema-2.0 DTO field: ${field}" >&2
+        exit 1
+    fi
+done
+require_source "Left unchanged to protect your work"
+require_source "managed separately and will not receive project changes here."
+require_source "reconciliationAssistantStageLabel"
+require_source "progress?.liveness == .stale"
 
 # The renderer must use contract-authored counts, explanations, operations,
 # outcomes, verification, diagnostics, and next actions.
@@ -108,6 +123,7 @@ for scenario in \
     "projects-reconciliation-assistant-individual" \
     "projects-reconciliation-assistant-preparing" \
     "projects-reconciliation-assistant-running" \
+    "projects-reconciliation-assistant-stale" \
     "projects-reconciliation-assistant-ready" \
     "projects-reconciliation-assistant-permission" \
     "projects-reconciliation-assistant-unavailable" \

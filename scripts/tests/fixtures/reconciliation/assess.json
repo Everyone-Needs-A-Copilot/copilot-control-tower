@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "run_id": "run_11111111111111111111111111111111",
   "generated_at": "2026-08-04T18:00:00Z",
   "machine": {
@@ -63,12 +63,12 @@
       "path": "/Projects/One",
       "root": "/Projects",
       "name": "One",
+      "scope": { "kind": "product-project" },
       "inspection_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "presence": "none",
       "route": "safe-setup-available",
       "selected_components": [
-        "claude",
-        "codex"
+        "claude"
       ],
       "components": [
         {
@@ -97,11 +97,11 @@
         },
         {
           "component": "codex",
-          "state": "safe-setup-available",
-          "selected": true,
-          "recommended": true,
-          "recommendation_reason": "Codex can be added without replacing project-owned work.",
-          "responsible_actor": "person",
+          "state": "not-selected",
+          "selected": false,
+          "recommended": false,
+          "recommendation_reason": "Codex is not part of this project's approved setup.",
+          "responsible_actor": "python",
           "evidence": [],
           "missing_requirements": [
             {
@@ -110,14 +110,8 @@
               "detail": "Codex project setup is absent."
             }
           ],
-          "next_action": "Review the Codex setup plan.",
-          "recipe_options": [
-            {
-              "recipe_id": "codex-project-setup-v1",
-              "component": "codex",
-              "summary": "Add portable Codex project setup."
-            }
-          ]
+          "next_action": "No Codex project change is proposed.",
+          "recipe_options": []
         }
       ],
       "blockers": [],
@@ -152,14 +146,57 @@
           "Stop if the project identity changes."
         ]
       }
+    },
+    {
+      "path": "/Projects/Claude-Copilot",
+      "root": "/Projects",
+      "name": "Claude Copilot",
+      "scope": {
+        "kind": "ecosystem-repository",
+        "product": "claude",
+        "role": "foundation",
+        "layer_id": "claude-foundation",
+        "repository": "example/claude-copilot"
+      },
+      "inspection_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "presence": "unknown",
+      "route": "ecosystem-managed",
+      "selected_components": [],
+      "components": [
+        {
+          "component": "claude",
+          "state": "not-applicable",
+          "selected": false,
+          "recommended": false,
+          "recommendation_reason": "This Copilot setup repository is managed by its own release process.",
+          "responsible_actor": "ecosystem-release",
+          "evidence": [],
+          "missing_requirements": [],
+          "next_action": "Manage this repository through the Copilot release process.",
+          "recipe_options": []
+        },
+        {
+          "component": "codex",
+          "state": "not-applicable",
+          "selected": false,
+          "recommended": false,
+          "recommendation_reason": "This Copilot setup repository is managed by its own release process.",
+          "responsible_actor": "ecosystem-release",
+          "evidence": [],
+          "missing_requirements": [],
+          "next_action": "Manage this repository through the Copilot release process.",
+          "recipe_options": []
+        }
+      ],
+      "blockers": [],
+      "next_action": "Manage this repository through the Copilot release process."
     }
   ],
   "default_selection": [
     {
       "path": "/Projects/One",
       "components": [
-        "claude",
-        "codex"
+        "claude"
       ],
       "category": "new-setup"
     }
@@ -168,8 +205,16 @@
   "resolution_summary": {
     "automatic": 1,
     "claude_assisted": 0,
-    "held": 0,
     "total_actionable": 1,
+    "managed_separately": 1,
+    "left_unchanged": {
+      "held": 0,
+      "owner_decision": 0,
+      "could_not_verify": 0,
+      "excluded": 0,
+      "source_unavailable": 0,
+      "other": 0
+    },
     "new_setup": 1,
     "correction": 0
   },
@@ -179,7 +224,9 @@
     "ready": 0,
     "needs_review": 0,
     "selected": 1,
-    "total": 1
+    "total": 2,
+    "product_projects": 1,
+    "managed_separately": 1
   },
   "summary": {
     "project_counts": {
@@ -192,7 +239,14 @@
       "owner-decision": 0,
       "could-not-verify": 0,
       "excluded": 0,
-      "total": 1
+      "source-unavailable": 0,
+      "ecosystem-managed": 1,
+      "total": 2
+    },
+    "scope_counts": {
+      "total_repositories": 2,
+      "product_projects": 1,
+      "ecosystem_repositories": 1
     },
     "selected_projects": 1,
     "overlap_explanation": "Each project is counted once by its primary route."

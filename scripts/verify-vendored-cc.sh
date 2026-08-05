@@ -33,7 +33,7 @@
 # Phase 9 adds the same two-part proof for reconciliation: release evidence
 # must contain both `finder_reconciliation_probe: "passed"` and
 # `finder_reconciliation_assistant_probe: "passed"`, and this verifier
-# independently drives the exact vendored executable through the schema-1.0
+# independently drives the exact vendored executable through the response-schema-2.0
 # assess/plan/apply/verify/repeat/recover and bounded
 # assistant-prepare/assistant-run/assistant-status lifecycles against disposable
 # local Git fixtures. Static notarization metadata alone is never accepted as proof.
@@ -214,7 +214,7 @@ PY
             echo "error: reconciliation contract gate is missing or not executable: ${RECONCILE_GATE}" >&2
             exit 1
         }
-        echo "verifying reconcile schema 1.0 deterministic and assistant lifecycles (exact binary, disposable local Git fixtures)..."
+        echo "verifying reconcile response schema 2.0/request schema 1.0 deterministic and assistant lifecycles (exact binary, disposable local Git fixtures)..."
         "${RECONCILE_GATE}" \
             --cc-path "${CC_PATH}" \
             --validator-python "${JSONSCHEMA_VENV}/bin/python3"

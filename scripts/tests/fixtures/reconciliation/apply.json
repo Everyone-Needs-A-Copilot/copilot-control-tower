@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "run_id": "run_11111111111111111111111111111111",
   "generated_at": "2026-08-04T18:00:00Z",
   "machine": {
@@ -58,6 +58,7 @@
       "path": "/Projects/One",
       "root": "/Projects",
       "name": "One",
+      "scope": { "kind": "product-project" },
       "inspection_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "presence": "none",
       "route": "safe-setup-available",
@@ -159,7 +160,14 @@
       "owner-decision": 0,
       "could-not-verify": 0,
       "excluded": 0,
+      "source-unavailable": 0,
+      "ecosystem-managed": 0,
       "total": 1
+    },
+    "scope_counts": {
+      "total_repositories": 1,
+      "product_projects": 1,
+      "ecosystem_repositories": 0
     },
     "selected_projects": 1,
     "overlap_explanation": "Each project is counted once by its primary route."
@@ -191,7 +199,7 @@
     }
   ],
   "diagnostics": {
-    "schema_version": "1.0",
+    "schema_version": "2.0",
     "id": "diagnostic_33333333333333333333333333333333",
     "state": "available",
     "path": "/private/diagnostics/reconciliation.json",

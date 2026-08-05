@@ -2,6 +2,26 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.3] - 2026-08-05
+
+### Changed
+
+- The project review now separates ordinary product projects from Knowledge Copilot, Claude Copilot, Codex Copilot, CLI Copilot, and other proven Copilot ecosystem repositories. Ecosystem repositories are counted as **managed separately** and are never offered project-level integration work.
+- The review summary now states exactly what each total means: automatic proposals, Claude-assisted proposals, managed-separately repositories, and projects left unchanged. Every unchanged reason is shown as its own Python-authored bucket, and every affected project remains visible with its reason and next action.
+- Component selection is exact per project. A proposal can target Claude Copilot only, Codex Copilot only, or both, based solely on Python's verified recommendation; Swift can remove a whole project from the batch but cannot add components or widen the route.
+- Claude Code preparation now displays Python-authored stages and liveness. A spinner appears only while work is active or waiting; stale work becomes a static warning with a concrete next step instead of spinning indefinitely.
+- The app and Admin bundle are version `0.6.3` build `30`. The release requires and bundles exactly `cc 2.8.0`, built from signed parentless Foundation snapshot `v5.13.48` and accepted by Apple notarization; `controltower.compat.json` now declares `cc >=2.8.0,<3.0.0`.
+- Reconciliation responses move from schema `1.0` to `2.0`; private selection requests remain schema `1.0`. The app gates reconciliation on response major `2` and continues to treat Python as the sole owner of scope, eligibility, counts, explanations, progress, planning, mutation, rollback, and verification.
+
+### Safety
+
+- Assessment and assistant preparation remain read-only. Dirty worktrees, detached heads, unreadable repositories, missing authoritative sources, owner decisions, customized projects without an approved bounded route, and any other unproven state remain unchanged and are surfaced with their exact reason.
+- Scope classification fails closed. A repository is excluded from project integration only when Python proves it is part of the Copilot ecosystem; an unfamiliar name or path is not enough.
+
+### Rollback
+
+- Reinstall the signed `0.6.2` DMG, `Copilot-Control-Tower_0.6.2_arm64.dmg`, to return to the previous app and bundled `cc 2.7.3`. Reinstalling changes the app/helper version only and does not alter any Copilot checkout or project content. Release tags are immutable, so a defective build is superseded with a new version.
+
 ## [0.6.2] - 2026-08-05
 
 ### Fixed

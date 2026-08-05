@@ -430,7 +430,8 @@ enum CliError: Error, Equatable {
 /// range is a future-phase concern once a second major version actually
 /// exists to gate against for a given verb.
 ///
-/// `onboard` is the one verb with its OWN accepted major (task 208/task 210,
+/// `onboard` and `reconcile` have their OWN accepted majors. Onboard's
+/// history is task 208/task 210,
 /// G-5/G-7): `onboard.schema.json` bumped 1.0 -> 2.0 (required `layers_state`,
 /// fully-populated `ecosystemLayer` rows, the `completed_actions`/`resume`
 /// ledger) — a helper still emitting the 1.x shape is now CONTRACT-INCOMPLETE
@@ -440,7 +441,7 @@ enum CliError: Error, Equatable {
 enum SchemaGate {
     /// Retained for any existing external reference to "the" required
     /// major — equal to `requiredMajor(forVerb:)`'s default (every verb
-    /// except `onboard`).
+    /// except `onboard` and `reconcile`).
     static let requiredMajor = 1
     static let minSchema = "1.0"
 
@@ -451,6 +452,7 @@ enum SchemaGate {
     static func requiredMajor(forVerb verb: String) -> Int {
         switch verb {
         case "onboard": return 2
+        case "reconcile": return 2
         default: return requiredMajor
         }
     }
@@ -1104,7 +1106,7 @@ actor CliClient {
     }
 
     /// Reconciliation defines its own structured error branch on exit 1 or
-    /// exit 2. Gate schema 1.0 first, then preserve either the strict expected
+    /// exit 2. Gate response schema 2.0 first, then preserve either the strict expected
     /// phase report or Python's safe error report as typed truth.
     private func decodeReconciliationVerb<Report: Decodable>(
         _ args: [String]

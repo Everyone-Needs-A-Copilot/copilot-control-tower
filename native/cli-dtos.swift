@@ -1251,7 +1251,7 @@ struct WorkspacesReport: Decodable {
     let recentlySetUp: [WorkspaceRecentlySetUp]?
 }
 
-// MARK: - reconcile schema 1.0
+// MARK: - reconcile response schema 2.0 / request schema 1.0
 
 /// Explicit user intent passed to Python. These request DTOs contain no
 /// discovery, eligibility, default-selection, or path-normalization logic.
@@ -1312,7 +1312,20 @@ struct ReconciliationDefaultSelection: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         path = try container.decode(String.self, forKey: .path)
-        components = try container.decode([ReconciliationComponent].self, forKey: .components)
+        let decodedComponents = try container.decode(
+            [ReconciliationComponent].self,
+            forKey: .components
+        )
+        guard decodedComponents == [.claude]
+                || decodedComponents == [.codex]
+                || decodedComponents == [.claude, .codex] else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .components,
+                in: container,
+                debugDescription: "Selection components must be Claude, Codex, or Claude then Codex."
+            )
+        }
+        components = decodedComponents
         category = try container.decode(ReconciliationBatchCategory.self, forKey: .category)
         let wireRecipeIds = try container.decodeIfPresent(
             [String: String].self,
@@ -1341,18 +1354,18 @@ struct ReconciliationDefaultSelection: Decodable {
     }
 }
 
-/// A customized project Python has explicitly authorized for bounded Claude
-/// Code proposal preparation. The category is intentionally opaque to Swift:
-/// Python owns routing semantics, while the app uses only the item membership,
-/// path, and universal component selection it was handed.
-struct ReconciliationAssistantSelection: Decodable {
-    let path: String
-    let components: [ReconciliationComponent]
-    let category: String
+/// Assistant selections use the same Python-authored shape as deterministic
+/// selections. Swift preserves the exact component and optional recipe scope;
+/// it never widens a Claude-only or Codex-only proposal to both components.
+typealias ReconciliationAssistantSelection = ReconciliationDefaultSelection
 
-    var requestSelection: ReconciliationProjectSelection {
-        ReconciliationProjectSelection(path: path, components: components)
-    }
+struct ReconciliationLeftUnchangedSummary: Decodable {
+    let held: Int
+    let ownerDecision: Int
+    let couldNotVerify: Int
+    let excluded: Int
+    let sourceUnavailable: Int
+    let other: Int
 }
 
 /// Python-authored, mutually exclusive presentation counts for the default
@@ -1361,8 +1374,9 @@ struct ReconciliationAssistantSelection: Decodable {
 struct ReconciliationResolutionSummary: Decodable {
     let automatic: Int
     let claudeAssisted: Int
-    let held: Int
     let totalActionable: Int
+    let managedSeparately: Int
+    let leftUnchanged: ReconciliationLeftUnchangedSummary
     let newSetup: Int
     let correction: Int
 }
@@ -1374,6 +1388,8 @@ struct ReconciliationBatchSummary: Decodable {
     let needsReview: Int
     let selected: Int
     let total: Int
+    let productProjects: Int
+    let managedSeparately: Int
 }
 
 struct ReconciliationMachineSummary: Decodable {
@@ -1456,6 +1472,8 @@ enum ReconciliationProjectRoute: String, Decodable {
     case ownerDecision = "owner-decision"
     case couldNotVerify = "could-not-verify"
     case excluded
+    case sourceUnavailable = "source-unavailable"
+    case ecosystemManaged = "ecosystem-managed"
 }
 
 enum ReconciliationComponentRoute: String, Decodable {
@@ -1469,6 +1487,8 @@ enum ReconciliationComponentRoute: String, Decodable {
     case ownerDecision = "owner-decision"
     case couldNotVerify = "could-not-verify"
     case excluded
+    case sourceUnavailable = "source-unavailable"
+    case notApplicable = "not-applicable"
 }
 
 struct ReconciliationComponentAssessment: Decodable {
@@ -1501,10 +1521,91 @@ struct ReconciliationDossier: Decodable {
     let stopConditions: [String]
 }
 
+enum ReconciliationEcosystemProduct: String, Decodable {
+    case claude
+    case codex
+    case knowledge
+    case cli
+}
+
+/// Scope is authored from manifest-plus-origin evidence by Python. The custom
+/// decoder makes each conditional branch required: an ecosystem repository
+/// without its complete provenance never degrades into a product project.
+enum ReconciliationRepositoryScope: Decodable {
+    case productProject
+    case ecosystemRepository(
+        product: ReconciliationEcosystemProduct,
+        role: String,
+        layerId: String,
+        repository: String
+    )
+
+    private enum Kind: String, Decodable {
+        case productProject = "product-project"
+        case ecosystemRepository = "ecosystem-repository"
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, product, role, layerId, repository
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(Kind.self, forKey: .kind) {
+        case .productProject:
+            guard !container.contains(.product),
+                  !container.contains(.role),
+                  !container.contains(.layerId),
+                  !container.contains(.repository) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .kind,
+                    in: container,
+                    debugDescription: "Product-project scope cannot carry ecosystem provenance."
+                )
+            }
+            self = .productProject
+        case .ecosystemRepository:
+            let product = try container.decode(
+                ReconciliationEcosystemProduct.self,
+                forKey: .product
+            )
+            let role = try container.decode(String.self, forKey: .role)
+            let layerId = try container.decode(String.self, forKey: .layerId)
+            let repository = try container.decode(String.self, forKey: .repository)
+            let repositoryParts = repository.split(
+                separator: "/",
+                omittingEmptySubsequences: false
+            )
+            guard !role.isEmpty,
+                  !layerId.isEmpty,
+                  repositoryParts.count == 2,
+                  repositoryParts.allSatisfy({ !$0.isEmpty }) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .repository,
+                    in: container,
+                    debugDescription: "Ecosystem repository scope is incomplete."
+                )
+            }
+            self = .ecosystemRepository(
+                product: product,
+                role: role,
+                layerId: layerId,
+                repository: repository
+            )
+        }
+    }
+
+    var isEcosystemRepository: Bool {
+        if case .ecosystemRepository = self { return true }
+        return false
+    }
+}
+
 struct ReconciliationProject: Decodable {
     let path: String
     let root: String
     let name: String
+    let scope: ReconciliationRepositoryScope
     let inspectionId: String
     let presence: ReconciliationProjectPresence
     let route: ReconciliationProjectRoute
@@ -1590,6 +1691,8 @@ struct ReconciliationProjectCounts: Decodable {
     let ownerDecision: Int
     let couldNotVerify: Int
     let excluded: Int
+    let sourceUnavailable: Int
+    let ecosystemManaged: Int
     let total: Int
 
     enum CodingKeys: String, CodingKey {
@@ -1600,11 +1703,20 @@ struct ReconciliationProjectCounts: Decodable {
         case customizedGuidedRoute = "customized-guided-route"
         case ownerDecision = "owner-decision"
         case couldNotVerify = "could-not-verify"
+        case sourceUnavailable = "source-unavailable"
+        case ecosystemManaged = "ecosystem-managed"
     }
+}
+
+struct ReconciliationScopeCounts: Decodable {
+    let totalRepositories: Int
+    let productProjects: Int
+    let ecosystemRepositories: Int
 }
 
 struct ReconciliationSummary: Decodable {
     let projectCounts: ReconciliationProjectCounts
+    let scopeCounts: ReconciliationScopeCounts
     let selectedProjects: Int
     let overlapExplanation: String
 }
@@ -1731,6 +1843,49 @@ enum ReconciliationAssistantStatusResult: String, Decodable {
     case blocked
 }
 
+enum ReconciliationAssistantProgressStage: String, Decodable {
+    case sessionPrepared = "session-prepared"
+    case claudeCodeRunning = "claude-code-running"
+    case pythonValidatingSelections = "python-validating-selections"
+    case pythonValidatingPlan = "python-validating-plan"
+    case ready
+    case blocked
+}
+
+enum ReconciliationAssistantLiveness: String, Decodable {
+    case waiting
+    case active
+    case stale
+    case complete
+    case blocked
+}
+
+struct ReconciliationAssistantProgress: Decodable {
+    let stage: ReconciliationAssistantProgressStage
+    let liveness: ReconciliationAssistantLiveness
+    let detail: String
+    let startedAt: String
+    let lastActivityAt: String
+    let elapsedSeconds: Int
+    let selectedProjectCount: Int
+    let candidateGroupCount: Int
+    let candidateCount: Int
+
+    func isConsistent(with result: ReconciliationAssistantStatusResult) -> Bool {
+        switch result {
+        case .running:
+            return stage != .ready
+                && stage != .blocked
+                && liveness != .complete
+                && liveness != .blocked
+        case .ready:
+            return stage == .ready && liveness == .complete
+        case .blocked:
+            return stage == .blocked && liveness == .blocked
+        }
+    }
+}
+
 enum ReconciliationApplyResult: String, Decodable {
     case applied
     case partial
@@ -1753,9 +1908,9 @@ struct ReconciliationAssessReport: Decodable {
     let machineSummary: ReconciliationMachineSummary
     let projects: [ReconciliationProject]
     let defaultSelection: [ReconciliationDefaultSelection]
-    let assistantSelection: [ReconciliationAssistantSelection]?
+    let assistantSelection: [ReconciliationAssistantSelection]
     let batchSummary: ReconciliationBatchSummary
-    let resolutionSummary: ReconciliationResolutionSummary?
+    let resolutionSummary: ReconciliationResolutionSummary
     let summary: ReconciliationSummary
     let nextActions: [String]
 
@@ -1763,17 +1918,17 @@ struct ReconciliationAssessReport: Decodable {
     /// lists. This is membership plumbing only; Swift does not add, classify,
     /// or infer an eligible project.
     var authorizedSelectionPaths: Set<String> {
-        Set(defaultSelection.map(\.path) + (assistantSelection ?? []).map(\.path))
+        Set(defaultSelection.map(\.path) + assistantSelection.map(\.path))
     }
 
     var authoredSelectionCount: Int {
-        defaultSelection.count + (assistantSelection ?? []).count
+        defaultSelection.count + assistantSelection.count
     }
 
     func requestSelections(selectedPaths: Set<String>) -> [ReconciliationProjectSelection] {
         defaultSelection.compactMap { selection in
             selectedPaths.contains(selection.path) ? selection.requestSelection : nil
-        } + (assistantSelection ?? []).compactMap { selection in
+        } + assistantSelection.compactMap { selection in
             selectedPaths.contains(selection.path) ? selection.requestSelection : nil
         }
     }
@@ -1783,13 +1938,19 @@ struct ReconciliationAssistantPrepareReport: Decodable {
     let schemaVersion: String
     let phase: ReconciliationAssistantPreparePhase
     let result: ReconciliationAssistantPrepareResult
+    let runId: String
+    let generatedAt: String
     let sessionId: String
     let expiresAt: String
     let selectedProjects: [String]
+    let progress: ReconciliationAssistantProgress
     let nextActions: [String]
 
     func matches(request: ReconciliationRequest) -> Bool {
         selectedProjects == request.projects.map(\.path)
+            && progress.stage == .sessionPrepared
+            && progress.liveness == .waiting
+            && progress.selectedProjectCount == selectedProjects.count
     }
 }
 
@@ -1804,9 +1965,12 @@ struct ReconciliationAssistantStatusReport: Decodable {
     let schemaVersion: String
     let phase: ReconciliationAssistantStatusPhase
     let result: ReconciliationAssistantStatusResult
+    let runId: String
+    let generatedAt: String
     let sessionId: String
     let proposalId: String?
     let selectedProjects: [String]
+    let progress: ReconciliationAssistantProgress
     let detail: String
     let nextActions: [String]
 
@@ -1815,7 +1979,9 @@ struct ReconciliationAssistantStatusReport: Decodable {
         request: ReconciliationRequest
     ) -> ReconciliationAssistantStatusTransition {
         guard sessionId == expectedSessionId,
-              selectedProjects == request.projects.map(\.path) else {
+              selectedProjects == request.projects.map(\.path),
+              progress.selectedProjectCount == selectedProjects.count,
+              progress.isConsistent(with: result) else {
             return .incompatible
         }
         switch result {

@@ -14,7 +14,8 @@ terminal imitation, or celebratory assistant personality into Control Tower.
 The visual sequence has three registers:
 
 1. **Act** — one accented Resolve button on the existing default-all batch.
-2. **Observe** — a neutral preparation card with real status and no fake meter.
+2. **Observe** — a neutral preparation card with Python-authored stage and
+   liveness, and no fake meter.
 3. **Decide and verify** — restrained proposal, owner-decision, held, exact-plan,
    and receipt groups using the existing state ramp.
 
@@ -28,8 +29,9 @@ The visual sequence has three registers:
   or bordered secondary actions. Neither competes with Resolve.
 - Preparing replaces the selection body in place. It does not open a fake chat
   panel inside the app.
-- Proposals-ready uses a compact three-part summary: ready to review, needs your
-  decision, and left unchanged. Project lists sit below in disclosures.
+- Proposals-ready uses compact semantic rows for ready to review, managed
+  separately, and each exact left-unchanged reason. Named project rows sit
+  below; these are not merged into one ambiguous protected count.
 - Owner decisions are full-width decision blocks, one project at a time.
 - The exact plan and receipt reuse current reconciliation cards so the new flow
   converges visually with the proven transaction path.
@@ -58,19 +60,23 @@ is full width and appears after the batch summary.
 
 ### Preparation card
 
-Use one `CTCard` with a native indeterminate spinner, section title, current
-service sentence, **Nothing is changing yet**, and a quiet **Stop preparing**
-button. Completed preparation stages use checkmark shapes but remain neutral;
-green is reserved for final verification. Never show a percentage without a
-real bounded total.
+Use one `CTCard` with a native indeterminate spinner only while Python reports
+waiting or active liveness, a section title, current Python stage and detail,
+the exact selected-project count, **Nothing is changing yet**, and a quiet
+**Stop checking** button. Stale liveness replaces the spinner with a static
+attention symbol and keeps the heartbeat explanation visible. Green is reserved
+for final verification. Never show a percentage, countdown, or elapsed-duration
+display.
 
 ### Proposal summary
 
-Three compact rows, not dashboard tiles:
+Compact rows, not dashboard tiles:
 
 - arrow-right-circle, **N proposals ready to review**, actionable;
 - person-crop-circle, **N need your decision**, attention;
-- hand-raised, **N left unchanged**, neutral.
+- shipping-box, **N Copilot setup repositories are managed separately**, neutral;
+- hand-raised and minus-circle rows for each Python-authored unchanged reason,
+  followed by named project rows with next actions.
 
 The first is visually primary. Counts and state words are always present, so
 the summary survives grayscale.
@@ -87,6 +93,14 @@ group and moves focus; it does not shake or flash.
 Use a neutral `CTCard` with `hand.raised` or `lock.shield`. Rows carry project
 name, reason, and next action. No red fill, warning triangle, or disabled
 checkbox. Held work is outside the selectable/apply surface.
+
+### Component scope and managed repositories
+
+Each selectable project row adds a secondary line: **Claude Copilot only**,
+**Codex Copilot only**, or **Claude Copilot and Codex Copilot**. The app never
+shows a component toggle. Managed ecosystem repositories use a neutral
+`shippingbox` label and optional disclosure of names only; role and layer
+metadata remain hidden.
 
 ### Permission and unavailable states
 
@@ -130,4 +144,5 @@ The UI implementation should reuse `CTCard`, `CTStatusRow`, `CTDecisionBlock`,
 `CTCalloutNote`, and native controls. It should add no assistant-specific design
 system. Every screen needs deterministic visual fixtures for light, dark,
 permission denied, unavailable, preparing, proposals ready, owner decision,
-held work, verification, restored, and incomplete-restoration states.
+held work, component-only scope, managed ecosystem repositories, stale
+liveness, verification, restored, and incomplete-restoration states.
