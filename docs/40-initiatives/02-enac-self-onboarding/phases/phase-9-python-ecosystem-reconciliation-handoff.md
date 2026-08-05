@@ -1,11 +1,6 @@
 # Phase 9 handoff: Python ecosystem reconciliation
 
-> **Current continuation point (2026-08-04):** Phase 9.2 implementation and
-> changed-scope QA are complete, but the `0.6.0` release is **not published or
-> installed**. The exact release blocker and continuation commands are in
-> [section 19](#19-phase-92-implementation-complete-release-blocked-on-owner-notarization-credential-2026-08-04).
-> That section supersedes older version and status statements in this rolling
-> handoff.
+> **Current continuation point (2026-08-05):** Phase 9.2 is **complete and released**. Control Tower `0.6.0` build `27` is published, installed, and verified. The full closeout record, including one open forward-fix and two open non-blocking findings, is in [section 20](#20-phase-92-complete-and-released-2026-08-05). That section supersedes section 19 and all older version and status statements in this rolling handoff. Section 19 is retained below as the historical record of the now-resolved blocked state; do not treat its status claims as current.
 
 > **Start instruction:** Read this document completely and begin. Do not ask the
 > owner to restate the objective or reconstruct the prior conversation. Use the
@@ -572,33 +567,33 @@ Keep `tc.api` and `cc.api` operations in separate Python blocks.
 
 Do not mark Phase 9 complete until all are true:
 
-- [ ] The Python-only user workflow covers assess, select, plan, apply, verify,
+- [x] The Python-only user workflow covers assess, select, plan, apply, verify,
       receipt, and repeat.
-- [ ] Every selected project receives a complete route into the ecosystem.
-- [ ] Projects without Copilot can be recommended, selected, integrated, and
+- [x] Every selected project receives a complete route into the ecosystem.
+- [x] Projects without Copilot can be recommended, selected, integrated, and
       independently verified.
-- [ ] Customized projects can use reviewed typed recipes without bypassing the
+- [x] Customized projects can use reviewed typed recipes without bypassing the
       Python transaction boundary.
-- [ ] Dirty, ambiguous, excluded, and unsafe projects remain unchanged and have
+- [x] Dirty, ambiguous, excluded, and unsafe projects remain unchanged and have
       precise explanations.
-- [ ] Exact-plan freshness, project locking, containment, snapshots, rollback,
+- [x] Exact-plan freshness, project locking, containment, snapshots, rollback,
       and truthful incomplete-rollback behavior are proven.
-- [ ] Diagnostics are durable, redacted, bounded, private, and useful for the
+- [x] Diagnostics are durable, redacted, bounded, private, and useful for the
       three known rollback families.
-- [ ] All automated acceptance fixtures pass.
-- [ ] Full helper tests pass or any unrelated baseline failures are explicitly
+- [x] All automated acceptance fixtures pass.
+- [x] Full helper tests pass or any unrelated baseline failures are explicitly
       isolated with changed-scope gates passing.
-- [ ] Read-only live census is stable across repeated runs.
-- [ ] Canary projects from every supported family pass apply, fresh verify, and
+- [x] Read-only live census is stable across repeated runs.
+- [x] Canary projects from every supported family pass apply, fresh verify, and
       repeat/idempotence checks.
-- [ ] The final selected-project census accounts for every project and every
+- [x] The final selected-project census accounts for every project and every
       remaining route.
-- [ ] Swift decodes and renders every Python contract outcome without computing
+- [x] Swift decodes and renders every Python contract outcome without computing
       ecosystem truth.
-- [ ] The helper is released from immutable pushed source.
-- [ ] Control Tower vendors that exact helper, then is built, signed, notarized,
+- [x] The helper is released from immutable pushed source.
+- [x] Control Tower vendors that exact helper, then is built, signed, notarized,
       stapled, verified, published with provenance, and installed.
-- [ ] Final QA and security work products approve the shipped artifacts.
+- [x] Final QA and security work products approve the shipped artifacts.
 
 ## 15. Stop conditions
 
@@ -719,6 +714,8 @@ that Python already applied after explicit plan approval. Project receipts
 remain the durable record of those changes.
 
 ## 19. Phase 9.2 implementation complete; release blocked on owner notarization credential (2026-08-04)
+
+> **Superseded by [section 20](#20-phase-92-complete-and-released-2026-08-05).** The blocker described below is resolved and `0.6.0` is released and installed. This section is retained for provenance as the historical record of the blocked state; do not treat its status claims as current.
 
 This is the authoritative continuation point for the next developer. Do not
 reconstruct the work from chat history, and do not describe the app as released
@@ -975,3 +972,81 @@ After the owner restores `ct-notary`, complete these steps in order.
 - Reinstalling `0.5.6` rolls back the app/helper only; it does not reverse
   project changes already applied by Python.
 - No live selected project was mutated while producing this checkpoint.
+
+## 20. Phase 9.2 complete and released (2026-08-05)
+
+This is the authoritative continuation point for the next developer, superseding section 19's status claims. Phase 9.2 is closed: Control Tower `0.6.0` build `27` is built, signed, notarized, published with provenance, and installed.
+
+### 20.1 Blocker resolution
+
+The section 19.3 blocker is resolved. The `ct-notary` notarization credential was re-probed on 2026-08-05 and found restored and working; it was not recreated by this session. The lesson for future sessions: a credential's presence must be re-probed at the start of each session rather than inherited from a prior session's verdict, since the prior session's "not found" was itself a snapshot in time, not a durable fact.
+
+### 20.2 Helper release
+
+The helper was built, signed, and notarized from the same signed foundation snapshot documented in section 19.1, with no new foundation snapshot created:
+
+- version: `cc 2.7.0`, universal (`arm64` + `x86_64`)
+- signed foundation snapshot: `v5.13.42`
+- source commit: `ee94af0fce9e64d6a53fd72bb93bc161c27e77be`
+- release-tool commit: `3630821e2cca34e13f588595ad57a67f263be39f`
+- Apple notarization: Accepted, submission id `f03c8ad0-6c2d-44b6-adbc-0c818fe35347`
+- all four probes passed, including `finder_reconciliation_assistant_probe`
+- output sha256: `7aa859a8c09cc1bb58b201dd458c86094fe4b4939854cbcf9dcc5b552523d0d8`
+
+All six exact-artifact gates listed in section 19.5 step 4 passed against that vendored binary.
+
+### 20.3 App release
+
+Control Tower `0.6.0` build `27` was built from immutable pushed source commit `711574ad79651faa0dd852e6cf1ba986d1264aac`. Both the app and the DMG are Developer ID signed, notarized, stapled, and Gatekeeper-verified. The DMG sha256 is `0249f10fd2a051af353fdf6afd9882041b77134f634b7ced6306c50a0ee9e191`, and the embedded helper sha equals `PINNED_SHA256`.
+
+Release provenance is at `release/control-tower-0.6.0-711574a/`, provenance commit `8c8220b4ba59087662e141e3e208e8bd194f0e33`, immutable tag `v0.6.0`. The GitHub release is published with the DMG, checksum, `controltower.compat.json`, `cc-notarization.json`, and `release-metadata.json`.
+
+### 20.4 Installed verification
+
+The published `0.6.0` build `27` app is installed in `/Applications`: Gatekeeper accepts it, the staple validates, the embedded helper reports `cc 2.7.0`, and the app launches. The prior `0.5.6` build `26` app was preserved as a recoverable backup at `~/Applications-backup/Copilot Control Tower 0.5.6.app`.
+
+A final read-only census was run twice against the installed helper with identical results, satisfying the census-stability completion gate:
+
+| State | Projects |
+|---|---:|
+| ready | 15 |
+| safe-update-available | 2 |
+| customized-guided-route | 16 |
+| held | 26 |
+| could-not-verify | 3 |
+| owner-decision | 1 |
+| copilot-not-present | 0 |
+| excluded | 0 |
+| safe-setup-available | 0 |
+| **Total** | **63** |
+
+| `resolution_summary` | Projects |
+|---|---:|
+| automatic | 1 |
+| claude_assisted | 16 |
+| correction | 17 |
+| held | 31 |
+| new_setup | 0 |
+| **total_actionable** | **17** |
+
+This differs slightly from section 19.2's snapshot (16 ready / 30 held at that time): this is ordinary project-state drift between scans, not a regression.
+
+No live selected project was mutated at any point in this release run; every assessment was read-only.
+
+### 20.5 Task and work-product record
+
+Tasks 246, 247, 248, and 249 are all completed. Work products: `WP-523` (release, task 249), `WP-524` (final QA, task 248, `VERDICT: APPROVED`), `WP-525` (security, task 248, `APPROVED-WITH-FINDINGS`), `WP-526` (implementation of the security fix, task 248).
+
+### 20.6 Open follow-ups (honestly recorded)
+
+- The security review's finding A — `CT_CLI_PATH` env override could redirect the app to an unverified `cc` binary, violating invariant #4 — **was present in the shipped `0.6.0` binary**. It was judged not a release blocker because it is pre-existing, not a Phase 9.2 regression, and requires local environment control. It was fixed forward after the release in commit `6e8d88259f81e1caa15cccdf5154297f3c3b07a3`, which adds a compiled-in `ProductionTrustAnchor`, a new regression gate `scripts/tests/test_cli_locator_trust_boundary.sh`, and reorders `package-user-release.sh` so the headless mock-cc proofs run before Developer ID signing. This fix is on `app-build` but is **not** in the published `0.6.0` artifact; it ships in the next release.
+- The security review's finding B (Medium) is also open: the Python helper resolves the `claude` executable via `shutil.which` PATH fallback when `CC_ASSISTANT_CLAUDE_PATH` is unset. It is mitigated by ownership/permission checks and zero write authority, but it is not fixed.
+- Also open, and environmental rather than a packaging defect: the live `machine_summary` now reports action-required (4 ecosystem layers behind, shared credential store unreachable), where section 19.2 recorded zero machine-level next actions.
+
+### 20.7 Final honesty requirements
+
+- `0.6.0` is released, published, and installed; this supersedes every "not released yet" statement in section 19.
+- The shipped `0.6.0` binary contains the finding-A trust-boundary gap described in section 20.6; it was a deliberate, recorded ship decision, not an oversight, and it is already fixed forward on `app-build` for the next release.
+- Finding B remains open and unfixed in the shipped binary.
+- The app must never claim it can correct the 31 currently held projects. That figure is the route-level held total from `resolution_summary` (63 total = 15 ready + 17 actionable + 31 held), which is the same measure section 19.2 reported as 30; it is not `project_counts.held`, which counts only the narrower `held` state and currently reads 26.
+- No live selected project was mutated while producing or verifying this release.
