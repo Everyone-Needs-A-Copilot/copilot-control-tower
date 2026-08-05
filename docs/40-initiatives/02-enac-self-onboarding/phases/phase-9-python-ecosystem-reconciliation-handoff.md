@@ -1,6 +1,6 @@
 # Phase 9 handoff: Python ecosystem reconciliation
 
-> **Current continuation point (2026-08-05):** Phase 9.2 is **complete and released**. Control Tower `0.6.0` build `27` is published, installed, and verified. The full closeout record, including one open forward-fix and two open non-blocking findings, is in [section 20](#20-phase-92-complete-and-released-2026-08-05). That section supersedes section 19 and all older version and status statements in this rolling handoff. Section 19 is retained below as the historical record of the now-resolved blocked state; do not treat its status claims as current.
+> **Current continuation point (2026-08-05):** Control Tower `0.6.1` is the current release, published, installed, and verified. It closes both security findings left open in `0.6.0`: finding A is fixed in commit `6e8d882` with a compiled-in `ProductionTrustAnchor`, and finding B is fixed upstream in `cc 2.7.2`. The full record, including the rejected intermediate `cc 2.7.1` and why the gates caught it, is in [section 21](#21-phase-92-security-follow-up-released-as-061-2026-08-05). That section supersedes section 20 and all older version and status statements in this rolling handoff. Sections 19 and 20 are retained below as the historical record of the now-superseded blocked and `0.6.0`-released states; do not treat their status claims as current.
 
 > **Start instruction:** Read this document completely and begin. Do not ask the
 > owner to restate the objective or reconstruct the prior conversation. Use the
@@ -975,6 +975,8 @@ After the owner restores `ct-notary`, complete these steps in order.
 
 ## 20. Phase 9.2 complete and released (2026-08-05)
 
+> **Superseded by [section 21](#21-phase-92-security-follow-up-released-as-061-2026-08-05).** This section is retained as the record of the `0.6.0` release, including its honest disclosure that finding A shipped open. Do not treat its status claims as current.
+
 This is the authoritative continuation point for the next developer, superseding section 19's status claims. Phase 9.2 is closed: Control Tower `0.6.0` build `27` is built, signed, notarized, published with provenance, and installed.
 
 ### 20.1 Blocker resolution
@@ -1045,8 +1047,51 @@ Tasks 246, 247, 248, and 249 are all completed. Work products: `WP-523` (release
 
 ### 20.7 Final honesty requirements
 
-- `0.6.0` is released, published, and installed; this supersedes every "not released yet" statement in section 19.
-- The shipped `0.6.0` binary contains the finding-A trust-boundary gap described in section 20.6; it was a deliberate, recorded ship decision, not an oversight, and it is already fixed forward on `app-build` for the next release.
-- Finding B remains open and unfixed in the shipped binary.
+- `0.6.0` is released, published, and installed; this supersedes every "not released yet" statement in section 19. `0.6.0` itself is now superseded by `0.6.1` — see section 21.
+- The shipped `0.6.0` binary contained the finding-A trust-boundary gap described in section 20.6; that was a deliberate, recorded ship decision, not an oversight, for that release only. It is fixed in the `0.6.1` binary shipped in section 21 (commit `6e8d882`, compiled-in `ProductionTrustAnchor`); the statement above describes `0.6.0`, not the current release.
+- Finding B remained open and unfixed in the `0.6.0` shipped binary. It is fixed in `0.6.1` via upstream `cc 2.7.2`; see section 21. The statement above describes `0.6.0`, not the current release.
 - The app must never claim it can correct the 31 currently held projects. That figure is the route-level held total from `resolution_summary` (63 total = 15 ready + 17 actionable + 31 held), which is the same measure section 19.2 reported as 30; it is not `project_counts.held`, which counts only the narrower `held` state and currently reads 26.
+- No live selected project was mutated while producing or verifying this release.
+
+## 21. Phase 9.2 security follow-up released as 0.6.1 (2026-08-05)
+
+This is the authoritative continuation point for the next developer, superseding section 20's status claims. This section exists because the owner rejected shipping a known issue: the standing rule is that a found issue gets fixed regardless of severity, rather than shipped and tracked. `0.6.1` exists because of that correction, and it supersedes `0.6.0`.
+
+### 21.1 Finding A fixed
+
+Finding A (High — `CT_CLI_PATH` could redirect a signed release build to an unverified `cc`) is fixed in commit `6e8d882` by a compiled-in `ProductionTrustAnchor`: any override must carry the same Developer ID signature the app is released under, verified fresh against the file's own embedded signature. Ad-hoc-signed dev/test builds keep the override as a working seam. The regression gate is `scripts/tests/test_cli_locator_trust_boundary.sh`, 8 assertions, all passing.
+
+### 21.2 Finding B fixed
+
+Finding B (Medium — `claude` resolved via ambient PATH lookup) is fixed upstream in `cc 2.7.2`. The corrected resolution order is: explicit `claude_path` parameter, then `CC_ASSISTANT_CLAUDE_PATH`, then a closed registry of known install locations, then PATH only as a last resort that can never preempt an earlier match. Ownership and permission checks apply to every candidate.
+
+### 21.3 The rejected intermediate: cc 2.7.1
+
+An intermediate `cc 2.7.1` (foundation snapshot `v5.13.43`, commit `c835b09a`) removed PATH consultation entirely. That was over-tightened and FAILED two Control Tower gates — `test_vendored_cc_reconcile_release_gate.sh` and `verify-vendored-cc.sh --release` — with "assistant-run did not return a ready assistant-run report", because resolution then depended solely on HOME-relative registry entries and broke under the gate's sandboxed HOME (`verify-vendored-cc.sh` line 188). It would equally have broken any real user whose `claude` is installed outside the registry. `cc 2.7.1` was built and notarized but NEVER released or vendored into a published app; the gates caught it, and `2.7.2` corrects the ordering. This is the reason the gates exist.
+
+There is a related gap worth remembering: the helper's own release probe did not catch this, because `scripts/package-cc-macos-release.sh` sets `CC_ASSISTANT_CLAUDE_PATH` explicitly (line 635), which masks default resolution. Only Control Tower's sandboxed-HOME gates exposed it.
+
+### 21.4 Helper and app release
+
+Shipped `0.6.1`: app and Admin bundle `0.6.1` build `28`, built from immutable pushed source commit `668d7c25a5d6d0ef0fb4d0bca2c4476467014eff`. Vendored `cc 2.7.2`, sha256 `8875811af3e640b9deca7366739424bea8fd593773be1e9816d689253d4d1ef1`, built from signed parentless foundation snapshot `v5.13.44` (commit `dc382e50ed41f63128774422132d461c9fa54b43`), Apple notarization Accepted, all four probes passed. App and DMG notarized, stapled, Gatekeeper-verified. DMG sha256 `f67e36f292e9e80940aebbc2eac0f24a70a9d6bff63536fa36fe2211c08faddb`. Provenance at `release/control-tower-0.6.1-668d7c2/`, provenance commit `627e1a079188d68b342278288151400a9e99c01d`, tag `v0.6.1`, GitHub release published.
+
+All exact-artifact gates pass against the `2.7.2` binary, including both gates that caught the `2.7.1` regression.
+
+### 21.5 Installed verification
+
+Installed and verified: `/Applications` is `0.6.1` build `28`, Gatekeeper accepted, staple validates, embedded helper reports `cc 2.7.2`, app launches. Prior `0.6.0` preserved at `~/Applications-backup/Copilot Control Tower 0.6.0.app`; the `0.5.6` backup is also retained.
+
+The published `0.6.0` GitHub release has been annotated as superseded, directing users to `0.6.1`. Release tags are immutable, so `0.6.0` is superseded rather than replaced or deleted.
+
+A final read-only assessment via the installed `0.6.1` helper found 63 projects, each in exactly one state (ready 15, safe-update-available 2, customized-guided-route 16, held 26, could-not-verify 3, owner-decision 1), sum verified equal to 63. `resolution_summary`: automatic 1, claude_assisted 16, correction 17, held 31, total_actionable 17. No live project was mutated.
+
+### 21.6 Open follow-ups
+
+None of the WP-525 findings remain open. The environmental `machine_summary` item (ecosystem layers behind, shared credential store unreachable) remains open and is owner-side.
+
+### 21.7 Final honesty requirements
+
+- `0.6.1` is released, published, and installed; it supersedes `0.6.0` and every status claim in section 20.
+- Both security findings from `WP-525` are closed in the shipped `0.6.1` artifact: finding A by commit `6e8d882` (compiled-in `ProductionTrustAnchor`), finding B by upstream `cc 2.7.2`.
+- `cc 2.7.1` was built and notarized but never released or vendored into a published app; it was caught by Control Tower's own gates before it could ship, and the gates exist for exactly this reason.
 - No live selected project was mutated while producing or verifying this release.
