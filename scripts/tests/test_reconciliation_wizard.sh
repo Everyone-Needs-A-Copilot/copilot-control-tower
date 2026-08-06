@@ -54,33 +54,35 @@ require_source "reconciliationComponentScopeLabel"
 require_source "Claude Copilot only"
 require_source "Codex Copilot only"
 reject_source "Every project gets Claude Copilot and Codex Copilot."
-require_source "Resolve \\(model.reconciliationSelectedProjectCount)"
+require_source "Open \\(model.reconciliationSelectedProjectCount)"
 require_source "reconciliationAssistantProjectSelectionRow"
 reject_source "toggleReconciliationComponent"
 reject_source "selectReconciliationRecipe"
 reject_source "reconciliationComponentSelection"
 
-# Assistant preparation is a separate bounded seam. Terminal receives exactly
-# the located helper and opaque session id; it never receives paths, prompts,
-# or proposal content, and the legacy prompt launcher is not used.
+# Guided reconciliation is one root-level session. Python writes the work
+# order, Swift passes only returned package paths plus exact executables, and
+# Python-owned checks remain the completion authority.
 for needle in \
-    'reconciliationAssistantPrepare(' \
-    'ReconciliationAssistantLauncher.open(sessionId: report.sessionId)' \
-    'reconciliationAssistantStatus(' \
-    '.attachingAssistantProposal(proposalId)' \
-    'ReconciliationAssistantTerminalCommand('; do
+    'reconciliationGuidePrepare(' \
+    'ReconciliationGuideLauncher.open(' \
+    'reconciliationGuideStatus(' \
+    'reconciliationGuideFinalize(' \
+    'ReconciliationGuideTerminalCommand('; do
     require_source "${needle}"
 done
-if ! rg -Fq -- 'arguments = ["reconcile", "assistant-run", "--session-id", sessionId]' "${CLIENT}"; then
-    echo "reconciliation wizard: assistant Terminal argv is not exact" >&2
+for needle in 'COPILOT_SETUP_HELPER' 'guide-start' 'guide-finalize' '$(/bin/cat'; do
+    if ! rg -Fq -- "${needle}" "${CLIENT}"; then
+        echo "reconciliation wizard: guided Terminal command is missing ${needle}" >&2
+        exit 1
+    fi
+done
+if rg -n 'ProjectIntegrationLauncher\.open|prompt:' "${WIZARD}" \
+    | rg 'ReconciliationGuideLauncher|startGuidedReconciliation|pollGuidedReconciliation'; then
+    echo "reconciliation wizard: guided setup leaked into the per-project prompt launcher" >&2
     exit 1
 fi
-if rg -n 'ProjectIntegrationLauncher\.open|prompt|projectPath' "${WIZARD}" \
-    | rg 'ReconciliationAssistantLauncher|prepareReconciliationAssistant|pollReconciliationAssistant'; then
-    echo "reconciliation wizard: assistant preparation leaked into the prompt launcher" >&2
-    exit 1
-fi
-for field in 'assistantSelection' 'resolutionSummary' 'assistantProposalId'; do
+for field in 'assistantSelection' 'resolutionSummary' 'guideId' 'projectStatus' 'remainingProjectCount'; do
     if ! rg -Fq -- "${field}" "${DTOS}"; then
         echo "reconciliation wizard: missing assistant DTO field: ${field}" >&2
         exit 1
@@ -94,8 +96,14 @@ for field in 'scopeCounts' 'managedSeparately' 'leftUnchanged' 'progress'; do
 done
 require_source "Left unchanged to protect your work"
 require_source "managed separately and will not receive project changes here."
-require_source "reconciliationAssistantStageLabel"
-require_source "progress?.liveness == .stale"
+require_source "One conversation for all selected projects"
+require_source "Only Python can mark one ready."
+require_source "Reopen in Codex"
+require_source "Reopen in Claude Code"
+require_source "Run final check"
+require_source "status.reasons"
+require_source "reconciliationGuideNotice"
+reject_source "reconciliationErrorDetail = \"Instructions copied."
 
 # The renderer must use contract-authored counts, explanations, operations,
 # outcomes, verification, diagnostics, and next actions.

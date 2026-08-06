@@ -1,0 +1,20 @@
+{
+  "schema_version": "2.0",
+  "phase": "guide-status",
+  "result": "running",
+  "run_id": "run_22222222222222222222222222222222",
+  "generated_at": "2026-08-05T18:05:00Z",
+  "guide_id": "guide_11111111111111111111111111111111",
+  "workspace_root": "/Projects",
+  "workspace_roots": ["/Projects"],
+  "instructions_path": "/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/INSTRUCTIONS.md",
+  "projects_path": "/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/PROJECTS.json",
+  "selected_projects": ["/Projects/One", "/Projects/Two"],
+  "project_status": [
+    {"path":"/Projects/One","state":"ready","detail":"The selected Claude setup passed a fresh check.","reasons":[],"checked_at":"2026-08-05T18:04:00Z"},
+    {"path":"/Projects/Two","state":"pending","detail":"This project has not passed a guided-session check yet.","reasons":[],"checked_at":null}
+  ],
+  "progress": {"state":"running","selected_project_count":2,"verified_project_count":1,"remaining_project_count":1,"needs_conversation_count":0,"last_checked_project":"/Projects/One","detail":"The guided session is open. Python counts a project only after a fresh check passes."},
+  "detail": "The guided session is open. Python counts a project only after a fresh check passes.",
+  "next_actions": ["Continue the same guided conversation until every selected project passes a fresh check."]
+}

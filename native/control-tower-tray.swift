@@ -445,7 +445,7 @@ enum ProjectIntegrationLauncher {
         case terminalUnavailable
     }
 
-    enum Assistant {
+    enum Assistant: Equatable {
         case codex
         case claudeCode
 

@@ -346,25 +346,64 @@ enum CliLocator {
     }
 }
 
-/// The complete command handed to Terminal for one bounded reconciliation
-/// preparation session. Keeping the executable URL and argv as structured
-/// values makes the security boundary reviewable: the command contains only
-/// the exact `cc` selected by `CliLocator` and one opaque Python session id.
-/// It never carries a project path, generated prompt, proposal content, or
-/// free-form instruction.
-struct ReconciliationAssistantTerminalCommand: Equatable {
+/// The complete command handed to one fleet-level Terminal conversation.
+/// Prompt text remains data in Python's immutable instruction file. Every
+/// executable and path is shell-quoted before the command reaches Terminal.
+struct ReconciliationGuideTerminalCommand: Equatable {
     let executableURL: URL
-    let arguments: [String]
-
-    init(executableURL: URL, sessionId: String) {
-        self.executableURL = executableURL
-        arguments = ["reconcile", "assistant-run", "--session-id", sessionId]
-    }
+    let assistantExecutableURL: URL
+    let assistant: String
+    let assistantDisplayName: String
+    let workspaceRoot: String
+    let additionalWorkspaceRoots: [String]
+    let instructionsPath: String
+    let guideId: String
 
     var commandLine: String {
-        ([executableURL.path] + arguments)
-            .map(Self.shellQuote)
+        let helper = Self.shellQuote(executableURL.path)
+        let assistantExecutable = Self.shellQuote(assistantExecutableURL.path)
+        let root = Self.shellQuote(workspaceRoot)
+        let additionalRoots = additionalWorkspaceRoots
+            .map { "--add-dir \(Self.shellQuote($0))" }
             .joined(separator: " ")
+        let instructions = Self.shellQuote(instructionsPath)
+        let identifier = Self.shellQuote(guideId)
+        let assistantValue = Self.shellQuote(assistant)
+        let assistantCommand = assistant == "codex"
+            ? "\(assistantExecutable) -C \(root) \(additionalRoots) \"$(/bin/cat \(instructions))\""
+            : "cd \(root) && \(assistantExecutable) \(additionalRoots) -- \"$(/bin/cat \(instructions))\""
+        return """
+        export COPILOT_SETUP_HELPER=\(helper); \
+        cd \(root) || exit 1; \
+        echo 'Copilot Control Tower — one-session project setup'; \
+        echo \(Self.shellQuote("Assistant: \(assistantDisplayName)")); \
+        echo \(Self.shellQuote("Projects folder: \(workspaceRoot)")); \
+        echo 'Python prepared the work order. It will verify every project independently.'; \
+        echo ''; \
+        \(helper) reconcile guide-start --guide-id \(identifier) --assistant \(assistantValue) --json; \
+        ct_start_status=$?; \
+        if [ $ct_start_status -ne 0 ]; then \
+          echo 'The guided session could not start safely. Return to Control Tower for details.'; \
+          exit $ct_start_status; \
+        fi; \
+        echo ''; \
+        echo 'The assistant is starting. Ask questions here if any project needs a decision.'; \
+        echo ''; \
+        \(assistantCommand); \
+        ct_assistant_status=$?; \
+        echo ''; \
+        echo 'Running Python final verification across the complete selected batch…'; \
+        \(helper) reconcile guide-finalize --guide-id \(identifier) --json; \
+        ct_verify_status=$?; \
+        echo ''; \
+        if [ $ct_verify_status -eq 0 ]; then \
+          echo 'Every selected project passed. Return to Control Tower to continue.'; \
+        elif [ $ct_assistant_status -eq 0 ]; then \
+          echo 'Some projects still need attention. Continue this conversation or return to Control Tower to reopen it.'; \
+        else \
+          echo 'The assistant ended with a problem and some projects still need attention. Return to Control Tower for the exact list.'; \
+        fi
+        """
     }
 
     var appleScriptSource: String {
@@ -376,11 +415,11 @@ struct ReconciliationAssistantTerminalCommand: Equatable {
         """
     }
 
-    private static func shellQuote(_ value: String) -> String {
+    static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
     }
 
-    private static func appleScriptLiteral(_ value: String) -> String {
+    static func appleScriptLiteral(_ value: String) -> String {
         "\""
             + value
                 .replacingOccurrences(of: "\\", with: "\\\\")
@@ -891,6 +930,35 @@ actor CliClient {
     ) async -> Result<ReconciliationOutcome<ReconciliationAssistantStatusReport>, CliError> {
         await decodeReconciliationVerb([
             "reconcile", "assistant-status", "--session-id", sessionId, "--json",
+        ])
+    }
+
+    /// Write one Python-authored instruction package for the exact selected
+    /// fleet. Swift neither composes nor edits the runbook.
+    func reconciliationGuidePrepare(
+        request: ReconciliationRequest
+    ) async -> Result<ReconciliationOutcome<ReconciliationGuideReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            ["reconcile", "guide-prepare", "--request", requestPath, "--json"]
+        }
+    }
+
+    /// Read Python-owned per-project progress for one opaque guided session.
+    func reconciliationGuideStatus(
+        guideId: String
+    ) async -> Result<ReconciliationOutcome<ReconciliationGuideReport>, CliError> {
+        await decodeReconciliationVerb([
+            "reconcile", "guide-status", "--guide-id", guideId, "--json",
+        ])
+    }
+
+    /// Force a fresh whole-batch verification if the assistant omitted its
+    /// final helper command. Assistant self-report is never consumed.
+    func reconciliationGuideFinalize(
+        guideId: String
+    ) async -> Result<ReconciliationOutcome<ReconciliationGuideReport>, CliError> {
+        await decodeReconciliationVerb([
+            "reconcile", "guide-finalize", "--guide-id", guideId, "--json",
         ])
     }
 

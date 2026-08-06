@@ -51,6 +51,33 @@ eval "$($HOME/.local/bin/cc env)"
 
 Use `cc memory ...` for durable project/global memory and `cc skill ...` to list, search, inspect, and retrieve reusable skills.
 
+### Apple Notarization Credential Doctrine
+
+- This publisher Mac is already provisioned with the `ct-notary` `notarytool`
+  profile for team `3SYGVX2HB8`. `.env.release.local` stores only that profile
+  name; the Apple credential itself remains in macOS Keychain.
+- Unless `notarytool store-credentials` is given an explicit `--keychain`, Apple
+  stores and reads the profile from the **Data Protection Keychain**. A
+  `security find-generic-password` query against `login.keychain-db` does not
+  inspect that store and must never be used to conclude the profile is absent.
+- The authoritative probe is
+  `xcrun notarytool history --keychain-profile ct-notary --output-format json`.
+  Retry a local lookup failure, then re-run it from the logged-in user's fresh
+  Terminal session. If any probe succeeds, the profile exists and release work
+  must continue without asking Pablo to recreate credentials.
+- A single local `No Keychain password item found` result means **temporarily
+  unavailable in that process context**, not deleted. Never ask for a new
+  app-specific password or open Publisher Setup on that evidence alone.
+- Only repeated failure from the logged-in user context, with no later
+  successful `notarytool` probe, can justify treating the profile as
+  unavailable. A server-side authentication rejection such as HTTP 401 is a
+  different condition: report the remote rejection without calling the profile
+  missing.
+- Local release automation must preflight the profile before an expensive build
+  and retry only transient Keychain lookup failures at notarization boundaries.
+  It must never bypass verification. See
+  `docs/07-contributing/publisher-release-runbook.md#credential-troubleshooting`.
+
 ## Live Docs
 
 Before planning or implementing against an installed third-party package API, use Live Docs through `cc`:

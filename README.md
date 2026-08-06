@@ -1,6 +1,6 @@
 # Copilot Control Tower
 
-> **Status line — prepared for the 2026-08-04 release.** Version: **v0.6.0** (build **27**), the native SwiftUI/AppKit release that can resolve the complete Python-authorized project batch through one bounded Claude Code preparation session, then uses the existing reviewed Python plan/apply/verify transaction. The bundle requires and carries exactly `cc 2.7.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
+> **Status line — prepared for the 2026-08-06 release.** Version: **v0.6.4** (build **31**), the native SwiftUI/AppKit release that writes one Python-authored fleet work order and opens the complete selected project batch in one visible Codex or Claude Code conversation. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.9.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
 
 **The always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem — the technical superpowers of a deeply skilled engineer, in the hands of someone who has never opened a terminal.**
 

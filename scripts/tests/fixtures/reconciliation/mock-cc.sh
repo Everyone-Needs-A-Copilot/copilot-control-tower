@@ -8,7 +8,7 @@ capture_dir="${CT_RECONCILE_CAPTURE_DIR:?missing CT_RECONCILE_CAPTURE_DIR}"
 [[ "${1:-}" == "reconcile" ]] || exit 64
 phase="${2:-}"
 case "${phase}" in
-  assess|assistant-prepare|assistant-status|plan|apply|verify|recover) ;;
+  assess|assistant-prepare|assistant-status|guide-prepare|guide-status|guide-finalize|plan|apply|verify|recover) ;;
   *) exit 64 ;;
 esac
 
@@ -33,6 +33,11 @@ if [[ -n "${request_path}" ]]; then
 fi
 
 response="${CT_RECONCILE_RESPONSE:-${phase}}"
+if [[ "${response}" == "guide-status" ]]; then
+  response="guide-status-running"
+elif [[ "${response}" == "guide-finalize" ]]; then
+  response="guide-status-ready"
+fi
 exit_code=0
 case "${response}" in
   apply|verify|recover|assistant-status-blocked) exit_code=1 ;;

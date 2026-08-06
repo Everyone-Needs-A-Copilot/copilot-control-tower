@@ -169,6 +169,28 @@ struct ReconciliationContractDriver {
         precondition(decodedReady.proposalId == "proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
         precondition(decodedReady.progress.stage == .ready)
         precondition(decodedReady.progress.liveness == .complete)
+        let decodedGuidePrepare = try decoder.decode(
+            ReconciliationGuideReport.self,
+            from: fixture("guide-prepare", in: fixtureDirectory)
+        )
+        let decodedGuideRunning = try decoder.decode(
+            ReconciliationGuideReport.self,
+            from: fixture("guide-status-running", in: fixtureDirectory)
+        )
+        let decodedGuideAction = try decoder.decode(
+            ReconciliationGuideReport.self,
+            from: fixture("guide-status-action-required", in: fixtureDirectory)
+        )
+        let decodedGuideReady = try decoder.decode(
+            ReconciliationGuideReport.self,
+            from: fixture("guide-status-ready", in: fixtureDirectory)
+        )
+        precondition(decodedGuidePrepare.phase == .prepare)
+        precondition(decodedGuidePrepare.progress.state == .prepared)
+        precondition(decodedGuideRunning.progress.verifiedProjectCount == 1)
+        precondition(decodedGuideAction.projectStatus.last?.reasons.count == 2)
+        precondition(decodedGuideReady.result == .ready)
+        precondition(decodedGuideReady.progress.remainingProjectCount == 0)
         let decodedPlan = try decoder.decode(
             ReconciliationPlanReport.self,
             from: fixture("plan", in: fixtureDirectory)
@@ -251,20 +273,36 @@ struct ReconciliationContractDriver {
         let expectedProposalRequest = Data(#"{"assistant_proposal_id":"proposal_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","projects":[{"components":["claude","codex"],"path":"\/Projects\/Team; literal\/One","recipe_ids":{"claude":"claude-safe-1","codex":"codex-safe-1"}}],"roots":["\/Projects\/Team; literal"],"schema_version":"1.0"}"#.utf8)
         precondition(proposalRequestBytes == expectedProposalRequest)
 
-        let opaqueSession = "session_O'Brien;$(touch /tmp/ct-must-not-run)"
-        let terminalCommand = ReconciliationAssistantTerminalCommand(
-            executableURL: URL(fileURLWithPath: "/Applications/Control Tower/cc"),
-            sessionId: opaqueSession
+        let guideRequest = ReconciliationRequest(
+            roots: ["/Projects"],
+            projects: assistedAssess.requestSelections(
+                selectedPaths: assistedAssess.authorizedSelectionPaths
+            )
         )
         precondition(
-            terminalCommand.arguments
-                == ["reconcile", "assistant-run", "--session-id", opaqueSession]
+            decodedGuidePrepare.matches(request: guideRequest, phase: .prepare)
+        )
+        precondition(
+            decodedGuideReady.matches(request: guideRequest, phase: .status)
+        )
+
+        let terminalCommand = ReconciliationGuideTerminalCommand(
+            executableURL: URL(fileURLWithPath: "/Applications/Control Tower/cc"),
+            assistantExecutableURL: URL(fileURLWithPath: "/Applications/Codex/bin/codex"),
+            assistant: "codex",
+            assistantDisplayName: "Codex",
+            workspaceRoot: "/Projects/Team; literal",
+            additionalWorkspaceRoots: ["/Projects/Client sites"],
+            instructionsPath: "/Projects/Team; literal/.copilot-control-tower/INSTRUCTIONS.md",
+            guideId: "guide_11111111111111111111111111111111"
         )
         precondition(terminalCommand.executableURL.path == "/Applications/Control Tower/cc")
-        precondition(!terminalCommand.commandLine.contains("/Projects/Team; literal/One"))
-        precondition(!terminalCommand.commandLine.contains("prompt"))
-        precondition(!terminalCommand.commandLine.contains("patch"))
-        precondition(terminalCommand.commandLine.contains("'\"'\"'"))
+        precondition(terminalCommand.commandLine.contains("guide-start"))
+        precondition(terminalCommand.commandLine.contains("guide-finalize"))
+        precondition(terminalCommand.commandLine.contains("COPILOT_SETUP_HELPER"))
+        precondition(terminalCommand.commandLine.contains("'/Projects/Team; literal'"))
+        precondition(terminalCommand.commandLine.contains("--add-dir '/Projects/Client sites'"))
+        precondition(terminalCommand.commandLine.contains("$(/bin/cat"))
 
         let client = CliClient.shared
         switch await client.reconciliationAssess() {
@@ -323,6 +361,45 @@ struct ReconciliationContractDriver {
                     "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "--json",
                 ]
         )
+        unsetenv("CT_RECONCILE_RESPONSE")
+
+        switch await client.reconciliationGuidePrepare(request: guideRequest) {
+        case .success(.report(let report)):
+            precondition(report.phase == .prepare)
+            precondition(report.matches(request: guideRequest, phase: .prepare))
+        default:
+            fatalError("guide prepare did not preserve its report")
+        }
+        try assertRequest(
+            phase: "guide-prepare",
+            captureDirectory: captureDirectory,
+            expected: try guideRequest.encoded()
+        ) { argv in
+            argv.count == 5
+                && argv[0...2] == ["reconcile", "guide-prepare", "--request"]
+                && argv[4] == "--json"
+        }
+
+        setenv("CT_RECONCILE_RESPONSE", "guide-status-running", 1)
+        switch await client.reconciliationGuideStatus(
+            guideId: "guide_11111111111111111111111111111111"
+        ) {
+        case .success(.report(let report)):
+            precondition(report.phase == .status)
+            precondition(report.progress.verifiedProjectCount == 1)
+        default:
+            fatalError("guide status did not preserve its report")
+        }
+        setenv("CT_RECONCILE_RESPONSE", "guide-status-action-required", 1)
+        switch await client.reconciliationGuideFinalize(
+            guideId: "guide_11111111111111111111111111111111"
+        ) {
+        case .success(.report(let report)):
+            precondition(report.result == .actionRequired)
+            precondition(report.projectStatus.last?.reasons.count == 2)
+        default:
+            fatalError("guide final verification did not preserve its report")
+        }
         unsetenv("CT_RECONCILE_RESPONSE")
 
         switch await client.reconciliationPlan(request: proposalRequest) {

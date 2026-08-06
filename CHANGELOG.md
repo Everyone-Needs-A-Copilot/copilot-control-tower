@@ -2,6 +2,28 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.4] - 2026-08-06
+
+### Changed
+
+- Project setup now opens one Codex or Claude Code conversation for the complete selected batch. Control Tower writes one Python-authored instruction package in the projects folder, opens Terminal at the right location, supplies the instructions automatically, and lets the person ask questions in that same conversation while it works through every selected project.
+- The work order names the exact project paths, component requirements, current evidence, preservation rules, allowed targets, stop conditions, and Python verification commands. The assistant is not asked to invent what “done” means, and the person is never sent into one session per project.
+- The project screen now shows live Python-owned progress: selected, freshly verified, remaining, and the last checked project. A stopped or lost watcher becomes an explicit state with a concrete action instead of an unexplained spinner.
+- Final results show one status and the real current reasons for every project. Successful copy feedback is displayed as a normal confirmation rather than an orange failure, and a person can reopen the same work order in either assistant or run a fresh final check.
+- The Verify step now actually installs an available helper update and then calls `doctor` again. Setup can finish only when that second independent check reports healthy, which fixes the prior “An update is ready” pause that promised an install without performing one.
+- The app and Admin bundle are version `0.6.4` build `31`. The release requires and bundles exactly `cc 2.9.0`, built from signed parentless Foundation snapshot `v5.13.50`; `controltower.compat.json` declares `cc >=2.9.0,<3.0.0`.
+
+### Safety
+
+- Python re-assesses the exact batch before writing its work order and remains the only authority that can mark a project ready. Assistant output and Terminal process state are never treated as proof.
+- Knowledge Copilot, Claude Copilot, Codex Copilot, CLI Copilot, and every other proven ecosystem repository remain managed separately. Dirty, held, unsafe, ambiguous, or owner-decision projects are excluded rather than handed to the assistant.
+- Only workspace roots that contain selected projects are opened to the assistant. With nested approved roots, Python selects the narrowest containing root. The instruction and project files are private, immutable, fingerprinted, and bound to the saved batch.
+- The guided conversation may not commit, push, reset, clean, stash, delete unrelated files, alter dirty projects, or place credentials in a project. Project-owned instructions and integration behavior must be inspected and preserved.
+
+### Rollback
+
+- Reinstall the signed `0.6.3` DMG, `Copilot-Control-Tower_0.6.3_arm64.dmg`, to return to the prior app and bundled `cc 2.8.0`. Reinstalling changes the app/helper version only and does not alter any Copilot checkout or project content. Release tags are immutable, so a defective build is superseded with a new version.
+
 ## [0.6.3] - 2026-08-05
 
 ### Changed

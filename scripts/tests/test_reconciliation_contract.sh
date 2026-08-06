@@ -40,11 +40,16 @@ Draft202012Validator.check_schema(request_schema)
 Draft202012Validator(request_schema).validate(
     json.loads((capture / "assistant-prepare.request").read_text())
 )
+Draft202012Validator(request_schema).validate(
+    json.loads((capture / "guide-prepare.request").read_text())
+)
 validator = Draft202012Validator(response_schema)
 fixtures = root / "scripts/tests/fixtures/reconciliation"
 for name in (
     "assess", "assistant-prepare", "assistant-run",
     "assistant-status-running", "assistant-status-stale", "assistant-status-ready",
+    "guide-prepare", "guide-status-running", "guide-status-action-required",
+    "guide-status-ready",
     "plan", "apply", "verify", "recover", "error",
 ):
     validator.validate(json.loads((fixtures / f"{name}.json").read_text()))
@@ -54,7 +59,7 @@ print("reconciliation JSON schemas/fixtures: PASS")
 PY
 
 expected_request_sha="a39cf5b9ce00dca1e632f5584c308bf4ab4af1726c26654422743e0c2fae056c"
-expected_response_sha="d48c4887e03c9436c6f6d2ca909e5a84c2d3ff74aec776e2a46eb84cb293b442"
+expected_response_sha="8633f207d9b8c2e005ed2752ae8f6ddeef9bb282000a3b28b3ed764cd321f3f1"
 actual_request_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/reconcile-request.schema.json" | awk '{print $1}')"
 actual_response_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/reconcile.schema.json" | awk '{print $1}')"
 [[ "${actual_request_sha}" == "${expected_request_sha}" ]]

@@ -1823,6 +1823,13 @@ enum ReconciliationAssistantPreparePhase: String, Decodable {
 enum ReconciliationAssistantStatusPhase: String, Decodable {
     case assistantStatus = "assistant-status"
 }
+enum ReconciliationGuidePhase: String, Decodable {
+    case prepare = "guide-prepare"
+    case start = "guide-start"
+    case check = "guide-check"
+    case status = "guide-status"
+    case finalize = "guide-finalize"
+}
 enum ReconciliationPlanPhase: String, Decodable { case plan }
 enum ReconciliationApplyPhase: String, Decodable { case apply }
 enum ReconciliationVerifyPhase: String, Decodable { case verify }
@@ -1841,6 +1848,45 @@ enum ReconciliationAssistantStatusResult: String, Decodable {
     case running
     case ready
     case blocked
+}
+
+enum ReconciliationGuideResult: String, Decodable {
+    case running
+    case ready
+    case actionRequired = "action-required"
+    case blocked
+}
+
+enum ReconciliationGuideState: String, Decodable {
+    case prepared
+    case running
+    case ready
+    case actionRequired = "action-required"
+    case blocked
+}
+
+enum ReconciliationGuideProjectState: String, Decodable {
+    case pending
+    case ready
+    case actionRequired = "action-required"
+}
+
+struct ReconciliationGuideProgress: Decodable {
+    let state: ReconciliationGuideState
+    let selectedProjectCount: Int
+    let verifiedProjectCount: Int
+    let remainingProjectCount: Int
+    let needsConversationCount: Int
+    let lastCheckedProject: String?
+    let detail: String
+}
+
+struct ReconciliationGuideProjectStatus: Decodable {
+    let path: String
+    let state: ReconciliationGuideProjectState
+    let detail: String
+    let reasons: [String]
+    let checkedAt: String?
 }
 
 enum ReconciliationAssistantProgressStage: String, Decodable {
@@ -1993,6 +2039,47 @@ struct ReconciliationAssistantStatusReport: Decodable {
         case .blocked:
             return proposalId == nil ? .blocked(detail: detail) : .incompatible
         }
+    }
+}
+
+struct ReconciliationGuideReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationGuidePhase
+    let result: ReconciliationGuideResult
+    let runId: String
+    let generatedAt: String
+    let guideId: String
+    let workspaceRoot: String
+    let workspaceRoots: [String]
+    let instructionsPath: String
+    let projectsPath: String
+    let selectedProjects: [String]
+    let projectStatus: [ReconciliationGuideProjectStatus]
+    let progress: ReconciliationGuideProgress
+    let detail: String
+    let nextActions: [String]
+    let project: ReconciliationGuideProjectStatus?
+
+    func matches(request: ReconciliationRequest, phase expectedPhase: ReconciliationGuidePhase? = nil) -> Bool {
+        let requestPaths = request.projects.map(\.path)
+        let statusPaths = projectStatus.map(\.path)
+        return schemaVersion == "2.0"
+            && expectedPhase.map { phase == $0 } != false
+            && guideId.hasPrefix("guide_")
+            && !workspaceRoots.isEmpty
+            && workspaceRoots.first == workspaceRoot
+            && Set(workspaceRoots).isSubset(of: Set(request.roots))
+            && Set(workspaceRoots).count == workspaceRoots.count
+            && selectedProjects == requestPaths
+            && statusPaths == requestPaths
+            && Set(statusPaths).count == statusPaths.count
+            && progress.selectedProjectCount == requestPaths.count
+            && progress.verifiedProjectCount >= 0
+            && progress.remainingProjectCount >= 0
+            && progress.verifiedProjectCount + progress.remainingProjectCount
+                == progress.selectedProjectCount
+            && progress.needsConversationCount >= 0
+            && progress.needsConversationCount <= progress.remainingProjectCount
     }
 }
 

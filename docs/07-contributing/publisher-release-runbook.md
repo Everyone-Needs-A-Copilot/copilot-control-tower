@@ -248,13 +248,36 @@ Apple's current notarization tooling is `notarytool`; see:
 
 ### Credential troubleshooting
 
-If a probe reports the `ct-notary` profile missing, that is not by itself evidence the profile is gone. A profile provisioned through Publisher Setup.app or `scripts/setup-publisher.sh` is stored once in the login keychain and persists; it is not consumed by use and does not expire on its own. Confirm before treating it as broken:
+If a probe reports the `ct-notary` profile missing, that is not by itself
+evidence the profile is gone. Unless `store-credentials` was given an explicit
+`--keychain`, Apple stores the profile in the macOS **Data Protection
+Keychain**. It is not necessarily visible to `security find-generic-password`
+queries against `login.keychain-db`; Apple documents this boundary in
+[TN3147](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool).
 
-1. Re-run the same probe from an interactive Terminal session, signed in as the release owner — not a detached, headless, or bridged context: `xcrun notarytool history --keychain-profile ct-notary`.
-2. Check the keychain's lock state before trusting a "not found" from any non-interactive session: `security show-keychain-info ~/Library/Keychains/login.keychain-db`. A locked keychain in a headless or detached context reads back as "item not found," not "keychain locked" — that absence is a probe/session artifact, not evidence the credential was deleted.
-3. Only if the profile is still missing after both checks above is it actually gone. In that case, re-provision it via Publisher Setup.app or `./scripts/setup-publisher.sh` (§3–§5 above) — that is the one legitimate case for asking the owner for a fresh Apple app-specific password.
+A stored profile is not consumed by notarization. Diagnose it with
+`notarytool`, not by searching the file-based login keychain:
 
-Never ask the owner to generate a new Apple app-specific password, re-run Publisher Setup, or re-store the `ct-notary` profile on the strength of a single headless or detached-session "not found." See `CLAUDE.md`'s Credentials doctrine for the general rule this follows.
+1. Run `xcrun notarytool history --keychain-profile ct-notary --output-format json`.
+2. If it reports `No Keychain password item found`, retry it three times. Treat
+   those failures as **profile unavailable to this process**, not deletion.
+3. If all retries fail, run the same command from a fresh Terminal session as
+   the logged-in release owner. A Terminal opened programmatically by the
+   failing automation is supporting evidence, not an independent user-context
+   check.
+4. If any later probe succeeds, the profile exists and is usable. Continue the
+   release; do not ask the owner for credentials or rerun Publisher Setup.
+5. Only repeated failures from the logged-in user context, with no subsequent
+   successful `notarytool` probe, justify treating the profile as unavailable.
+   A remote authentication rejection such as HTTP 401 is a separate condition:
+   report that Apple rejected the credential, not that the Keychain item is
+   missing.
+
+Never ask the owner to generate a new Apple app-specific password, re-run
+Publisher Setup, or re-store `ct-notary` on the strength of a local lookup
+failure. Release scripts must preflight before expensive work and retry only
+transient Keychain lookup failures; they must never bypass notarization or
+verification. See `AGENTS.md` and `CLAUDE.md` for the same standing rule.
 
 ## 6. Create a local-only release environment file manually
 

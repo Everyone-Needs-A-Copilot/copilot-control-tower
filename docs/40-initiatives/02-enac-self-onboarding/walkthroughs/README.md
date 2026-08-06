@@ -28,6 +28,8 @@ aftercare before moving to the Admin experience.
 | 20 | [Default project batch — UI](20-default-project-batch-uids-walkthrough.html) | The native visual hierarchy for one selected batch, two explanatory counts, quiet acknowledgements, and project-only checkboxes. |
 | 21 | [Resolve with Claude Code — UX](21-resolve-with-claude-code-uxd-walkthrough.html) | The one-button default-all preparation flow, assistant and permission recovery, owner decisions, protected work, exact review, apply, fresh verify, and rollback outcomes. |
 | 22 | [Resolve with Claude Code — UI](22-resolve-with-claude-code-uids-walkthrough.html) | The Quiet Instrument visual treatment for visible assistant preparation, proposal triage, decisions, held work, exact plans, and evidence-bound receipts. |
+| 23 | [Fleet-guided reconciliation — UX](23-fleet-guided-reconciliation-uxd-walkthrough.html) | The corrected one-session Sites-root handoff, durable instruction package, same-conversation questions, and independent fleet verification. |
+| 24 | [Fleet-guided reconciliation — UI](24-fleet-guided-reconciliation-uids-walkthrough.html) | The native visual hierarchy for assistant choice, verified progress, owner questions, and the quiet completed state. |
 
 Walkthroughs 17 and 18 read last as a pair, and not merely because they are newest. 17 poses the question — what Bob's connect experience should be, and the one fork left undecided — and 18 assumes the answer the owner ratified, rendering both actors of the mechanism that makes 17's receipt true along with what the security passes qualified about it. Both span the member's wizard and Admin governance, both still carry undecided items, and their user-side screens depend on the setup and completion model established by 01 to 12.
 
@@ -39,6 +41,13 @@ Walkthroughs 21 and 22 extend 19 and 20 without weakening that default-all or
 transaction model. Claude Code prepares bounded proposals in a visible session;
 the person still resolves owner-only choices and Python remains the sole writer,
 rollback authority, and fresh verifier.
+
+Walkthroughs 23 and 24 supersede 21 and 22's content-free proposal-selection
+experience. The assistant now receives one Python-authored instruction package
+at the approved Sites root and works across the complete selected batch in one
+conversation. Python remains the sole authority for scope and verified status;
+the external assistant is the explicitly chosen writer for project-specific
+guided work.
 
 ## Naming Convention
 

@@ -54,6 +54,12 @@ if ! sed -n '/func continueWithoutFailedProjects()/,/^    }/p' native/wizard.swi
   echo "the project-failure continue action no longer advances to verification" >&2
   exit 1
 fi
+verify_source="$(sed -n '/func beginVerify()/,/^    }/p' native/wizard.swift)"
+if [[ "${verify_source}" != *'CliClient.shared.update()'* ]] ||
+  [[ "$(rg -Fc 'CliClient.shared.doctor()' <<<"${verify_source}")" -lt 2 ]]; then
+  echo "Verify no longer installs an available helper update and proves health with a second doctor call" >&2
+  exit 1
+fi
 
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${PLIST}")" == "com.everyoneneedsacopilot.controltower" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${PLIST}")" == "Copilot Control Tower" ]]

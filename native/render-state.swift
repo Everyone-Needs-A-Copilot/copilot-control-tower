@@ -135,7 +135,7 @@ extension RenderState {
         case .syncing, .updatingApp:
             return "Bringing everything up to date…"
         case .updateAvailable:
-            return "An update is ready. I'll install it quietly."
+            return "An update is ready."
         case .offline, .waitingForNetwork:
             return "You're offline. I'll pick up where I left off when you're back."
         case .signedOut:
