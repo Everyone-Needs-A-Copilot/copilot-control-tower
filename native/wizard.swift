@@ -47,6 +47,7 @@
 // from a property initializer.
 
 import AppKit
+import Darwin
 import SwiftUI
 
 // MARK: - Wizard roadmap (9 rows: Welcome / Connect GitHub / Detect / What
@@ -621,6 +622,329 @@ struct HoldingSupportInfo: Equatable {
     }
 }
 
+/// The exact privacy-bounded text shown, copied, and (when the local boundary
+/// is safe) saved for one Verify attempt. `filePath == nil` means persistence
+/// was unavailable; the in-memory report is still complete and copyable.
+struct SupportReportArtifact: Equatable, Sendable {
+    let text: String
+    let filePath: String?
+
+    var displayPath: String? {
+        guard let filePath else { return nil }
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        guard filePath == home || filePath.hasPrefix(home + "/") else {
+            return filePath
+        }
+        return "~" + filePath.dropFirst(home.count)
+    }
+}
+
+/// One immutable rendering input for Verify's `doctor → update → doctor`
+/// sequence. The formatter below is deliberately a CLOSED projection of the
+/// typed DTOs: it never serializes a DTO wholesale and never touches raw
+/// stdout/stderr, `detail`, host, path, layer id, item, SHA, auth identity, or
+/// any other open/extensible field.
+struct VerificationSupportAttempt {
+    let recordedAt: Date
+    var initialDoctor: DoctorReport?
+    var updateReport: UpdateReport?
+    var updateError: CliError?
+    var finalDoctor: DoctorReport?
+    var finalError: CliError?
+
+    init(recordedAt: Date = Date()) {
+        self.recordedAt = recordedAt
+    }
+
+    func formattedReport() -> String {
+        var lines: [String] = []
+        if let identity = HoldingInfo.appIdentityLine {
+            lines.append(identity)
+        }
+        lines.append(Self.helperIdentityLine)
+        lines.append("Recorded: \(Self.timestamp(recordedAt))")
+
+        let hasUpdatePhase = updateReport != nil || updateError != nil
+            || initialDoctor?.status == .updateAvailable
+        if let initialDoctor {
+            lines.append("")
+            lines.append(hasUpdatePhase ? "Initial check" : "Check")
+            lines.append(contentsOf: Self.doctorLines(initialDoctor))
+        }
+
+        if let updateReport {
+            lines.append("")
+            lines.append("Update attempt")
+            lines.append("Result: \(Self.updateResultLabel(updateReport.result))")
+            lines.append("Report format: \(Self.schemaVersionLabel(updateReport.schemaVersion))")
+            let changed = updateReport.changed.filter { $0.op != .unchanged }.count
+            lines.append(
+                "Changed: \(changed) · Held: \(updateReport.heldForApproval?.count ?? 0) · Blocked: \(updateReport.blocked?.count ?? 0)"
+            )
+        } else if let updateError {
+            lines.append("")
+            lines.append("Update attempt")
+            lines.append("Result: \(Self.errorLabel(updateError))")
+        }
+
+        if let finalDoctor, hasUpdatePhase {
+            lines.append("")
+            lines.append("Fresh check")
+            lines.append(contentsOf: Self.doctorLines(finalDoctor))
+        } else if let finalError {
+            lines.append("")
+            lines.append(hasUpdatePhase ? "Fresh check" : "Check")
+            lines.append("Result: \(Self.errorLabel(finalError))")
+        }
+
+        lines.append("")
+        lines.append("Privacy")
+        lines.append("Omits host, account, organization and project names; paths; repository addresses; layer IDs; file content; process output; environment values; commit IDs; and secrets.")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func doctorLines(_ doctor: DoctorReport) -> [String] {
+        var lines = [
+            "Result: \(doctorStatusLabel(doctor.status))",
+            "Report format: \(schemaVersionLabel(doctor.schemaVersion))",
+        ]
+        for checker in doctor.checkers where checker.severity != .pass {
+            lines.append(
+                "Needs attention: \(productLabel(checker.product)) · \(roleLabel(checker.layerRole)) · \(severityLabel(checker.severity))"
+            )
+        }
+        return lines
+    }
+
+    private static var helperIdentityLine: String {
+        guard let url = Bundle.main.url(forResource: "cc-version", withExtension: "txt"),
+              let raw = try? String(contentsOf: url, encoding: .utf8) else {
+            return "Setup helper: cc (version not reported by this contract)"
+        }
+        let version = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isSemver = version.range(
+            of: #"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"#,
+            options: .regularExpression
+        ) != nil
+        return isSemver
+            ? "Setup helper: cc \(version)"
+            : "Setup helper: cc (version not reported by this contract)"
+    }
+
+    private static func productLabel(_ product: String?) -> String {
+        switch product {
+        case "knowledge": return "Knowledge Copilot"
+        case "cli": return "CLI Copilot"
+        case "claude": return "Claude Copilot"
+        case "codex": return "Codex Copilot"
+        default: return "Setup check"
+        }
+    }
+
+    private static func roleLabel(_ role: String?) -> String {
+        switch role {
+        case "foundation": return "Core setup"
+        case "org", "organization": return "Your organization"
+        case "department": return "Your department"
+        case "personal": return "This Mac"
+        default: return "This Mac"
+        }
+    }
+
+    private static func severityLabel(_ severity: CliSeverity) -> String {
+        switch severity {
+        case .pass: return "ready"
+        case .warn: return "needs review"
+        case .fail: return "needs attention"
+        }
+    }
+
+    private static func doctorStatusLabel(_ status: DoctorStatus) -> String {
+        switch status {
+        case .setupNeeded: return "setup needed"
+        case .itConfigIncomplete: return "organization setup incomplete"
+        case .healthy: return "ready"
+        case .syncing: return "syncing"
+        case .updateAvailable: return "update available"
+        case .needsAttention: return "needs attention"
+        case .signedOut: return "sign-in needed"
+        case .offline: return "offline"
+        case .waitingForNetwork: return "waiting for network"
+        case .updatingApp: return "Control Tower update needed"
+        }
+    }
+
+    private static func updateResultLabel(_ result: UpdateResult) -> String {
+        switch result {
+        case .applied: return "applied"
+        case .upToDate: return "already current"
+        case .held: return "held safely"
+        case .blocked: return "blocked"
+        case .offline: return "offline"
+        }
+    }
+
+    private static func schemaVersionLabel(_ version: String) -> String {
+        version.range(
+            of: #"^[0-9]+\.[0-9]+$"#,
+            options: .regularExpression
+        ) != nil ? version : "not reported"
+    }
+
+    private static func errorLabel(_ error: CliError) -> String {
+        switch error {
+        case .notFound: return "setup helper not found"
+        case .launchFailed: return "setup helper could not start"
+        case .exit2: return "setup helper reported a safe stop"
+        case .parse: return "report could not be read"
+        case .schemaOutOfRange: return "report format is incompatible"
+        case .missingSecurityField: return "report omitted required safety evidence"
+        }
+    }
+
+    private static func timestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm Z"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        return formatter.string(from: date)
+    }
+}
+
+/// Private, bounded persistence for the redacted report. This does not write
+/// ecosystem state: it stores the same support text already shown and copied
+/// by the UI. Every component is lstat-checked; no symlink is followed.
+enum SupportReportStore {
+    private static let retentionLimit = 20
+
+    static func save(_ text: String) async -> SupportReportArtifact {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: persist(text))
+            }
+        }
+    }
+
+    private static func persist(_ text: String) -> SupportReportArtifact {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        let homeURL = URL(fileURLWithPath: home, isDirectory: true)
+        let directory = homeURL
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("cc", isDirectory: true)
+            .appendingPathComponent("diagnostics", isDirectory: true)
+            .appendingPathComponent("control-tower", isDirectory: true)
+
+        guard isOwnedRealDirectory(homeURL) else {
+            return SupportReportArtifact(text: text, filePath: nil)
+        }
+        var cursor = homeURL
+        for component in [".claude", "cc", "diagnostics", "control-tower"] {
+            cursor.appendPathComponent(component, isDirectory: true)
+            guard ensureOwnedRealDirectory(cursor) else {
+                return SupportReportArtifact(text: text, filePath: nil)
+            }
+        }
+        guard isOwnedRealDirectory(directory, requirePrivateMode: true) else {
+            return SupportReportArtifact(text: text, filePath: nil)
+        }
+
+        let filename = "verify-\(filenameTimestamp())-\(UUID().uuidString.lowercased()).txt"
+        let fileURL = directory.appendingPathComponent(filename, isDirectory: false)
+        let descriptor = Darwin.open(
+            fileURL.path,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+            mode_t(S_IRUSR | S_IWUSR)
+        )
+        guard descriptor >= 0 else {
+            return SupportReportArtifact(text: text, filePath: nil)
+        }
+        defer { Darwin.close(descriptor) }
+
+        let payload = Data(text.utf8)
+        guard Darwin.fchmod(descriptor, mode_t(S_IRUSR | S_IWUSR)) == 0,
+              writeAll(payload, to: descriptor),
+              Darwin.fsync(descriptor) == 0 else {
+            _ = Darwin.unlink(fileURL.path)
+            return SupportReportArtifact(text: text, filePath: nil)
+        }
+
+        pruneOldReports(in: directory)
+        return SupportReportArtifact(text: text, filePath: fileURL.path)
+    }
+
+    private static func ensureOwnedRealDirectory(_ url: URL) -> Bool {
+        var metadata = stat()
+        if Darwin.lstat(url.path, &metadata) == 0 {
+            return isOwnedRealDirectory(url)
+        }
+        guard errno == ENOENT else { return false }
+        guard Darwin.mkdir(url.path, mode_t(S_IRWXU)) == 0 || errno == EEXIST else {
+            return false
+        }
+        guard isOwnedRealDirectory(url) else { return false }
+        return Darwin.chmod(url.path, mode_t(S_IRWXU)) == 0
+    }
+
+    private static func isOwnedRealDirectory(
+        _ url: URL,
+        requirePrivateMode: Bool = false
+    ) -> Bool {
+        var metadata = stat()
+        guard Darwin.lstat(url.path, &metadata) == 0,
+              metadata.st_mode & S_IFMT == S_IFDIR,
+              metadata.st_uid == Darwin.geteuid(),
+              metadata.st_mode & 0o022 == 0 else {
+            return false
+        }
+        return !requirePrivateMode || metadata.st_mode & 0o077 == 0
+    }
+
+    private static func writeAll(_ data: Data, to descriptor: Int32) -> Bool {
+        data.withUnsafeBytes { bytes -> Bool in
+            guard let base = bytes.baseAddress else { return data.isEmpty }
+            var offset = 0
+            while offset < bytes.count {
+                let count = Darwin.write(
+                    descriptor,
+                    base.advanced(by: offset),
+                    bytes.count - offset
+                )
+                guard count > 0 else { return false }
+                offset += count
+            }
+            return true
+        }
+    }
+
+    private static func pruneOldReports(in directory: URL) {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else {
+            return
+        }
+        let reports = names.filter { name in
+            name.hasPrefix("verify-") && name.hasSuffix(".txt")
+                && isOwnedRegularFile(directory.appendingPathComponent(name))
+        }.sorted()
+        for name in reports.dropLast(retentionLimit) {
+            _ = Darwin.unlink(directory.appendingPathComponent(name).path)
+        }
+    }
+
+    private static func isOwnedRegularFile(_ url: URL) -> Bool {
+        var metadata = stat()
+        return Darwin.lstat(url.path, &metadata) == 0
+            && metadata.st_mode & S_IFMT == S_IFREG
+            && metadata.st_uid == Darwin.geteuid()
+    }
+
+    private static func filenameTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd'T'HHmmssSSS"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter.string(from: Date())
+    }
+}
+
 struct HoldingInfo {
     let variant: HoldingVariant
     let origin: WizardStage
@@ -716,7 +1040,7 @@ extension HoldingInfo {
     /// "Copilot Control Tower <version> (<build>)" — §5's first line, from
     /// this app's own `Info.plist`. `nil` (never a fabricated placeholder)
     /// when either key is missing, e.g. an unbundled dev/selftest binary.
-    private static var appIdentityLine: String? {
+    fileprivate static var appIdentityLine: String? {
         let info = Bundle.main.infoDictionary
         guard let name = (info?["CFBundleDisplayName"] as? String) ?? (info?["CFBundleName"] as? String),
               let version = info?["CFBundleShortVersionString"] as? String,
@@ -1182,6 +1506,10 @@ final class WizardModel: ObservableObject {
     @Published var detectedCopilotState: RenderState?
     @Published var verifiedCopilotState: RenderState?
     @Published var verifiedWorkspacesReport: WorkspacesReport?
+    /// The redacted, exact report for the current Verify attempt. Populated
+    /// only when that attempt cannot earn a healthy completion state; a
+    /// healthy Verify keeps the quiet success surface free of diagnostics.
+    @Published var verificationSupportArtifact: SupportReportArtifact? = nil
     @Published var ecosystemInventory: [EcosystemInventoryItem] = []
     @Published var ecosystemInventorySummary: EcosystemInventorySummary?
     @Published var ecosystemLayers: [EcosystemOnboardLayer] = []
@@ -3575,20 +3903,30 @@ final class WizardModel: ObservableObject {
     /// contract.
     func beginVerify() {
         phase = .verifying
+        verificationSupportArtifact = nil
         Task {
+            var attempt = VerificationSupportAttempt()
             var doctorOutcome = await CliClient.shared.doctor()
             if case .success(let doctor) = doctorOutcome,
                doctor.status == .updateAvailable {
+                attempt.initialDoctor = doctor
                 self.verifiedCopilotState = RenderState.from(doctor, joinable: nil)
                 switch await CliClient.shared.update() {
-                case .success:
+                case .success(let updateReport):
+                    attempt.updateReport = updateReport
                     // The update report says only what the update invocation
                     // did. A second doctor call remains the completion gate.
                     doctorOutcome = await CliClient.shared.doctor()
                 case .failure(let error):
+                    attempt.updateError = error
+                    self.verificationSupportArtifact = await SupportReportStore.save(
+                        attempt.formattedReport()
+                    )
                     self.routeCliError(error, origin: .verify)
                     return
                 }
+            } else if case .success(let doctor) = doctorOutcome {
+                attempt.initialDoctor = doctor
             }
             let workspacesOutcome = await CliClient.shared.workspaces()
             if case .success(let report) = workspacesOutcome {
@@ -3596,13 +3934,21 @@ final class WizardModel: ObservableObject {
             }
             switch doctorOutcome {
             case .success(let doctor):
+                attempt.finalDoctor = doctor
                 self.verifiedCopilotState = RenderState.from(doctor, joinable: nil)
                 if doctor.status == .healthy {
                     self.phase = .verified
                 } else {
+                    self.verificationSupportArtifact = await SupportReportStore.save(
+                        attempt.formattedReport()
+                    )
                     self.enterHolding(Self.holdingInfo(forNonHealthy: doctor, origin: .verify))
                 }
             case .failure(let error):
+                attempt.finalError = error
+                self.verificationSupportArtifact = await SupportReportStore.save(
+                    attempt.formattedReport()
+                )
                 self.routeCliError(error, origin: .verify)
             }
         }
@@ -7696,6 +8042,7 @@ struct WizardRootView: View {
                 stages: model.lastOnboardStages,
                 includeCodex: model.includeCodex,
                 support: verifySupportInfo,
+                supportArtifact: model.verificationSupportArtifact,
                 isRepeat: false,
                 hasAskRows: !model.onboardQuestionItems.isEmpty,
                 completedActions: model.lastCompletedActions,
@@ -7836,6 +8183,10 @@ struct WizardRootView: View {
         }
     }
 
+    private func supportArtifact(for info: HoldingInfo) -> SupportReportArtifact? {
+        info.origin == .verify ? model.verificationSupportArtifact : nil
+    }
+
     /// H1 — not installed. Deliberately not red (§1): neutral tint, no
     /// "Details for support" disclosure at all (there is nothing on this
     /// Mac yet to report on), no command/path in the body (`showInstallSheet()`
@@ -7874,7 +8225,10 @@ struct WizardRootView: View {
                     stillTheSameCaption
                 }
                 if let support = info.support {
-                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                    HoldingSupportDisclosureView(
+                        lines: HoldingInfo.supportLines(support),
+                        artifact: supportArtifact(for: info)
+                    )
                 }
             }
         } leadingActions: {
@@ -7937,7 +8291,10 @@ struct WizardRootView: View {
                     }
                 }
                 if let support = info.support {
-                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                    HoldingSupportDisclosureView(
+                        lines: HoldingInfo.supportLines(support),
+                        artifact: supportArtifact(for: info)
+                    )
                 }
             }
         } leadingActions: {
@@ -7990,7 +8347,10 @@ struct WizardRootView: View {
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 if let support = info.support {
-                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                    HoldingSupportDisclosureView(
+                        lines: HoldingInfo.supportLines(support),
+                        artifact: supportArtifact(for: info)
+                    )
                 }
             }
         } leadingActions: {
@@ -8044,6 +8404,7 @@ struct WizardRootView: View {
         stages: [EcosystemOnboardStage],
         includeCodex: Bool,
         support: HoldingSupportInfo?,
+        supportArtifact: SupportReportArtifact? = nil,
         isRepeat: Bool,
         hasAskRows: Bool,
         completedActions: [CompletedAction] = [],
@@ -8119,7 +8480,10 @@ struct WizardRootView: View {
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 if let support {
-                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                    HoldingSupportDisclosureView(
+                        lines: HoldingInfo.supportLines(support),
+                        artifact: supportArtifact
+                    )
                 }
             }
         } leadingActions: {
@@ -8131,7 +8495,10 @@ struct WizardRootView: View {
                     .buttonStyle(.plain)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
             } else if let support {
-                CopyDetailsForSupportButton(lines: HoldingInfo.supportLines(support))
+                CopyDetailsForSupportButton(
+                    lines: HoldingInfo.supportLines(support),
+                    artifact: supportArtifact
+                )
             }
             Button { onTryAgain() } label: { Text("Try again") }
                 .buttonStyle(.plain)
@@ -8145,7 +8512,11 @@ struct WizardRootView: View {
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             } else if let support {
-                CopyDetailsForSupportButton(lines: HoldingInfo.supportLines(support), prominent: true)
+                CopyDetailsForSupportButton(
+                    lines: HoldingInfo.supportLines(support),
+                    artifact: supportArtifact,
+                    prominent: true
+                )
             }
         }
     }
@@ -8187,6 +8558,7 @@ struct WizardRootView: View {
                 if let support = info.support {
                     HoldingSupportDisclosureView(
                         lines: HoldingInfo.supportLines(support),
+                        artifact: supportArtifact(for: info),
                         expandedCaption: "Send this to whoever looks after your Mac."
                     )
                 }
@@ -8212,7 +8584,11 @@ struct WizardRootView: View {
                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
         } primaryAction: {
             if let support = info.support {
-                CopyDetailsForSupportButton(lines: HoldingInfo.supportLines(support), prominent: true)
+                CopyDetailsForSupportButton(
+                    lines: HoldingInfo.supportLines(support),
+                    artifact: supportArtifact(for: info),
+                    prominent: true
+                )
             } else {
                 Button { onClose() } label: { Text("Continue in the menu bar") }
                     .buttonStyle(.borderedProminent)
@@ -8250,7 +8626,10 @@ struct WizardRootView: View {
                     stillTheSameCaption
                 }
                 if let support = info.support {
-                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                    HoldingSupportDisclosureView(
+                        lines: HoldingInfo.supportLines(support),
+                        artifact: supportArtifact(for: info)
+                    )
                 }
             }
         } leadingActions: {
@@ -8292,7 +8671,10 @@ struct WizardRootView: View {
                     stillTheSameCaption
                 }
                 if let support = info.support {
-                    HoldingSupportDisclosureView(lines: HoldingInfo.supportLines(support))
+                    HoldingSupportDisclosureView(
+                        lines: HoldingInfo.supportLines(support),
+                        artifact: supportArtifact(for: info)
+                    )
                 }
                 // §3.3's quiet caption, "above the footer" — the last thing
                 // in `content`, which sits immediately above `StepShell`'s
@@ -8328,7 +8710,7 @@ struct WizardRootView: View {
     /// onward (`HoldingInfo.isRepeat`), under the intro, above everything
     /// else in `content`.
     private var stillTheSameCaption: some View {
-        Text("Still the same. Nothing changed.")
+        Text("The latest check reached the same result.")
             .font(.caption)
             .foregroundColor(Color(nsColor: .secondaryLabelColor))
     }
@@ -8468,41 +8850,72 @@ private struct FramedCliDetailView: View {
 /// Mac.`").
 private struct HoldingSupportDisclosureView: View {
     let lines: [String]
+    var artifact: SupportReportArtifact? = nil
     var expandedCaption = "Send this to whoever looks after your Mac. It has nothing private in it."
     @State private var copied = false
 
+    private var title: String { artifact == nil ? "Details for support" : "Support report" }
+    private var reportText: String { artifact?.text ?? lines.joined(separator: "\n") }
+    private var caption: String {
+        artifact == nil
+            ? expandedCaption
+            : "Copy this into a Claude Code, Codex, or support conversation. It omits names, paths, project content, process output, and secrets."
+    }
+
     var body: some View {
-        DisclosureGroup("Details for support") {
+        DisclosureGroup(title) {
             VStack(alignment: .leading, spacing: 10) {
-                Text(expandedCaption)
+                Text(caption)
                     .font(.caption)
                     .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                Text(lines.joined(separator: "\n"))
+                Text(reportText)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(nsColor: .textBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                if let artifact, let filePath = artifact.filePath {
+                    Text("Saved at \(artifact.displayPath ?? filePath)")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .textSelection(.enabled)
+                    Button("Show in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([
+                            URL(fileURLWithPath: filePath)
+                        ])
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityLabel("Show saved support report in Finder")
+                } else if artifact != nil {
+                    Text("I couldn't save the report on this Mac. You can still copy it below.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .systemOrange))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Button {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
-                    pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
-                    copied = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        copied = false
+                    let didCopy = pasteboard.setString(reportText, forType: .string)
+                    copied = didCopy
+                    if didCopy {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            copied = false
+                        }
                     }
                 } label: {
-                    Text(copied ? "Copied" : "Copy details")
+                    Text(copied ? "Copied" : (artifact == nil ? "Copy details" : "Copy support report"))
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .accessibilityLabel(copied ? "Copied" : "Copy details")
+                .accessibilityLabel(copied ? "Copied" : (artifact == nil ? "Copy details" : "Copy support report"))
             }
             .padding(.top, 8)
         }
         .font(.callout.weight(.semibold))
-        .accessibilityLabel("Details for support")
+        .accessibilityLabel(title)
+        .accessibilityHint(artifact == nil ? "Technical details for support" : "A redacted report suitable for sharing")
     }
 }
 
@@ -8513,18 +8926,26 @@ private struct HoldingSupportDisclosureView: View {
 /// first, so whoever needs to hand it over copies it in one click.
 private struct CopyDetailsForSupportButton: View {
     let lines: [String]
+    var artifact: SupportReportArtifact? = nil
     var prominent = false
     @State private var copied = false
 
-    private var label: String { copied ? "Copied" : "Copy details for support" }
+    private var label: String {
+        copied ? "Copied" : (artifact == nil ? "Copy details for support" : "Copy support report")
+    }
 
     private func copy() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            copied = false
+        let didCopy = pasteboard.setString(
+            artifact?.text ?? lines.joined(separator: "\n"),
+            forType: .string
+        )
+        copied = didCopy
+        if didCopy {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                copied = false
+            }
         }
     }
 
@@ -9093,6 +9514,11 @@ enum WizardSelftest {
     }
 
     private static func run() async {
+        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "verify-support" {
+            await runVerifySupportSelftest()
+            exit(0)
+        }
+
         if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "auth-reuse" {
             await runAuthReuseSelftest()
             exit(0)
@@ -9439,6 +9865,135 @@ enum WizardSelftest {
                 + " requiredDeferred=\(requiredDeferred) deferredNotYet=\(deferredRows.notYet.count)"
                 + " blockedResult=\(blockedResult) claudeOnlyNoCodex=\(claudeOnlyNoCodex)"
         )
+    }
+
+    /// Verify's exact privacy and persistence regression: the DTO literals
+    /// contain sentinel host/path/detail/layer/SHA/item/reason values that the
+    /// CLOSED formatter must never serialize. The saved artifact is then
+    /// inspected through lstat so the shell harness can assert mode and
+    /// retention without trusting an in-memory claim.
+    private static func runVerifySupportSelftest() async {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let initialJSON = """
+        {
+          "schema_version":"1.sentinel-private-schema.0",
+          "host":"sentinel-private-host",
+          "score":88,
+          "status":"update-available",
+          "offline":false,
+          "generated_at":"2026-08-06T16:53:56Z",
+          "checkers":[
+            {
+              "id":"sentinel-private-checker",
+              "severity":"warn",
+              "destructive":false,
+              "detail":"authorization=Bearer sentinel-secret-value",
+              "repair":"cc update",
+              "layer":"sentinel-private-layer",
+              "layer_role":"foundation",
+              "product":"claude",
+              "local_sha":"sentinel-private-local-sha",
+              "remote_sha":"sentinel-private-remote-sha",
+              "path":"/Users/sentinel/private/path"
+            },
+            {
+              "id":"second-private-checker",
+              "severity":"pass",
+              "destructive":false,
+              "detail":"sentinel-private-pass-detail"
+            }
+          ],
+          "auth":[]
+        }
+        """
+        let finalJSON = initialJSON
+        let updateJSON = """
+        {
+          "schema_version":"1.sentinel-private-update-schema.0",
+          "host":"sentinel-private-host",
+          "result":"applied",
+          "lock_before":"sentinel-private-before",
+          "lock_after":"sentinel-private-after",
+          "changed":[{
+            "dimension":"command",
+            "layer":"sentinel-private-layer",
+            "item":"sentinel-private-item",
+            "op":"updated",
+            "from":"sentinel-private-from",
+            "to":"sentinel-private-to",
+            "signed":true
+          }],
+          "held_for_approval":[{
+            "dimension":"command",
+            "from":"sentinel-private-held-from",
+            "to":"sentinel-private-held-to",
+            "reason":"sentinel-secret-value"
+          }],
+          "blocked":[{"detail":"sentinel-secret-value"}]
+        }
+        """
+
+        guard let initial = try? decoder.decode(DoctorReport.self, from: Data(initialJSON.utf8)),
+              let final = try? decoder.decode(DoctorReport.self, from: Data(finalJSON.utf8)),
+              let update = try? decoder.decode(UpdateReport.self, from: Data(updateJSON.utf8)) else {
+            print("SELFTEST verifySupport=fixture-error")
+            return
+        }
+
+        var attempt = VerificationSupportAttempt(
+            recordedAt: Date(timeIntervalSince1970: 1_775_664_600)
+        )
+        attempt.initialDoctor = initial
+        attempt.updateReport = update
+        attempt.finalDoctor = final
+        let report = attempt.formattedReport()
+        let forbidden = [
+            "sentinel-private", "sentinel-secret-value", "/Users/",
+            "authorization=", "Bearer ",
+        ]
+        let privacySafe = forbidden.allSatisfy { !report.contains($0) }
+        let artifact = await SupportReportStore.save(report)
+
+        var fileMode = "none"
+        var directoryMode = "none"
+        var savedInitially = false
+        if let path = artifact.filePath {
+            savedInitially = FileManager.default.fileExists(atPath: path)
+            fileMode = posixMode(path)
+            directoryMode = posixMode(
+                URL(fileURLWithPath: path).deletingLastPathComponent().path
+            )
+        }
+
+        // Exercise retention in one process. The initially captured file may
+        // be the oldest and therefore pruned; its existence/mode were already
+        // observed above before these app-owned probe reports were added.
+        if artifact.filePath != nil {
+            for index in 0..<21 {
+                _ = await SupportReportStore.save("retention probe \(index)")
+            }
+        }
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        let directory = URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent(".claude/cc/diagnostics/control-tower", isDirectory: true)
+        let reportCount = ((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [])
+            .filter { $0.hasPrefix("verify-") && $0.hasSuffix(".txt") }
+            .count
+
+        print(
+            "SELFTEST verifySupport=\(artifact.filePath == nil ? "copy-only" : "saved")"
+                + " privacySafe=\(privacySafe) savedInitially=\(savedInitially)"
+                + " fileMode=\(fileMode) directoryMode=\(directoryMode)"
+                + " retained=\(reportCount)"
+        )
+        print("SELFTEST verifySupportReport=\(report.replacingOccurrences(of: "\n", with: "|"))")
+    }
+
+    private static func posixMode(_ path: String) -> String {
+        var metadata = stat()
+        guard Darwin.lstat(path, &metadata) == 0 else { return "none" }
+        return String(format: "%03o", metadata.st_mode & 0o777)
     }
 
     // MARK: CT_SELFTEST_STEP=org-question — §2.1.1's organization question

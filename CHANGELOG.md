@@ -2,6 +2,24 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.6] - 2026-08-06
+
+### Fixed
+
+- Verify now preserves the evidence from its exact check-update-check attempt instead of reducing a paused result to the app version, helper path, report format, and timestamp. The new support report identifies each non-ready product and layer role, records whether the update changed, held, or blocked work, and shows the fresh post-update result.
+- The report is intentionally safe to paste into Claude Code, Codex, or a support conversation. It is built from a closed set of typed fields and omits host, account, organization and project names, paths, repository addresses, layer IDs, file content, process output, environment values, commit IDs, and secrets.
+- Control Tower saves up to 20 reports under `~/.claude/cc/diagnostics/control-tower/` with owner-only directory and file permissions, offers **Show in Finder**, and keeps **Copy support report** available if safe persistence is unavailable. Symlinked or untrusted storage is refused.
+- The bundled helper includes the `codex-portable-copy-v1` migration fix for projects that do not already have a `scripts/` directory. Failed migrations also remove only the empty directories they created during rollback.
+
+### Changed
+
+- Repeated Verify pauses now say **The latest check reached the same result.** The app no longer claims that nothing changed without ledger evidence.
+- The app and Admin bundle are version `0.6.6` build `33`. The release requires and bundles exactly `cc 2.9.2`, built from signed parentless Foundation snapshot `v5.13.52`; `controltower.compat.json` declares `cc >=2.9.2,<3.0.0`.
+
+### Rollback
+
+- Reinstall the signed `0.6.5` DMG, `Copilot-Control-Tower_0.6.5_arm64.dmg`, to return to the previous Verify support surface and bundled `cc 2.9.1`. Reinstalling changes the app/helper version only and does not alter any Copilot checkout, saved diagnostic report, or project content. Release tags are immutable, so a defective build is superseded with a new version.
+
 ## [0.6.5] - 2026-08-06
 
 ### Changed

@@ -118,6 +118,7 @@ cp assets/brand/aviator-glyph.svg "${APP_RESOURCES}/aviator-glyph.svg"
 chmod 755 "${APP_BIN}"
 if [[ -n "${CT_VENDORED_CC_PATH:-}" ]]; then
     cp -p "${CT_VENDORED_CC_PATH}" "${APP_RESOURCES}/cc"
+    cp packaging/cc/VERSION "${APP_RESOURCES}/cc-version.txt"
     chmod 755 "${APP_RESOURCES}/cc"
 fi
 
