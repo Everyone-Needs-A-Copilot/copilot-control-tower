@@ -287,22 +287,15 @@ struct ReconciliationContractDriver {
         )
 
         let terminalCommand = ReconciliationGuideTerminalCommand(
-            executableURL: URL(fileURLWithPath: "/Applications/Control Tower/cc"),
-            assistantExecutableURL: URL(fileURLWithPath: "/Applications/Codex/bin/codex"),
-            assistant: "codex",
-            assistantDisplayName: "Codex",
-            workspaceRoot: "/Projects/Team; literal",
-            additionalWorkspaceRoots: ["/Projects/Client sites"],
-            instructionsPath: "/Projects/Team; literal/.copilot-control-tower/INSTRUCTIONS.md",
-            guideId: "guide_11111111111111111111111111111111"
+            workspaceRoot: "/Projects/Team; literal"
         )
-        precondition(terminalCommand.executableURL.path == "/Applications/Control Tower/cc")
-        precondition(terminalCommand.commandLine.contains("guide-start"))
-        precondition(terminalCommand.commandLine.contains("guide-finalize"))
-        precondition(terminalCommand.commandLine.contains("COPILOT_SETUP_HELPER"))
-        precondition(terminalCommand.commandLine.contains("'/Projects/Team; literal'"))
-        precondition(terminalCommand.commandLine.contains("--add-dir '/Projects/Client sites'"))
-        precondition(terminalCommand.commandLine.contains("$(/bin/cat"))
+        precondition(terminalCommand.commandLine == "cd '/Projects/Team; literal'")
+        precondition(!terminalCommand.commandLine.contains("guide-start"))
+        precondition(!terminalCommand.commandLine.contains("guide-finalize"))
+        precondition(!terminalCommand.commandLine.contains("COPILOT_SETUP_HELPER"))
+        precondition(!terminalCommand.commandLine.contains("codex"))
+        precondition(!terminalCommand.commandLine.contains("INSTRUCTIONS.md"))
+        precondition(decodedGuidePrepare.startPrompt.contains(decodedGuidePrepare.instructionsPath))
 
         let client = CliClient.shared
         switch await client.reconciliationAssess() {

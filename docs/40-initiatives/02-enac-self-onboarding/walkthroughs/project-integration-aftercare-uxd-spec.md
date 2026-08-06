@@ -1,6 +1,14 @@
 # Step 7 Project Triage and Aftercare — UX Specification
 
-Status: owner-review walkthrough
+Status: superseded decision history
+
+> Superseded by
+> [`fleet-guided-reconciliation-uxd-spec.md`](fleet-guided-reconciliation-uxd-spec.md)
+> and walkthrough 23. The shipping app does not open an assistant inside an
+> individual project. It prepares one Sites-root work order, opens only a plain
+> Terminal there, and lets the person start and control Claude Code or Codex.
+> The per-project launch and diagnostic actions below are retained only to show
+> the earlier design.
 
 Task: `tc` 195
 

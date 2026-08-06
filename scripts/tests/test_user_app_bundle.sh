@@ -93,7 +93,7 @@ if [[ "${projects_step_output}" != *"SELFTEST projectsStep workspaceDecode=pass 
 fi
 
 tray_projects_output="$(CT_TRAY_PROJECTS_SELFTEST=1 "${APP_BIN}")"
-if [[ "${tray_projects_output}" != *"SELFTEST trayProjects notice=pass rows=pass automatic=pass automaticNotice=pass revert=pass launcher=pass diagnostic=pass"* ]]; then
+if [[ "${tray_projects_output}" != *"SELFTEST trayProjects notice=pass rows=pass routes=pass automatic=pass automaticNotice=pass revert=pass diagnostic=pass"* ]]; then
   echo "Tray projects drill-in selftest failed: ${tray_projects_output}" >&2
   exit 1
 fi

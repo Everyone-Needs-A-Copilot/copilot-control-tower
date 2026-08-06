@@ -2,6 +2,25 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.5] - 2026-08-06
+
+### Changed
+
+- Project integration is now a user-controlled handoff. Control Tower writes one Python-authored work order for the complete selected batch, opens a normal Terminal at the Sites/projects folder, and stops there. It does not start Claude Code or Codex, paste a prompt, create per-project sessions, watch a process, or show assistant progress it cannot actually know.
+- The project screen gives the person four plain steps: start `codex` or `claude` in the Terminal, copy the displayed Python-authored prompt, paste it into that conversation, and keep talking to the assistant until the work is resolved. The prompt points to the exact private instruction file, which contains the project list, evidence, preservation rules, allowed changes, stop conditions, and exact Python verification commands.
+- The person explicitly chooses **Check the projects** when ready. Control Tower then asks Python to verify the complete batch and shows the real remaining reasons. Individual project details no longer contain actions that auto-launch an assistant inside that repository.
+- The app and Admin bundle are version `0.6.5` build `32`. The release requires and bundles exactly `cc 2.9.1`, built from signed parentless Foundation snapshot `v5.13.51`; `controltower.compat.json` declares `cc >=2.9.1,<3.0.0`. Reconciliation response schema remains `2.0`; guide reports now require the additive `start_prompt` handoff field.
+
+### Safety
+
+- Python still owns selection, work-order content, project checks, final verification, and every Ready/remaining verdict. A conversation or assistant statement is never proof.
+- The Terminal command is exactly one quoted `cd` to Python's returned workspace root. No assistant executable, instruction content, helper command, project path, or prompt is passed on the command line.
+- Existing project work and project-specific instructions remain protected by the work order. Copilot ecosystem repositories, dirty or held projects, unsafe paths, ambiguous states, and owner-only decisions remain outside unauthorized changes.
+
+### Rollback
+
+- Reinstall the signed `0.6.4` DMG, `Copilot-Control-Tower_0.6.4_arm64.dmg`, to return to the prior auto-launched conversation behavior and bundled `cc 2.9.0`. Reinstalling changes the app/helper version only and does not alter any Copilot checkout or project content. Release tags are immutable, so a defective build is superseded with a new version.
+
 ## [0.6.4] - 2026-08-06
 
 ### Changed

@@ -39,6 +39,15 @@ check_rg() {
     fi
 }
 
+check_absent() {
+    local id="$1" title="$2" pattern="$3" file="$4" importance="${5:-standard}"
+    if rg -Fq "${pattern}" "${REPO_ROOT}/${file}"; then
+        fail "${id}" "${title}" "${importance}"
+    else
+        pass "${id}" "${title}"
+    fi
+}
+
 # Walkthrough 05 / 06: truthful setup and visual realization.
 check_rg 05-01 "named four-copilot roster" '["Knowledge Copilot", "CLI Copilot", "Claude Copilot", "Codex Copilot"]' native/wizard.swift critical
 check_rg 05-02 "exact setup inventory remains CLI-authored" 'self.ecosystemInventory = onboard.inventory ?? []' native/wizard.swift critical
@@ -64,19 +73,19 @@ check_rg 07-07 "guided route shows detected and preserved facts" 'projectPreserv
 check_rg 07-08 "deep specialization keeps capability counts visible" 'projectCapabilitySummary(workspace.capabilities)' native/control-tower-tray.swift
 check_rg 07-09 "mixed customization carries explicit stop conditions" 'plan.stopConditions + plan.verification.stopConditions' native/control-tower-tray.swift critical
 check_rg 07-10 "guided plan states Detected/Required/Preserve/Must not" 'wizardProjectFactRow("Must not", prohibited)' native/wizard.swift
-check_rg 07-11 "authorized author can run Codex or Claude Code visibly" 'Button("Run in Claude Code")' native/wizard.swift
-check_rg 07-12 "full generated prompt is reviewable" 'DisclosureGroup("Full guided prompt")' native/wizard.swift
+check_rg 07-11 "user starts Codex or Claude Code in one Sites-root Terminal" 'You start Claude Code or Codex yourself' native/wizard.swift
+check_rg 07-12 "Python-generated start prompt is reviewable" 'sectionCard("Prompt to paste into Claude Code or Codex")' native/wizard.swift
 check_rg 07-13 "non-owner gets copy and Share handoff actions" 'ShareLink(item: handoff)' native/control-tower-tray.swift
-check_rg 07-14 "returning from an assistant triggers CLI verification" 'model.verifyPendingProjectOnReturn()' native/wizard.swift critical
+check_rg 07-14 "user explicitly requests Python verification" 'Button("Check the projects")' native/wizard.swift critical
 check_rg 07-15 "verification remains authoritative and fail-closed" 'The project remains incomplete.' native/control-tower-tray.swift critical
 check_rg 07-16 "completed custom capability stays visible in register" 'wizardCapabilitySummary(workspace.capabilities)' native/wizard.swift
 check_rg 07-17 "unfinished project work remains available after setup" 'Every unfinished route stays available under Your projects in Copilot Control Tower' native/wizard.swift critical
 check_rg 07-18 "menu-bar aftercare repeats the durable return path" 'Project setup is always available here. Finish one or two projects now' native/control-tower-tray.swift critical
 check_rg 07-19 "could-not-confirm exposes exact diagnostic evidence" 'ProjectTriageRender.diagnosticReport(workspace)' native/control-tower-tray.swift critical
-check_rg 07-20 "guided setup launches a visible Terminal session" 'tell application "Terminal"' native/control-tower-tray.swift critical
-check_rg 07-21 "helper-authored read-only diagnosis launches visibly" 'Button("Diagnose in Claude Code")' native/wizard.swift critical
+check_rg 07-20 "guided setup opens a visible Terminal at the projects root" 'do script \(Self.appleScriptLiteral(commandLine))' native/cli-client.swift critical
+check_absent 07-21 "project details cannot auto-launch a per-project assistant" 'Button("Run in Claude Code")' native/wizard.swift critical
 check_rg 07-22 "signed User app can request Terminal automation" 'scripts/verify-user-automation.sh "${app_path}"' scripts/package-user-release.sh critical
-check_rg 07-23 "guided assistants use resolved absolute executables" 'guard let executablePath = resolveExecutable(assistant.command)' native/control-tower-tray.swift critical
+check_rg 07-23 "Terminal receives only the quoted projects-root change-directory command" '"cd \(Self.shellQuote(workspaceRoot))"' native/cli-client.swift critical
 check_rg 08-V "high-fidelity popover has readable status hierarchy" 'case .warn: return "Needs review"' native/control-tower-tray.swift
 
 # Exact embedded-helper boundary. These are critical and intentionally fail

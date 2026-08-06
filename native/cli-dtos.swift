@@ -2052,6 +2052,7 @@ struct ReconciliationGuideReport: Decodable {
     let workspaceRoot: String
     let workspaceRoots: [String]
     let instructionsPath: String
+    let startPrompt: String
     let projectsPath: String
     let selectedProjects: [String]
     let projectStatus: [ReconciliationGuideProjectStatus]
@@ -2068,6 +2069,8 @@ struct ReconciliationGuideReport: Decodable {
             && guideId.hasPrefix("guide_")
             && !workspaceRoots.isEmpty
             && workspaceRoots.first == workspaceRoot
+            && !startPrompt.isEmpty
+            && startPrompt.contains(instructionsPath)
             && Set(workspaceRoots).isSubset(of: Set(request.roots))
             && Set(workspaceRoots).count == workspaceRoots.count
             && selectedProjects == requestPaths

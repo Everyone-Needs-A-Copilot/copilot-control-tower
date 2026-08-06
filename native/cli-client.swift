@@ -346,64 +346,14 @@ enum CliLocator {
     }
 }
 
-/// The complete command handed to one fleet-level Terminal conversation.
-/// Prompt text remains data in Python's immutable instruction file. Every
-/// executable and path is shell-quoted before the command reaches Terminal.
+/// The only command handed to Terminal for a fleet-level project handoff.
+/// It changes to Python's approved root and stops. Control Tower never starts
+/// an assistant, pastes a prompt, or owns the resulting conversation.
 struct ReconciliationGuideTerminalCommand: Equatable {
-    let executableURL: URL
-    let assistantExecutableURL: URL
-    let assistant: String
-    let assistantDisplayName: String
     let workspaceRoot: String
-    let additionalWorkspaceRoots: [String]
-    let instructionsPath: String
-    let guideId: String
 
     var commandLine: String {
-        let helper = Self.shellQuote(executableURL.path)
-        let assistantExecutable = Self.shellQuote(assistantExecutableURL.path)
-        let root = Self.shellQuote(workspaceRoot)
-        let additionalRoots = additionalWorkspaceRoots
-            .map { "--add-dir \(Self.shellQuote($0))" }
-            .joined(separator: " ")
-        let instructions = Self.shellQuote(instructionsPath)
-        let identifier = Self.shellQuote(guideId)
-        let assistantValue = Self.shellQuote(assistant)
-        let assistantCommand = assistant == "codex"
-            ? "\(assistantExecutable) -C \(root) \(additionalRoots) \"$(/bin/cat \(instructions))\""
-            : "cd \(root) && \(assistantExecutable) \(additionalRoots) -- \"$(/bin/cat \(instructions))\""
-        return """
-        export COPILOT_SETUP_HELPER=\(helper); \
-        cd \(root) || exit 1; \
-        echo 'Copilot Control Tower — one-session project setup'; \
-        echo \(Self.shellQuote("Assistant: \(assistantDisplayName)")); \
-        echo \(Self.shellQuote("Projects folder: \(workspaceRoot)")); \
-        echo 'Python prepared the work order. It will verify every project independently.'; \
-        echo ''; \
-        \(helper) reconcile guide-start --guide-id \(identifier) --assistant \(assistantValue) --json; \
-        ct_start_status=$?; \
-        if [ $ct_start_status -ne 0 ]; then \
-          echo 'The guided session could not start safely. Return to Control Tower for details.'; \
-          exit $ct_start_status; \
-        fi; \
-        echo ''; \
-        echo 'The assistant is starting. Ask questions here if any project needs a decision.'; \
-        echo ''; \
-        \(assistantCommand); \
-        ct_assistant_status=$?; \
-        echo ''; \
-        echo 'Running Python final verification across the complete selected batch…'; \
-        \(helper) reconcile guide-finalize --guide-id \(identifier) --json; \
-        ct_verify_status=$?; \
-        echo ''; \
-        if [ $ct_verify_status -eq 0 ]; then \
-          echo 'Every selected project passed. Return to Control Tower to continue.'; \
-        elif [ $ct_assistant_status -eq 0 ]; then \
-          echo 'Some projects still need attention. Continue this conversation or return to Control Tower to reopen it.'; \
-        else \
-          echo 'The assistant ended with a problem and some projects still need attention. Return to Control Tower for the exact list.'; \
-        fi
-        """
+        "cd \(Self.shellQuote(workspaceRoot))"
     }
 
     var appleScriptSource: String {

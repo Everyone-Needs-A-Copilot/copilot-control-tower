@@ -1,52 +1,74 @@
-# Fleet-guided reconciliation — service specification
+# User-controlled project handoff — service specification
 
 ## Job to be done
 
-When many projects have different existing Claude and Codex setups, the person
-wants one capable assistant conversation to finish the whole approved Sites
-folder, so they do not have to understand repositories, recipes, or verification
-commands.
+When many projects need different Claude or Codex integration work, the person
+wants one understandable handoff from the Sites folder, so they can use one
+normal coding-assistant conversation without visiting every project or giving
+Control Tower control of that conversation.
 
 ## Service concept
 
-Control Tower prepares one trustworthy work order; Codex or Claude Code performs
-the project-specific reasoning in one root-level conversation; Python witnesses
-scope, progress, and completion. The user has one handoff and one place to ask
-questions.
+Control Tower prepares the work; the person controls the conversation; Python
+checks the result. The app writes one immutable work order and one short prompt,
+opens an ordinary Terminal window at the approved Sites root, and explains how
+to start Claude Code or Codex. It does not start either assistant, paste the
+prompt, observe the conversation, or infer progress from it.
+
+This direction is intentionally narrower than the previous guided-session
+design. It follows the product's “as little app as possible” and “second pilot”
+boundaries: Control Tower is a trustworthy handoff and verifier, not an agent
+runner.
 
 ## Journey and responsibilities
 
 | Stage | Person sees or does | Control Tower | Python helper | Coding assistant |
 |---|---|---|---|---|
-| Select | Reviews one included batch | Renders authored selection | Excludes unsafe and ecosystem repositories | Not running |
-| Start | Chooses Codex or Claude Code | Requests package and opens Terminal | Writes exact runbook and project inventory | Reads the package |
-| Work | Watches Terminal or continues the conversation | Shows verified/remaining counts | Freshly checks reported project milestones | Inspects and fixes projects sequentially |
-| Decide | Answers only genuine project-owner questions | Keeps one session visible | Preserves the unresolved reason | Asks in the same conversation |
-| Finish | Returns to one result | Rechecks and advances or offers continuation | Verifies the complete selection | Cannot self-approve |
+| Select | Reviews one included batch | Renders Python's selection | Excludes unsafe and ecosystem repositories | Not running |
+| Prepare | Chooses **Prepare instructions** | Requests one package | Writes the exact work order and copy prompt | Not running |
+| Open | Receives a normal Terminal at Sites | Opens the folder only | No lifecycle claim | Not running |
+| Start | Types `codex` or `claude`, copies the prompt, and pastes it | Shows the steps and prompt | Supplies the file the prompt references | Starts only because the person chose to start it |
+| Work | Talks to the assistant and answers genuine questions | Does not watch, poll, or interpret | Provides exact per-project checks in the work order | Inspects, changes, asks, and verifies sequentially |
+| Check | Returns and chooses **Check the projects** | Invokes a fresh final check | Verifies the complete selected batch | Cannot self-approve |
+| Finish | Sees verified or remaining projects | Renders the report | Owns every readiness claim | May be resumed manually with the same prompt |
 
-## Failure paths
+## Failure and recovery paths
 
-- If the chosen assistant is unavailable, the package remains useful and the
-  other assistant or copied instructions can use it.
-- If Terminal permission is denied, no session is claimed to have started.
-- If the assistant stops, Python verifies actual filesystem evidence and keeps
-  remaining work explicit.
-- If evidence changes after preparation, current verification wins.
-- Dirty or unsafe projects are never added to the assistant's write scope.
-
-## Alternatives rejected
-
-- One session per project: unacceptable cognitive and operational load.
-- Content-free recipe selection: safe but unable to resolve real customization.
-- An in-app chat surface: makes Control Tower a second pilot and expands audit
-  surface without improving the actual coding environment.
-- Trusting the assistant's completion statement: violates evidence honesty.
+- If Terminal cannot open, the work order and prompt remain available. The app
+  gives the exact Sites path and tells the person to open Terminal there.
+- Claude Code or Codex does not need to be detected before preparation. The
+  person may install, sign in to, or switch assistants without recreating the
+  work order.
+- If the assistant stops, crashes, or asks a question, Control Tower does not
+  display a spinner or invent a status. The person continues the normal
+  conversation or returns later.
+- If a final check finds remaining work, the same prompt and work order stay
+  available. Nothing is rolled back merely because verification is incomplete.
+- Dirty or unsafe projects remain outside the authorized work list. The work
+  order requires the assistant to stop and ask before touching newly dirty work.
+- If the package changes after Python creates it, Python rejects it before any
+  result is trusted.
 
 ## Service constraints
 
-- The handoff file may contain project paths and non-secret inspection facts.
-- It must not contain project-authored file contents, credentials, or tokens.
-- The person explicitly launches the external assistant, which is the competent
-  actor for project-specific edits.
-- Python alone authors ready, remaining, blocked, and excluded states.
+- The work order and prompt may contain approved project paths and non-secret
+  inspection facts. They contain no credentials or project file contents.
+- The Terminal handoff opens only the first approved root. Additional approved
+  roots remain named inside the Python-authored file.
+- The app never composes project instructions or decides readiness.
+- The user's assistant conversation is not a child process or lifecycle owned
+  by Control Tower.
+
+## Alternatives rejected
+
+- Automatically launching Claude Code or Codex with the work order: removes the
+  person's control and creates an opaque, non-interactive experience.
+- Pasting or executing a command automatically: makes the app the session
+  operator and hides the moment authority changes hands.
+- Polling the guide while the user works: implies visibility into the
+  conversation and produces an unhelpful spinner when no reliable progress is
+  available.
+- One session per project: unacceptable cognitive and operational load.
+- An in-app chat surface: makes Control Tower a second pilot.
+- Trusting the assistant's completion statement: violates evidence honesty.
 

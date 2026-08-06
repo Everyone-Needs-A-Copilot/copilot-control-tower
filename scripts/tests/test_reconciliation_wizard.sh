@@ -54,34 +54,35 @@ require_source "reconciliationComponentScopeLabel"
 require_source "Claude Copilot only"
 require_source "Codex Copilot only"
 reject_source "Every project gets Claude Copilot and Codex Copilot."
-require_source "Open \\(model.reconciliationSelectedProjectCount)"
+require_source "Prepare instructions and open Terminal"
 require_source "reconciliationAssistantProjectSelectionRow"
 reject_source "toggleReconciliationComponent"
 reject_source "selectReconciliationRecipe"
 reject_source "reconciliationComponentSelection"
 
-# Guided reconciliation is one root-level session. Python writes the work
-# order, Swift passes only returned package paths plus exact executables, and
-# Python-owned checks remain the completion authority.
+# Guided reconciliation is one user-controlled root-level session. Python
+# writes the work order and copy prompt. Swift opens only a normal Terminal at
+# the returned root and Python-owned checks remain the completion authority.
 for needle in \
     'reconciliationGuidePrepare(' \
     'ReconciliationGuideLauncher.open(' \
-    'reconciliationGuideStatus(' \
     'reconciliationGuideFinalize(' \
     'ReconciliationGuideTerminalCommand('; do
     require_source "${needle}"
 done
-for needle in 'COPILOT_SETUP_HELPER' 'guide-start' 'guide-finalize' '$(/bin/cat'; do
-    if ! rg -Fq -- "${needle}" "${CLIENT}"; then
-        echo "reconciliation wizard: guided Terminal command is missing ${needle}" >&2
+for needle in 'COPILOT_SETUP_HELPER' 'guide-start' 'guide-finalize' '$(/bin/cat' 'assistantExecutableURL'; do
+    if sed -n '/struct ReconciliationGuideTerminalCommand/,/^}/p' "${CLIENT}" | rg -Fq -- "${needle}"; then
+        echo "reconciliation wizard: Terminal-only handoff still contains ${needle}" >&2
         exit 1
     fi
 done
-if rg -n 'ProjectIntegrationLauncher\.open|prompt:' "${WIZARD}" \
-    | rg 'ReconciliationGuideLauncher|startGuidedReconciliation|pollGuidedReconciliation'; then
-    echo "reconciliation wizard: guided setup leaked into the per-project prompt launcher" >&2
-    exit 1
-fi
+require_source 'prepareGuidedReconciliation()'
+require_source 'copyGuidedStartPrompt()'
+require_source 'openPreparedReconciliationTerminal()'
+require_source 'Prompt to paste into Claude Code or Codex'
+reject_source 'pollGuidedReconciliation'
+reject_source 'stopGuidedReconciliationMonitoring'
+reject_source 'reconciliationGuideAssistant'
 for field in 'assistantSelection' 'resolutionSummary' 'guideId' 'projectStatus' 'remainingProjectCount'; do
     if ! rg -Fq -- "${field}" "${DTOS}"; then
         echo "reconciliation wizard: missing assistant DTO field: ${field}" >&2
@@ -96,14 +97,14 @@ for field in 'scopeCounts' 'managedSeparately' 'leftUnchanged' 'progress'; do
 done
 require_source "Left unchanged to protect your work"
 require_source "managed separately and will not receive project changes here."
-require_source "One conversation for all selected projects"
-require_source "Only Python can mark one ready."
-require_source "Reopen in Codex"
-require_source "Reopen in Claude Code"
-require_source "Run final check"
+require_source "One work order for all selected projects"
+require_source "The app does not start, paste into, or watch the assistant."
+require_source "Copy prompt"
+require_source "Show Terminal"
+require_source "Check the projects"
 require_source "status.reasons"
 require_source "reconciliationGuideNotice"
-reject_source "reconciliationErrorDetail = \"Instructions copied."
+reject_source "reconciliationErrorDetail = \"Prompt copied."
 
 # The renderer must use contract-authored counts, explanations, operations,
 # outcomes, verification, diagnostics, and next actions.
@@ -127,14 +128,13 @@ done
 for scenario in \
     "projects-reconciliation-select" \
     "projects-reconciliation-individual" \
-    "projects-reconciliation-assistant-select" \
-    "projects-reconciliation-assistant-individual" \
-    "projects-reconciliation-assistant-preparing" \
-    "projects-reconciliation-assistant-running" \
-    "projects-reconciliation-assistant-stale" \
-    "projects-reconciliation-assistant-ready" \
-    "projects-reconciliation-assistant-permission" \
-    "projects-reconciliation-assistant-unavailable" \
+    "projects-reconciliation-handoff-select" \
+    "projects-reconciliation-handoff-individual" \
+    "projects-reconciliation-handoff-preparing" \
+    "projects-reconciliation-handoff-ready" \
+    "projects-reconciliation-handoff-terminal" \
+    "projects-reconciliation-handoff-remaining" \
+    "projects-reconciliation-handoff-verified" \
     "projects-reconciliation-review" \
     "projects-reconciliation-receipt" \
     "projects-reconciliation-recovery"; do

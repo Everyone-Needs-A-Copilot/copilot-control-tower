@@ -1,6 +1,6 @@
 # Copilot Control Tower
 
-> **Status line — prepared for the 2026-08-06 release.** Version: **v0.6.4** (build **31**), the native SwiftUI/AppKit release that writes one Python-authored fleet work order and opens the complete selected project batch in one visible Codex or Claude Code conversation. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.9.0`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
+> **Status line — prepared for the 2026-08-06 release.** Version: **v0.6.5** (build **32**), the native SwiftUI/AppKit release that writes one Python-authored Sites-level project work order, opens a plain Terminal at that projects folder, and lets the person start and control one Claude Code or Codex conversation themselves. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.9.1`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
 
 **The always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem — the technical superpowers of a deeply skilled engineer, in the hands of someone who has never opened a terminal.**
 
@@ -32,7 +32,7 @@ The real user surface, in the product's own vocabulary:
 
 - **The tray** — a 12-state badge vocabulary (pass, ring, key, update, triangle, wrench, clock, cloud-slash, bang, spinner, hollow, none) on a single 300-second poll, plus refresh on launch and on popover open. Actions: Sync now, What changed, Settings, Quit (Admin builds add Open Administration).
 - **The first-run wizard** — nine stages: Welcome, Connect GitHub, Detect, What you're getting, Departments, Your connections, Your projects, Set up, Verify.
-- **Your projects** — starts with every Python-authorized new setup and correction selected. Customized projects that have a bounded route can be prepared in one visible Claude Code Terminal session without prompt copy/paste; Claude Code proposes only from Python-authored choices, while Control Tower still requires exact-plan review and Python remains the only writer and verifier.
+- **Your projects** — starts with every Python-authorized new setup and correction selected. Control Tower writes one work order for the complete selected batch, opens a normal Terminal at the projects folder, and shows one short prompt to paste after the person starts Claude Code or Codex themselves. The person owns that one conversation; Python remains the only verifier.
 - **Settings** — four components (Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot) across four tiers (foundation, organization, department, personal), plus a project list and a connections card.
 - **Admin mode** — 16 surfaces across an 11-stage onboarding flow (orientation through done) and a 5-stage governance flow (add a department, someone left, connect the shared store, org setup, analytics), driven by a deterministic bash engine (`scripts/admin_bootstrap.sh`), never by the app computing org state itself.
 

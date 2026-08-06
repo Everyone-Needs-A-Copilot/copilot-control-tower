@@ -171,7 +171,8 @@ enum ProjectReconciliationStage: Equatable {
     case assessing
     case selecting
     case guidePreparing
-    case guideRunning
+    case guideReady
+    case guideChecking
     case guideResult
     case planning
     case reviewing
@@ -181,42 +182,26 @@ enum ProjectReconciliationStage: Equatable {
     case recovering
 }
 
-enum ReconciliationAssistantLaunchIssue: Equatable {
-    case helperUnavailable
-    case assistantUnavailable
+enum ReconciliationHandoffIssue: Equatable {
     case workspaceUnavailable
     case instructionsUnavailable
     case automationPermissionDenied
     case terminalUnavailable
 }
 
-/// Opens one visible assistant conversation at the approved projects root.
-/// Python created and fingerprinted the instruction package; Swift supplies
-/// only those returned paths, the opaque guide id, the exact bundled helper,
-/// and one locally resolved assistant executable.
+/// Opens a normal Terminal at the approved projects root and does nothing else.
+/// Python created and fingerprinted the instruction package and copy prompt;
+/// the person decides which assistant to start and controls the conversation.
 enum ReconciliationGuideLauncher {
     enum LaunchResult: Equatable {
         case openedInTerminal
-        case helperUnavailable
-        case assistantUnavailable
         case workspaceUnavailable
         case instructionsUnavailable
         case automationPermissionDenied
         case terminalUnavailable
     }
 
-    static func open(
-        report: ReconciliationGuideReport,
-        assistant: ProjectIntegrationLauncher.Assistant
-    ) -> LaunchResult {
-        guard let executableURL = CliLocator.locate() else {
-            return .helperUnavailable
-        }
-        guard let assistantPath = ProjectIntegrationLauncher.resolveExecutable(
-            assistant.command
-        ) else {
-            return .assistantUnavailable
-        }
+    static func open(report: ReconciliationGuideReport) -> LaunchResult {
         var rootIsDirectory: ObjCBool = false
         guard FileManager.default.fileExists(
             atPath: report.workspaceRoot,
@@ -232,14 +217,7 @@ enum ReconciliationGuideLauncher {
             return .instructionsUnavailable
         }
         let command = ReconciliationGuideTerminalCommand(
-            executableURL: executableURL,
-            assistantExecutableURL: URL(fileURLWithPath: assistantPath),
-            assistant: assistant.command == "codex" ? "codex" : "claude-code",
-            assistantDisplayName: assistant.displayName,
-            workspaceRoot: report.workspaceRoot,
-            additionalWorkspaceRoots: Array(report.workspaceRoots.dropFirst()),
-            instructionsPath: report.instructionsPath,
-            guideId: report.guideId
+            workspaceRoot: report.workspaceRoot
         )
         var error: NSDictionary?
         guard NSAppleScript(source: command.appleScriptSource)?
@@ -1313,8 +1291,7 @@ final class WizardModel: ObservableObject {
     @Published var reconciliationVerifyReport: ReconciliationVerifyReport?
     @Published var reconciliationRecoverReport: ReconciliationRecoverReport?
     @Published var reconciliationGuideReport: ReconciliationGuideReport?
-    @Published var reconciliationGuideAssistant: ProjectIntegrationLauncher.Assistant = .codex
-    @Published var reconciliationAssistantLaunchIssue: ReconciliationAssistantLaunchIssue?
+    @Published var reconciliationHandoffIssue: ReconciliationHandoffIssue?
     @Published var reconciliationErrorDetail: String?
     @Published var reconciliationGuideNotice: String?
     @Published var reconciliationSelectedProjectPaths: Set<String> = []
@@ -1327,11 +1304,6 @@ final class WizardModel: ObservableObject {
     private var pendingGuideReconciliationRequest: ReconciliationRequest?
     private var reconciliationGuideAttemptId: UUID?
     private var reconciliationGuidePreparationTask: Task<Void, Never>?
-    private var reconciliationGuideStatusTask: Task<Void, Never>?
-    /// Set only after an external assistant successfully opens. The next
-    /// activation of Control Tower consumes this value and asks the CLI to
-    /// verify again; assistant self-report never changes project status.
-    @Published private(set) var pendingProjectVerificationPath: String?
     /// "An unusable folder shows the CLI's blocked sentence next to the
     /// picker and keeps the step usable" (spec, Step 7's failure/recovery
     /// row) — this step never routes to Holding on its own; a bad folder
@@ -1510,14 +1482,13 @@ final class WizardModel: ObservableObject {
             reconciliationUsesIndividualSelection = name == "projects-reconciliation-individual"
             reconciliationStage = .selecting
             phase = .projects
-        case "projects-reconciliation-assistant-select",
-             "projects-reconciliation-assistant-individual",
-             "projects-reconciliation-assistant-preparing",
-             "projects-reconciliation-assistant-running",
-             "projects-reconciliation-assistant-stale",
-             "projects-reconciliation-assistant-ready",
-             "projects-reconciliation-assistant-permission",
-             "projects-reconciliation-assistant-unavailable":
+        case "projects-reconciliation-handoff-select",
+             "projects-reconciliation-handoff-individual",
+             "projects-reconciliation-handoff-preparing",
+             "projects-reconciliation-handoff-ready",
+             "projects-reconciliation-handoff-terminal",
+             "projects-reconciliation-handoff-remaining",
+             "projects-reconciliation-handoff-verified":
             loadVisualProjectRoot()
             let report = reconciliationAssistantAssessment()
             reconciliationAssessReport = report
@@ -1525,7 +1496,7 @@ final class WizardModel: ObservableObject {
                 from: report
             )
             reconciliationUsesIndividualSelection = name
-                == "projects-reconciliation-assistant-individual"
+                == "projects-reconciliation-handoff-individual"
             let guideRequest = ReconciliationRequest(
                 roots: ["/Projects"],
                 projects: report.requestSelections(
@@ -1533,46 +1504,38 @@ final class WizardModel: ObservableObject {
                 )
             )
             switch name {
-            case "projects-reconciliation-assistant-preparing":
+            case "projects-reconciliation-handoff-preparing":
                 pendingGuideReconciliationRequest = guideRequest
                 reconciliationStage = .guidePreparing
-            case "projects-reconciliation-assistant-running":
+            case "projects-reconciliation-handoff-ready":
                 pendingGuideReconciliationRequest = guideRequest
                 reconciliationGuideReport = reconciliationFixture(
-                    "guide-status-running.json",
+                    "guide-prepare.json",
                     as: ReconciliationGuideReport.self
                 )
-                reconciliationStage = .guideRunning
-            case "projects-reconciliation-assistant-stale":
+                reconciliationStage = .guideReady
+            case "projects-reconciliation-handoff-remaining":
                 pendingGuideReconciliationRequest = guideRequest
                 reconciliationGuideReport = reconciliationFixture(
                     "guide-status-action-required.json",
                     as: ReconciliationGuideReport.self
                 )
                 reconciliationStage = .guideResult
-            case "projects-reconciliation-assistant-ready":
+            case "projects-reconciliation-handoff-verified":
                 pendingGuideReconciliationRequest = guideRequest
                 reconciliationGuideReport = reconciliationFixture(
                     "guide-status-ready.json",
                     as: ReconciliationGuideReport.self
                 )
                 reconciliationStage = .guideResult
-            case "projects-reconciliation-assistant-permission":
+            case "projects-reconciliation-handoff-terminal":
                 pendingGuideReconciliationRequest = guideRequest
                 reconciliationGuideReport = reconciliationFixture(
                     "guide-prepare.json",
                     as: ReconciliationGuideReport.self
                 )
-                reconciliationAssistantLaunchIssue = .automationPermissionDenied
-                reconciliationStage = .guideResult
-            case "projects-reconciliation-assistant-unavailable":
-                pendingGuideReconciliationRequest = guideRequest
-                reconciliationGuideReport = reconciliationFixture(
-                    "guide-prepare.json",
-                    as: ReconciliationGuideReport.self
-                )
-                reconciliationAssistantLaunchIssue = .assistantUnavailable
-                reconciliationStage = .guideResult
+                reconciliationHandoffIssue = .automationPermissionDenied
+                reconciliationStage = .guideReady
             default:
                 reconciliationStage = .selecting
             }
@@ -2777,7 +2740,7 @@ final class WizardModel: ObservableObject {
         reconciliationVerifyReport = nil
         reconciliationRecoverReport = nil
         reconciliationGuideReport = nil
-        reconciliationAssistantLaunchIssue = nil
+        reconciliationHandoffIssue = nil
         reconciliationGuideNotice = nil
         reconciliationSelectedProjectPaths = []
         reconciliationUsesIndividualSelection = false
@@ -2786,8 +2749,6 @@ final class WizardModel: ObservableObject {
         reconciliationGuideAttemptId = nil
         reconciliationGuidePreparationTask?.cancel()
         reconciliationGuidePreparationTask = nil
-        reconciliationGuideStatusTask?.cancel()
-        reconciliationGuideStatusTask = nil
 
         async let workspacesResult = CliClient.shared.workspaces()
         async let reconciliationResult = CliClient.shared.reconciliationAssess()
@@ -2968,22 +2929,18 @@ final class WizardModel: ObservableObject {
     }
 
     func planReconciliation() {
-        startGuidedReconciliation(.codex)
+        prepareGuidedReconciliation()
     }
 
-    func startGuidedReconciliation(
-        _ assistant: ProjectIntegrationLauncher.Assistant
-    ) {
+    func prepareGuidedReconciliation() {
         guard reviewedReconciliationRequest == nil,
               let request = makeReconciliationRequest() else { return }
         reconciliationGuidePreparationTask?.cancel()
-        reconciliationGuideStatusTask?.cancel()
         let attemptId = UUID()
         reconciliationGuideAttemptId = attemptId
         pendingGuideReconciliationRequest = request
-        reconciliationGuideAssistant = assistant
         reconciliationGuideReport = nil
-        reconciliationAssistantLaunchIssue = nil
+        reconciliationHandoffIssue = nil
         reconciliationGuideNotice = nil
         reconciliationPlanReport = nil
         reconciliationApplyReport = nil
@@ -3011,7 +2968,9 @@ final class WizardModel: ObservableObject {
                 }
                 self.reconciliationGuideReport = report
                 self.reconciliationGuidePreparationTask = nil
-                self.openGuidedReconciliation(report: report, request: request)
+                self.reconciliationGuideAttemptId = nil
+                self.reconciliationStage = .guideReady
+                self.openPreparedReconciliationTerminal()
             case .success(.error(let report)):
                 self.failGuidedReconciliation(report.error.detail)
             case .failure:
@@ -3022,155 +2981,70 @@ final class WizardModel: ObservableObject {
         }
     }
 
-    private func openGuidedReconciliation(
-        report: ReconciliationGuideReport,
-        request: ReconciliationRequest
-    ) {
-        switch ReconciliationGuideLauncher.open(
-            report: report,
-            assistant: reconciliationGuideAssistant
-        ) {
+    func openPreparedReconciliationTerminal() {
+        guard let report = reconciliationGuideReport else { return }
+        reconciliationErrorDetail = nil
+        switch ReconciliationGuideLauncher.open(report: report) {
         case .openedInTerminal:
-            reconciliationAssistantLaunchIssue = nil
-            reconciliationStage = .guideRunning
-            pollGuidedReconciliation(
-                guideId: report.guideId,
-                request: request
-            )
-        case .helperUnavailable:
-            reconciliationAssistantLaunchIssue = .helperUnavailable
-            reconciliationStage = .guideResult
-        case .assistantUnavailable:
-            reconciliationAssistantLaunchIssue = .assistantUnavailable
-            reconciliationStage = .guideResult
+            reconciliationHandoffIssue = nil
         case .workspaceUnavailable:
-            reconciliationAssistantLaunchIssue = .workspaceUnavailable
-            reconciliationStage = .guideResult
+            reconciliationHandoffIssue = .workspaceUnavailable
         case .instructionsUnavailable:
-            reconciliationAssistantLaunchIssue = .instructionsUnavailable
-            reconciliationStage = .guideResult
+            reconciliationHandoffIssue = .instructionsUnavailable
         case .automationPermissionDenied:
-            reconciliationAssistantLaunchIssue = .automationPermissionDenied
-            reconciliationStage = .guideResult
+            reconciliationHandoffIssue = .automationPermissionDenied
         case .terminalUnavailable:
-            reconciliationAssistantLaunchIssue = .terminalUnavailable
-            reconciliationStage = .guideResult
-        }
-    }
-
-    private func pollGuidedReconciliation(
-        guideId: String,
-        request: ReconciliationRequest
-    ) {
-        reconciliationGuideStatusTask?.cancel()
-        reconciliationGuideStatusTask = Task { [weak self] in
-            var consecutiveFailures = 0
-            while !Task.isCancelled {
-                guard let self else { return }
-                switch await CliClient.shared.reconciliationGuideStatus(
-                    guideId: guideId
-                ) {
-                case .success(.report(let report)):
-                    consecutiveFailures = 0
-                    guard report.guideId == guideId,
-                          report.matches(request: request, phase: .status) else {
-                        self.failGuidedReconciliation(
-                            "The helper returned progress for a different guided session. The Terminal conversation was not treated as proof."
-                        )
-                        return
-                    }
-                    self.reconciliationGuideReport = report
-                    if report.progress.state == .ready
-                        || report.progress.state == .actionRequired
-                        || report.progress.state == .blocked {
-                        self.reconciliationGuideAttemptId = nil
-                        self.reconciliationGuideStatusTask = nil
-                        self.reconciliationStage = .guideResult
-                        return
-                    }
-                case .success(.error(let report)):
-                    self.reconciliationErrorDetail = report.error.detail
-                    self.reconciliationGuideStatusTask = nil
-                    self.reconciliationStage = .guideResult
-                    return
-                case .failure:
-                    consecutiveFailures += 1
-                    if consecutiveFailures >= 3 {
-                        self.reconciliationErrorDetail = "Control Tower lost the live progress report. The Terminal conversation can continue; use Run final check when it is ready."
-                        self.reconciliationGuideStatusTask = nil
-                        self.reconciliationStage = .guideResult
-                        return
-                    }
-                }
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-            }
+            reconciliationHandoffIssue = .terminalUnavailable
         }
     }
 
     private func failGuidedReconciliation(_ detail: String) {
         reconciliationGuidePreparationTask?.cancel()
         reconciliationGuidePreparationTask = nil
-        reconciliationGuideStatusTask?.cancel()
-        reconciliationGuideStatusTask = nil
         reconciliationGuideAttemptId = nil
         pendingGuideReconciliationRequest = nil
         reviewedReconciliationRequest = nil
+        reconciliationHandoffIssue = nil
         reconciliationErrorDetail = detail
         reconciliationStage = .selecting
-    }
-
-    func stopGuidedReconciliationMonitoring() {
-        guard reconciliationStage == .guidePreparing
-                || reconciliationStage == .guideRunning else { return }
-        reconciliationGuidePreparationTask?.cancel()
-        reconciliationGuidePreparationTask = nil
-        reconciliationGuideStatusTask?.cancel()
-        reconciliationGuideStatusTask = nil
-        reconciliationGuideAttemptId = nil
-        reconciliationErrorDetail = "Control Tower stopped watching. The Terminal conversation is still available and no result has been inferred."
-        reconciliationStage = reconciliationGuideReport == nil ? .selecting : .guideResult
-    }
-
-    func retryReconciliationAssistant() {
-        guard reconciliationStage == .guideResult,
-              let report = reconciliationGuideReport,
-              let request = pendingGuideReconciliationRequest else { return }
-        reconciliationAssistantLaunchIssue = nil
-        reconciliationErrorDetail = nil
-        openGuidedReconciliation(report: report, request: request)
-    }
-
-    func resumeGuidedReconciliation(
-        _ assistant: ProjectIntegrationLauncher.Assistant
-    ) {
-        reconciliationGuideAssistant = assistant
-        retryReconciliationAssistant()
     }
 
     func bringGuidedTerminalForward() {
         ProjectIntegrationLauncher.bringTerminalForward()
     }
 
-    func copyGuidedInstructions() {
-        guard let path = reconciliationGuideReport?.instructionsPath,
-              let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+    func copyGuidedStartPrompt() {
+        guard let prompt = reconciliationGuideReport?.startPrompt,
+              !prompt.isEmpty else {
             reconciliationGuideNotice = nil
-            reconciliationErrorDetail = "The saved instruction file could not be read. Run a fresh assessment before starting again."
+            reconciliationErrorDetail = "The saved copy prompt could not be read. Prepare the project instructions again."
             return
         }
-        if ProjectIntegrationLauncher.copy(text) {
+        if ProjectIntegrationLauncher.copy(prompt) {
             reconciliationErrorDetail = nil
-            reconciliationGuideNotice = "Instructions copied. Open one Codex or Claude Code conversation in the projects folder and paste them to continue."
+            reconciliationGuideNotice = "Prompt copied. Paste it into the Claude Code or Codex conversation you started in Terminal."
         }
     }
 
+    func openGuidedInstructions() {
+        guard let path = reconciliationGuideReport?.instructionsPath else { return }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else {
+            reconciliationErrorDetail = "The saved instruction file is unavailable. Prepare the project instructions again."
+            return
+        }
+        reconciliationErrorDetail = nil
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
     func finalizeGuidedReconciliation() {
-        guard reconciliationStage == .guideResult,
+        guard reconciliationStage == .guideReady || reconciliationStage == .guideResult,
               let current = reconciliationGuideReport,
               let request = pendingGuideReconciliationRequest else { return }
         reconciliationErrorDetail = nil
         reconciliationGuideNotice = nil
-        reconciliationStage = .guideRunning
+        reconciliationStage = .guideChecking
         Task {
             switch await CliClient.shared.reconciliationGuideFinalize(
                 guideId: current.guideId
@@ -3198,7 +3072,7 @@ final class WizardModel: ObservableObject {
         guard let report = reconciliationAssessReport else { return }
         let automaticPaths = Set(report.defaultSelection.map(\.path))
         reconciliationSelectedProjectPaths.formIntersection(automaticPaths)
-        reconciliationAssistantLaunchIssue = nil
+        reconciliationHandoffIssue = nil
         reconciliationErrorDetail = nil
         reconciliationGuideNotice = nil
         reconciliationStage = .selecting
@@ -3207,8 +3081,6 @@ final class WizardModel: ObservableObject {
         reconciliationGuideAttemptId = nil
         reconciliationGuidePreparationTask?.cancel()
         reconciliationGuidePreparationTask = nil
-        reconciliationGuideStatusTask?.cancel()
-        reconciliationGuideStatusTask = nil
         reconciliationGuideReport = nil
         guard let request = makeReconciliationRequest() else { return }
         requestReconciliationPlan(request)
@@ -3222,11 +3094,11 @@ final class WizardModel: ObservableObject {
     }
 
     func changePreparedReconciliationSelection() {
-        guard reconciliationStage == .guideResult else { return }
+        guard reconciliationStage == .guideReady || reconciliationStage == .guideResult else { return }
         reviewedReconciliationRequest = nil
         pendingGuideReconciliationRequest = nil
         reconciliationGuideReport = nil
-        reconciliationAssistantLaunchIssue = nil
+        reconciliationHandoffIssue = nil
         reconciliationErrorDetail = nil
         reconciliationGuideNotice = nil
         reconciliationStage = .selecting
@@ -3310,7 +3182,7 @@ final class WizardModel: ObservableObject {
               reconciliationStage != .verifying,
               reconciliationStage != .recovering,
               reconciliationStage != .guidePreparing,
-              reconciliationStage != .guideRunning else { return }
+              reconciliationStage != .guideChecking else { return }
         Task { await self.loadProjectWorkspaces() }
     }
 
@@ -3341,74 +3213,12 @@ final class WizardModel: ObservableObject {
         dismissProjectIntegrationReview()
     }
 
-    func copyProjectIntegrationPrompt(_ workspace: WorkspaceEntry) {
-        guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
-        projectIntegrationMessage = ProjectIntegrationLauncher.copy(prompt)
-            ? "Integration prompt copied. This project remains incomplete until CLI verification passes."
-            : "The prompt couldn't be copied. Nothing in the project was changed."
-    }
-
     func copyProjectDiagnosticReport(_ workspace: WorkspaceEntry) {
         projectIntegrationMessage = ProjectIntegrationLauncher.copy(
             ProjectTriageRender.diagnosticReport(workspace)
         )
             ? "Diagnostic report copied. Use Check again after the project setup changes."
             : "The diagnostic report couldn't be copied. Nothing in the project was changed."
-    }
-
-    func bringTerminalForward() {
-        ProjectIntegrationLauncher.bringTerminalForward()
-    }
-
-    func openProjectIntegrationAssistant(
-        _ assistant: ProjectIntegrationLauncher.Assistant,
-        workspace: WorkspaceEntry
-    ) {
-        guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
-        let result = ProjectIntegrationLauncher.open(
-            assistant,
-            projectPath: workspace.path,
-            prompt: prompt
-        )
-        switch result {
-        case .openedInTerminal:
-            pendingProjectVerificationPath = workspace.path
-            projectIntegrationMessage = "\(assistant.displayName) is running in Terminal. Watch it there or continue setup; Control Tower will verify the project when you return."
-        case .assistantUnavailable:
-            projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The guided prompt was copied, and nothing in the project was changed."
-        case .projectUnavailable:
-            projectIntegrationMessage = "The project folder isn't available anymore. The guided prompt was copied, and nothing was changed."
-        case .automationPermissionDenied:
-            projectIntegrationMessage = "Control Tower needs permission to run guided setup in Terminal. Allow Terminal under System Settings → Privacy & Security → Automation, then try again. The prompt was copied, and nothing was changed."
-        case .terminalUnavailable:
-            projectIntegrationMessage = "Terminal couldn't start the guided session. The prompt was copied, and nothing in the project was changed."
-        }
-    }
-
-    func openProjectDiagnosticAssistant(
-        _ assistant: ProjectIntegrationLauncher.Assistant,
-        workspace: WorkspaceEntry
-    ) {
-        guard let diagnostic = workspace.diagnostic,
-              diagnostic.mode == "read-only" else { return }
-        let result = ProjectIntegrationLauncher.open(
-            assistant,
-            projectPath: workspace.path,
-            prompt: diagnostic.prompt.text
-        )
-        switch result {
-        case .openedInTerminal:
-            pendingProjectVerificationPath = workspace.path
-            projectIntegrationMessage = "\(assistant.displayName) is diagnosing in read-only mode in Terminal. Nothing may change in the project; Control Tower will check the project when you return."
-        case .assistantUnavailable:
-            projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The read-only diagnostic prompt was copied, and nothing in the project was changed."
-        case .projectUnavailable:
-            projectIntegrationMessage = "The project folder isn't available anymore. The read-only diagnostic prompt was copied, and nothing was changed."
-        case .automationPermissionDenied:
-            projectIntegrationMessage = "Control Tower needs permission to run the diagnosis in Terminal. Allow Terminal under System Settings → Privacy & Security → Automation, then try again. The prompt was copied, and nothing was changed."
-        case .terminalUnavailable:
-            projectIntegrationMessage = "Terminal couldn't start the read-only diagnostic session. The prompt was copied, and nothing in the project was changed."
-        }
     }
 
     func prepareProjectOwnerHandoff(_ workspace: WorkspaceEntry) {
@@ -3444,14 +3254,6 @@ final class WizardModel: ObservableObject {
                 self.projectIntegrationMessage = "Verification hasn't come through. The project remains incomplete."
             }
         }
-    }
-
-    func verifyPendingProjectOnReturn() {
-        guard let path = pendingProjectVerificationPath else { return }
-        pendingProjectVerificationPath = nil
-        guard let workspace = projectWorkspaces.first(where: { $0.path == path })
-                ?? (projectIntegrationDetail?.path == path ? projectIntegrationDetail : nil) else { return }
-        verifyProjectIntegration(workspace)
     }
 
     func chooseProjectsFolder() {
@@ -4366,9 +4168,6 @@ struct WizardRootView: View {
         .frame(minWidth: 820, idealWidth: 960, minHeight: 620, idealHeight: 720)
         .background(Color(nsColor: .windowBackgroundColor))
         .task { model.start() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            model.verifyPendingProjectOnReturn()
-        }
         .onChange(of: model.selectedProjectCategory) { _ in
             projectSearchText = ""
             projectPage = 0
@@ -5534,7 +5333,7 @@ struct WizardRootView: View {
                 && model.reconciliationStage != .verifying
                 && model.reconciliationStage != .recovering
                 && model.reconciliationStage != .guidePreparing
-                && model.reconciliationStage != .guideRunning {
+                && model.reconciliationStage != .guideChecking {
                 Button { model.backFromProjects() } label: { Text("Back") }
                     .buttonStyle(.bordered)
             }
@@ -5544,16 +5343,14 @@ struct WizardRootView: View {
                !WizardModel.reconciliationAuthorizedPaths(from: report).isEmpty {
                 Button { model.planReconciliation() } label: {
                     Label(
-                        "Open \(model.reconciliationSelectedProjectCount) "
-                            + (model.reconciliationSelectedProjectCount == 1 ? "project" : "projects")
-                            + " in one Codex session",
-                        systemImage: "sparkles"
+                        "Prepare instructions and open Terminal",
+                        systemImage: "terminal"
                     )
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.canPlanReconciliation)
-                .accessibilityHint("Writes one Python-authored instruction file and opens one Codex conversation at the projects folder. Python verifies each project independently.")
+                .accessibilityHint("Writes one Python-authored work order and opens only a normal Terminal at the projects folder. You start Claude Code or Codex yourself.")
             } else if model.reconciliationStage == .guideResult,
                       model.reconciliationGuideReport?.progress.state == .ready {
                 Button("Continue setup") { model.continueFromProjects() }
@@ -5588,11 +5385,15 @@ struct WizardRootView: View {
         case .selecting:
             return model.reconciliationAssessReport == nil
                 ? "Project reconciliation isn't available"
-                : "Set up and fix your projects"
+                : "Prepare one set of project instructions"
         case .guidePreparing:
-            return "Preparing one guided session"
-        case .guideRunning:
-            return "Your project setup is running"
+            return "Writing your project work order"
+        case .guideReady:
+            return model.reconciliationHandoffIssue == nil
+                ? "Your project instructions are ready"
+                : "Your instructions are ready"
+        case .guideChecking:
+            return "Checking the projects"
         case .guideResult:
             return model.reconciliationGuideReport?.progress.state == .ready
                 ? "Your selected projects are ready"
@@ -5617,13 +5418,19 @@ struct WizardRootView: View {
         case .assessing:
             return "The helper is inspecting approved folders without changing them."
         case .selecting:
-            return "Every project selected here gets Claude Copilot and Codex Copilot. Projects that are already ready stay out of the way."
+            return "Control Tower will write one work-order file for every selected project and open Terminal at your Sites folder. It will not start Claude Code or Codex."
         case .guidePreparing:
-            return "Python is writing one instruction package for the complete selected batch."
-        case .guideRunning:
-            return "One visible assistant conversation is working from your projects folder. Ask questions there whenever a project needs your decision."
+            return "Python is writing the selected project list, preservation rules, and verification steps. Nothing is running in an assistant."
+        case .guideReady:
+            return model.reconciliationHandoffIssue == nil
+                ? "Terminal is open at your Sites folder. You choose which assistant to start and you control the conversation."
+                : "The files are ready. Open Terminal yourself at the projects folder shown in the prompt, then follow the steps below."
+        case .guideChecking:
+            return "You asked Control Tower to run a fresh Python check across the complete selected batch."
         case .guideResult:
-            return "Only projects that passed a fresh Python check are marked ready. Every remaining reason is listed below."
+            return model.reconciliationGuideReport?.progress.state == .ready
+                ? "Every selected project passed a fresh Python check."
+                : "The fresh check found projects that still need work. Continue the same conversation with the same prompt."
         case .planning:
             return "Nothing has changed. The helper is turning your exact selection into reviewable operations and preservation boundaries."
         case .reviewing:
@@ -5855,8 +5662,18 @@ struct WizardRootView: View {
             } else {
                 reconciliationUnavailable
             }
-        case .guidePreparing, .guideRunning:
-            reconciliationGuidePreparation
+        case .guidePreparing:
+            reconciliationBusyCard(
+                title: "Writing the instruction files",
+                detail: "Python is creating the exact work order and copy prompt for the projects you selected."
+            )
+        case .guideReady:
+            reconciliationGuideHandoff
+        case .guideChecking:
+            reconciliationBusyCard(
+                title: "Running a fresh project check",
+                detail: "Python is checking every selected project now. The assistant's own completion message is not used as proof."
+            )
         case .guideResult:
             reconciliationGuideResult
         case .planning:
@@ -5890,60 +5707,130 @@ struct WizardRootView: View {
         }
     }
 
-    private var reconciliationGuidePreparation: some View {
-        sectionCard("One conversation for the complete batch") {
-            VStack(alignment: .leading, spacing: CTSpace.md) {
-                let progress = model.reconciliationGuideReport?.progress
+    private var reconciliationGuideHandoff: some View {
+        VStack(alignment: .leading, spacing: CTSpace.lg) {
+            if let report = model.reconciliationGuideReport {
+                sectionCard("What to do") {
+                    reconciliationGuideSteps
+                }
+                reconciliationGuidePrompt(report)
+            } else {
+                reconciliationUnavailable
+            }
+
+            if let issue = model.reconciliationHandoffIssue {
+                reconciliationHandoffIssue(issue)
+            }
+
+            if let notice = model.reconciliationGuideNotice {
+                Label(notice, systemImage: "doc.on.clipboard")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+
+            if let error = model.reconciliationErrorDetail {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .systemOrange))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            reconciliationGuideActions(includeCheck: true)
+
+            Button("Change selection") {
+                model.changePreparedReconciliationSelection()
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(Color(nsColor: .secondaryLabelColor))
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var reconciliationGuideSteps: some View {
+        let steps = [
+            ("Start an assistant in Terminal", "Type codex or claude and press Return."),
+            ("Copy the prompt below", "Control Tower copies only the short prompt, not a command."),
+            ("Paste it into the assistant and send it", "The prompt tells the assistant where to find the complete work order."),
+            ("Keep talking there until the work is finished", "Ask questions and answer anything that needs your decision."),
+        ]
+        return VStack(alignment: .leading, spacing: CTSpace.sm) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                 HStack(alignment: .top, spacing: CTSpace.sm) {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: CTSpace.xs) {
-                        Text(
-                            model.reconciliationStage == .guidePreparing
-                                ? "Writing the work order"
-                                : "\(model.reconciliationGuideAssistant.displayName) is open in Terminal"
-                        )
-                        .font(.callout.weight(.semibold))
-                        Text(
-                            progress?.detail
-                                ?? "Python is preparing the exact selected project list, instructions, and verification loop."
-                        )
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
-                        if let progress {
-                            Text(
-                                "\(progress.verifiedProjectCount) of \(progress.selectedProjectCount) projects verified · \(progress.remainingProjectCount) remaining"
-                            )
-                            .font(.caption)
-                            .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                        }
-                        Text("The assistant can inspect and correct the selected projects. Only Python can mark one ready.")
+                    Text("\(index + 1)")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(Color(nsColor: .linkColor))
+                        .frame(width: 22, height: 22)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(step.0)
+                            .font(.callout.weight(.semibold))
+                        Text(step.1)
                             .font(.caption)
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(progress?.detail ?? "Preparing one guided project session.")
+                .accessibilityLabel("Step \(index + 1). \(step.0). \(step.1)")
+            }
+        }
+    }
 
-                HStack {
-                    if model.reconciliationStage == .guideRunning {
-                        Button("Show Terminal") {
-                            model.bringGuidedTerminalForward()
-                        }
-                        .buttonStyle(.bordered)
-                        Button("Copy instructions") {
-                            model.copyGuidedInstructions()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    Button("Stop watching") {
-                        model.stopGuidedReconciliationMonitoring()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+    private func reconciliationGuidePrompt(
+        _ report: ReconciliationGuideReport
+    ) -> some View {
+        sectionCard("Prompt to paste into Claude Code or Codex") {
+            VStack(alignment: .leading, spacing: CTSpace.sm) {
+                Text(report.startPrompt)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(Color(nsColor: .labelColor))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(CTSpace.sm)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(nsColor: .textBackgroundColor).opacity(0.65))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                Button("Copy prompt") {
+                    model.copyGuidedStartPrompt()
                 }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .accessibilityHint("Copies the Python-authored prompt for the assistant conversation you start yourself.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func reconciliationGuideActions(includeCheck: Bool) -> some View {
+        HStack {
+            Button("Open instruction file") {
+                model.openGuidedInstructions()
+            }
+            .buttonStyle(.bordered)
+
+            if model.reconciliationHandoffIssue == nil {
+                Button("Show Terminal") {
+                    model.bringGuidedTerminalForward()
+                }
+                .buttonStyle(.bordered)
+            } else {
+                Button("Try opening Terminal again") {
+                    model.openPreparedReconciliationTerminal()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if includeCheck {
+                Spacer()
+                Button("Check the projects") {
+                    model.finalizeGuidedReconciliation()
+                }
+                .buttonStyle(.bordered)
+                .accessibilityHint("Runs a fresh Python check when you decide the assistant conversation is ready.")
             }
         }
     }
@@ -5983,7 +5870,7 @@ struct WizardRootView: View {
                         }
 
                         if report.progress.state != .ready {
-                            Text("You do not need to open each project. Reopen one conversation here, ask questions there if needed, and let it continue through this same list.")
+                            Text("You do not need to open each project. Continue the same Sites-root conversation with the same prompt, ask questions there if needed, and check again when you are ready.")
                                 .font(.caption)
                                 .foregroundColor(Color(nsColor: .secondaryLabelColor))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -5994,8 +5881,8 @@ struct WizardRootView: View {
                 reconciliationUnavailable
             }
 
-            if let issue = model.reconciliationAssistantLaunchIssue {
-                reconciliationAssistantLaunchIssue(issue)
+            if let issue = model.reconciliationHandoffIssue {
+                reconciliationHandoffIssue(issue)
             }
 
             if let error = model.reconciliationErrorDetail {
@@ -6012,27 +5899,10 @@ struct WizardRootView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let report = model.reconciliationGuideReport {
-                HStack {
-                    if report.progress.state != .ready {
-                        Button("Reopen in Codex") {
-                            model.resumeGuidedReconciliation(.codex)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        Button("Reopen in Claude Code") {
-                            model.resumeGuidedReconciliation(.claudeCode)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    Button("Run final check") {
-                        model.finalizeGuidedReconciliation()
-                    }
-                    .buttonStyle(.bordered)
-                    Button("Copy instructions") {
-                        model.copyGuidedInstructions()
-                    }
-                    .buttonStyle(.plain)
-                }
+            if let report = model.reconciliationGuideReport,
+               report.progress.state != .ready {
+                reconciliationGuidePrompt(report)
+                reconciliationGuideActions(includeCheck: true)
 
                 Button("Change selection") {
                     model.changePreparedReconciliationSelection()
@@ -6131,8 +6001,8 @@ struct WizardRootView: View {
                 }
             }
 
-            if let issue = model.reconciliationAssistantLaunchIssue {
-                reconciliationAssistantLaunchIssue(issue)
+            if let issue = model.reconciliationHandoffIssue {
+                reconciliationHandoffIssue(issue)
             }
 
             if !WizardModel.reconciliationAuthorizedPaths(from: report).isEmpty {
@@ -6142,22 +6012,14 @@ struct WizardRootView: View {
                     reconciliationAllSelection(report)
                 }
 
-                sectionCard("One conversation for all selected projects") {
+                sectionCard("One work order for all selected projects") {
                     VStack(alignment: .leading, spacing: CTSpace.sm) {
-                        Text("Control Tower writes the project list and verification instructions, opens Terminal at your projects folder, and lets one assistant work through the complete batch. You can ask questions in that same conversation.")
+                        Text("Control Tower writes the project list and verification instructions, then opens a normal Terminal at your projects folder. You start Claude Code or Codex yourself, paste one prompt, and control the complete conversation.")
                             .font(.caption)
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                             .fixedSize(horizontal: false, vertical: true)
-                        HStack {
-                            Label("Codex is the default Continue action", systemImage: "terminal")
-                                .font(.caption.weight(.semibold))
-                            Spacer()
-                            Button("Use Claude Code instead") {
-                                model.startGuidedReconciliation(.claudeCode)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(!model.canPlanReconciliation)
-                        }
+                        Label("The app does not start, paste into, or watch the assistant.", systemImage: "person.crop.circle.badge.checkmark")
+                            .font(.caption.weight(.semibold))
                     }
                 }
             }
@@ -6174,21 +6036,13 @@ struct WizardRootView: View {
         }
     }
 
-    private func reconciliationAssistantLaunchIssue(
-        _ issue: ReconciliationAssistantLaunchIssue
+    private func reconciliationHandoffIssue(
+        _ issue: ReconciliationHandoffIssue
     ) -> some View {
         let title: String
         let detail: String
         let icon: String
         switch issue {
-        case .helperUnavailable:
-            title = "The setup helper is unavailable"
-            detail = "Control Tower could not find its trusted helper. The saved instruction file was not launched."
-            icon = "wrench.and.screwdriver"
-        case .assistantUnavailable:
-            title = "The selected assistant is unavailable"
-            detail = "Choose the other assistant below, or copy the instructions into an assistant you open yourself."
-            icon = "terminal"
         case .workspaceUnavailable:
             title = "The projects folder moved"
             detail = "The approved projects folder is no longer available at the assessed path. Run a fresh assessment before continuing."
@@ -6199,11 +6053,11 @@ struct WizardRootView: View {
             icon = "doc.badge.ellipsis"
         case .automationPermissionDenied:
             title = "Allow Control Tower to open Terminal"
-            detail = "Allow Control Tower to control Terminal in System Settings, then come back and reopen the same guided session."
+            detail = "Your files are ready. Allow Control Tower to open Terminal in System Settings, or open Terminal yourself at the projects folder shown in the prompt."
             icon = "gearshape"
         case .terminalUnavailable:
             title = "Terminal did not open"
-            detail = "The saved instructions are still available. Try again or copy them into Codex or Claude Code yourself."
+            detail = "Your files are ready. Open Terminal yourself at the projects folder shown in the prompt, then start Claude Code or Codex there."
             icon = "terminal"
         }
         return sectionCard(title) {
@@ -6222,16 +6076,16 @@ struct WizardRootView: View {
                         .accessibilityHint("Opens Privacy & Security settings.")
                     }
                     if model.reconciliationGuideReport != nil {
-                        Button("Open in Codex") {
-                            model.resumeGuidedReconciliation(.codex)
+                        Button("Try opening Terminal again") {
+                            model.openPreparedReconciliationTerminal()
                         }
                         .buttonStyle(.bordered)
-                        Button("Open in Claude Code") {
-                            model.resumeGuidedReconciliation(.claudeCode)
+                        Button("Open instruction file") {
+                            model.openGuidedInstructions()
                         }
                         .buttonStyle(.bordered)
-                        Button("Copy instructions") {
-                            model.copyGuidedInstructions()
+                        Button("Copy prompt") {
+                            model.copyGuidedStartPrompt()
                         }
                         .buttonStyle(.plain)
                     }
@@ -7347,38 +7201,19 @@ struct WizardRootView: View {
                     preserve: plan.preserve,
                     prohibited: plan.prohibited
                 )
-                if let prompt = plan.prompt?.text {
-                    DisclosureGroup("Full guided prompt") {
-                        Text(prompt)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    HStack {
-                        Button("Run in Codex") { model.openProjectIntegrationAssistant(.codex, workspace: workspace) }
-                            .buttonStyle(.borderedProminent)
-                        Button("Run in Claude Code") { model.openProjectIntegrationAssistant(.claudeCode, workspace: workspace) }
-                            .buttonStyle(.bordered)
-                        Button("Copy prompt") { model.copyProjectIntegrationPrompt(workspace) }
-                            .buttonStyle(.bordered)
-                    }
+                if plan.prompt != nil {
+                    Text("This project is included in the one Sites-level work order. Return to the project list to prepare the instructions; Control Tower will not start an assistant inside this repository.")
+                        .font(.caption)
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if plan.ownerHandoff != nil {
                     Button("Copy project-owner handoff") { model.prepareProjectOwnerHandoff(workspace) }
                         .buttonStyle(.bordered)
                 }
                 wizardProjectVerificationPanel(plan.verification, stopConditions: plan.stopConditions)
-                if model.pendingProjectVerificationPath == workspace.path {
-                    HStack {
-                        Button("Bring Terminal forward") { model.bringTerminalForward() }
-                            .buttonStyle(.bordered)
-                        Button("Check project now") { model.verifyProjectIntegration(workspace) }
-                            .buttonStyle(.borderedProminent)
-                    }
-                } else {
-                    Button("Check project now") { model.verifyProjectIntegration(workspace) }
-                        .buttonStyle(.bordered)
-                }
+                Button("Check project now") { model.verifyProjectIntegration(workspace) }
+                    .buttonStyle(.bordered)
             }
 
             if workspace.classification == .ready {
@@ -7398,18 +7233,6 @@ struct WizardRootView: View {
                         : "A coding assistant can explain the mismatch using the helper's evidence. It cannot change project files; only Control Tower can reclassify the project afterward."
                 )
                 wizardProjectCouldNotConfirmEvidence(workspace)
-                if workspace.diagnostic != nil {
-                    HStack {
-                        Button("Diagnose in Codex") {
-                            model.openProjectDiagnosticAssistant(.codex, workspace: workspace)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        Button("Diagnose in Claude Code") {
-                            model.openProjectDiagnosticAssistant(.claudeCode, workspace: workspace)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
                 HStack {
                     Button("Copy diagnostic report") {
                         model.copyProjectDiagnosticReport(workspace)

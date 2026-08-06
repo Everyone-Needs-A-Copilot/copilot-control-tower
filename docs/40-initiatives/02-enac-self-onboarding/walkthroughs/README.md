@@ -12,8 +12,8 @@ aftercare before moving to the Admin experience.
 | 04 | [User Setup feedback — UI](04-user-setup-feedback-uids-walkthrough.html) | The corresponding high-fidelity User Setup treatment. |
 | 05 | [Truthful setup and recovery — UX](05-truthful-setup-recovery-uxd-walkthrough.html) | The complete four-Copilot inventory and recovery model. |
 | 06 | [Truthful setup and recovery — UI](06-truthful-setup-recovery-uids-walkthrough.html) | The high-fidelity setup, verification, and steady-state experience. |
-| 07 | [Step 7 project triage and aftercare — UX](07-project-integration-aftercare-uxd-walkthrough.html) | Focused project categories, guided execution, exact couldn't-confirm evidence, and recovery. |
-| 08 | [Step 7 project triage and aftercare — UI](08-project-integration-aftercare-uids-walkthrough.html) | The high-fidelity, one-category-at-a-time Step 7 experience grounded in the observed 53-project inventory. |
+| 07 | [Step 7 project triage and aftercare — UX](07-project-integration-aftercare-uxd-walkthrough.html) | Historical triage model; its per-project auto-launch actions are superseded by 23 and 24. |
+| 08 | [Step 7 project triage and aftercare — UI](08-project-integration-aftercare-uids-walkthrough.html) | Historical visual treatment; use 23 and 24 for the shipping handoff. |
 | 09 | [Bulk project migration — UX](09-bulk-project-migration-uxd-walkthrough.html) | One guarded review-and-apply route for the projects with proven automatic updates, plus honest held and tailored routes. |
 | 10 | [Bulk project migration — UI](10-bulk-project-migration-uids-walkthrough.html) | The high-fidelity Step 7 cohort review, confirmation, progress, and result ledger. |
 | 11 | [Completed setup topology — UX](11-completed-setup-topology-uxd-walkthrough.html) | Honest machine-versus-ecosystem readiness, four-tier component disclosures, and shared project aftercare. |
@@ -28,8 +28,8 @@ aftercare before moving to the Admin experience.
 | 20 | [Default project batch — UI](20-default-project-batch-uids-walkthrough.html) | The native visual hierarchy for one selected batch, two explanatory counts, quiet acknowledgements, and project-only checkboxes. |
 | 21 | [Resolve with Claude Code — UX](21-resolve-with-claude-code-uxd-walkthrough.html) | The one-button default-all preparation flow, assistant and permission recovery, owner decisions, protected work, exact review, apply, fresh verify, and rollback outcomes. |
 | 22 | [Resolve with Claude Code — UI](22-resolve-with-claude-code-uids-walkthrough.html) | The Quiet Instrument visual treatment for visible assistant preparation, proposal triage, decisions, held work, exact plans, and evidence-bound receipts. |
-| 23 | [Fleet-guided reconciliation — UX](23-fleet-guided-reconciliation-uxd-walkthrough.html) | The corrected one-session Sites-root handoff, durable instruction package, same-conversation questions, and independent fleet verification. |
-| 24 | [Fleet-guided reconciliation — UI](24-fleet-guided-reconciliation-uids-walkthrough.html) | The native visual hierarchy for assistant choice, verified progress, owner questions, and the quiet completed state. |
+| 23 | [User-controlled project handoff — UX](23-fleet-guided-reconciliation-uxd-walkthrough.html) | The corrected Sites-root handoff: one work-order file, a copyable prompt, a normal user-controlled assistant conversation, and explicit independent verification. |
+| 24 | [User-controlled project handoff — UI](24-fleet-guided-reconciliation-uids-walkthrough.html) | The native hierarchy for four clear steps, prompt copying, Terminal recovery, remaining work, and the quiet verified state. |
 
 Walkthroughs 17 and 18 read last as a pair, and not merely because they are newest. 17 poses the question — what Bob's connect experience should be, and the one fork left undecided — and 18 assumes the answer the owner ratified, rendering both actors of the mechanism that makes 17's receipt true along with what the security passes qualified about it. Both span the member's wizard and Admin governance, both still carry undecided items, and their user-side screens depend on the setup and completion model established by 01 to 12.
 
@@ -43,11 +43,15 @@ the person still resolves owner-only choices and Python remains the sole writer,
 rollback authority, and fresh verifier.
 
 Walkthroughs 23 and 24 supersede 21 and 22's content-free proposal-selection
-experience. The assistant now receives one Python-authored instruction package
-at the approved Sites root and works across the complete selected batch in one
-conversation. Python remains the sole authority for scope and verified status;
-the external assistant is the explicitly chosen writer for project-specific
-guided work.
+experience and the first auto-launched fleet implementation. Python writes one
+instruction package and copy prompt at the approved Sites root. Control Tower
+opens only a normal Terminal there; the person starts Claude Code or Codex and
+controls the complete conversation. Python remains the sole authority for scope
+and verified status.
+
+They also supersede every per-project **Run in Codex**, **Run in Claude Code**,
+and assistant-diagnosis action shown historically in 07 and 08. Those files
+remain only as decision history and do not describe the shipping app.
 
 ## Naming Convention
 

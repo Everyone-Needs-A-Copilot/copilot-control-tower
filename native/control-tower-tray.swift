@@ -431,142 +431,16 @@ enum ProjectRowRender {
     }
 }
 
-/// Opens an installed coding assistant in a visible Terminal session with the
-/// CLI-generated prompt. The app quotes only the project/temp paths and passes
-/// the prompt through a private temporary file, so prompt text is never parsed
-/// as shell syntax. Assistant output is not interpreted; returning to Control
-/// Tower invokes authoritative `cc workspace verify`.
+/// Small user-controlled handoff helpers shared by the wizard and menu app.
+/// This type deliberately cannot start Codex or Claude Code. The grouped
+/// reconciliation flow opens one plain Terminal at the projects root; the
+/// person starts their chosen assistant and pastes Python's prompt themselves.
 enum ProjectIntegrationLauncher {
-    enum LaunchResult: Equatable {
-        case openedInTerminal
-        case assistantUnavailable
-        case projectUnavailable
-        case automationPermissionDenied
-        case terminalUnavailable
-    }
-
-    enum Assistant: Equatable {
-        case codex
-        case claudeCode
-
-        var command: String {
-            switch self {
-            case .codex: return "codex"
-            case .claudeCode: return "claude"
-            }
-        }
-
-        var displayName: String {
-            switch self {
-            case .codex: return "Codex"
-            case .claudeCode: return "Claude Code"
-            }
-        }
-    }
-
     @discardableResult
     static func copy(_ text: String) -> Bool {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         return pasteboard.setString(text, forType: .string)
-    }
-
-    static func open(
-        _ assistant: Assistant,
-        projectPath: String,
-        prompt: String
-    ) -> LaunchResult {
-        _ = copy(prompt)
-        guard let executablePath = resolveExecutable(assistant.command) else {
-            return .assistantUnavailable
-        }
-        var projectIsDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(
-            atPath: projectPath,
-            isDirectory: &projectIsDirectory
-        ), projectIsDirectory.boolValue else {
-            return .projectUnavailable
-        }
-
-        let promptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("control-tower-\(UUID().uuidString).prompt")
-        do {
-            try Data(prompt.utf8).write(to: promptURL, options: [.atomic])
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o600],
-                ofItemAtPath: promptURL.path
-            )
-        } catch {
-            return .terminalUnavailable
-        }
-
-        let command = launchCommand(
-            assistant,
-            executablePath: executablePath,
-            projectPath: projectPath,
-            promptPath: promptURL.path
-        )
-        let source = appleScriptSource(command: command)
-        var error: NSDictionary?
-        guard NSAppleScript(source: source)?.executeAndReturnError(&error) != nil else {
-            try? FileManager.default.removeItem(at: promptURL)
-            return launchFailure(forAppleScriptError: error)
-        }
-        return .openedInTerminal
-    }
-
-    static func launchFailure(forAppleScriptError error: NSDictionary?) -> LaunchResult {
-        let errorNumber = (error?["NSAppleScriptErrorNumber"] as? NSNumber)?.intValue
-        return errorNumber == -1743 || errorNumber == -1744
-            ? .automationPermissionDenied
-            : .terminalUnavailable
-    }
-
-    /// Builds the exact command Terminal receives. Executable and file paths
-    /// are absolute and shell-quoted; prompt text remains data in a mode-0600
-    /// temporary file and is never parsed as shell syntax.
-    static func launchCommand(
-        _ assistant: Assistant,
-        executablePath: String,
-        projectPath: String,
-        promptPath: String
-    ) -> String {
-        let executable = shellQuote(executablePath)
-        let project = shellQuote(projectPath)
-        let promptFile = shellQuote(promptPath)
-        let assistantCommand: String
-        switch assistant {
-        case .codex:
-            assistantCommand = "\(executable) -C \(project) \"$(/bin/cat \(promptFile))\""
-        case .claudeCode:
-            assistantCommand = "cd \(project) && \(executable) \"$(/bin/cat \(promptFile))\""
-        }
-        return """
-        echo 'Copilot Control Tower — guided setup'; \
-        echo \(shellQuote("Project: \(projectPath)")); \
-        echo \(shellQuote("Assistant: \(assistant.displayName)")); \
-        echo ''; \
-        \(assistantCommand); \
-        ct_status=$?; \
-        /bin/rm -f \(promptFile); \
-        echo ''; \
-        if [ $ct_status -eq 0 ]; then \
-          echo 'Guided session ended. Return to Control Tower for independent verification.'; \
-        else \
-          echo 'Guided session ended with a problem. Return to Control Tower to review it.'; \
-        fi
-        """
-    }
-
-    /// `do script` launches Terminal when needed and creates the command tab.
-    /// Activating afterward avoids showing a separate empty startup window.
-    static func appleScriptSource(command: String) -> String {
-        """
-        tell application "Terminal"
-            do script \(appleScriptLiteral(command))
-            activate
-        end tell
-        """
     }
 
     static func bringTerminalForward() {
@@ -581,42 +455,6 @@ enum ProjectIntegrationLauncher {
         }
     }
 
-    static func shellQuote(_ value: String) -> String {
-        "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
-    }
-
-    static func appleScriptLiteral(_ value: String) -> String {
-        "\""
-            + value
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"")
-                .replacingOccurrences(of: "\n", with: "\\n")
-            + "\""
-    }
-
-    static func resolveExecutable(_ command: String) -> String? {
-        let process = Process()
-        let output = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lic", "command -v -- \(shellQuote(command))"]
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            guard let raw = String(data: data, encoding: .utf8) else { return nil }
-            let candidates = raw
-                .split(whereSeparator: \.isNewline)
-                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            return candidates.first {
-                $0.hasPrefix("/") && FileManager.default.isExecutableFile(atPath: $0)
-            }
-        } catch {
-            return nil
-        }
-    }
 }
 
 // MARK: - View model
@@ -736,7 +574,6 @@ final class TrayModel: ObservableObject {
     /// Set only when Control Tower successfully opens an external assistant.
     /// Returning to the app consumes this path and asks `cc` to verify the
     /// complete project contract; the assistant's own report is never trusted.
-    @Published private(set) var pendingProjectVerificationPath: String?
 
     /// Concurrently calls `doctor()` + `layers()` (steady-state verdict +
     /// Region 3's join candidates) and `authStatus()` + `freshnessAllProjects()`
@@ -1043,14 +880,6 @@ final class TrayModel: ObservableObject {
         projectIntegrationMessage = nil
     }
 
-    func copyIntegrationPrompt(_ workspace: WorkspaceEntry) {
-        guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
-        let copied = ProjectIntegrationLauncher.copy(prompt)
-        projectIntegrationMessage = copied
-            ? "Integration prompt copied. The project is still incomplete until verification passes."
-            : "The prompt couldn't be copied. Nothing in the project was changed."
-    }
-
     func copyProjectDiagnosticReport(_ workspace: WorkspaceEntry) {
         let copied = ProjectIntegrationLauncher.copy(
             ProjectTriageRender.diagnosticReport(workspace)
@@ -1058,69 +887,6 @@ final class TrayModel: ObservableObject {
         projectIntegrationMessage = copied
             ? "Diagnostic report copied. It contains the exact evidence Control Tower received; nothing in the project was changed."
             : "The diagnostic report couldn't be copied. Nothing in the project was changed."
-    }
-
-    func bringTerminalForward() {
-        ProjectIntegrationLauncher.bringTerminalForward()
-    }
-
-    func openIntegrationAssistant(
-        _ assistant: ProjectIntegrationLauncher.Assistant,
-        workspace: WorkspaceEntry
-    ) {
-        guard let prompt = workspace.integrationPlan?.prompt?.text else { return }
-        let result = ProjectIntegrationLauncher.open(
-            assistant,
-            projectPath: workspace.path,
-            prompt: prompt
-        )
-        switch result {
-        case .openedInTerminal:
-            pendingProjectVerificationPath = workspace.path
-            projectIntegrationMessage = "\(assistant.displayName) is running in Terminal. Control Tower will verify the project when you return."
-        case .assistantUnavailable:
-            projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The guided prompt was copied, and nothing in the project was changed."
-        case .projectUnavailable:
-            projectIntegrationMessage = "The project folder isn't available anymore. The guided prompt was copied, and nothing was changed."
-        case .automationPermissionDenied:
-            projectIntegrationMessage = "Control Tower needs permission to run guided setup in Terminal. Allow Terminal under System Settings → Privacy & Security → Automation, then try again. The prompt was copied, and nothing was changed."
-        case .terminalUnavailable:
-            projectIntegrationMessage = "Terminal couldn't start the guided session. The prompt was copied, and nothing in the project was changed."
-        }
-    }
-
-    func openDiagnosticAssistant(
-        _ assistant: ProjectIntegrationLauncher.Assistant,
-        workspace: WorkspaceEntry
-    ) {
-        guard let diagnostic = workspace.diagnostic,
-              diagnostic.mode == "read-only" else { return }
-        let result = ProjectIntegrationLauncher.open(
-            assistant,
-            projectPath: workspace.path,
-            prompt: diagnostic.prompt.text
-        )
-        switch result {
-        case .openedInTerminal:
-            pendingProjectVerificationPath = workspace.path
-            projectIntegrationMessage = "\(assistant.displayName) is diagnosing in read-only mode in Terminal. Nothing may change in the project; Control Tower will check the project when you return."
-        case .assistantUnavailable:
-            projectIntegrationMessage = "\(assistant.displayName) isn't available in Terminal. The read-only diagnostic prompt was copied, and nothing in the project was changed."
-        case .projectUnavailable:
-            projectIntegrationMessage = "The project folder isn't available anymore. The read-only diagnostic prompt was copied, and nothing was changed."
-        case .automationPermissionDenied:
-            projectIntegrationMessage = "Control Tower needs permission to run the diagnosis in Terminal. Allow Terminal under System Settings → Privacy & Security → Automation, then try again. The prompt was copied, and nothing was changed."
-        case .terminalUnavailable:
-            projectIntegrationMessage = "Terminal couldn't start the read-only diagnostic session. The prompt was copied, and nothing in the project was changed."
-        }
-    }
-
-    func verifyPendingProjectOnReturn() async {
-        guard let path = pendingProjectVerificationPath else { return }
-        pendingProjectVerificationPath = nil
-        guard let workspace = (lastWorkspaces?.workspaces ?? []).first(where: { $0.path == path })
-                ?? (projectIntegrationDetail?.path == path ? projectIntegrationDetail : nil) else { return }
-        await verifyProjectIntegration(workspace)
     }
 
     /// Copies the CLI-authored owner package and asks the CLI to remember an
@@ -1505,9 +1271,6 @@ struct PopoverContentView: View {
         .frame(width: 360, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .background(VisualEffectBackground())
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await model.verifyPendingProjectOnReturn() }
-        }
     }
 
     // MARK: Region 1 — status header. `HeaderView.sentence` verbatim, except
@@ -2122,20 +1885,6 @@ struct PopoverContentView: View {
 
                 if workspace.classification == .couldNotVerify {
                     projectCouldNotConfirmEvidence(workspace)
-                    if workspace.diagnostic != nil {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Button("Diagnose in Codex") {
-                                model.openDiagnosticAssistant(.codex, workspace: workspace)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            Button("Diagnose in Claude Code") {
-                                model.openDiagnosticAssistant(.claudeCode, workspace: workspace)
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    }
                     HStack {
                         Button("Copy diagnostic report") {
                             model.copyProjectDiagnosticReport(workspace)
@@ -2229,37 +1978,11 @@ struct PopoverContentView: View {
                 willNotChange: plan.prohibited
             )
 
-            if let prompt = plan.prompt?.text {
-                DisclosureGroup("Show full prompt") {
-                    ScrollView {
-                        Text(prompt)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(6)
-                    }
-                    .frame(maxHeight: 150)
-                }
-                .font(.caption.weight(.semibold))
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Button("Run in Codex") {
-                        model.openIntegrationAssistant(.codex, workspace: workspace)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    Button("Run in Claude Code") {
-                        model.openIntegrationAssistant(.claudeCode, workspace: workspace)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    Button("Copy prompt") {
-                        model.copyIntegrationPrompt(workspace)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if plan.prompt != nil {
+                Text("Use the one Sites-level work order from project setup. Control Tower will not start an assistant inside this repository.")
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if plan.ownerHandoff != nil {
@@ -2295,13 +2018,6 @@ struct PopoverContentView: View {
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .systemRed))
                 }
-            }
-            if model.pendingProjectVerificationPath == workspace.path {
-                Button("Bring Terminal forward") {
-                    model.bringTerminalForward()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
             Button("Check project now") {
                 Task { await model.verifyProjectIntegration(workspace) }
@@ -3843,7 +3559,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
         let routePass = ProjectRowRender.controlLabel(for: pluralReport.workspaces[2]) == "Review setup"
-            && pluralReport.workspaces[2].integrationPlan?.prompt != nil
+            && pluralReport.workspaces[2].classification == .guidedIntegration
             && ProjectRowRender.controlLabel(for: ownerRow) == "Review decision"
             && ownerRow.integrationPlan?.ownerHandoff != nil
 
@@ -3887,60 +3603,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && revertReport.workspaces.first?.path == "/p/f"
             && revertReport.workspaces.first?.setupPolicy == .excluded
 
-        let codexLaunch = ProjectIntegrationLauncher.launchCommand(
-            .codex,
-            executablePath: "/opt/codex bin/codex",
-            projectPath: "/p/O'Brien",
-            promptPath: "/tmp/guided prompt"
-        )
-        let claudeLaunch = ProjectIntegrationLauncher.launchCommand(
-            .claudeCode,
-            executablePath: "/Users/test/.local/bin/claude",
-            projectPath: "/p/O'Brien",
-            promptPath: "/tmp/guided prompt"
-        )
-        let appleScript = ProjectIntegrationLauncher.appleScriptSource(command: codexLaunch)
-        let doScriptOffset = appleScript.range(of: "do script")?.lowerBound
-        let activateOffset = appleScript.range(of: "activate")?.lowerBound
-        let terminalOrderPass: Bool
-        if let doScriptOffset, let activateOffset {
-            terminalOrderPass = doScriptOffset < activateOffset
-        } else {
-            terminalOrderPass = false
-        }
-        let launcherPass = ProjectIntegrationLauncher.shellQuote("/p/O'Brien")
-            == "'/p/O'\"'\"'Brien'"
-            && ProjectIntegrationLauncher.appleScriptLiteral("line 1\n\"line 2\"")
-                == "\"line 1\\n\\\"line 2\\\"\""
-            && codexLaunch.contains(
-                "'/opt/codex bin/codex' -C '/p/O'\"'\"'Brien' \"$(/bin/cat '/tmp/guided prompt')\""
-            )
-            && claudeLaunch.contains(
-                "cd '/p/O'\"'\"'Brien' && '/Users/test/.local/bin/claude' \"$(/bin/cat '/tmp/guided prompt')\""
-            )
-            && !codexLaunch.contains("/usr/bin/clear")
-            && terminalOrderPass
-            && ProjectIntegrationLauncher.launchFailure(
-                forAppleScriptError: ["NSAppleScriptErrorNumber": -1743]
-            ) == .automationPermissionDenied
-            && ProjectIntegrationLauncher.launchFailure(
-                forAppleScriptError: ["NSAppleScriptErrorNumber": -1744]
-            ) == .automationPermissionDenied
-            && ProjectIntegrationLauncher.launchFailure(
-                forAppleScriptError: ["NSAppleScriptErrorNumber": -2700]
-            ) == .terminalUnavailable
-            && ProjectIntegrationLauncher.resolveExecutable("sh") == "/bin/sh"
-
         let passed = noticePass && rowsPass && routePass
             && automaticPass && automaticNoticePass && revertDecodePass
-            && launcherPass && diagnosticPass
+            && diagnosticPass
         print(
             "SELFTEST trayProjects notice=\(noticePass ? "pass" : "fail") "
                 + "rows=\(rowsPass ? "pass" : "fail") "
+                + "routes=\(routePass ? "pass" : "fail") "
                 + "automatic=\(automaticPass ? "pass" : "fail") "
                 + "automaticNotice=\(automaticNoticePass ? "pass" : "fail") "
                 + "revert=\(revertDecodePass ? "pass" : "fail") "
-                + "launcher=\(launcherPass ? "pass" : "fail") "
                 + "diagnostic=\(diagnosticPass ? "pass" : "fail")"
         )
         return passed

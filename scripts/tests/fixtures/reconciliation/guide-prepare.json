@@ -8,13 +8,14 @@
   "workspace_root": "/Projects",
   "workspace_roots": ["/Projects"],
   "instructions_path": "/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/INSTRUCTIONS.md",
+  "start_prompt": "Read and follow every instruction in `/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/INSTRUCTIONS.md` before doing anything. Work through every project listed there in this one conversation.",
   "projects_path": "/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/PROJECTS.json",
   "selected_projects": ["/Projects/One", "/Projects/Two"],
   "project_status": [
     {"path":"/Projects/One","state":"pending","detail":"This project has not passed a guided-session check yet.","reasons":[],"checked_at":null},
     {"path":"/Projects/Two","state":"pending","detail":"This project has not passed a guided-session check yet.","reasons":[],"checked_at":null}
   ],
-  "progress": {"state":"prepared","selected_project_count":2,"verified_project_count":0,"remaining_project_count":2,"needs_conversation_count":0,"last_checked_project":null,"detail":"The instruction package is ready to open in one guided Terminal session."},
-  "detail": "The instruction package is ready to open in one guided Terminal session.",
+  "progress": {"state":"prepared","selected_project_count":2,"verified_project_count":0,"remaining_project_count":2,"needs_conversation_count":0,"last_checked_project":null,"detail":"The instruction files and copy prompt are ready."},
+  "detail": "The instruction files and copy prompt are ready.",
   "next_actions": ["Open this instruction package in one root-level Codex or Claude Code session."]
 }

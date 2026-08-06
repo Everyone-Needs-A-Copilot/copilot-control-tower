@@ -8,6 +8,7 @@
   "workspace_root": "/Projects",
   "workspace_roots": ["/Projects"],
   "instructions_path": "/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/INSTRUCTIONS.md",
+  "start_prompt": "Read and follow every instruction in `/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/INSTRUCTIONS.md` before doing anything. Work through every project listed there in this one conversation.",
   "projects_path": "/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/PROJECTS.json",
   "selected_projects": ["/Projects/One", "/Projects/Two"],
   "project_status": [

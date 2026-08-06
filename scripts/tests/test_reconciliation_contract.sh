@@ -59,7 +59,7 @@ print("reconciliation JSON schemas/fixtures: PASS")
 PY
 
 expected_request_sha="a39cf5b9ce00dca1e632f5584c308bf4ab4af1726c26654422743e0c2fae056c"
-expected_response_sha="8633f207d9b8c2e005ed2752ae8f6ddeef9bb282000a3b28b3ed764cd321f3f1"
+expected_response_sha="5f0c6bac90613417d00449ba6f8406057d4b11fc09d20a7b7d0cdf52747c24fc"
 actual_request_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/reconcile-request.schema.json" | awk '{print $1}')"
 actual_response_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/reconcile.schema.json" | awk '{print $1}')"
 [[ "${actual_request_sha}" == "${expected_request_sha}" ]]

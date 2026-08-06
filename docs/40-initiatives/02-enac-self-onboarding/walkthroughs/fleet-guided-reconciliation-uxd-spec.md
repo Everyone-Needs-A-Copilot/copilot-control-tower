@@ -1,57 +1,84 @@
-# Fleet-guided reconciliation — UX specification
+# User-controlled project handoff — UX specification
 
 ## Primary flow
 
-1. The existing project batch states how many projects can continue and how
-   many remain protected.
-2. The user chooses **Finish with Codex** or **Finish with Claude Code**.
-3. A short preparing state says that Control Tower is writing one set of
-   instructions; it makes no change claim.
-4. Terminal opens at the approved Sites root with the complete instruction file
-   already passed to the assistant.
-5. Control Tower shows one fleet progress surface: verified count, remaining
-   count, and the latest Python-authored detail. It offers **Bring Terminal
-   forward**, **Open instruction file**, and **Copy instructions**.
-6. When the assistant exits, Control Tower runs a fresh whole-batch check.
-7. Ready advances. Remaining work offers **Continue in Codex**, **Continue in
-   Claude Code**, or **Leave these projects for later**.
+1. The batch states how many projects are included and how many were kept out
+   of scope.
+2. The user chooses **Prepare instructions and open Terminal**. No assistant
+   choice is required yet.
+3. A short preparing state says only that Python is writing the work order and
+   copy prompt.
+4. Terminal opens at the approved Sites root and stops at a normal shell prompt.
+   Nothing else is typed, pasted, or started.
+5. Control Tower shows four numbered instructions:
+   1. In Terminal, type `codex` or `claude` and press Return.
+   2. Choose **Copy prompt** in Control Tower.
+   3. Paste the prompt into the assistant and send it.
+   4. Talk to the assistant normally; ask questions or answer its questions
+      until the work is finished.
+6. The short Python-authored prompt is visible and copyable. It points the
+   assistant at the complete work-order file; it does not inline that file.
+7. When the user is ready, they choose **Check the projects**. Control Tower
+   runs a fresh Python check only then.
+8. Ready advances. Remaining work keeps **Copy prompt**, **Show Terminal**,
+   **Open instruction file**, and **Check again** available.
 
 ## Alternate and recovery flows
 
-- Chosen assistant unavailable: retain the package and offer the other route.
-- Automation permission denied: show the exact System Settings location and a
-  Try Again action.
-- Terminal unavailable: offer Open instruction file and Copy instructions.
-- App reopened during a run: read Python status and offer Continue in the same
-  run package.
-- No selected projects: disable both launch actions and retain the selection
-  explanation.
-- Projects still unresolved after final verification: group the count and the
-  next actor; do not render rollback implementation details as failure reasons.
-- Update available during final Verify: run the update, show the named phase,
-  and call Doctor again.
+- No selected projects: preparation is disabled and the selection explanation
+  remains visible.
+- Terminal unavailable or permission denied: retain the package, show the Sites
+  path, and offer **Try opening Terminal again**, **Copy prompt**, and **Open
+  instruction file**. Do not mention an assistant launch failure.
+- Assistant unavailable or not signed in: the app makes no claim because it did
+  not start or inspect the assistant. The instructions tell the person to ask
+  the assistant for help or switch between Codex and Claude Code.
+- App reopened later: a fresh assessment may create a new package; a prepared
+  screen never claims that a previous conversation is still running.
+- Final check finds remaining work: list Python's current reasons and explain
+  that the same conversation can continue from the same file.
+- Package unreadable or incompatible: say that the instructions could not be
+  confirmed and require a fresh preparation. Never show a stale prompt.
+
+## Required states
+
+- Selecting
+- Preparing the files
+- Instructions ready / Terminal opened
+- Terminal opening failed
+- Running the explicit final check
+- Remaining work after a fresh check
+- Verified ready
+
+There is deliberately no assistant-running state.
 
 ## Product language
 
-- Title before launch: **Finish your projects in one guided session**
-- Intro: **Control Tower will write one set of instructions for this folder and
-  open it in the assistant you choose. You can ask questions there while it
-  works through every selected project.**
-- Active title: **Your guided setup is open in Terminal**
-- Active detail: **Python will count a project only after a fresh check passes.**
-- Ready: **Every selected project passed a fresh check.**
-- Remaining: **Some projects still need the same guided conversation.**
-- Restoration detail is collapsed to: **The previous project setup was restored.**
+- Selection title: **Prepare one set of project instructions**
+- Selection intro: **Control Tower will write one work-order file for every
+  selected project and open Terminal at your Sites folder. It will not start
+  Claude Code or Codex.**
+- Primary action: **Prepare instructions and open Terminal**
+- Handoff title: **Your project instructions are ready**
+- Handoff intro: **Terminal is open at your Sites folder. You choose which
+  assistant to start and you control the conversation.**
+- Prompt label: **Prompt to paste into Claude Code or Codex**
+- Primary handoff action: **Copy prompt**
+- Verification action: **Check the projects**
+- Remaining: **The fresh check found projects that still need work. Continue
+  the same conversation with the same prompt.**
+- Ready: **Every selected project passed a fresh Python check.**
 
 ## Accessibility
 
-- Focus moves to the new state heading after preparation and finalization.
-- Buttons use native controls and name the assistant explicitly.
-- Progress is expressed as counts and text, never colour or animation alone.
-- Status changes use one polite live announcement; no repeated per-project
-  announcements.
-- **Bring Terminal forward** remains keyboard reachable throughout the active
-  and remaining states.
+- Focus moves to the handoff heading after preparation and to the result heading
+  after final verification.
+- The four steps are a semantic ordered list in reading order.
+- The prompt has a descriptive label and can be copied without selecting text.
+- Copy confirmation is a polite, one-time status announcement.
+- Buttons are native controls with visible text; no action depends on colour.
+- The preparing and final-check spinners have specific accessibility labels.
+- No repeating announcement or animation implies assistant activity.
 
 ## Walkthrough
 
