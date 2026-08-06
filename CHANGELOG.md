@@ -19,6 +19,7 @@ All notable changes to Copilot Control Tower are recorded here.
 - Knowledge Copilot, Claude Copilot, Codex Copilot, CLI Copilot, and every other proven ecosystem repository remain managed separately. Dirty, held, unsafe, ambiguous, or owner-decision projects are excluded rather than handed to the assistant.
 - Only workspace roots that contain selected projects are opened to the assistant. With nested approved roots, Python selects the narrowest containing root. The instruction and project files are private, immutable, fingerprinted, and bound to the saved batch.
 - The guided conversation may not commit, push, reset, clean, stash, delete unrelated files, alter dirty projects, or place credentials in a project. Project-owned instructions and integration behavior must be inspected and preserved.
+- Publisher automation now recognizes that `notarytool` profiles live in the macOS Data Protection Keychain, retries only transient local profile-lookup failures before and during notarization, and never describes one failed lookup as proof that credentials were deleted. Remote authentication rejection and every other notarization failure still fail closed.
 
 ### Rollback
 

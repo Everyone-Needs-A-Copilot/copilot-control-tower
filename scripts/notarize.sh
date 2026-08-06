@@ -3,10 +3,6 @@
 # (architecture.md §7, release-and-versioning.md §2 step 2, ADR-M4-002's
 # "staple is verified offline before promote").
 #
-# SCRIPT + CONFIG ONLY. NOT executed by this session — real notarization
-# needs the owner's App Store Connect API key or Apple ID + app-specific
-# password, which this repo does not hold. `bash -n` syntax-checked only.
-#
 # ## Reads credentials from the environment — never hardcoded (invariant #4)
 #
 # Two supported credential shapes (notarytool supports both); pick ONE:
@@ -30,6 +26,7 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODE="${1:-}"
 ARTIFACT_PATH="${2:-}"
 
@@ -42,11 +39,18 @@ if [[ -z "${ARTIFACT_PATH}" ]]; then
     exit 1
 fi
 
-notary_auth_args=()
 if [[ -n "${CT_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
-    notary_auth_args=(--keychain-profile "${CT_NOTARY_KEYCHAIN_PROFILE}")
+    run_notarytool() {
+        "${SCRIPT_DIR}/notarytool-profile-retry.sh" \
+            --profile "${CT_NOTARY_KEYCHAIN_PROFILE}" -- "$@"
+    }
 elif [[ -n "${CT_NOTARY_KEY_ID:-}" && -n "${CT_NOTARY_KEY_ISSUER:-}" && -n "${CT_NOTARY_KEY_PATH:-}" ]]; then
-    notary_auth_args=(--key "${CT_NOTARY_KEY_PATH}" --key-id "${CT_NOTARY_KEY_ID}" --issuer "${CT_NOTARY_KEY_ISSUER}")
+    run_notarytool() {
+        xcrun notarytool "$@" \
+            --key "${CT_NOTARY_KEY_PATH}" \
+            --key-id "${CT_NOTARY_KEY_ID}" \
+            --issuer "${CT_NOTARY_KEY_ISSUER}"
+    }
 else
     echo "error: no notarization credentials set." >&2
     echo "       Set CT_NOTARY_KEYCHAIN_PROFILE, or all three of" >&2
@@ -87,7 +91,7 @@ case "${MODE}" in
 esac
 
 echo "submitting ${ARTIFACT_PATH} for notarization (--wait)..."
-xcrun notarytool submit "${submit_path}" "${notary_auth_args[@]}" --wait
+run_notarytool submit "${submit_path}" --wait
 
 # The app must be stapled before the DMG payload is assembled. Otherwise the
 # copied app has no offline ticket even though the outer DMG is stapled.
