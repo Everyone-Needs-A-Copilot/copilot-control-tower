@@ -2,6 +2,43 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.8] - 2026-08-06
+
+### Fixed
+
+- Verify no longer pauses when healthy Foundation repositories use signed,
+  annotated release tags backed by disconnected parentless snapshot commits.
+  The Python helper now peels annotated tags and proves snapshot currency from
+  the declared tag, exact remote commit, parentless snapshot shape, and an
+  identical full Git tree.
+- Knowledge Copilot and CLI Copilot now compare against their peeled release
+  commits instead of annotated tag objects. Claude Copilot and Codex Copilot
+  preserve their unequal authoring/snapshot commit identities while reporting
+  the proven content match honestly.
+
+### Safety
+
+- This is a Python/helper correction; Swift remains a display and orchestration
+  layer and no Swift source changed. `cc doctor` remains read-only.
+- The exception is Foundation-only and fails closed for branches, lightweight
+  tags, ordinary history tags, missing refs, different trees, or any remote
+  commit mismatch. Update symlink guards, target allowlists, GitHub permission
+  evidence, and download-only shared setup are unchanged.
+
+### Changed
+
+- The app and Admin bundle are version `0.6.8` build `35`. The release requires
+  and bundles exactly `cc 2.10.2`, built from signed parentless Foundation
+  snapshot `v5.13.55`; `controltower.compat.json` declares
+  `cc >=2.10.2,<3.0.0`.
+
+### Rollback
+
+- Reinstall the signed `0.6.7` DMG,
+  `Copilot-Control-Tower_0.6.7_arm64.dmg`, to return to bundled `cc 2.10.0`.
+  Reinstalling changes only the app/helper version; it does not alter project
+  work, Copilot repositories, or saved diagnostic reports.
+
 ## [0.6.7] - 2026-08-06
 
 ### Added
