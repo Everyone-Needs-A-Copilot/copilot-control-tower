@@ -374,6 +374,22 @@ The result is a publisher-produced artifact suitable for admin/fleet testing.
 It is not, by itself, a complete `stable` self-update promotion until the
 update-manifest signing custody decision is resolved.
 
+The pipeline's last gate mounts the final DMG only long enough to copy its app
+to a private temporary install directory, then detaches the image before it
+executes the embedded helper or inspects the copied app. Never execute the app
+or `Contents/Resources/cc` directly from a mounted DMG: macOS treats the image
+as a removable volume and may repeatedly ask for Files and Folders access. Run
+the same safe verification independently with:
+
+```bash
+./scripts/verify-user-install-artifact.sh \
+  --release-dir dist/user-release
+```
+
+Native smoke SELFTESTs likewise run before any status item or window is
+created. Visual-test builds remain the explicit path for screenshots; routine
+QA must not steal focus by flashing the User or Admin window for each scenario.
+
 ## 8. Promote the proven path into CI
 
 After the local path is proven, configure the GitHub `release` environment

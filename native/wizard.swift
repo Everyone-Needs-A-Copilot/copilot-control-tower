@@ -9410,10 +9410,9 @@ final class WizardWindowController: NSWindowController {
         window?.makeKeyAndOrderFront(nil)
 
         // SELFTEST HOOK (harness contract) — see `WizardSelftest`'s own doc.
-        // `AppDelegate.applicationDidFinishLaunching` (`control-tower-tray.swift`)
-        // already calls `show()` when `CT_OPEN_WIZARD=1`; this only ever adds
-        // work when `CT_SELFTEST=1` is ALSO set, so a normal launch (or a
-        // dev "Open Wizard" click) is unaffected.
+        // AppDelegate routes automated CT_SELFTEST runs here before creating
+        // a status item or ordering this window. Keeping the call here too
+        // preserves direct-controller harnesses; `hasRun` prevents duplicates.
         WizardSelftest.runIfRequested()
     }
 

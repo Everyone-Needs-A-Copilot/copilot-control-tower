@@ -383,6 +383,7 @@ auth_scenario() {
         CT_CLI_PATH="${MOCK_CC}" CT_AUTH_SCENARIO="${auth_scenario_name}" CT_OPEN_WIZARD=1 CT_SELFTEST=1
     rm -rf "${home}"
     assert_exit_zero "${id} (CT_AUTH_SCENARIO=${auth_scenario_name})"
+    assert_contains "${id} (CT_AUTH_SCENARIO=${auth_scenario_name})" "SELFTEST ui=headless"
     assert_contains "${id} (CT_AUTH_SCENARIO=${auth_scenario_name})" "SELFTEST auth=${expected_status}"
     if [[ -n "${expected_signed_in_as}" ]]; then
         assert_contains "${id} (CT_AUTH_SCENARIO=${auth_scenario_name})" "signedInAs=${expected_signed_in_as}"
@@ -1254,29 +1255,23 @@ scenario_S17b() {
         return
     fi
     local home; home="$(fresh_home)"
-    # Deliberately no CT_SELFTEST here — this exercises the live Admin-window
-    # open path (CT_OPEN_ADMIN=1), not the SELFTEST short-circuit, per the
-    # task spec. Bounded to 3s; SIGTERM (our own timeout firing because the
-    # app is still alive and well, running its event loop) is an ACCEPTED
-    # outcome, not a failure — only a genuine crash signal fails this check.
+    # Construct the exact Admin window and hosting controller without ordering
+    # it onscreen. This keeps the crash regression while preventing the full
+    # suite from stealing focus or flashing a window on the publisher's Mac.
     local output status
     output="$(run_with_timeout 3 env \
         HOME="${home}" \
         CT_CLI_PATH="${MOCK_CC}" \
-        CT_OPEN_ADMIN=1 \
+        CT_ADMIN_WINDOW_SELFTEST=1 \
         "${ADMIN_BIN}" 2>&1)"
     status=$?
     rm -rf "${home}"
 
-    case "${status}" in
-        132|133|134|136|138|139)
-            # SIGILL / SIGTRAP / SIGABRT / SIGFPE / SIGBUS / SIGSEGV
-            fail "${id} admin binary (CT_OPEN_ADMIN=1) must not crash" "exit=${status} (crash signal $((status - 128))); output: ${output}"
-            ;;
-        *)
-            pass "${id} admin binary (CT_OPEN_ADMIN=1) starts without crashing (exit=${status}; 143/137 = we stopped it after 3s because it was still running, 0 = it exited on its own)"
-            ;;
-    esac
+    if [[ "${status}" -eq 0 && "${output}" == *"ADMIN_WINDOW_SELFTEST built=true visible=false"* ]]; then
+        pass "${id} admin window builds without becoming visible"
+    else
+        fail "${id} admin window must build headlessly" "exit=${status}; output: ${output}"
+    fi
 }
 
 # ==========================================================================

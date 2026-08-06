@@ -256,6 +256,9 @@ cat > "${OUTPUT_DIR}/release-metadata.json" <<EOF
 }
 EOF
 
+echo "release: verifying the drag-installed artifact without executing from the mounted DMG"
+scripts/verify-user-install-artifact.sh --release-dir "${OUTPUT_DIR}"
+
 echo "release: ready"
 echo "  app: ${final_app}"
 echo "  dmg: ${final_dmg}"

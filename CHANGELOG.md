@@ -14,6 +14,7 @@ All notable changes to Copilot Control Tower are recorded here.
 ### Changed
 
 - Repeated Verify pauses now say **The latest check reached the same result.** The app no longer claims that nothing changed without ledger evidence.
+- Native smoke checks now exercise the User and Admin models without ordering windows onscreen, and install-artifact verification detaches the DMG before executing its helper. Release QA no longer flashes the app repeatedly or causes macOS removable-volume permission prompts.
 - The app and Admin bundle are version `0.6.6` build `33`. The release requires and bundles exactly `cc 2.9.2`, built from signed parentless Foundation snapshot `v5.13.52`; `controltower.compat.json` declares `cc >=2.9.2,<3.0.0`.
 
 ### Rollback

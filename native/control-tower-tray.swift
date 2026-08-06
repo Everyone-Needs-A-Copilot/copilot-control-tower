@@ -2476,10 +2476,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             exit(Self.runTrayWaitSelftest() ? 0 : 1)
         }
 
+        // Wizard SELFTESTs exercise model/CLI seams and print their evidence;
+        // they do not need pixels. Route them before constructing the status
+        // item or ordering a window so the full scenario matrix cannot steal
+        // focus and flash the setup window dozens of times.
+        if env["CT_SELFTEST"] == "1", env["CT_OPEN_WIZARD"] == "1" {
+            print("SELFTEST ui=headless")
+            WizardSelftest.runIfRequested()
+            return
+        }
+
         #if CT_ADMIN_BUILD
         // The Admin distribution is a conventional double-clickable app, not
         // the User tray with a hidden Administration menu item. Keep the old
         // SELFTEST route for deterministic launch regression coverage.
+        if env["CT_ADMIN_WINDOW_SELFTEST"] == "1" {
+            let window = AdminWindowController.shared.window
+            let built = window?.contentViewController != nil
+            let hidden = window?.isVisible == false
+            print("ADMIN_WINDOW_SELFTEST built=\(built) visible=\(!hidden)")
+            exit(built && hidden ? 0 : 1)
+        }
+
         if env["CT_SELFTEST"] != "1" {
             NSApp.setActivationPolicy(.regular)
 
@@ -2872,12 +2890,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let forceWizard = env["CT_OPEN_WIZARD"] == "1"
 
         // AS-6: on first open the wizard auto-presents; opening the app is
-        // starting setup. `CT_OPEN_WIZARD=1` forces it open regardless (a
-        // dev/smoke-test override, same convention this file has always
-        // used), so a headless smoke test can prove the wizard view itself
-        // doesn't crash without needing a live click or a clean-slate
-        // `LocalDefaults` state (see that type's own doc comment in
-        // `native/models.swift` on why this isn't `UserDefaults`/cfprefsd).
+        // starting setup. `CT_OPEN_WIZARD=1` forces it open regardless for
+        // visual/manual development. Automated CT_SELFTEST runs were routed
+        // above before any window or status item was created, so the scenario
+        // matrix stays headless (see `native/models.swift` for LocalDefaults
+        // isolation).
         if forceWizard || isFirstRun {
             WizardWindowController.shared.show()
         }
