@@ -362,6 +362,25 @@ run_cc assess reconcile assess
 [[ "$(tree_digest)" == "${initial_digest}" ]] ||
     die "read-only assessment changed the disposable project"
 
+run_cc prepare reconcile prepare
+[[ "$(tree_digest)" == "${initial_digest}" ]] ||
+    die "active preparation changed a clean disposable project"
+"${VALIDATOR_PY}" - "${SCHEMA_PATH}" "${REPORTS}/prepare.json" <<'PY'
+import json
+import sys
+from jsonschema import Draft202012Validator
+
+schema = json.load(open(sys.argv[1], encoding="utf-8"))
+report = json.load(open(sys.argv[2], encoding="utf-8"))
+Draft202012Validator(schema).validate(report)
+if report.get("phase") != "prepare":
+    raise SystemExit("active preparation returned the wrong phase")
+if report.get("project_checkpoints", {}).get("pushed") != 0:
+    raise SystemExit("active preparation did not preserve its no-push contract")
+if report.get("authority", {}).get("setup_access") != "download-only":
+    raise SystemExit("active preparation widened shared setup access")
+PY
+
 run_cc plan reconcile plan --request "${REQUEST}"
 [[ "$(tree_digest)" == "${initial_digest}" ]] ||
     die "read-only planning changed the disposable project"

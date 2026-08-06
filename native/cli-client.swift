@@ -862,6 +862,13 @@ actor CliClient {
         await decodeReconciliationVerb(["reconcile", "assess", "--json"])
     }
 
+    /// Perform the bounded beginning-of-setup work: local Product-project
+    /// checkpoints, download-only shared repository refresh, then one fresh
+    /// assessment. Git authority and every mutation stay Python-owned.
+    func reconciliationPrepare() async -> Result<ReconciliationOutcome<ReconciliationPrepareReport>, CliError> {
+        await decodeReconciliationVerb(["reconcile", "prepare", "--json"])
+    }
+
     /// Create one bounded, opaque assistant-preparation session for the exact
     /// request bytes selected by the person. Project paths stay in the private
     /// request file and are never copied onto the visible Terminal command.

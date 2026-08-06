@@ -74,6 +74,7 @@ struct ReconciliationContractDriver {
         precondition(decodedAssess.summary.scopeCounts.ecosystemRepositories == 1)
         precondition(decodedAssess.projects.last?.route == .ecosystemManaged)
         precondition(decodedAssess.projects.last?.scope.isEcosystemRepository == true)
+
         var contradictoryScopeObject = try JSONSerialization.jsonObject(
             with: fixture("assess", in: fixtureDirectory)
         ) as! [String: Any]
@@ -298,6 +299,18 @@ struct ReconciliationContractDriver {
         precondition(decodedGuidePrepare.startPrompt.contains(decodedGuidePrepare.instructionsPath))
 
         let client = CliClient.shared
+        switch await client.reconciliationPrepare() {
+        case .success(.report(let report)):
+            precondition(report.result == .applied)
+            precondition(report.projectCheckpoints.checkpointed == 1)
+            precondition(report.projectCheckpoints.pushed == 0)
+            precondition(report.ecosystemRefresh.mode == "download-only")
+            precondition(report.ecosystemRefresh.updated == 4)
+            precondition(report.authority.setupAccess == "download-only")
+            precondition(report.assessment.result == .actionRequired)
+        default:
+            fatalError("active preparation report did not decode")
+        }
         switch await client.reconciliationAssess() {
         case .success(.report(let report)):
             precondition(report.phase == .assess)
@@ -486,8 +499,10 @@ struct ReconciliationContractDriver {
         unsetenv("CT_RECONCILE_RESPONSE")
 
         let assessArguments = try lines("\(captureDirectory)/assess.argv")
+        let prepareArguments = try lines("\(captureDirectory)/prepare.argv")
         let recoverArguments = try lines("\(captureDirectory)/recover.argv")
         precondition(assessArguments == ["reconcile", "assess", "--json"])
+        precondition(prepareArguments == ["reconcile", "prepare", "--json"])
         precondition(recoverArguments == ["reconcile", "recover", "--json"])
         print("reconciliation DTO/client contract: PASS")
     }

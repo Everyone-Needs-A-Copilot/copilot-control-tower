@@ -31,7 +31,10 @@ reject_source "workspaceMigrationPlan"
 reject_source "applyWorkspaceMigration"
 reject_source "projectMigrationReport"
 
-require_source "reconciliationAssess()"
+require_source "reconciliationPrepare()"
+require_source "reconciliationPrepareReport = report"
+require_source "reconciliationAssessReport = report.assessment"
+require_source "Shared foundational, internal, and department repositories are download-only in setup."
 require_source "reconciliationPlan(request: request)"
 require_source "reviewedReconciliationRequest = request"
 require_source "request: request,"
@@ -95,7 +98,9 @@ for field in 'scopeCounts' 'managedSeparately' 'leftUnchanged' 'progress'; do
         exit 1
     fi
 done
-require_source "Left unchanged to protect your work"
+require_source "Needs your attention"
+reject_source "No projects can be changed safely right now."
+reject_source "Left unchanged to protect your work"
 require_source "managed separately and will not receive project changes here."
 require_source "One work order for all selected projects"
 require_source "The app does not start, paste into, or watch the assistant."

@@ -1980,6 +1980,74 @@ struct ReconciliationAssessReport: Decodable {
     }
 }
 
+enum ReconciliationPreparePhase: String, Decodable {
+    case prepare
+}
+
+enum ReconciliationPrepareResult: String, Decodable {
+    case ready
+    case applied
+    case partial
+}
+
+struct ReconciliationProjectCheckpointSummary: Decodable {
+    let checkpointed: Int
+    let becameCurrent: Int
+    let held: Int
+    let pushed: Int
+}
+
+struct ReconciliationEcosystemRefreshSummary: Decodable {
+    let mode: String
+    let checked: Int
+    let updated: Int
+    let current: Int
+    let held: Int
+}
+
+struct ReconciliationAuthoritySummary: Decodable {
+    let setupAccess: String
+    let authorCapable: Int
+    let readOnly: Int
+    let unknown: Int
+}
+
+struct ReconciliationPrepareHold: Decodable, Identifiable {
+    let code: String
+    let detail: String
+    let project: String?
+    let layerId: String?
+    let repository: String?
+
+    var id: String {
+        "\(code):\(project ?? layerId ?? repository ?? detail)"
+    }
+}
+
+struct ReconciliationPrepareSummary: Decodable {
+    let headline: String
+    let detail: String
+}
+
+/// One CLI-owned active-preparation result. Swift renders these counts and
+/// messages verbatim; it never decides which repository may be checkpointed,
+/// pulled, or published.
+struct ReconciliationPrepareReport: Decodable {
+    let schemaVersion: String
+    let phase: ReconciliationPreparePhase
+    let result: ReconciliationPrepareResult
+    let runId: String
+    let generatedAt: String
+    let completedActions: [CompletedAction]
+    let projectCheckpoints: ReconciliationProjectCheckpointSummary
+    let ecosystemRefresh: ReconciliationEcosystemRefreshSummary
+    let authority: ReconciliationAuthoritySummary
+    let holds: [ReconciliationPrepareHold]
+    let assessment: ReconciliationAssessReport
+    let summary: ReconciliationPrepareSummary
+    let nextActions: [String]
+}
+
 struct ReconciliationAssistantPrepareReport: Decodable {
     let schemaVersion: String
     let phase: ReconciliationAssistantPreparePhase

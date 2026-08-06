@@ -1613,6 +1613,7 @@ final class WizardModel: ObservableObject {
     /// person's project-level subtraction from Python's safe default batch and
     /// this presentation state machine.
     @Published var reconciliationStage: ProjectReconciliationStage = .assessing
+    @Published var reconciliationPrepareReport: ReconciliationPrepareReport?
     @Published var reconciliationAssessReport: ReconciliationAssessReport?
     @Published var reconciliationPlanReport: ReconciliationPlanReport?
     @Published var reconciliationApplyReport: ReconciliationApplyReport?
@@ -3033,10 +3034,11 @@ final class WizardModel: ObservableObject {
     // MARK: Step 7, Your projects (adopt-and-project-setup spec)
 
     /// Loads folder-grant state (`workspace roots`) and, if at least one
-    /// folder is already granted, asks Python for a fresh schema-2.0
-    /// reconciliation assessment. The legacy workspace register is refreshed
+    /// folder is already granted, asks Python to checkpoint eligible Product
+    /// work, download safe shared updates, and return a fresh schema-2.0
+    /// assessment. The legacy workspace register is refreshed
     /// only for existing aftercare flows; it never drives reconciliation.
-    /// Nothing is written here. Runs once per wizard visit to this step
+    /// Swift performs no Git or repository writes. Runs once per wizard visit to this step
     /// (`hasLoadedProjectsStep`); the sidebar's own "completed rows are
     /// tappable, read-only" review affordance re-enters this phase without
     /// re-fetching.
@@ -3062,6 +3064,7 @@ final class WizardModel: ObservableObject {
     private func loadProjectWorkspaces() async {
         reconciliationStage = .assessing
         reconciliationErrorDetail = nil
+        reconciliationPrepareReport = nil
         reconciliationAssessReport = nil
         reconciliationPlanReport = nil
         reconciliationApplyReport = nil
@@ -3079,7 +3082,7 @@ final class WizardModel: ObservableObject {
         reconciliationGuidePreparationTask = nil
 
         async let workspacesResult = CliClient.shared.workspaces()
-        async let reconciliationResult = CliClient.shared.reconciliationAssess()
+        async let reconciliationResult = CliClient.shared.reconciliationPrepare()
         let (workspaceOutcome, reconciliationOutcome) = await (
             workspacesResult,
             reconciliationResult
@@ -3093,9 +3096,10 @@ final class WizardModel: ObservableObject {
 
         switch reconciliationOutcome {
         case .success(.report(let report)):
-            reconciliationAssessReport = report
+            reconciliationPrepareReport = report
+            reconciliationAssessReport = report.assessment
             reconciliationSelectedProjectPaths = Self.reconciliationAuthorizedPaths(
-                from: report
+                from: report.assessment
             )
             reconciliationStage = .selecting
         case .success(.error(let report)):
@@ -5654,12 +5658,12 @@ struct WizardRootView: View {
         ) {
             if model.projectsLoading && model.projectRoots.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Checking only the folders you selected…")
+                    Text("Getting your projects ready…")
                         .font(.callout.weight(.semibold))
                     ProgressView()
                         .controlSize(.small)
-                        .accessibilityLabel("Checking your projects")
-                    Text("Control Tower is asking the helper for a fresh project assessment.")
+                        .accessibilityLabel("Getting your projects ready")
+                    Text("Control Tower is saving current product-project work locally, downloading safe shared Copilot updates, and then checking what remains. Nothing is pushed.")
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
@@ -5727,7 +5731,7 @@ struct WizardRootView: View {
     private var projectsStepTitle: String {
         switch model.reconciliationStage {
         case .assessing:
-            return "Checking your projects"
+            return "Getting your projects ready"
         case .selecting:
             return model.reconciliationAssessReport == nil
                 ? "Project reconciliation isn't available"
@@ -5762,7 +5766,7 @@ struct WizardRootView: View {
     private var projectsStepIntro: String {
         switch model.reconciliationStage {
         case .assessing:
-            return "The helper is inspecting approved folders without changing them."
+            return "I’m saving current product-project work locally, downloading the latest safe shared Copilot setup, and then checking what remains. Nothing is pushed."
         case .selecting:
             return "Control Tower will write one work-order file for every selected project and open Terminal at your Sites folder. It will not start Claude Code or Codex."
         case .guidePreparing:
@@ -5999,8 +6003,8 @@ struct WizardRootView: View {
         switch model.reconciliationStage {
         case .assessing:
             reconciliationBusyCard(
-                title: "Assessing approved projects",
-                detail: "The helper is reading machine and project evidence. It is not applying a plan."
+                title: "Preparing approved projects",
+                detail: "The helper is creating local checkpoints where it can, fast-forwarding only clean shared Copilot repositories, and then running a fresh assessment. Shared setup is download-only."
             )
         case .selecting:
             if let report = model.reconciliationAssessReport {
@@ -6336,6 +6340,9 @@ struct WizardRootView: View {
         _ report: ReconciliationAssessReport
     ) -> some View {
         VStack(alignment: .leading, spacing: CTSpace.lg) {
+            if let preparation = model.reconciliationPrepareReport {
+                reconciliationPreparationSummary(preparation)
+            }
             reconciliationBatchSummary(report)
 
             if report.machineSummary.state != .ready {
@@ -6379,6 +6386,49 @@ struct WizardRootView: View {
 
             Button("Check again") { model.refreshReconciliation() }
                 .buttonStyle(.bordered)
+        }
+    }
+
+    private func reconciliationPreparationSummary(
+        _ report: ReconciliationPrepareReport
+    ) -> some View {
+        sectionCard("Setup preparation") {
+            VStack(alignment: .leading, spacing: CTSpace.sm) {
+                Text(report.summary.headline)
+                    .font(.callout.weight(.semibold))
+                Text(report.summary.detail)
+                    .font(.caption)
+                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                    .fixedSize(horizontal: false, vertical: true)
+                Label(
+                    "Shared foundational, internal, and department repositories are download-only in setup.",
+                    systemImage: "arrow.down.circle"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                .fixedSize(horizontal: false, vertical: true)
+
+                if !report.holds.isEmpty {
+                    Divider()
+                    DisclosureGroup(
+                        "\(report.holds.count) "
+                            + (report.holds.count == 1
+                                ? "item still needs attention"
+                                : "items still need attention")
+                    ) {
+                        VStack(alignment: .leading, spacing: CTSpace.sm) {
+                            ForEach(report.holds) { hold in
+                                Text(hold.detail)
+                                    .font(.caption)
+                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(.top, CTSpace.xs)
+                    }
+                    .font(.caption.weight(.semibold))
+                }
+            }
         }
     }
 
@@ -6463,7 +6513,7 @@ struct WizardRootView: View {
                 Text(
                     "\(batch.productProjects) "
                         + (batch.productProjects == 1 ? "product project" : "product projects")
-                        + " checked · \(resolution.totalActionable) can be handled now"
+                        + " checked after preparation"
                 )
                 .font(.callout.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
@@ -6506,9 +6556,9 @@ struct WizardRootView: View {
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text("No projects can be changed safely right now.")
+                    Text("The routine setup work is complete.")
                         .font(.callout.weight(.semibold))
-                    Text("The projects that need attention will stay unchanged.")
+                    Text("Anything listed below still needs a project-specific decision or a condition the helper could not resolve safely.")
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                 }
@@ -6555,7 +6605,7 @@ struct WizardRootView: View {
                 if !untouchedProjects.isEmpty
                     || reconciliationHasLeftUnchangedReasons(resolution.leftUnchanged) {
                     Divider()
-                    Label("Left unchanged to protect your work", systemImage: "hand.raised")
+                    Label("Needs your attention", systemImage: "exclamationmark.circle")
                         .font(.callout.weight(.semibold))
                     reconciliationLeftUnchangedReasons(resolution.leftUnchanged)
 
@@ -6586,7 +6636,7 @@ struct WizardRootView: View {
 
     private func reconciliationUntouchedRouteLabel(_ route: ReconciliationProjectRoute) -> String {
         switch route {
-        case .held: return "Protected work"
+        case .held: return "Automatic checkpoint could not be completed"
         case .ownerDecision: return "Needs your decision"
         case .couldNotVerify: return "Could not verify safely"
         case .excluded: return "Excluded by project policy"

@@ -53,13 +53,25 @@ for name in (
     "plan", "apply", "verify", "recover", "error",
 ):
     validator.validate(json.loads((fixtures / f"{name}.json").read_text()))
+assessment = json.loads((fixtures / "assess.json").read_text())
+validator.validate({
+    "schema_version": "2.0", "phase": "prepare", "result": "ready",
+    "run_id": assessment["run_id"], "generated_at": assessment["generated_at"],
+    "completed_actions": [],
+    "project_checkpoints": {"checkpointed": 0, "became_current": 0, "held": 0, "pushed": 0},
+    "ecosystem_refresh": {"mode": "download-only", "checked": 12, "updated": 0, "current": 12, "held": 0},
+    "authority": {"setup_access": "download-only", "author_capable": 4, "read_only": 7, "unknown": 1},
+    "holds": [], "assessment": assessment,
+    "summary": {"headline": "Ready.", "detail": "Nothing was pushed."},
+    "next_actions": assessment["next_actions"],
+})
 if not list(validator.iter_errors(json.loads((fixtures / "schema-high.json").read_text()))):
     raise SystemExit("schema-high fixture unexpectedly conforms to schema 2.0")
 print("reconciliation JSON schemas/fixtures: PASS")
 PY
 
 expected_request_sha="a39cf5b9ce00dca1e632f5584c308bf4ab4af1726c26654422743e0c2fae056c"
-expected_response_sha="5f0c6bac90613417d00449ba6f8406057d4b11fc09d20a7b7d0cdf52747c24fc"
+expected_response_sha="ba86779edf241fb83f9524cce9958470989d1ab019c7e4259b37dda4f8ddfbe3"
 actual_request_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/reconcile-request.schema.json" | awk '{print $1}')"
 actual_response_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/reconcile.schema.json" | awk '{print $1}')"
 [[ "${actual_request_sha}" == "${expected_request_sha}" ]]

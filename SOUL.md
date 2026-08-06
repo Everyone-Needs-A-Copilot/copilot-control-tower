@@ -209,7 +209,7 @@ Yes → **reject, or redesign until it doesn't.** Two are prevent-not-detect: Th
 - [ ] All deterministic preflight runs before the first irreversible write; a blocked row produces zero mutations.
 - [ ] No internal token (layer id, severity raw value, rank, manifest field) reaches any string, tooltip, or accessibility label.
 - [ ] Every escalation traces to auto-act / route-to-authority / ask-the-owner by the competence matrix; person-facing interrupt count trends toward zero.
-- [ ] Never touches a dirty human-owned working tree, and never writes or deletes through a symlink escaping the materialize root.
+- [ ] Never overwrites, resets, rebases, merges, deletes, or pushes a dirty human-owned working tree. Setup may append one ordinary local checkpoint commit in an eligible Product project when it can preserve the complete tracked/untracked work and prior index; it never checkpoints an ecosystem repository. Never write or delete through a symlink escaping the materialize root.
 - [ ] Release gates run against the **packaged, signed** artifact, not a mock.
 - [ ] Every release note names the prior signed DMG as the rollback artifact; release tags are immutable and a defective build is superseded, never moved.
 

@@ -2,6 +2,25 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.7] - 2026-08-06
+
+### Added
+
+- Step 7 now begins with active preparation instead of a passive assessment. Control Tower asks the helper to create local checkpoint commits for eligible dirty Product projects, download clean fast-forward updates for shared Foundation, Internal, and Department Copilot repositories, and then return one fresh assessment.
+- The preparation card reports exactly how many projects were saved locally, how many shared updates were downloaded, and which conditions still need attention. It says explicitly that nothing is pushed and that shared setup is download-only.
+- GitHub repository permission is now typed evidence: `READ`, `TRIAGE`, and unknown remain read-only; `WRITE`, `MAINTAIN`, and `ADMIN` prove only that a separate governed authoring workflow could be allowed. Setup never becomes a publishing workflow.
+
+### Changed
+
+- Misleading copy such as **No projects can be changed safely right now**, **Protected work**, and **Left unchanged to protect your work** is replaced with the outcome of the work Control Tower actually performed and a narrower **Needs your attention** section for genuine unresolved conditions.
+- Product checkpointing includes tracked and untracked non-ignored work in one local commit, preserves configured Git identity and signing, and restores the exact prior index if the commit fails. Repository hooks and filesystem-monitor hooks are disabled for the unattended operation so a discovered project cannot execute arbitrary hook code during setup.
+- Ecosystem repositories are never checkpointed. Dirty, ahead, divergent, detached, wrong-origin, or unreadable shared checkouts remain unchanged; only clean merge-base-proven fast-forwards are allowed and verified against the fetched target.
+- The app and Admin bundle are version `0.6.7` build `34`. The release requires and bundles exactly `cc 2.10.0`, built from signed parentless Foundation snapshot `v5.13.53`; `controltower.compat.json` declares `cc >=2.10.0,<3.0.0`.
+
+### Rollback
+
+- Reinstall the signed `0.6.6` DMG, `Copilot-Control-Tower_0.6.6_arm64.dmg`, to return to the passive Step 7 assessment and bundled `cc 2.9.2`. Local checkpoint commits and completed shared fast-forwards are ordinary Git history and are not removed by reinstalling the app.
+
 ## [0.6.6] - 2026-08-06
 
 ### Fixed

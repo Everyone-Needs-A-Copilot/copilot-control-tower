@@ -30,7 +30,9 @@ aftercare before moving to the Admin experience.
 | 22 | [Resolve with Claude Code — UI](22-resolve-with-claude-code-uids-walkthrough.html) | The Quiet Instrument visual treatment for visible assistant preparation, proposal triage, decisions, held work, exact plans, and evidence-bound receipts. |
 | 23 | [User-controlled project handoff — UX](23-fleet-guided-reconciliation-uxd-walkthrough.html) | The corrected Sites-root handoff: one work-order file, a copyable prompt, a normal user-controlled assistant conversation, and explicit independent verification. |
 | 24 | [User-controlled project handoff — UI](24-fleet-guided-reconciliation-uids-walkthrough.html) | The native hierarchy for four clear steps, prompt copying, Terminal recovery, remaining work, and the quiet verified state. |
-| 25 | [Verify support report — UX](25-verify-support-report-uxd-walkthrough.html) | A durable, redacted verification report that preserves the check-update-check evidence and is easy to copy or reveal for a support conversation. |
+| 25 | [Active setup preflight — UX](25-active-setup-preflight-uxd-walkthrough.html) | Automatic local project checkpoints, pull-only shared setup refresh, truthful partial receipts, and authority-safe recovery before project selection. |
+| 26 | [Active setup preflight — UI](26-active-setup-preflight-uids-walkthrough.html) | The native hierarchy for preparation, completed work, genuine holds, and download-only shared setup. |
+| 27 | [Verify support report — UX](27-verify-support-report-uxd-walkthrough.html) | A durable, redacted verification report that preserves the check-update-check evidence and is easy to copy or reveal for a support conversation. |
 
 Walkthroughs 17 and 18 read last as a pair, and not merely because they are newest. 17 poses the question — what Bob's connect experience should be, and the one fork left undecided — and 18 assumes the answer the owner ratified, rendering both actors of the mechanism that makes 17's receipt true along with what the security passes qualified about it. Both span the member's wizard and Admin governance, both still carry undecided items, and their user-side screens depend on the setup and completion model established by 01 to 12.
 
@@ -54,7 +56,12 @@ They also supersede every per-project **Run in Codex**, **Run in Claude Code**,
 and assistant-diagnosis action shown historically in 07 and 08. Those files
 remain only as decision history and do not describe the shipping app.
 
-Walkthrough 25 extends the truthful setup recovery model in 05 and 06. It does
+Walkthroughs 25 and 26 supersede the passive machine/project summary at the
+start of Step 7. Routine local preservation and clean shared-source updates now
+happen before the fresh project choice; only genuine safety or authority holds
+remain for the person.
+
+Walkthrough 27 extends the truthful setup recovery model in 05 and 06. It does
 not add a new diagnostics dashboard: it replaces the identity-only support block
 with redacted evidence from the exact verification attempt and a durable
 copy/reveal path.

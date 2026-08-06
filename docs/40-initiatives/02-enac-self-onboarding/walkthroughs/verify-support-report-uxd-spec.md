@@ -77,4 +77,4 @@ error text.
 
 ## Walkthrough
 
-[25-verify-support-report-uxd-walkthrough.html](25-verify-support-report-uxd-walkthrough.html)
+[27-verify-support-report-uxd-walkthrough.html](27-verify-support-report-uxd-walkthrough.html)
