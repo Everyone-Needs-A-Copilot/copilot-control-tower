@@ -41,8 +41,8 @@ All notable changes to Copilot Control Tower are recorded here.
 
 ### Rollback
 
-- Reinstall the signed `0.6.8` DMG,
-  `Copilot-Control-Tower_0.6.8_arm64.dmg`, to return to bundled `cc 2.10.2`.
+- Reinstall the signed `0.6.7` DMG,
+  `Copilot-Control-Tower_0.6.7_arm64.dmg`, to return to bundled `cc 2.10.2`.
   Reinstalling changes only the app/helper version; it does not alter project
   work, Copilot repositories, or saved diagnostic reports.
 
