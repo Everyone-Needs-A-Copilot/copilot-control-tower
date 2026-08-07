@@ -1,0 +1,7 @@
+{
+  "components": [
+    "claude",
+    "codex"
+  ],
+  "schema_version": "1.0"
+}
