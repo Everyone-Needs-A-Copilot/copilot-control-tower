@@ -29,8 +29,9 @@ Execution: `tc` tasks 258-260
   machine, and scope claims and a single-use `jti`.
 - Holds only its signing key and a GitHub App private key. It has no Infisical
   credential and no ability to create identities or permissions.
-- Checks organization/team membership live through the GitHub App installation
-  token. `team_scopes` is read from the protected organization configuration.
+- Checks access to the protected policy repository live through a downscoped
+  GitHub App installation token. Team-specific rows additionally check team
+  membership. `team_scopes` is read from that protected configuration.
 - Verifies a single-use, at-most-60-second SSH challenge signed by the Mac's
   existing encrypted Copilot device key.
 - Emits structured metadata-only audit events. It never logs the challenge
@@ -82,7 +83,7 @@ The inherited non-secret store configuration gains:
 - `team_scopes[].identity_id`
 
 Each scope row remains read-only, has no wildcards, and maps one GitHub team (or
-the reserved `everyone` membership) to one Infisical environment/path and one
+the reserved `everyone` policy-repository entitlement) to one Infisical environment/path and one
 pre-created OIDC identity.
 
 ## Security fitness functions
@@ -106,8 +107,10 @@ The following require authenticated owner/operator accounts and must be stored
 as evidence, not assumed:
 
 - hardware-backed MFA on every Infisical platform-admin account;
-- a dedicated organization-controlled GitHub App with `Members: read` and only
-  the repository-content access required to read protected `team_scopes`;
+- an organization-controlled GitHub App with read access to the protected
+  policy repository; `Members: read` is required only when team-specific rows
+  are configured, while every runtime token is restricted to the policy
+  repository and read-only contents/metadata;
 - DNS 2FA, DNSSEC, and registry/transfer lock where available;
 - Coolify secret-manager custody for the broker signing/App keys;
 - per-scope Infisical OIDC identities and a positive-plus-negative live proof;

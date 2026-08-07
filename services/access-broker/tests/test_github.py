@@ -28,10 +28,14 @@ class _HTTP:
     def close(self):
         pass
 
-    def post(self, url, headers):
+    def post(self, url, headers, json):
         del url
         self.posts += 1
         assert headers["Authorization"].startswith("Bearer ")
+        assert json == {
+            "repositories": ["policy"],
+            "permissions": {"contents": "read", "metadata": "read"},
+        }
         return _Response(201, {"token": "installation-token"})
 
     def get(self, url, headers=None, params=None):
@@ -42,12 +46,13 @@ class _HTTP:
                 text="ssh-ed25519 AAAATEST valid\nssh-rsa ignored\n",
             )
         assert headers["Authorization"] == "Bearer installation-token"
-        if "/memberships/" in url and "/teams/" not in url:
+        if "/collaborators/" in url and url.endswith("/permission"):
             return _Response(
                 200,
                 {
-                    "state": "active",
-                    "organization": {"login": "Example-Org"},
+                    "permission": "read",
+                    "role_name": "read",
+                    "user": {"login": "pablo"},
                 },
             )
         if "/teams/accounting/" in url:
@@ -64,6 +69,7 @@ class _HTTP:
 def github():
     client = GitHubClient(
         organization="Example-Org",
+        policy_repository="Example-Org/policy",
         app_id=1,
         installation_id=2,
         app_key=rsa.generate_private_key(public_exponent=65537, key_size=2048),
@@ -77,13 +83,34 @@ def github():
 
 def test_github_client_uses_app_authority_and_filters_public_keys(github):
     assert github.public_keys("pablo") == ["ssh-ed25519 AAAATEST valid"]
-    assert github.is_organization_member("pablo") is True
+    assert github.has_repository_access("Example-Org/policy", "pablo") is True
     assert github.is_team_member("accounting", "pablo") is True
     assert github.is_team_member("other", "pablo") is False
     assert github.policy_source("Example-Org/policy", "ecosystem.yml", "main") == (
         "org: Example-Org\n"
     )
     assert github._http.posts == 1
+
+
+def test_github_client_returns_not_entitled_when_repository_access_is_absent(github):
+    github._http.get = lambda *args, **kwargs: _Response(404, {})
+    assert github.has_repository_access("Example-Org/policy", "pablo") is False
+
+
+@pytest.mark.parametrize(
+    ("response", "reason"),
+    [
+        (_Response(403, {}), "github-repository-access-unavailable"),
+        (_Response(200, {"permission": "read", "user": {"login": "other"}}), "malformed"),
+        (_Response(200, {"permission": "none", "user": {"login": "pablo"}}), "malformed"),
+    ],
+)
+def test_github_client_fails_closed_when_repository_access_is_not_authoritative(
+    github, response, reason
+):
+    github._http.get = lambda *args, **kwargs: response
+    with pytest.raises(GitHubUnavailable, match=reason):
+        github.has_repository_access("Example-Org/policy", "pablo")
 
 
 def test_github_client_fails_closed_when_no_supported_public_key(github):

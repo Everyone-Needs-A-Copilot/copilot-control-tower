@@ -22,7 +22,7 @@ class FakeGitHub:
     def public_keys(self, _login: str) -> list[str]:
         return [self.public_key]
 
-    def is_organization_member(self, _login: str) -> bool:
+    def has_repository_access(self, _repository: str, _login: str) -> bool:
         return self.member
 
     def is_team_member(self, team: str, _login: str) -> bool:

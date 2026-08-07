@@ -37,7 +37,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 class GitHubEvidence(Protocol):
     def public_keys(self, login: str) -> list[str]: ...
-    def is_organization_member(self, login: str) -> bool: ...
+    def has_repository_access(self, repository: str, login: str) -> bool: ...
     def is_team_member(self, team: str, login: str) -> bool: ...
     def policy_source(self, repository: str, path: str, ref: str) -> str: ...
 
@@ -86,8 +86,9 @@ def _entitled_scopes(
     github: GitHubEvidence,
     login: str,
     rows: list[ScopePolicy],
+    policy_repository: str,
 ) -> list[ScopePolicy]:
-    if not github.is_organization_member(login):
+    if not github.has_repository_access(policy_repository, login):
         return []
     matched: list[ScopePolicy] = []
     team_answers: dict[str, bool] = {}
@@ -110,6 +111,7 @@ def build_services(settings: Settings) -> Services:
         signing_key=signing_key,
         github=GitHubClient(
             organization=settings.organization,
+            policy_repository=settings.policy_repository,
             app_id=settings.github_app_id,
             installation_id=settings.github_installation_id,
             app_key=github_key,
@@ -250,7 +252,12 @@ def create_app(services: Services | None = None) -> FastAPI:
             )
             if policy_org.casefold() != services.settings.organization.casefold():
                 raise PolicyError("organization policy names a different organization")
-            entitled = _entitled_scopes(services.github, payload.login, rows)
+            entitled = _entitled_scopes(
+                services.github,
+                payload.login,
+                rows,
+                services.settings.policy_repository,
+            )
         except PermissionError:
             audit.emit(
                 event="assertion",

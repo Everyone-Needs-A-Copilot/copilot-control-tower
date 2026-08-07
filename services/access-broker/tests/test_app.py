@@ -119,7 +119,9 @@ def test_issues_scope_bound_assertions_and_rejects_replay_without_logging_tokens
     assert "shared" in rendered_logs
 
 
-def test_denies_valid_machine_without_current_org_membership(app_factory, device_key, policy):
+def test_denies_valid_machine_without_current_policy_repository_access(
+    app_factory, device_key, policy
+):
     key_path, public_key = device_key
     github = FakeGitHub(public_key=public_key, policy=policy, member=False)
     with TestClient(app_factory(github)) as client:

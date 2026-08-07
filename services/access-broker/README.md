@@ -2,8 +2,8 @@
 
 This is the open-source, organization-operated OIDC assertion service defined
 by Control Tower's B-prime architecture. It verifies a Mac's SSH signature,
-checks current GitHub organization/team membership through a least-privilege
-GitHub App, and issues a short-lived scope assertion that a pre-created
+checks current access to the protected policy repository through a
+least-privilege GitHub App token, and issues a short-lived scope assertion that a pre-created
 Infisical machine identity can exchange for a 15-minute access token.
 
 It deliberately has no Infisical credential and no identity-management API.
@@ -12,7 +12,8 @@ It deliberately has no Infisical credential and no identity-management API.
 
 - `BROKER_SIGNING_KEY_FILE`: RSA private key used only to sign OIDC assertions.
 - `BROKER_GITHUB_PRIVATE_KEY_FILE`: private key for the organization-controlled
-  GitHub App with `Members: read` and read access to the policy repository.
+  GitHub App with read access to the policy repository. Team-specific scopes
+  additionally require `Members: read`; an `everyone` scope does not.
 
 Both paths must point to files mounted from the host secret manager. Raw key
 material is not accepted through environment variables.
@@ -52,7 +53,11 @@ state, and file-mounted secrets. Put TLS at the organization's reverse proxy;
 publish only that HTTPS origin. Replace every example non-secret environment
 value with the organization-specific values listed above.
 
-The GitHub App must have organization `Members: read` and read access only to
-the protected policy repository. The per-scope Infisical OIDC identities must
-have read access only to their declared environment/path. The broker has no
-Infisical token, client ID, or client secret.
+The GitHub App must have read access to the protected policy repository. The
+broker downscopes every installation token to that one repository and only
+`Contents: read` plus `Metadata: read`, even if the registered App has broader
+permissions. Team-specific scopes require organization `Members: read`; the
+reserved `everyone` scope is granted by current access to the policy repository
+itself. The per-scope Infisical OIDC identities must have read access only to
+their declared environment/path. The broker has no Infisical token, client ID,
+or client secret.

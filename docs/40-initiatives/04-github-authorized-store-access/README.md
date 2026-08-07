@@ -2,7 +2,7 @@
 initiative: 04-github-authorized-store-access
 title: GitHub-Authorized Store Access and Complete Setup Journey
 status: active
-status_note: Python broker, CLI integration, live verification gate, and support-report access implemented locally on 2026-08-07. Immutable releases, ENAC control-plane deployment, live proof, Swift connection, and app release remain tracked in tc PRD 21.
+status_note: Python broker, CLI integration, live ENAC control plane, protected policy/config, verification gate, and support-report access implemented on 2026-08-07. Final live proof, Swift connection, and app release remain tracked in tc PRD 21.
 owner: Pablo Alejo
 created: 2026-08-07
 execution_context:
@@ -20,7 +20,8 @@ The accepted architecture is ADR-009's B-prime design:
 
 1. a user signs in to GitHub once;
 2. an open-source, organization-operated broker verifies that account's live
-   organization and team membership;
+   access to the protected organization policy repository and any configured
+   team membership;
 3. the broker issues a short-lived, scope-bound OIDC assertion;
 4. Python exchanges the assertion for a 15-minute Infisical access token;
 5. Python completes ecosystem and Product-project reconciliation and reports
@@ -31,7 +32,7 @@ The broker is organization infrastructure deployed beside that organization's
 Infisical instance. It is not a Control Tower-hosted service, does not hold an
 Infisical credential, and cannot create or widen an Infisical identity. Its two
 secrets are its OIDC signing key and a least-privilege GitHub App private key
-with organization-membership read access.
+whose runtime token is limited to read access on the policy repository.
 
 ## Current evidence
 
@@ -40,16 +41,18 @@ with organization-membership read access.
 - Setup checkpoint-commits eligible dirty Product work locally.
 - Foundation, organization, and department repositories are refreshed only by
   download or merge-base-proven fast-forward. Setup never pushes.
-- The current Infisical Universal Auth pair exists in Keychain but is rejected
-  by the server. Eight unavailable connection groups are downstream symptoms.
-- ENAC's live `store.team_scopes` is empty.
-- The existing device-flow sign-in client is not the separate broker-side
-  GitHub App installation with `Members: read` and an organization-controlled
-  private key. Production deployment must create or explicitly designate that
-  least-privilege App; no code may infer it from the public client ID.
-- No authenticated Infisical admin browser session was available from the
-  implementation environment on 2026-08-07, so live identity/trust creation
-  remains an owner-hands deployment gate rather than a hidden assumption.
+- ENAC's broker is live at `access.ineedacopilot.com` with trusted TLS, OIDC
+  discovery/JWKS, hardened runtime boundaries, and metadata-only audit logs.
+- Infisical has a read-only OIDC identity for `prod:/shared`, bound to the
+  broker issuer, audience, organization, and `shared` scope for 15-minute
+  access tokens.
+- The protected organization policy and inherited CLI broker configuration are
+  merged. Both contain identifiers and routing policy only, never credentials.
+- ENAC's existing organization-controlled GitHub App can read the protected
+  policy repository and prove a user's repository permission. The broker
+  downscopes its installation token to that repository and only `Contents:
+  read` plus `Metadata: read`; no personal token or new App is required for the
+  reserved `everyone` scope.
 
 ## Acceptance boundary
 
