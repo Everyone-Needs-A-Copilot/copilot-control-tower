@@ -3067,7 +3067,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Runs the exact asynchronous Set up tail without constructing UI:
-    /// `ecosystemOnboardApply` -> stage decode -> `doctor` -> verified.
+    /// `ecosystemOnboardApply` -> stage decode -> Python setup journey ->
+    /// verified.
     /// The launch guard above restricts this to the inert `mock-cc` fixture;
     /// `CT_MOCK_INVOCATION_LOG` independently proves the argv it received.
     private static func runSetupTransactionSelftest() {
@@ -3094,7 +3095,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             + "apply=\(model.lastOnboardResult?.rawValue ?? "missing") "
                             + "layerManifest=\(manifest?.result ?? "missing") "
                             + "onboardDoctor=\(onboardDoctor?.result ?? "missing") "
-                            + "verify=healthy"
+                            + "verify=operational"
                     )
                     exit(passed ? 0 : 1)
                 case .holding:

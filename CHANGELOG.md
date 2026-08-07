@@ -2,6 +2,50 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.9] - 2026-08-07
+
+### Fixed
+
+- Verify now runs the single Python-owned `cc reconcile run --json` journey,
+  which prepares and updates the machine, integrates every approved Product
+  project, and independently verifies the machine, ecosystem hierarchy, and
+  projects before making an operational claim. The older Swift-orchestrated
+  `doctor -> update -> doctor` completion gate is no longer used.
+- The Verify support disclosure now loads Python's exact, private
+  `cc support latest --json` envelope and links to the Python-owned diagnostic
+  file. Swift no longer writes a second report that omits the evidence needed
+  to diagnose a paused setup.
+- Successful verification now shows Python's reported machine, ecosystem-layer,
+  and Product-project totals. Action-required and inconsistent reports fail
+  closed and cannot reach **Finish setup**.
+
+### Safety
+
+- Python remains the only state and mutation authority. Swift invokes the
+  versioned setup-journey and support contracts, validates their schemas and
+  internally consistent top-level verdicts, and renders their output without
+  inspecting repositories or recalculating readiness.
+- Shared Foundation, Internal, and Department repositories remain
+  download-only during setup. Their write authority is governed separately by
+  GitHub repository permission; setup does not push shared changes.
+- The support report omits file content, process output, repository addresses,
+  environment values, credentials, and secrets. It may contain local project
+  paths and is stored with owner-only permissions by Python.
+
+### Changed
+
+- The app and Admin bundle are version `0.6.9` build `36`. The release requires
+  and bundles exactly `cc 2.12.7`, built from signed parentless Foundation
+  snapshot `v5.13.64`; `controltower.compat.json` declares
+  `cc >=2.12.7,<3.0.0`.
+
+### Rollback
+
+- Reinstall the signed `0.6.8` DMG,
+  `Copilot-Control-Tower_0.6.8_arm64.dmg`, to return to bundled `cc 2.10.2`.
+  Reinstalling changes only the app/helper version; it does not alter project
+  work, Copilot repositories, or saved diagnostic reports.
+
 ## [0.6.8] - 2026-08-06
 
 ### Fixed

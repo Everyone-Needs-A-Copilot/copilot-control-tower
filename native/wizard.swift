@@ -622,9 +622,9 @@ struct HoldingSupportInfo: Equatable {
     }
 }
 
-/// The exact privacy-bounded text shown, copied, and (when the local boundary
-/// is safe) saved for one Verify attempt. `filePath == nil` means persistence
-/// was unavailable; the in-memory report is still complete and copyable.
+/// The exact Python-authored support text shown and copied for one Verify
+/// attempt. `filePath`, when present, is the Python-owned private diagnostic
+/// artifact; Swift never writes a second verification report.
 struct SupportReportArtifact: Equatable, Sendable {
     let text: String
     let filePath: String?
@@ -1506,6 +1506,7 @@ final class WizardModel: ObservableObject {
     @Published var detectedCopilotState: RenderState?
     @Published var verifiedCopilotState: RenderState?
     @Published var verifiedWorkspacesReport: WorkspacesReport?
+    @Published var setupJourneyReport: SetupJourneyReport?
     /// The redacted, exact report for the current Verify attempt. Populated
     /// only when that attempt cannot earn a healthy completion state; a
     /// healthy Verify keeps the quiet success surface free of diagnostics.
@@ -3902,57 +3903,35 @@ final class WizardModel: ObservableObject {
 
     // MARK: Verify (#w8)
 
-    /// `doctor() -> healthy: "Everything checks out." + Continue; anything
-    /// non-confirmable -> Holding` — never fakes a pass, per the task
-    /// contract.
+    /// Run the one complete Python-owned setup journey. Swift does not
+    /// compose doctor, update, workspace, or filesystem observations into a
+    /// second verdict; it displays Python's typed result and exact support
+    /// envelope.
     func beginVerify() {
         phase = .verifying
         verificationSupportArtifact = nil
+        setupJourneyReport = nil
         Task {
-            var attempt = VerificationSupportAttempt()
-            var doctorOutcome = await CliClient.shared.doctor()
-            if case .success(let doctor) = doctorOutcome,
-               doctor.status == .updateAvailable {
-                attempt.initialDoctor = doctor
-                self.verifiedCopilotState = RenderState.from(doctor, joinable: nil)
-                switch await CliClient.shared.update() {
-                case .success(let updateReport):
-                    attempt.updateReport = updateReport
-                    // The update report says only what the update invocation
-                    // did. A second doctor call remains the completion gate.
-                    doctorOutcome = await CliClient.shared.doctor()
-                case .failure(let error):
-                    attempt.updateError = error
-                    self.verificationSupportArtifact = await SupportReportStore.save(
-                        attempt.formattedReport()
+            switch await CliClient.shared.reconciliationRun() {
+            case .success(let artifact):
+                self.setupJourneyReport = artifact.report
+                if let supportText = artifact.supportText {
+                    self.verificationSupportArtifact = SupportReportArtifact(
+                        text: supportText,
+                        filePath: artifact.supportPath
                     )
-                    self.routeCliError(error, origin: .verify)
-                    return
                 }
-            } else if case .success(let doctor) = doctorOutcome {
-                attempt.initialDoctor = doctor
-            }
-            let workspacesOutcome = await CliClient.shared.workspaces()
-            if case .success(let report) = workspacesOutcome {
-                self.verifiedWorkspacesReport = report
-            }
-            switch doctorOutcome {
-            case .success(let doctor):
-                attempt.finalDoctor = doctor
-                self.verifiedCopilotState = RenderState.from(doctor, joinable: nil)
-                if doctor.status == .healthy {
+                if artifact.report.isOperational {
                     self.phase = .verified
                 } else {
-                    self.verificationSupportArtifact = await SupportReportStore.save(
-                        attempt.formattedReport()
-                    )
-                    self.enterHolding(Self.holdingInfo(forNonHealthy: doctor, origin: .verify))
+                    self.enterHolding(HoldingInfo.h3(
+                        origin: .verify,
+                        title: artifact.report.summary.headline,
+                        intro: artifact.report.summary.detail,
+                        schemaVersion: artifact.report.schemaVersion
+                    ))
                 }
             case .failure(let error):
-                attempt.finalError = error
-                self.verificationSupportArtifact = await SupportReportStore.save(
-                    attempt.formattedReport()
-                )
                 self.routeCliError(error, origin: .verify)
             }
         }
@@ -7957,22 +7936,10 @@ struct WizardRootView: View {
 
     // MARK: 9. Verify (#w8)
 
-    /// §2.10's gate on Verify's own result (copy spec §2.6: "permitted only
-    /// when the completion rule passes. If it does not, Verify renders this
-    /// pattern instead. There is no hedged middle wording."). By
-    /// construction, EVERY earlier stage failure already routed to Holding
-    /// before Verify could ever be reached (`beginMaterialize`'s own
-    /// `guard report.result == .ready`), so this is a safety net, not the
-    /// common case — the one real path where it can still fail is the
-    /// `codex-plugin`-excluded-when-declined edge `expectedStageIds(includeCodex:)`
-    /// exists for (see that function's own doc comment).
+    /// Render only Python's operational verdict. Project and layer counts are
+    /// evidence shown below, never a second Swift completion calculation.
     private var verifyCompletionPasses: Bool {
-        guard let result = model.lastOnboardResult else { return false }
-        return WizardModel.completionRulePasses(result: result, stages: model.lastOnboardStages, includeCodex: model.includeCodex)
-    }
-
-    private var sharedStoreIsDeferred: Bool {
-        WizardModel.sharedStoreIsDeferred(model.lastOnboardStages)
+        model.setupJourneyReport?.isOperational == true
     }
 
     /// A real (never `nil`) support block for Verify's own §2.10 fallback —
@@ -8013,25 +7980,26 @@ struct WizardRootView: View {
                     .disabled(true)
             }
         } else if verifyCompletionPasses {
+            let journey = model.setupJourneyReport
+            let assessment = journey?.assessment
             stepShell(
                 eyebrow: "Setup verified · Step 9 of 9",
-                title: "Your copilots are ready",
-                intro: "Control Tower checked the setup it completed. Here is what is ready now and where to go next."
+                title: journey?.summary.headline ?? "Your copilots are ready",
+                intro: journey?.summary.detail ?? "Python verified this Mac, its setup, and every approved project."
             ) {
                 VStack(alignment: .leading, spacing: 16) {
                     sectionCard("Ready now") {
                         VStack(alignment: .leading, spacing: 10) {
-                            completionReadyRow("Your GitHub connection")
-                            wizardCopilotRoster(model.verifiedCopilotState)
-                        }
-                    }
-
-                    if sharedStoreIsDeferred {
-                        sectionCard("Still to do") {
-                            Text("Shared team connections are not available on this Mac yet. Your existing credentials were kept, and you can check again later from Control Tower.")
-                                .font(.callout)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .fixedSize(horizontal: false, vertical: true)
+                            completionReadyRow("This Mac")
+                            if let layers = assessment?.machine.layers {
+                                completionReadyRow("All \(layers.ready) ecosystem layers")
+                            }
+                            if let counts = assessment?.summary.projectCounts,
+                               let scope = assessment?.summary.scopeCounts {
+                                completionReadyRow(
+                                    "All \(counts.ready) of \(scope.productProjects) Product projects"
+                                )
+                            }
                         }
                     }
 
@@ -8041,21 +8009,8 @@ struct WizardRootView: View {
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     }
 
-                    if let body = doneProjectsCardBody {
-                        sectionCard("Your projects") {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(body)
-                                    .font(.callout)
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                    .fixedSize(horizontal: false, vertical: true)
-                                if let report = model.verifiedWorkspacesReport {
-                                    Text(wizardVerifiedProjectSummary(report))
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundColor(Color(nsColor: .labelColor))
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
+                    if let artifact = model.verificationSupportArtifact {
+                        HoldingSupportDisclosureView(lines: [], artifact: artifact)
                     }
 
                     sectionCard("What happens next") {
@@ -8080,13 +8035,9 @@ struct WizardRootView: View {
                     .keyboardShortcut(.defaultAction)
             }
         } else {
-            // The completion rule failed on a HEALTHY doctor result (the
-            // only way to reach `.verified` at all) — §2.10, never a
-            // resolved-sounding "Everything checks out." `Done` (step 10)
-            // is unreachable from here on purpose: this screen's own action
-            // set (§2.5) replaces `Continue` entirely, so a person can never
-            // click through to "You have the tools, go change the world"
-            // on the strength of a report that does not prove it.
+            // Defensive fallback: a non-operational journey normally routes
+            // directly to Holding. If view state is ever inconsistent, fail
+            // closed and keep the previous incomplete surface.
             honestIncompleteView(
                 reachedFromDecision: false,
                 stages: model.lastOnboardStages,
@@ -8909,7 +8860,7 @@ private struct HoldingSupportDisclosureView: View {
     private var caption: String {
         artifact == nil
             ? expandedCaption
-            : "Copy this into a Claude Code, Codex, or support conversation. It omits names, paths, project content, process output, and secrets."
+            : "Copy this into a Claude Code, Codex, or support conversation. Python removes project content, process output, repository addresses, credentials, and secrets; the private report may include local project paths."
     }
 
     var body: some View {

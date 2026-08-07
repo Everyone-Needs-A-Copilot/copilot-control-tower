@@ -3,8 +3,9 @@
 # without UI and without touching the current user's setup.
 #
 # The app is forced to use the repository's inert mock-cc fixture. The fixture
-# records argv so this proof requires the real `onboard ... --apply --json`
-# and follow-up `doctor --json` calls, not merely a decodable canned response.
+# records argv so this proof requires the real `onboard ... --apply --json`,
+# complete `reconcile run --json`, and support-report calls, not merely a
+# decodable canned response.
 #
 # G-6 (task 209): mock-cc proves the app sends the right commands and reacts
 # to a canned response -- it can never prove the topology CONTRACT those
@@ -112,13 +113,15 @@ env \
     PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
     "${APP_BINARY}" >"${output}"
 
-expected='SELFTEST setupTransaction apply=ready layerManifest=applied onboardDoctor=healthy verify=healthy'
+expected='SELFTEST setupTransaction apply=ready layerManifest=applied onboardDoctor=healthy verify=operational'
 rg -Fxq "${expected}" "${output}" ||
     die "the production WizardModel did not complete Set up -> Verify"
 rg -Fxq 'onboard --org auto --products claude,codex --apply --json' "${invocation_log}" ||
     die "the app did not send the exact ecosystem apply command"
-rg -Fxq 'doctor --json' "${invocation_log}" ||
-    die "the app did not perform the separate verify-time doctor call"
+rg -Fxq 'reconcile run --json' "${invocation_log}" ||
+    die "the app did not run Python's complete setup journey"
+rg -Fxq 'support latest --json' "${invocation_log}" ||
+    die "the app did not load Python's support report"
 
 cat "${output}"
 

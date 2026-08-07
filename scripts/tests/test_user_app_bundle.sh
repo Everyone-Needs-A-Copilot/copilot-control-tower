@@ -55,11 +55,15 @@ if ! sed -n '/func continueWithoutFailedProjects()/,/^    }/p' native/wizard.swi
   exit 1
 fi
 verify_source="$(sed -n '/func beginVerify()/,/^    }/p' native/wizard.swift)"
-if [[ "${verify_source}" != *'CliClient.shared.update()'* ]] ||
-  [[ "$(rg -Fc 'CliClient.shared.doctor()' <<<"${verify_source}")" -lt 2 ]]; then
-  echo "Verify no longer installs an available helper update and proves health with a second doctor call" >&2
+if [[ "${verify_source}" != *'CliClient.shared.reconciliationRun()'* ]] ||
+  [[ "${verify_source}" == *'CliClient.shared.doctor()'* ]] ||
+  [[ "${verify_source}" == *'CliClient.shared.update()'* ]] ||
+  [[ "${verify_source}" == *'CliClient.shared.workspaces()'* ]]; then
+  echo "Verify is not exclusively rendering the complete Python setup journey" >&2
   exit 1
 fi
+rg -Fq '["reconcile", "run", "--json"]' native/cli-client.swift
+rg -Fq '["support", "latest", "--json"]' native/cli-client.swift
 
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${PLIST}")" == "com.everyoneneedsacopilot.controltower" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${PLIST}")" == "Copilot Control Tower" ]]
@@ -107,7 +111,7 @@ fi
 setup_transaction_output="$(
   scripts/headless-setup-transaction.sh --app "${APP}"
 )"
-if [[ "${setup_transaction_output}" != *"SELFTEST setupTransaction apply=ready layerManifest=applied onboardDoctor=healthy verify=healthy"* ]]; then
+if [[ "${setup_transaction_output}" != *"SELFTEST setupTransaction apply=ready layerManifest=applied onboardDoctor=healthy verify=operational"* ]]; then
   echo "Setup transaction selftest failed: ${setup_transaction_output}" >&2
   exit 1
 fi

@@ -1980,6 +1980,81 @@ struct ReconciliationAssessReport: Decodable {
     }
 }
 
+// MARK: Complete Python-owned setup journey
+
+enum SetupJourneyPhase: String, Decodable {
+    case setupJourney = "setup-journey"
+}
+
+enum SetupJourneyResult: String, Decodable {
+    case ready
+    case actionRequired = "action-required"
+}
+
+struct SetupJourneySummary: Decodable {
+    let headline: String
+    let detail: String
+}
+
+struct SetupJourneyDiagnostics: Decodable {
+    let schemaVersion: String
+    let state: ReconciliationDiagnosticState
+    let path: String?
+    let detail: String
+}
+
+/// One complete setup verdict authored by Python. Swift displays this report;
+/// it never combines older doctor/workspace calls into another verdict.
+struct SetupJourneyReport: Decodable {
+    let schemaVersion: String
+    let phase: SetupJourneyPhase
+    let result: SetupJourneyResult
+    let operational: Bool
+    let confidence: Double
+    let assessment: ReconciliationAssessReport?
+    let summary: SetupJourneySummary
+    let diagnostics: SetupJourneyDiagnostics
+
+    /// Validate Python's own top-level claims without re-counting projects or
+    /// layers in Swift. Inconsistent success-shaped output fails closed.
+    var hasConsistentVerdict: Bool {
+        switch result {
+        case .ready:
+            return operational
+                && confidence >= 0.95
+                && assessment?.result == .ready
+        case .actionRequired:
+            return !operational && confidence == 0
+        }
+    }
+
+    var isOperational: Bool {
+        result == .ready && operational && confidence >= 0.95
+    }
+}
+
+struct SetupJourneySupportEnvelope: Decodable {
+    struct ReportIdentity: Decodable {
+        let schemaVersion: String
+        let kind: String
+        let privacy: String
+    }
+
+    let schemaVersion: String
+    let result: SetupJourneyResult
+    let detail: String
+    let path: String?
+    let report: ReportIdentity?
+}
+
+struct SetupJourneyArtifact {
+    let report: SetupJourneyReport
+    /// Exact stdout from `cc support latest --json`; Python owns both its
+    /// allowlist and its privacy statement.
+    let supportText: String?
+    let supportPath: String?
+}
+
 enum ReconciliationPreparePhase: String, Decodable {
     case prepare
 }
