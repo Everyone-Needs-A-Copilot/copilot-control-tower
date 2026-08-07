@@ -485,6 +485,67 @@ if [ -z "$verb" ]; then
 fi
 
 case "$verb" in
+  reconcile)
+    if [ "$subverb" != "run" ]; then
+      echo "mock-cc: only reconcile run is available in this fixture" >&2
+      exit 2
+    fi
+    python3 - "$HERE/../../scripts/tests/fixtures/reconciliation/assess.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    assessment = json.load(handle)
+assessment["result"] = "ready"
+assessment["default_selection"] = []
+assessment["assistant_selection"] = []
+assessment["batch_summary"].update({
+    "new_setup": 0,
+    "ready": 1,
+    "selected": 0,
+})
+assessment["summary"]["project_counts"].update({
+    "ready": 1,
+    "safe-setup-available": 0,
+})
+for project in assessment["projects"]:
+    if project["scope"]["kind"] == "product-project":
+        project["route"] = "ready"
+
+print(json.dumps({
+    "schema_version": "1.0",
+    "phase": "setup-journey",
+    "result": "ready",
+    "operational": True,
+    "confidence": 0.95,
+    "completed_actions": [],
+    "phases": [{"phase": "verify-all", "result": "ready"}],
+    "assessment": assessment,
+    "holds": [],
+    "summary": {
+        "headline": "This Mac and every Product project are ready.",
+        "detail": "Python independently verified the machine, ecosystem hierarchy, and every approved Product project.",
+    },
+    "diagnostics": {
+        "schema_version": "1.0",
+        "state": "available",
+        "path": "/tmp/mock-setup-journey-support.json",
+        "detail": "A private support report is available.",
+    },
+}, sort_keys=True))
+PY
+    exit 0
+    ;;
+
+  support)
+    if [ "$subverb" != "latest" ]; then
+      echo "mock-cc: only support latest is available in this fixture" >&2
+      exit 2
+    fi
+    printf '%s\n' '{"schema_version":"1.0","result":"ready","detail":"The newest private, redacted setup support report is available.","path":"/tmp/mock-setup-journey-support.json","report":{"schema_version":"1.0","kind":"setup-journey-support-report","privacy":"This report omits file content, process output, environment values, repository addresses, and credentials. It may include local project paths."}}'
+    exit 0
+    ;;
+
   workspace)
     workspace_fixture="${CT_WORKSPACE_FIXTURE:-$fixture}"
     ready_contract='"classification":"ready","responsible_actor":"none","inspection":{"id":"sha256:1111111111111111111111111111111111111111111111111111111111111111","contract_id":"project-integration","contract_version":"1","scope":"detail","complete":true},"components":[{"component":"claude","expected":true,"expected_contract":{"id":"project-integration","version":"1"},"classification":"ready","recognized_setup":{"variant_id":"mock-tracked-lock-v1","version":"1","evidence":[{"kind":"lock-record","path":"copilot.lock.json","state":"verified","detail":"Recorded evidence matches."}]},"missing_requirements":[],"responsible_actor":"none","safe_action":null,"verification":{"command":["cc","workspace","verify","--project","/tmp/example-project","--json"],"expected":"Claude and Codex classify ready.","stop_conditions":["Stop if evidence changed."]}},{"component":"codex","expected":true,"expected_contract":{"id":"project-integration","version":"1"},"classification":"ready","recognized_setup":{"variant_id":"mock-tracked-lock-v1","version":"1","evidence":[{"kind":"lock-record","path":"copilot.lock.json","state":"verified","detail":"Recorded evidence matches."}]},"missing_requirements":[],"responsible_actor":"none","safe_action":null,"verification":{"command":["cc","workspace","verify","--project","/tmp/example-project","--json"],"expected":"Claude and Codex classify ready.","stop_conditions":["Stop if evidence changed."]}}],"capabilities":{"instructions":2,"agents":0,"skills":0,"commands":0,"plugins":0,"integration_paths":["CLAUDE.md","AGENTS.md"]},"preservation":{"must_preserve":[],"prohibited_actions":["overwrite-project-instructions","delete-project-capabilities","trust-assistant-self-report","skip-verification"]},"safe_action":null,"plan_available":false,"integration_plan":null'

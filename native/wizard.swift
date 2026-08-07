@@ -33,7 +33,7 @@
 //     not made available, and never computes readiness itself.
 //   - Set up (step 7): aggregate `onboard --apply` (+ `updateFanout()` when a
 //     department was joined)
-//   - Verify (step 8): `doctor()`
+//   - Verify (step 8): `reconciliationRun()` (`cc reconcile run --json`)
 // `WizardModel` never spawns `Process` itself — it only calls `CliClient`,
 // which owns that seam alone (invariant #1, "Parse, never compute").
 //
@@ -622,9 +622,9 @@ struct HoldingSupportInfo: Equatable {
     }
 }
 
-/// The exact privacy-bounded text shown, copied, and (when the local boundary
-/// is safe) saved for one Verify attempt. `filePath == nil` means persistence
-/// was unavailable; the in-memory report is still complete and copyable.
+/// The exact Python-authored support text shown and copied for one Verify
+/// attempt. `filePath`, when present, is the Python-owned private diagnostic
+/// artifact; Swift never writes a second verification report.
 struct SupportReportArtifact: Equatable, Sendable {
     let text: String
     let filePath: String?
@@ -636,312 +636,6 @@ struct SupportReportArtifact: Equatable, Sendable {
             return filePath
         }
         return "~" + filePath.dropFirst(home.count)
-    }
-}
-
-/// One immutable rendering input for Verify's `doctor → update → doctor`
-/// sequence. The formatter below is deliberately a CLOSED projection of the
-/// typed DTOs: it never serializes a DTO wholesale and never touches raw
-/// stdout/stderr, `detail`, host, path, layer id, item, SHA, auth identity, or
-/// any other open/extensible field.
-struct VerificationSupportAttempt {
-    let recordedAt: Date
-    var initialDoctor: DoctorReport?
-    var updateReport: UpdateReport?
-    var updateError: CliError?
-    var finalDoctor: DoctorReport?
-    var finalError: CliError?
-
-    init(recordedAt: Date = Date()) {
-        self.recordedAt = recordedAt
-    }
-
-    func formattedReport() -> String {
-        var lines: [String] = []
-        if let identity = HoldingInfo.appIdentityLine {
-            lines.append(identity)
-        }
-        lines.append(Self.helperIdentityLine)
-        lines.append("Recorded: \(Self.timestamp(recordedAt))")
-
-        let hasUpdatePhase = updateReport != nil || updateError != nil
-            || initialDoctor?.status == .updateAvailable
-        if let initialDoctor {
-            lines.append("")
-            lines.append(hasUpdatePhase ? "Initial check" : "Check")
-            lines.append(contentsOf: Self.doctorLines(initialDoctor))
-        }
-
-        if let updateReport {
-            lines.append("")
-            lines.append("Update attempt")
-            lines.append("Result: \(Self.updateResultLabel(updateReport.result))")
-            lines.append("Report format: \(Self.schemaVersionLabel(updateReport.schemaVersion))")
-            let changed = updateReport.changed.filter { $0.op != .unchanged }.count
-            lines.append(
-                "Changed: \(changed) · Held: \(updateReport.heldForApproval?.count ?? 0) · Blocked: \(updateReport.blocked?.count ?? 0)"
-            )
-        } else if let updateError {
-            lines.append("")
-            lines.append("Update attempt")
-            lines.append("Result: \(Self.errorLabel(updateError))")
-        }
-
-        if let finalDoctor, hasUpdatePhase {
-            lines.append("")
-            lines.append("Fresh check")
-            lines.append(contentsOf: Self.doctorLines(finalDoctor))
-        } else if let finalError {
-            lines.append("")
-            lines.append(hasUpdatePhase ? "Fresh check" : "Check")
-            lines.append("Result: \(Self.errorLabel(finalError))")
-        }
-
-        lines.append("")
-        lines.append("Privacy")
-        lines.append("Omits host, account, organization and project names; paths; repository addresses; layer IDs; file content; process output; environment values; commit IDs; and secrets.")
-        return lines.joined(separator: "\n")
-    }
-
-    private static func doctorLines(_ doctor: DoctorReport) -> [String] {
-        var lines = [
-            "Result: \(doctorStatusLabel(doctor.status))",
-            "Report format: \(schemaVersionLabel(doctor.schemaVersion))",
-        ]
-        for checker in doctor.checkers where checker.severity != .pass {
-            lines.append(
-                "Needs attention: \(productLabel(checker.product)) · \(roleLabel(checker.layerRole)) · \(severityLabel(checker.severity))"
-            )
-        }
-        return lines
-    }
-
-    private static var helperIdentityLine: String {
-        guard let url = Bundle.main.url(forResource: "cc-version", withExtension: "txt"),
-              let raw = try? String(contentsOf: url, encoding: .utf8) else {
-            return "Setup helper: cc (version not reported by this contract)"
-        }
-        let version = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isSemver = version.range(
-            of: #"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"#,
-            options: .regularExpression
-        ) != nil
-        return isSemver
-            ? "Setup helper: cc \(version)"
-            : "Setup helper: cc (version not reported by this contract)"
-    }
-
-    private static func productLabel(_ product: String?) -> String {
-        switch product {
-        case "knowledge": return "Knowledge Copilot"
-        case "cli": return "CLI Copilot"
-        case "claude": return "Claude Copilot"
-        case "codex": return "Codex Copilot"
-        default: return "Setup check"
-        }
-    }
-
-    private static func roleLabel(_ role: String?) -> String {
-        switch role {
-        case "foundation": return "Core setup"
-        case "org", "organization": return "Your organization"
-        case "department": return "Your department"
-        case "personal": return "This Mac"
-        default: return "This Mac"
-        }
-    }
-
-    private static func severityLabel(_ severity: CliSeverity) -> String {
-        switch severity {
-        case .pass: return "ready"
-        case .warn: return "needs review"
-        case .fail: return "needs attention"
-        }
-    }
-
-    private static func doctorStatusLabel(_ status: DoctorStatus) -> String {
-        switch status {
-        case .setupNeeded: return "setup needed"
-        case .itConfigIncomplete: return "organization setup incomplete"
-        case .healthy: return "ready"
-        case .syncing: return "syncing"
-        case .updateAvailable: return "update available"
-        case .needsAttention: return "needs attention"
-        case .signedOut: return "sign-in needed"
-        case .offline: return "offline"
-        case .waitingForNetwork: return "waiting for network"
-        case .updatingApp: return "Control Tower update needed"
-        }
-    }
-
-    private static func updateResultLabel(_ result: UpdateResult) -> String {
-        switch result {
-        case .applied: return "applied"
-        case .upToDate: return "already current"
-        case .held: return "held safely"
-        case .blocked: return "blocked"
-        case .offline: return "offline"
-        }
-    }
-
-    private static func schemaVersionLabel(_ version: String) -> String {
-        version.range(
-            of: #"^[0-9]+\.[0-9]+$"#,
-            options: .regularExpression
-        ) != nil ? version : "not reported"
-    }
-
-    private static func errorLabel(_ error: CliError) -> String {
-        switch error {
-        case .notFound: return "setup helper not found"
-        case .launchFailed: return "setup helper could not start"
-        case .exit2: return "setup helper reported a safe stop"
-        case .parse: return "report could not be read"
-        case .schemaOutOfRange: return "report format is incompatible"
-        case .missingSecurityField: return "report omitted required safety evidence"
-        }
-    }
-
-    private static func timestamp(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm Z"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        return formatter.string(from: date)
-    }
-}
-
-/// Private, bounded persistence for the redacted report. This does not write
-/// ecosystem state: it stores the same support text already shown and copied
-/// by the UI. Every component is lstat-checked; no symlink is followed.
-enum SupportReportStore {
-    private static let retentionLimit = 20
-
-    static func save(_ text: String) async -> SupportReportArtifact {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: persist(text))
-            }
-        }
-    }
-
-    private static func persist(_ text: String) -> SupportReportArtifact {
-        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
-        let homeURL = URL(fileURLWithPath: home, isDirectory: true)
-        let directory = homeURL
-            .appendingPathComponent(".claude", isDirectory: true)
-            .appendingPathComponent("cc", isDirectory: true)
-            .appendingPathComponent("diagnostics", isDirectory: true)
-            .appendingPathComponent("control-tower", isDirectory: true)
-
-        guard isOwnedRealDirectory(homeURL) else {
-            return SupportReportArtifact(text: text, filePath: nil)
-        }
-        var cursor = homeURL
-        for component in [".claude", "cc", "diagnostics", "control-tower"] {
-            cursor.appendPathComponent(component, isDirectory: true)
-            guard ensureOwnedRealDirectory(cursor) else {
-                return SupportReportArtifact(text: text, filePath: nil)
-            }
-        }
-        guard isOwnedRealDirectory(directory, requirePrivateMode: true) else {
-            return SupportReportArtifact(text: text, filePath: nil)
-        }
-
-        let filename = "verify-\(filenameTimestamp())-\(UUID().uuidString.lowercased()).txt"
-        let fileURL = directory.appendingPathComponent(filename, isDirectory: false)
-        let descriptor = Darwin.open(
-            fileURL.path,
-            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
-            mode_t(S_IRUSR | S_IWUSR)
-        )
-        guard descriptor >= 0 else {
-            return SupportReportArtifact(text: text, filePath: nil)
-        }
-        defer { Darwin.close(descriptor) }
-
-        let payload = Data(text.utf8)
-        guard Darwin.fchmod(descriptor, mode_t(S_IRUSR | S_IWUSR)) == 0,
-              writeAll(payload, to: descriptor),
-              Darwin.fsync(descriptor) == 0 else {
-            _ = Darwin.unlink(fileURL.path)
-            return SupportReportArtifact(text: text, filePath: nil)
-        }
-
-        pruneOldReports(in: directory)
-        return SupportReportArtifact(text: text, filePath: fileURL.path)
-    }
-
-    private static func ensureOwnedRealDirectory(_ url: URL) -> Bool {
-        var metadata = stat()
-        if Darwin.lstat(url.path, &metadata) == 0 {
-            return isOwnedRealDirectory(url)
-        }
-        guard errno == ENOENT else { return false }
-        guard Darwin.mkdir(url.path, mode_t(S_IRWXU)) == 0 || errno == EEXIST else {
-            return false
-        }
-        guard isOwnedRealDirectory(url) else { return false }
-        return Darwin.chmod(url.path, mode_t(S_IRWXU)) == 0
-    }
-
-    private static func isOwnedRealDirectory(
-        _ url: URL,
-        requirePrivateMode: Bool = false
-    ) -> Bool {
-        var metadata = stat()
-        guard Darwin.lstat(url.path, &metadata) == 0,
-              metadata.st_mode & S_IFMT == S_IFDIR,
-              metadata.st_uid == Darwin.geteuid(),
-              metadata.st_mode & 0o022 == 0 else {
-            return false
-        }
-        return !requirePrivateMode || metadata.st_mode & 0o077 == 0
-    }
-
-    private static func writeAll(_ data: Data, to descriptor: Int32) -> Bool {
-        data.withUnsafeBytes { bytes -> Bool in
-            guard let base = bytes.baseAddress else { return data.isEmpty }
-            var offset = 0
-            while offset < bytes.count {
-                let count = Darwin.write(
-                    descriptor,
-                    base.advanced(by: offset),
-                    bytes.count - offset
-                )
-                guard count > 0 else { return false }
-                offset += count
-            }
-            return true
-        }
-    }
-
-    private static func pruneOldReports(in directory: URL) {
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else {
-            return
-        }
-        let reports = names.filter { name in
-            name.hasPrefix("verify-") && name.hasSuffix(".txt")
-                && isOwnedRegularFile(directory.appendingPathComponent(name))
-        }.sorted()
-        for name in reports.dropLast(retentionLimit) {
-            _ = Darwin.unlink(directory.appendingPathComponent(name).path)
-        }
-    }
-
-    private static func isOwnedRegularFile(_ url: URL) -> Bool {
-        var metadata = stat()
-        return Darwin.lstat(url.path, &metadata) == 0
-            && metadata.st_mode & S_IFMT == S_IFREG
-            && metadata.st_uid == Darwin.geteuid()
-    }
-
-    private static func filenameTimestamp() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd'T'HHmmssSSS"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        return formatter.string(from: Date())
     }
 }
 
@@ -1506,6 +1200,7 @@ final class WizardModel: ObservableObject {
     @Published var detectedCopilotState: RenderState?
     @Published var verifiedCopilotState: RenderState?
     @Published var verifiedWorkspacesReport: WorkspacesReport?
+    @Published var setupJourneyReport: SetupJourneyReport?
     /// The redacted, exact report for the current Verify attempt. Populated
     /// only when that attempt cannot earn a healthy completion state; a
     /// healthy Verify keeps the quiet success surface free of diagnostics.
@@ -3902,57 +3597,35 @@ final class WizardModel: ObservableObject {
 
     // MARK: Verify (#w8)
 
-    /// `doctor() -> healthy: "Everything checks out." + Continue; anything
-    /// non-confirmable -> Holding` — never fakes a pass, per the task
-    /// contract.
+    /// Run the one complete Python-owned setup journey. Swift does not
+    /// compose doctor, update, workspace, or filesystem observations into a
+    /// second verdict; it displays Python's typed result and exact support
+    /// envelope.
     func beginVerify() {
         phase = .verifying
         verificationSupportArtifact = nil
+        setupJourneyReport = nil
         Task {
-            var attempt = VerificationSupportAttempt()
-            var doctorOutcome = await CliClient.shared.doctor()
-            if case .success(let doctor) = doctorOutcome,
-               doctor.status == .updateAvailable {
-                attempt.initialDoctor = doctor
-                self.verifiedCopilotState = RenderState.from(doctor, joinable: nil)
-                switch await CliClient.shared.update() {
-                case .success(let updateReport):
-                    attempt.updateReport = updateReport
-                    // The update report says only what the update invocation
-                    // did. A second doctor call remains the completion gate.
-                    doctorOutcome = await CliClient.shared.doctor()
-                case .failure(let error):
-                    attempt.updateError = error
-                    self.verificationSupportArtifact = await SupportReportStore.save(
-                        attempt.formattedReport()
+            switch await CliClient.shared.reconciliationRun() {
+            case .success(let artifact):
+                self.setupJourneyReport = artifact.report
+                if let supportText = artifact.supportText {
+                    self.verificationSupportArtifact = SupportReportArtifact(
+                        text: supportText,
+                        filePath: artifact.supportPath
                     )
-                    self.routeCliError(error, origin: .verify)
-                    return
                 }
-            } else if case .success(let doctor) = doctorOutcome {
-                attempt.initialDoctor = doctor
-            }
-            let workspacesOutcome = await CliClient.shared.workspaces()
-            if case .success(let report) = workspacesOutcome {
-                self.verifiedWorkspacesReport = report
-            }
-            switch doctorOutcome {
-            case .success(let doctor):
-                attempt.finalDoctor = doctor
-                self.verifiedCopilotState = RenderState.from(doctor, joinable: nil)
-                if doctor.status == .healthy {
+                if artifact.report.isOperational {
                     self.phase = .verified
                 } else {
-                    self.verificationSupportArtifact = await SupportReportStore.save(
-                        attempt.formattedReport()
-                    )
-                    self.enterHolding(Self.holdingInfo(forNonHealthy: doctor, origin: .verify))
+                    self.enterHolding(HoldingInfo.h3(
+                        origin: .verify,
+                        title: artifact.report.summary.headline,
+                        intro: artifact.report.summary.detail,
+                        schemaVersion: artifact.report.schemaVersion
+                    ))
                 }
             case .failure(let error):
-                attempt.finalError = error
-                self.verificationSupportArtifact = await SupportReportStore.save(
-                    attempt.formattedReport()
-                )
                 self.routeCliError(error, origin: .verify)
             }
         }
@@ -7957,22 +7630,10 @@ struct WizardRootView: View {
 
     // MARK: 9. Verify (#w8)
 
-    /// §2.10's gate on Verify's own result (copy spec §2.6: "permitted only
-    /// when the completion rule passes. If it does not, Verify renders this
-    /// pattern instead. There is no hedged middle wording."). By
-    /// construction, EVERY earlier stage failure already routed to Holding
-    /// before Verify could ever be reached (`beginMaterialize`'s own
-    /// `guard report.result == .ready`), so this is a safety net, not the
-    /// common case — the one real path where it can still fail is the
-    /// `codex-plugin`-excluded-when-declined edge `expectedStageIds(includeCodex:)`
-    /// exists for (see that function's own doc comment).
+    /// Render only Python's operational verdict. Project and layer counts are
+    /// evidence shown below, never a second Swift completion calculation.
     private var verifyCompletionPasses: Bool {
-        guard let result = model.lastOnboardResult else { return false }
-        return WizardModel.completionRulePasses(result: result, stages: model.lastOnboardStages, includeCodex: model.includeCodex)
-    }
-
-    private var sharedStoreIsDeferred: Bool {
-        WizardModel.sharedStoreIsDeferred(model.lastOnboardStages)
+        model.setupJourneyReport?.isOperational == true
     }
 
     /// A real (never `nil`) support block for Verify's own §2.10 fallback —
@@ -8013,25 +7674,26 @@ struct WizardRootView: View {
                     .disabled(true)
             }
         } else if verifyCompletionPasses {
+            let journey = model.setupJourneyReport
+            let assessment = journey?.assessment
             stepShell(
                 eyebrow: "Setup verified · Step 9 of 9",
-                title: "Your copilots are ready",
-                intro: "Control Tower checked the setup it completed. Here is what is ready now and where to go next."
+                title: journey?.summary.headline ?? "Your copilots are ready",
+                intro: journey?.summary.detail ?? "Python verified this Mac, its setup, and every approved project."
             ) {
                 VStack(alignment: .leading, spacing: 16) {
                     sectionCard("Ready now") {
                         VStack(alignment: .leading, spacing: 10) {
-                            completionReadyRow("Your GitHub connection")
-                            wizardCopilotRoster(model.verifiedCopilotState)
-                        }
-                    }
-
-                    if sharedStoreIsDeferred {
-                        sectionCard("Still to do") {
-                            Text("Shared team connections are not available on this Mac yet. Your existing credentials were kept, and you can check again later from Control Tower.")
-                                .font(.callout)
-                                .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                .fixedSize(horizontal: false, vertical: true)
+                            completionReadyRow("This Mac")
+                            if let layers = assessment?.machine.layers {
+                                completionReadyRow("All \(layers.ready) ecosystem layers")
+                            }
+                            if let counts = assessment?.summary.projectCounts,
+                               let scope = assessment?.summary.scopeCounts {
+                                completionReadyRow(
+                                    "All \(counts.ready) of \(scope.productProjects) Product projects"
+                                )
+                            }
                         }
                     }
 
@@ -8041,21 +7703,8 @@ struct WizardRootView: View {
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                     }
 
-                    if let body = doneProjectsCardBody {
-                        sectionCard("Your projects") {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(body)
-                                    .font(.callout)
-                                    .foregroundColor(Color(nsColor: .secondaryLabelColor))
-                                    .fixedSize(horizontal: false, vertical: true)
-                                if let report = model.verifiedWorkspacesReport {
-                                    Text(wizardVerifiedProjectSummary(report))
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundColor(Color(nsColor: .labelColor))
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
+                    if let artifact = model.verificationSupportArtifact {
+                        HoldingSupportDisclosureView(lines: [], artifact: artifact)
                     }
 
                     sectionCard("What happens next") {
@@ -8080,13 +7729,9 @@ struct WizardRootView: View {
                     .keyboardShortcut(.defaultAction)
             }
         } else {
-            // The completion rule failed on a HEALTHY doctor result (the
-            // only way to reach `.verified` at all) — §2.10, never a
-            // resolved-sounding "Everything checks out." `Done` (step 10)
-            // is unreachable from here on purpose: this screen's own action
-            // set (§2.5) replaces `Continue` entirely, so a person can never
-            // click through to "You have the tools, go change the world"
-            // on the strength of a report that does not prove it.
+            // Defensive fallback: a non-operational journey normally routes
+            // directly to Holding. If view state is ever inconsistent, fail
+            // closed and keep the previous incomplete surface.
             honestIncompleteView(
                 reachedFromDecision: false,
                 stages: model.lastOnboardStages,
@@ -8909,7 +8554,7 @@ private struct HoldingSupportDisclosureView: View {
     private var caption: String {
         artifact == nil
             ? expandedCaption
-            : "Copy this into a Claude Code, Codex, or support conversation. It omits names, paths, project content, process output, and secrets."
+            : "Copy this into a Claude Code, Codex, or support conversation. Python removes project content, process output, repository addresses, credentials, and secrets; the private report may include local project paths."
     }
 
     var body: some View {
@@ -9563,11 +9208,6 @@ enum WizardSelftest {
     }
 
     private static func run() async {
-        if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "verify-support" {
-            await runVerifySupportSelftest()
-            exit(0)
-        }
-
         if ProcessInfo.processInfo.environment["CT_SELFTEST_STEP"] == "auth-reuse" {
             await runAuthReuseSelftest()
             exit(0)
@@ -9914,135 +9554,6 @@ enum WizardSelftest {
                 + " requiredDeferred=\(requiredDeferred) deferredNotYet=\(deferredRows.notYet.count)"
                 + " blockedResult=\(blockedResult) claudeOnlyNoCodex=\(claudeOnlyNoCodex)"
         )
-    }
-
-    /// Verify's exact privacy and persistence regression: the DTO literals
-    /// contain sentinel host/path/detail/layer/SHA/item/reason values that the
-    /// CLOSED formatter must never serialize. The saved artifact is then
-    /// inspected through lstat so the shell harness can assert mode and
-    /// retention without trusting an in-memory claim.
-    private static func runVerifySupportSelftest() async {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let initialJSON = """
-        {
-          "schema_version":"1.sentinel-private-schema.0",
-          "host":"sentinel-private-host",
-          "score":88,
-          "status":"update-available",
-          "offline":false,
-          "generated_at":"2026-08-06T16:53:56Z",
-          "checkers":[
-            {
-              "id":"sentinel-private-checker",
-              "severity":"warn",
-              "destructive":false,
-              "detail":"authorization=Bearer sentinel-secret-value",
-              "repair":"cc update",
-              "layer":"sentinel-private-layer",
-              "layer_role":"foundation",
-              "product":"claude",
-              "local_sha":"sentinel-private-local-sha",
-              "remote_sha":"sentinel-private-remote-sha",
-              "path":"/Users/sentinel/private/path"
-            },
-            {
-              "id":"second-private-checker",
-              "severity":"pass",
-              "destructive":false,
-              "detail":"sentinel-private-pass-detail"
-            }
-          ],
-          "auth":[]
-        }
-        """
-        let finalJSON = initialJSON
-        let updateJSON = """
-        {
-          "schema_version":"1.sentinel-private-update-schema.0",
-          "host":"sentinel-private-host",
-          "result":"applied",
-          "lock_before":"sentinel-private-before",
-          "lock_after":"sentinel-private-after",
-          "changed":[{
-            "dimension":"command",
-            "layer":"sentinel-private-layer",
-            "item":"sentinel-private-item",
-            "op":"updated",
-            "from":"sentinel-private-from",
-            "to":"sentinel-private-to",
-            "signed":true
-          }],
-          "held_for_approval":[{
-            "dimension":"command",
-            "from":"sentinel-private-held-from",
-            "to":"sentinel-private-held-to",
-            "reason":"sentinel-secret-value"
-          }],
-          "blocked":[{"detail":"sentinel-secret-value"}]
-        }
-        """
-
-        guard let initial = try? decoder.decode(DoctorReport.self, from: Data(initialJSON.utf8)),
-              let final = try? decoder.decode(DoctorReport.self, from: Data(finalJSON.utf8)),
-              let update = try? decoder.decode(UpdateReport.self, from: Data(updateJSON.utf8)) else {
-            print("SELFTEST verifySupport=fixture-error")
-            return
-        }
-
-        var attempt = VerificationSupportAttempt(
-            recordedAt: Date(timeIntervalSince1970: 1_775_664_600)
-        )
-        attempt.initialDoctor = initial
-        attempt.updateReport = update
-        attempt.finalDoctor = final
-        let report = attempt.formattedReport()
-        let forbidden = [
-            "sentinel-private", "sentinel-secret-value", "/Users/",
-            "authorization=", "Bearer ",
-        ]
-        let privacySafe = forbidden.allSatisfy { !report.contains($0) }
-        let artifact = await SupportReportStore.save(report)
-
-        var fileMode = "none"
-        var directoryMode = "none"
-        var savedInitially = false
-        if let path = artifact.filePath {
-            savedInitially = FileManager.default.fileExists(atPath: path)
-            fileMode = posixMode(path)
-            directoryMode = posixMode(
-                URL(fileURLWithPath: path).deletingLastPathComponent().path
-            )
-        }
-
-        // Exercise retention in one process. The initially captured file may
-        // be the oldest and therefore pruned; its existence/mode were already
-        // observed above before these app-owned probe reports were added.
-        if artifact.filePath != nil {
-            for index in 0..<21 {
-                _ = await SupportReportStore.save("retention probe \(index)")
-            }
-        }
-        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
-        let directory = URL(fileURLWithPath: home, isDirectory: true)
-            .appendingPathComponent(".claude/cc/diagnostics/control-tower", isDirectory: true)
-        let reportCount = ((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [])
-            .filter { $0.hasPrefix("verify-") && $0.hasSuffix(".txt") }
-            .count
-
-        print(
-            "SELFTEST verifySupport=\(artifact.filePath == nil ? "copy-only" : "saved")"
-                + " privacySafe=\(privacySafe) savedInitially=\(savedInitially)"
-                + " fileMode=\(fileMode) directoryMode=\(directoryMode)"
-                + " retained=\(reportCount)"
-        )
-        print("SELFTEST verifySupportReport=\(report.replacingOccurrences(of: "\n", with: "|"))")
-    }
-
-    private static func posixMode(_ path: String) -> String {
-        var metadata = stat()
-        guard Darwin.lstat(path, &metadata) == 0 else { return "none" }
-        return String(format: "%03o", metadata.st_mode & 0o777)
     }
 
     // MARK: CT_SELFTEST_STEP=org-question — §2.1.1's organization question

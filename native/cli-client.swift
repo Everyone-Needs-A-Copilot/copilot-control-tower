@@ -454,6 +454,14 @@ enum SchemaGate {
     /// schema-out-of-range payload is rejected before any other (possibly
     /// security-relevant) field is ever trusted.
     static func check(_ data: Data, verb: String) -> Result<Void, CliError> {
+        check(data, requiredMajor: requiredMajor(forVerb: verb))
+    }
+
+    /// Some subcommands intentionally have a versioned top-level contract
+    /// distinct from their parent verb (for example `reconcile run` is the
+    /// setup-journey 1.x contract while the interactive reconciliation verbs
+    /// remain 2.x). Callers must name that contract explicitly.
+    static func check(_ data: Data, requiredMajor: Int) -> Result<Void, CliError> {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         guard let versionOnly = try? decoder.decode(VersionOnly.self, from: data) else {
@@ -464,7 +472,7 @@ enum SchemaGate {
         guard parts.count >= 2, let major = parts.first else {
             return .failure(.schemaOutOfRange)
         }
-        guard major == requiredMajor(forVerb: verb) else {
+        guard major == requiredMajor else {
             return .failure(.schemaOutOfRange)
         }
         return .success(())
@@ -860,6 +868,57 @@ actor CliClient {
     /// this report with `doctor`, `workspace`, or any other local inference.
     func reconciliationAssess() async -> Result<ReconciliationOutcome<ReconciliationAssessReport>, CliError> {
         await decodeReconciliationVerb(["reconcile", "assess", "--json"])
+    }
+
+    /// Run Python's complete prepare/update/integrate/verify journey. This is
+    /// the sole completion authority used by Verify; Swift preserves the
+    /// exact Python support envelope for copy/Finder access.
+    func reconciliationRun() async -> Result<SetupJourneyArtifact, CliError> {
+        switch await runRaw(["reconcile", "run", "--json"]) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let raw):
+            guard [Int32(0), Int32(1)].contains(raw.exit) else {
+                return .failure(.parse)
+            }
+            if case .failure(let gateError) = SchemaGate.check(
+                raw.stdout,
+                requiredMajor: 1
+            ) {
+                return .failure(gateError)
+            }
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            guard let report = try? decoder.decode(SetupJourneyReport.self, from: raw.stdout),
+                  report.hasConsistentVerdict,
+                  (report.result == .ready) == (raw.exit == 0) else {
+                return .failure(.parse)
+            }
+
+            var supportText: String?
+            var supportPath = report.diagnostics.path
+            if case .success(let supportRaw) = await runRaw(["support", "latest", "--json"]),
+               supportRaw.exit == 0,
+               case .success = SchemaGate.check(supportRaw.stdout, requiredMajor: 1),
+               let envelope = try? decoder.decode(
+                    SetupJourneySupportEnvelope.self,
+                    from: supportRaw.stdout
+               ),
+               envelope.result == .ready,
+               envelope.report?.kind == "setup-journey-support-report",
+               envelope.report?.schemaVersion == "1.0",
+               envelope.path == report.diagnostics.path,
+               let exactText = String(data: supportRaw.stdout, encoding: .utf8) {
+                supportText = exactText
+                supportPath = envelope.path
+            }
+
+            return .success(SetupJourneyArtifact(
+                report: report,
+                supportText: supportText,
+                supportPath: supportPath
+            ))
+        }
     }
 
     /// Perform the bounded beginning-of-setup work: local Product-project

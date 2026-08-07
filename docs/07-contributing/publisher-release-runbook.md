@@ -366,8 +366,9 @@ broken app/helper contract blocks the release.
 
 The setup-transaction runner uses the inert fixture helper, not the bundled
 real helper. It exercises the production `WizardModel`'s Set up -> Verify
-tail, requires the exact two-product `--apply` argv, and requires the separate
-verify-time doctor call. This proves app orchestration and decoding without
+tail, requires the exact two-product `--apply` argv, then requires
+`reconcile run --json` and `support latest --json`. This proves that Swift
+delegates the complete setup verdict and diagnostic artifact to Python without
 changing the publisher's or user's setup.
 
 The result is a publisher-produced artifact suitable for admin/fleet testing.

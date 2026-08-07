@@ -1,5 +1,13 @@
 # Verify Support Report — Architecture
 
+> **Superseded for 0.6.9 (2026-08-07).** This document records the 0.6.5
+> Swift-owned report design. The shipping boundary is now stricter: Python's
+> `cc reconcile run --json` owns the complete verdict and writes the private
+> report, `cc support latest --json` returns its exact support envelope, and
+> Swift only validates and renders those contracts. The Swift report formatter,
+> persistence store, and persistence selftests were removed. See the active
+> [GitHub-authorized store access initiative](../../04-github-authorized-store-access/README.md).
+
 ## Context
 
 Release 0.6.5 runs `doctor → update → doctor` during Verify. When the final
