@@ -1142,84 +1142,6 @@ scenario_S50() {
     fi
 }
 
-# S51 — Verify's support report preserves the typed check/update/check
-# sequence while dropping every private sentinel carried by otherwise-valid
-# DTO fields. The same selftest writes the report through the production
-# no-follow store, proves 0600/0700 modes, and exercises retention at 20.
-scenario_S51() {
-    local id="S51"
-    should_run "${id}" || return 0
-    local home; home="$(fresh_home)"
-    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
-        CT_CLI_PATH="${MOCK_CC}" CT_OPEN_WIZARD=1 CT_SELFTEST=1 \
-        CT_SELFTEST_STEP=verify-support
-    rm -rf "${home}"
-    assert_exit_zero "${id} verify support report"
-    assert_contains "${id} verify support report" \
-        "verifySupport=saved privacySafe=true savedInitially=true fileMode=600 directoryMode=700 retained=20"
-    assert_contains "${id} verify support report" "Initial check|Result: update available"
-    assert_contains "${id} verify support report" "Update attempt|Result: applied"
-    assert_contains "${id} verify support report" "Changed: 1 · Held: 1 · Blocked: 1"
-    assert_contains "${id} verify support report" "Fresh check|Result: update available"
-    assert_contains "${id} verify support report" "Report format: not reported"
-    assert_contains "${id} verify support report" \
-        "Needs attention: Claude Copilot · Core setup · needs review"
-    assert_not_contains "${id} verify support report" "sentinel-private"
-    assert_not_contains "${id} verify support report" "sentinel-secret-value"
-    assert_not_contains "${id} verify support report" "/Users/"
-}
-
-# S52 — a symlink at the app-owned diagnostic leaf is a hard write refusal.
-# The redacted in-memory report remains available for Copy, and the linked
-# directory receives no file.
-scenario_S52() {
-    local id="S52"
-    should_run "${id}" || return 0
-    local home outside
-    home="$(fresh_home)"
-    outside="${home}/outside-diagnostics"
-    mkdir -p "${home}/.claude/cc/diagnostics" "${outside}"
-    chmod 700 "${home}/.claude/cc/diagnostics" "${outside}"
-    ln -s "${outside}" "${home}/.claude/cc/diagnostics/control-tower"
-    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
-        CT_CLI_PATH="${MOCK_CC}" CT_OPEN_WIZARD=1 CT_SELFTEST=1 \
-        CT_SELFTEST_STEP=verify-support
-    assert_exit_zero "${id} symlink refusal"
-    assert_contains "${id} symlink refusal" \
-        "verifySupport=copy-only privacySafe=true savedInitially=false fileMode=none directoryMode=none retained=0"
-    if find "${outside}" -mindepth 1 -print -quit | grep -q .; then
-        fail "${id} symlink target stays empty" "unexpected file below ${outside}"
-    else
-        pass "${id} symlink target stays empty"
-    fi
-    rm -rf "${home}"
-}
-
-# S53 — an otherwise real diagnostic directory that another account could
-# write is also outside the app's trust boundary. It receives no report and
-# the same copy-only fallback remains available.
-scenario_S53() {
-    local id="S53"
-    should_run "${id}" || return 0
-    local home directory
-    home="$(fresh_home)"
-    directory="${home}/.claude/cc/diagnostics/control-tower"
-    mkdir -p "${directory}"
-    chmod 770 "${directory}"
-    launch_selftest "${USER_BIN}" "${DEFAULT_TIMEOUT}" "${home}" \
-        CT_CLI_PATH="${MOCK_CC}" CT_OPEN_WIZARD=1 CT_SELFTEST=1 \
-        CT_SELFTEST_STEP=verify-support
-    assert_exit_zero "${id} writable-boundary refusal"
-    assert_contains "${id} writable-boundary refusal" \
-        "verifySupport=copy-only privacySafe=true savedInitially=false fileMode=none directoryMode=none retained=0"
-    if find "${directory}" -mindepth 1 -print -quit | grep -q .; then
-        fail "${id} writable boundary stays empty" "unexpected file below ${directory}"
-    else
-        pass "${id} writable boundary stays empty"
-    fi
-    rm -rf "${home}"
-}
-
 # ==========================================================================
 # Scenario S17 — the User/Admin binary split
 # ==========================================================================
@@ -1336,9 +1258,6 @@ scenario_S47
 scenario_S48
 scenario_S49
 scenario_S50
-scenario_S51
-scenario_S52
-scenario_S53
 
 echo
 echo "=== smoke-scenarios: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="

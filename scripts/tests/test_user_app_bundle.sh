@@ -64,6 +64,10 @@ if [[ "${verify_source}" != *'CliClient.shared.reconciliationRun()'* ]] ||
 fi
 rg -Fq '["reconcile", "run", "--json"]' native/cli-client.swift
 rg -Fq '["support", "latest", "--json"]' native/cli-client.swift
+if rg -q 'SupportReportStore|VerificationSupportAttempt|verify-[0-9]' native/wizard.swift; then
+  echo "Swift still contains a second verification report writer" >&2
+  exit 1
+fi
 
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${PLIST}")" == "com.everyoneneedsacopilot.controltower" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${PLIST}")" == "Copilot Control Tower" ]]
