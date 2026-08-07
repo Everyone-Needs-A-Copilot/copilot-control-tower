@@ -61,7 +61,13 @@ class _HTTP:
             return _Response(404, {})
         if "/contents/" in url:
             encoded = base64.b64encode(b"org: Example-Org\n").decode()
-            return _Response(200, {"encoding": "base64", "content": encoded})
+            github_wrapped = "\n".join(
+                encoded[index : index + 8] for index in range(0, len(encoded), 8)
+            )
+            return _Response(
+                200,
+                {"encoding": "base64", "content": f"{github_wrapped}\n"},
+            )
         raise AssertionError(url)
 
 
