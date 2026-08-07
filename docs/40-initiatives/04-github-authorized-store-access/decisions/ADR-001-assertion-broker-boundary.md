@@ -29,7 +29,8 @@ The broker:
 
 - holds no Infisical credential;
 - authenticates machines by SSH challenge-response;
-- authorizes by live GitHub App organization/team membership;
+- authorizes the reserved `everyone` scope by live access to the protected
+  policy repository and team-specific scopes by live team membership;
 - reads the protected `team_scopes` mapping with the same least-privilege App;
 - signs short-lived, scope-bound OIDC assertions;
 - publishes discovery/JWKS endpoints;
@@ -37,8 +38,10 @@ The broker:
 
 The existing end-user device-flow client and the broker's GitHub App are
 separate trust anchors. A public `github_app.client_id` is not evidence that the
-broker has an installed App, a private key, or `Members: read`; production code
-must require each explicitly.
+broker has an installed App or private key; production code requires each
+explicitly. Every installation token is downscoped to the protected policy
+repository and `Contents: read` plus `Metadata: read`. `Members: read` is an
+additional requirement only for a configured team-specific scope.
 
 Python in CLI Copilot owns assertion exchange and short-lived token caching.
 `cc` owns setup orchestration, progress, verification, and person-facing JSON.
@@ -51,8 +54,8 @@ Swift owns display only.
 - Interactive Macs no longer need Infisical client credentials in Keychain.
 - Broker availability becomes a runtime dependency after the cached token
   expires, and must produce an honest unavailable state.
-- Day-zero Infisical trust, GitHub App creation, DNS custody, and platform-admin
-  MFA remain explicit operator acts.
+- Day-zero Infisical trust, GitHub App installation/designation, DNS custody,
+  and platform-admin MFA remain explicit operator acts.
 - Existing Universal Auth support remains for headless actors and a bounded
   migration window, but is not a fallback for a configured interactive broker.
 
@@ -63,7 +66,7 @@ Swift owns display only.
   and offboarding would require a second revocation system.
 - **Use the existing public device-flow client ID as broker authorization.**
   Rejected because a client ID grants no App installation token and proves no
-  `Members: read` authority.
+  repository or team authority.
 - **Send the user's GitHub bearer token to the broker as the primary path.**
   Rejected as a bearer-token sink. It remains a documented design fallback but
   is not enabled in the production contract.

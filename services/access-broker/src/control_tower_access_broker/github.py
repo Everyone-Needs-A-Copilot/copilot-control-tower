@@ -28,6 +28,7 @@ class GitHubClient:
         self,
         *,
         organization: str,
+        policy_repository: str,
         app_id: int,
         installation_id: int,
         app_key: rsa.RSAPrivateKey,
@@ -36,6 +37,7 @@ class GitHubClient:
         public_keys_base: str = "https://github.com",
     ) -> None:
         self.organization = organization
+        self.policy_repository = policy_repository
         self.app_id = app_id
         self.installation_id = installation_id
         self.app_key = app_key
@@ -62,6 +64,10 @@ class GitHubClient:
                 response = self._http.post(
                     f"{self.api_base}/app/installations/{self.installation_id}/access_tokens",
                     headers=headers,
+                    json={
+                        "repositories": [self.policy_repository.split("/", 1)[1]],
+                        "permissions": {"contents": "read", "metadata": "read"},
+                    },
                 )
             except httpx.HTTPError as exc:
                 raise GitHubUnavailable("github-installation-token-unavailable") from exc
@@ -101,27 +107,29 @@ class GitHubClient:
             raise GitHubUnavailable("github-public-keys-unavailable")
         return safe
 
-    def is_organization_member(self, login: str) -> bool:
+    def has_repository_access(self, repository: str, login: str) -> bool:
         try:
             response = self._http.get(
-                f"{self.api_base}/orgs/{self.organization}/memberships/{login}",
+                f"{self.api_base}/repos/{repository}/collaborators/{login}/permission",
                 headers=self._headers(),
             )
         except httpx.HTTPError as exc:
-            raise GitHubUnavailable("github-membership-unavailable") from exc
+            raise GitHubUnavailable("github-repository-access-unavailable") from exc
         if response.status_code == 404:
             return False
         if response.status_code != 200:
-            raise GitHubUnavailable("github-membership-unavailable")
+            raise GitHubUnavailable("github-repository-access-unavailable")
         try:
             payload = response.json()
         except ValueError as exc:
-            raise GitHubUnavailable("github-membership-malformed") from exc
-        return (
-            payload.get("state") == "active"
-            and payload.get("organization", {}).get("login", "").casefold()
-            == self.organization.casefold()
-        )
+            raise GitHubUnavailable("github-repository-access-malformed") from exc
+        returned_login = payload.get("user", {}).get("login")
+        permission = payload.get("permission")
+        if not isinstance(returned_login, str) or returned_login.casefold() != login.casefold():
+            raise GitHubUnavailable("github-repository-access-malformed")
+        if permission not in {"read", "triage", "write", "maintain", "admin"}:
+            raise GitHubUnavailable("github-repository-access-malformed")
+        return True
 
     def is_team_member(self, team: str, login: str) -> bool:
         try:
