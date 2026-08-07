@@ -49,3 +49,9 @@ This machine is fully provisioned. Standing credentials that exist and must be a
 
 This project uses the shared Claude Copilot framework. Preserve the project-specific instructions in this file and the installed `.claude/` capabilities.
 <!-- cc:project-integration:claude:v1:end -->
+
+<!-- cc:project-integration:claude:v1:start -->
+## Claude Copilot
+
+This project uses the shared Claude Copilot framework. Preserve the project-specific instructions in this file and the installed `.claude/` capabilities.
+<!-- cc:project-integration:claude:v1:end -->
