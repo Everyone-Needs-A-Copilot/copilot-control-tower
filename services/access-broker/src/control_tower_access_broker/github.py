@@ -163,7 +163,11 @@ class GitHubClient:
             payload = response.json()
             if payload.get("encoding") != "base64" or not isinstance(payload.get("content"), str):
                 raise ValueError
-            decoded = base64.b64decode(payload["content"], validate=True)
+            # GitHub's Contents API wraps base64 payloads with newlines. Remove
+            # only line boundaries before strict validation; other whitespace
+            # and every non-base64 character must still fail closed.
+            encoded = "".join(payload["content"].splitlines())
+            decoded = base64.b64decode(encoded, validate=True)
         except (ValueError, TypeError) as exc:
             raise GitHubUnavailable("github-policy-malformed") from exc
         if len(decoded) > 1_048_576:
