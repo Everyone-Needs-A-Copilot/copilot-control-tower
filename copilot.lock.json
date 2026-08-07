@@ -1,6 +1,36 @@
 {
   "components": [
     {
+      "component": "claude",
+      "files": [
+        {
+          "checksum": "sha256:773978787113ddf6b20de18cfd263d8a1373610afd9dc145c2b761da4b6220ee",
+          "ownership": "framework",
+          "path": ".claude/commands/continue.md"
+        },
+        {
+          "checksum": "sha256:ceb06af54f5a832acb74d3adde1b3f2bc2e51d9529255c9ee4d69481f981189f",
+          "ownership": "framework",
+          "path": ".claude/fitness-check.sh"
+        }
+      ],
+      "managed_outputs": [
+        {
+          "fingerprint": "sha256:158d734a90c6db88cdbabaab29c46a24e42f6a9f1960dfaaf838bd67df08c907",
+          "kind": "managed-text",
+          "path": "CLAUDE.md"
+        },
+        {
+          "fingerprint": "sha256:3e5524472437ae46e24401e9f7e181db66fe3449637a30d56f2e805534e247a6",
+          "kind": "merged-json",
+          "path": "copilot.project.json"
+        }
+      ],
+      "ownership_mode": "customized-preserve",
+      "release_tag": "v5.13.3",
+      "version": "5.13.3"
+    },
+    {
       "component": "codex",
       "files": [
         {
@@ -324,11 +354,6 @@
           "fingerprint": "sha256:6a7ea4523be4341ed1ad603e9765641a49be1cddc4a27b9d086a937302239abe",
           "kind": "merged-json",
           "path": ".codex-copilot.json"
-        },
-        {
-          "fingerprint": "sha256:3e5524472437ae46e24401e9f7e181db66fe3449637a30d56f2e805534e247a6",
-          "kind": "merged-json",
-          "path": "copilot.project.json"
         }
       ],
       "release_tag": "v0.6.1",
