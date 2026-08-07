@@ -1,5 +1,5 @@
 {
-  "installType": "symlink",
+  "installType": "copy",
   "pluginPath": "./plugins/codex-copilot",
   "projectName": "copilot-control-tower"
 }
