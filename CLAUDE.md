@@ -43,3 +43,9 @@ This machine is fully provisioned. Standing credentials that exist and must be a
 - Do not start coding the app before the WS-A CLI contract is defined — the app can't supervise a CLI it can't read machine-readably.
 - Keep the app a thin skin. If you find yourself re-implementing resolution/sync logic in Rust, stop — it goes in the CLI.
 - The UI/UX is designed via **Product Creation Copilot**, not hand-invented. See [`docs/03-design/ui-ux/README.md`](docs/03-design/ui-ux/README.md).
+
+<!-- cc:project-integration:claude:v1:start -->
+## Claude Copilot
+
+This project uses the shared Claude Copilot framework. Preserve the project-specific instructions in this file and the installed `.claude/` capabilities.
+<!-- cc:project-integration:claude:v1:end -->
