@@ -26,7 +26,7 @@
       ],
       "managed_outputs": [
         {
-          "fingerprint": "sha256:158d734a90c6db88cdbabaab29c46a24e42f6a9f1960dfaaf838bd67df08c907",
+          "fingerprint": "sha256:d331dda856c336b96acf71c38ff510fc9035b5e154242819b5ebc9231dd8c475",
           "kind": "managed-text",
           "path": "CLAUDE.md"
         },
