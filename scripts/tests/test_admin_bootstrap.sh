@@ -21,7 +21,14 @@ if [[ ! -f "$ENGINE" ]]; then
 fi
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/admin-bootstrap-tests.XXXXXX")"
-cleanup() { rm -rf "$WORKDIR"; }
+HTTP_TEST_PID=""
+cleanup() {
+  if [[ -n "$HTTP_TEST_PID" ]]; then
+    kill "$HTTP_TEST_PID" 2>/dev/null || true
+    wait "$HTTP_TEST_PID" 2>/dev/null || true
+  fi
+  rm -rf "$WORKDIR"
+}
 trap cleanup EXIT
 
 export PATH="$MOCK_BIN:$PATH"
@@ -35,6 +42,17 @@ RESOLVED_GH="$(command -v gh || true)"
 if [[ "$RESOLVED_GH" != "$MOCK_BIN/gh" ]]; then
   echo "FATAL: gh resolves to [$RESOLVED_GH], not the mock at $MOCK_BIN/gh." >&2
   echo "Refusing to run any test: this would risk real calls to github.com." >&2
+  exit 1
+fi
+
+# Same gate, for `cc` (_ensure_local_org_pointer's "local sign-in pointer"
+# step, org-question copy spec §5/Appendix E.3): this machine has a REAL,
+# persistent `cc` config file a test must never write to. Refuse to run a
+# single test unless `cc` resolves to this suite's own mock first.
+RESOLVED_CC="$(command -v cc || true)"
+if [[ "$RESOLVED_CC" != "$MOCK_BIN/cc" ]]; then
+  echo "FATAL: cc resolves to [$RESOLVED_CC], not the mock at $MOCK_BIN/cc." >&2
+  echo "Refusing to run any test: this would risk real writes to this Mac's real setup-helper config." >&2
   exit 1
 fi
 
@@ -91,9 +109,9 @@ assert_true() {
 
 # new_org_state NAME — prints the path to a fresh state dir for a ready,
 # valid acme-co org (signed in, owner, full scopes, base perm not yet read).
-# Also seeds a foundation tag (v5.13.0) satisfying the engine's default
-# ^5.13.0 pin for the "codex" harness, so every existing test's foundation-pin
-# check resolves to pass unless a test deliberately overrides it.
+# Also seeds published Claude and Codex foundation tags satisfying the
+# product-specific default pins, so existing verification tests resolve unless
+# a test deliberately overrides one product.
 new_org_state() {
   local st="$WORKDIR/state-$1"
   rm -rf "$st"
@@ -103,7 +121,8 @@ new_org_state() {
   echo "admin" > "$st/orgs/acme-co/membership_earladmin"
   echo "admin" > "$st/orgs/acme-co/default_permission"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
-  printf 'v5.13.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
+  printf 'v5.8.0\n' > "$st/tags/Everyone-Needs-A-Copilot/claude-copilot"
+  printf 'v0.6.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
   printf '%s' "$st"
 }
 
@@ -125,7 +144,7 @@ seed_content_bearing_repo() {
   fi
 }
 
-STORE_CONNECTED=$'store:\n  status: connected\n  type: infisical\n  endpoint: https://vault.acme-co.example\n  team_scopes:\n    - { team: accounting, scope: dept/accounting }\n    - { team: sales, scope: dept/sales }'
+STORE_CONNECTED=$'store:\n  status: connected\n  type: infisical\n  endpoint: https://vault.acme-co.example\n  workspace_id: "workspace-acme"\n  environment: prod\n  secret_path: "/shared"\n  team_scopes:\n    - { team: accounting, scope: dept/accounting }\n    - { team: sales, scope: dept/sales }'
 STORE_DEFERRED=$'store:\n  status: deferred'
 
 # write_brief PATH STORE_BLOCK [STORE_ENDPOINT_OVERRIDE_BLOCK]
@@ -135,6 +154,8 @@ write_brief() {
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -146,6 +167,43 @@ contacts:
 ---
 
 # Standup brief for acme-co (test fixture)
+EOF
+}
+
+write_both_harness_brief() {
+  local path="$1"
+  cat > "$path" <<'EOF'
+---
+schema_version: "1.0"
+org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
+harness:
+  - claude
+  - codex
+departments: []
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+
+# Both-harness standup brief (test fixture)
+EOF
+}
+
+write_both_harness_json_brief() {
+  local path="$1"
+  cat > "$path" <<'EOF'
+{
+  "schema_version": "1.0",
+  "org": "acme-co",
+  "github_app": {"client_id": "Iv1.a1b2c3d4e5f6a7b8"},
+  "harness": ["claude", "codex"],
+  "departments": [],
+  "store": {"status": "deferred"},
+  "contacts": {"admin": "Earl P."}
+}
 EOF
 }
 
@@ -171,7 +229,7 @@ count_calls() {
 
 count_mutating_calls() {
   local log="$1"
-  awk -F'\t' '$1=="POST" || $1=="PATCH" || $1=="PUT" {c++} END{print c+0}' "$log"
+  awk -F'\t' '$1=="POST" || $1=="PATCH" || $1=="PUT" || $1=="DELETE" {c++} END{print c+0}' "$log"
 }
 
 no_em_dash() {
@@ -221,14 +279,23 @@ test_fresh_standup_full_matrix() {
   base_perm_count="$(count_calls "$log" '^PATCH$' '^orgs/acme-co$')"
   eco_count="$(count_calls "$log" '^PUT$' 'contents/ecosystem\.yml$')"
 
-  assert_eq "test1: creates 9 repos (org triplet + accounting triplet + sales triplet)" "9" "$repo_count"
+  assert_eq "test1: creates 10 repos (org triplet + accounting triplet + sales triplet + the public copilot-bootstrap repo)" "10" "$repo_count"
   assert_eq "test1: creates 2 teams (accounting, sales)" "2" "$team_count"
   assert_eq "test1: grants 6 team-repo permissions (3 per department)" "6" "$grant_count"
   assert_eq "test1: sets org base permission exactly once" "1" "$base_perm_count"
   assert_eq "test1: writes ecosystem.yml exactly once" "1" "$eco_count"
 
+  local ecosystem_content
+  ecosystem_content="$(cat "$st/repos/acme-co/codex-copilot-internal/refs/main/ecosystem.yml")"
+  assert_contains "test1: ecosystem.yml carries the public OAuth client ID" "$ecosystem_content" 'client_id: "Iv1.a1b2c3d4e5f6a7b8"'
+  assert_contains "test1: ecosystem.yml carries the Codex-specific foundation pin" "$ecosystem_content" 'codex: "^0.6.0"'
+  assert_contains "test1: ecosystem.yml carries the Knowledge-specific foundation pin" "$ecosystem_content" 'knowledge: "^0.1.0"'
+  assert_contains "test1: ecosystem.yml carries the CLI-specific foundation pin" "$ecosystem_content" 'cli: "^0.3.0"'
+  assert_contains "test1: ecosystem.yml delegates personal ownership to User Setup" "$ecosystem_content" 'owner: user'
+  assert_contains "test1: personal repositories stay private-patterned and user-owned" "$ecosystem_content" 'repository_pattern: "<user>/<component>-copilot-private"'
+
   local expected_repos=(
-    "acme-co/codex-copilot" "acme-co/knowledge-copilot" "acme-co/cli-copilot"
+    "acme-co/codex-copilot-internal" "acme-co/knowledge-copilot-internal" "acme-co/cli-copilot-internal"
     "acme-co/codex-copilot-accounting" "acme-co/knowledge-copilot-accounting" "acme-co/cli-copilot-accounting"
     "acme-co/codex-copilot-sales" "acme-co/knowledge-copilot-sales" "acme-co/cli-copilot-sales"
   )
@@ -239,18 +306,29 @@ test_fresh_standup_full_matrix() {
     fi
   done
   assert_eq "test1: every expected repo was reported created" "" "$missing"
+  assert_contains "test1: the public copilot-bootstrap repo was reported created" "$RUN_STDOUT" "Created acme-co/copilot-bootstrap, public."
 
   # Contract order: readiness and org-base-permission first; the harness
-  # repo's ecosystem.yml write and its branch protection are last (see
+  # repo's ecosystem.yml write and its branch protection come next (see
   # admin_bootstrap.sh's run_standup for why protection on the harness repo
-  # is deferred until it actually carries content).
-  local first_step last_step second_last_step
+  # is deferred until it actually carries content); the public
+  # copilot-bootstrap mirror and this Mac's own local sign-in pointer
+  # (org-question copy spec §1/§5) are always last, after every other real
+  # GitHub state this run creates.
+  local first_step last_step second_last_step third_last_step fourth_last_step fifth_last_step
   first_step="$(printf '%s\n' "$RUN_STDOUT" | head -1 | jq -r .step)"
   last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -1 | jq -r .step)"
   second_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -2 | head -1 | jq -r .step)"
+  third_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -3 | head -1 | jq -r .step)"
+  fourth_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -4 | head -1 | jq -r .step)"
+  fifth_last_step="$(printf '%s\n' "$RUN_STDOUT" | tail -5 | head -1 | jq -r .step)"
   assert_eq "test1: first NDJSON step is readiness" "readiness" "$first_step"
-  assert_eq "test1: ecosystem-yml step precedes the harness repo's branch protection" "ecosystem-yml" "$second_last_step"
-  assert_eq "test1: last NDJSON step protects the harness repo" "branch-protection:codex-copilot" "$last_step"
+  assert_eq "test1: layer package is initialized before the harness repo's branch protection" "layer-package:codex-copilot-internal" "$fifth_last_step"
+  assert_contains "test1: ecosystem handoff is written before package initialization" "$RUN_STDOUT" '"step":"ecosystem-yml"'
+  assert_eq "test1: the harness repo's branch protection precedes the bootstrap mirror" "branch-protection:codex-copilot-internal" "$fourth_last_step"
+  assert_eq "test1: the public bootstrap repo precedes its bootstrap.yml" "bootstrap-repo" "$third_last_step"
+  assert_eq "test1: bootstrap.yml precedes this Mac's own local sign-in pointer" "bootstrap-yml" "$second_last_step"
+  assert_eq "test1: last NDJSON step sets this Mac's own local sign-in pointer" "local-org-pointer" "$last_step"
 }
 
 # ---------------------------------------------------------------------------
@@ -320,6 +398,8 @@ test_leak_scan_blocks_before_push() {
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -328,6 +408,9 @@ store:
   status: connected
   type: infisical
   endpoint: "AKIAABCDEFGHIJKLMNOP"
+  workspace_id: "workspace-acme"
+  environment: prod
+  secret_path: "/shared"
 contacts:
   admin: "Earl P."
 ---
@@ -405,6 +488,18 @@ test_verify_json_schema() {
   assert_true "test5: includes a deferred store row" "$has_deferred" "$verify_out"
   assert_true "test5: includes a present-undeclared row for the undeclared hr department" "$has_undeclared" "$verify_out"
 
+  local github_app_status personal_handoff_status bootstrap_repo_status bootstrap_yml_status team_grant_status
+  github_app_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "github-app") | .status')"
+  personal_handoff_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "personal-handoff") | .status')"
+  bootstrap_repo_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "bootstrap-repo") | .status')"
+  bootstrap_yml_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "bootstrap-yml") | .status')"
+  team_grant_status="$(printf '%s' "$verify_out" | jq -r '[.checks[] | select(.check == "dept-team-grant") | .status] | unique | join(",")')"
+  assert_eq "test5: verifies the public GitHub OAuth App client ID" "pass" "$github_app_status"
+  assert_eq "test5: verifies the personal User Setup handoff" "pass" "$personal_handoff_status"
+  assert_eq "test5: verifies the signed-out bootstrap repo is public" "pass" "$bootstrap_repo_status"
+  assert_eq "test5: verifies bootstrap.yml exactly matches the discovery contract" "pass" "$bootstrap_yml_status"
+  assert_eq "test5: treats GitHub's 204 No Content team-permission response as access" "pass" "$team_grant_status"
+
   local deferred_excluded=1
   if echo "$verify_out" | jq -e '.summary.must_fix == 0 and .summary.unknown >= 0' >/dev/null 2>&1; then
     deferred_excluded=0
@@ -456,6 +551,8 @@ test_invalid_department_slug_refuses() {
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -532,15 +629,16 @@ EOF
 test_injected_read_failure_surfaces_honestly() {
   local st brief log
 
-  # Run mode: org-base-permission's read (orgs/acme-co) is call #5 in a
-  # fresh run (login, scopes, org-exists, membership, then this read) —
-  # the exact "injected call-5 failure" shape QA proved. Injecting on the
+  # Run mode: org-base-permission's read follows the four readiness reads
+  # and the nine-repository fail-closed preflight plus the read-only existing
+  # ecosystem contract probe and the three package preflight probes, so it is
+  # call #18 in this fixture. Injecting on the
   # endpoint itself would also trip preflight's earlier, unrelated hit to
   # the same path, so this uses the call-count injection instead.
   st="$(new_org_state inject-run)"
   brief="$WORKDIR/brief-inject-run.md"
   write_brief "$brief" "$STORE_DEFERRED"
-  echo "5" > "$st/inject-error-at-call"
+  echo "18" > "$st/inject-error-at-call"
   log="$WORKDIR/inject-run.log"
 
   run_engine "$st" "$log" --brief "$brief"
@@ -585,7 +683,7 @@ test_injected_read_failure_surfaces_honestly() {
 test_content_bearing_repo_opens_pr() {
   local st brief log
   st="$(new_org_state content-fresh)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-content-fresh.md"
   write_brief "$brief" "$STORE_DEFERRED"
   log="$WORKDIR/content-fresh.log"
@@ -600,10 +698,10 @@ test_content_bearing_repo_opens_pr() {
   assert_contains "test10: detail names the opened pull request" "$eco_step_detail" "Opened pull request #1"
 
   local branch_create_count pr_create_count branch_push_count direct_push_count
-  branch_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot/git/refs$')"
-  pr_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot/pulls$')"
-  branch_push_count="$(count_calls_with_field "$log" '^PUT$' '^repos/acme-co/codex-copilot/contents/ecosystem\.yml$' 'branch=copilot-standup')"
-  direct_push_count="$(count_calls_with_field "$log" '^PUT$' '^repos/acme-co/codex-copilot/contents/ecosystem\.yml$' 'message=Initial ecosystem.yml')"
+  branch_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot-internal/git/refs$')"
+  pr_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot-internal/pulls$')"
+  branch_push_count="$(count_calls_with_field "$log" '^PUT$' '^repos/acme-co/codex-copilot-internal/contents/ecosystem\.yml$' 'branch=copilot-standup')"
+  direct_push_count="$(count_calls_with_field "$log" '^PUT$' '^repos/acme-co/codex-copilot-internal/contents/ecosystem\.yml$' 'message=Initial ecosystem.yml')"
 
   assert_eq "test10: creates the copilot-standup branch exactly once" "1" "$branch_create_count"
   assert_eq "test10: pushes ecosystem.yml to the branch exactly once" "1" "$branch_push_count"
@@ -619,7 +717,7 @@ test_content_bearing_repo_opens_pr() {
 test_content_bearing_rerun_is_noop() {
   local st brief log1 log2
   st="$(new_org_state content-rerun)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-content-rerun.md"
   write_brief "$brief" "$STORE_DEFERRED"
   log1="$WORKDIR/content-rerun1.log"
@@ -638,9 +736,9 @@ test_content_bearing_rerun_is_noop() {
   assert_contains "test11: re-run's detail still names pull request #1" "$eco_step_detail" "#1"
 
   local branch_create_count pr_create_count branch_push_count
-  branch_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot/git/refs$')"
-  pr_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot/pulls$')"
-  branch_push_count="$(count_calls_with_field "$log2" '^PUT$' '^repos/acme-co/codex-copilot/contents/ecosystem\.yml$' 'branch=copilot-standup')"
+  branch_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot-internal/git/refs$')"
+  pr_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot-internal/pulls$')"
+  branch_push_count="$(count_calls_with_field "$log2" '^PUT$' '^repos/acme-co/codex-copilot-internal/contents/ecosystem\.yml$' 'branch=copilot-standup')"
 
   assert_eq "test11: re-run creates no duplicate branch" "0" "$branch_create_count"
   assert_eq "test11: re-run pushes no duplicate commit" "0" "$branch_push_count"
@@ -655,12 +753,14 @@ test_content_bearing_rerun_is_noop() {
 test_leak_scan_blocks_branch_push() {
   local st brief log
   st="$(new_org_state content-leak)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-content-leak.md"
   cat > "$brief" <<'EOF'
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -669,6 +769,9 @@ store:
   status: connected
   type: infisical
   endpoint: "AKIAABCDEFGHIJKLMNOP"
+  workspace_id: "workspace-acme"
+  environment: prod
+  secret_path: "/shared"
 contacts:
   admin: "Earl P."
 ---
@@ -683,8 +786,8 @@ EOF
   assert_contains "test12: stdout carries a refused leak-scan step" "$RUN_STDOUT" '"step":"leak-scan","result":"refused"'
 
   local branch_create_count pr_create_count branch_push_count
-  branch_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot/git/refs$')"
-  pr_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot/pulls$')"
+  branch_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot-internal/git/refs$')"
+  pr_create_count="$(count_calls "$log" '^POST$' '^repos/acme-co/codex-copilot-internal/pulls$')"
   branch_push_count="$(count_calls "$log" '^PUT$' 'contents/ecosystem\.yml$')"
 
   assert_eq "test12: no branch was created" "0" "$branch_create_count"
@@ -700,7 +803,7 @@ EOF
 test_verify_renders_pending_pr() {
   local st brief log
   st="$(new_org_state content-verify-pending)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-content-verify-pending.md"
   write_brief "$brief" "$STORE_DEFERRED"
   log="$WORKDIR/content-verify-pending-setup.log"
@@ -727,7 +830,7 @@ test_verify_renders_pending_pr() {
 
   local must_fix
   must_fix="$(printf '%s' "$verify_out" | jq -r '.summary.must_fix')"
-  assert_eq "test13: the pending-PR row counts toward must_fix" "1" "$must_fix"
+  assert_eq "test13: pending ecosystem, package, OAuth, and personal-handoff rows count toward must_fix" "4" "$must_fix"
 
   local verify_mutating
   verify_mutating="$(count_mutating_calls "$verify_log")"
@@ -744,14 +847,14 @@ test_foundation_pin_resolves_highest_matching_tag() {
   st="$(new_org_state semver-highest)"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
   cat > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot" <<'EOF'
-v5.12.0
-v5.13.0
-5.13.2
-v5.13.5
-v5.13.10
-v6.0.0
+v0.5.0
+v0.6.0
+0.6.2
+v0.6.5
+v0.6.10
+v0.7.0
 not-a-version
-v5.13.0-rc1
+v0.6.0-rc1
 EOF
   brief="$WORKDIR/brief-semver-highest.md"
   write_brief "$brief" "$STORE_DEFERRED"
@@ -766,11 +869,11 @@ EOF
   verify_out="$RUN_STDOUT"
 
   local row_status row_detail
-  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .status')"
-  row_detail="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .detail')"
+  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .status')"
+  row_detail="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .detail')"
 
   assert_eq "test14: foundation-pin resolves to pass" "pass" "$row_status"
-  assert_contains "test14: detail names the highest satisfying tag, excluding the higher-major v6.0.0" "$row_detail" "v5.13.10"
+  assert_contains "test14: detail names the highest satisfying tag, excluding v0.7.0" "$row_detail" "v0.6.10"
 
   local tags_call_count paginate_recorded
   tags_call_count="$(count_calls "$verify_log" '^GET$' '^repos/Everyone-Needs-A-Copilot/codex-copilot/tags$')"
@@ -790,9 +893,9 @@ test_foundation_pin_no_match_fails() {
   st="$(new_org_state semver-no-match)"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
   cat > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot" <<'EOF'
-v4.9.0
-v4.10.0
-v6.0.0
+v0.5.9
+v0.7.0
+v1.0.0
 EOF
   brief="$WORKDIR/brief-semver-no-match.md"
   write_brief "$brief" "$STORE_DEFERRED"
@@ -807,8 +910,8 @@ EOF
   verify_out="$RUN_STDOUT"
 
   local row_status row_owner
-  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .status')"
-  row_owner="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .owner')"
+  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .status')"
+  row_owner="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .owner')"
 
   assert_eq "test15: no tag satisfies the range, so foundation-pin fails" "fail" "$row_status"
   assert_eq "test15: fail is owned by ENAC/external" "ENAC/external" "$row_owner"
@@ -827,7 +930,7 @@ test_foundation_pin_injected_error_unknown() {
   local st brief log
   st="$(new_org_state semver-error)"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
-  printf 'v5.13.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
+  printf 'v0.6.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
   mkdir -p "$st/inject-error"
   touch "$st/inject-error/repos__Everyone-Needs-A-Copilot__codex-copilot__tags"
   brief="$WORKDIR/brief-semver-error.md"
@@ -843,7 +946,7 @@ test_foundation_pin_injected_error_unknown() {
   verify_out="$RUN_STDOUT"
 
   local row_status
-  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin") | .status')"
+  row_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .status')"
   assert_eq "test16: an unreadable tags endpoint renders unknown, never pass or fail" "unknown" "$row_status"
 
   local verify_mutating
@@ -860,13 +963,15 @@ test_foundation_pin_injected_error_unknown() {
 test_stale_branch_content_gets_updated_not_already_present() {
   local st brief1 brief2 log1 log2
   st="$(new_org_state content-stale-update)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
 
   brief1="$WORKDIR/brief-stale-update-1.md"
   cat > "$brief1" <<'EOF'
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -885,6 +990,8 @@ EOF
 ---
 schema_version: "1.0"
 org: acme-co
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -919,9 +1026,9 @@ EOF
   assert_contains "test17: updated detail names the existing pull request" "$eco_step_detail" "#1"
 
   local branch_push_count branch_create_count pr_create_count
-  branch_push_count="$(count_calls_with_field "$log2" '^PUT$' '^repos/acme-co/codex-copilot/contents/ecosystem\.yml$' 'branch=copilot-standup')"
-  branch_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot/git/refs$')"
-  pr_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot/pulls$')"
+  branch_push_count="$(count_calls_with_field "$log2" '^PUT$' '^repos/acme-co/codex-copilot-internal/contents/ecosystem\.yml$' 'branch=copilot-standup')"
+  branch_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot-internal/git/refs$')"
+  pr_create_count="$(count_calls "$log2" '^POST$' '^repos/acme-co/codex-copilot-internal/pulls$')"
 
   assert_eq "test17: exactly one new commit is pushed to the existing branch" "1" "$branch_push_count"
   assert_eq "test17: no new branch is created (it already exists)" "0" "$branch_create_count"
@@ -937,7 +1044,7 @@ EOF
 test_no_em_dash_in_emitted_output() {
   local st brief log
   st="$(new_org_state no-em-dash)"
-  seed_content_bearing_repo "$st" acme-co codex-copilot
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
   brief="$WORKDIR/brief-no-em-dash.md"
   write_brief "$brief" "$STORE_CONNECTED"
   log="$WORKDIR/no-em-dash-run.log"
@@ -971,15 +1078,15 @@ test_free_plan_branch_protection_403_skips_gracefully() {
   log="$WORKDIR/free-plan-403.log"
 
   mkdir -p "$st/inject-error"
-  printf '403' > "$st/inject-error/PUT__repos__acme-co__codex-copilot__branches__main__protection"
+  printf '403' > "$st/inject-error/PUT__repos__acme-co__codex-copilot-internal__branches__main__protection"
 
   run_engine "$st" "$log" --brief "$brief"
 
   assert_eq "test19: a free-plan 403 on branch protection still completes the run" "0" "$RUN_EXIT" "$RUN_STDERR"
 
   local step_result step_detail
-  step_result="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot") | .result')"
-  step_detail="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot") | .detail')"
+  step_result="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot-internal") | .result')"
+  step_detail="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot-internal") | .detail')"
 
   assert_eq "test19: the protection step renders skipped, not failed" "skipped" "$step_result"
   assert_eq "test19: the skipped detail is the canonical free-plan message, verbatim" \
@@ -1000,12 +1107,12 @@ test_non_403_branch_protection_error_still_fails() {
   log="$WORKDIR/free-plan-500.log"
 
   mkdir -p "$st/inject-error"
-  touch "$st/inject-error/PUT__repos__acme-co__codex-copilot__branches__main__protection"
+  touch "$st/inject-error/PUT__repos__acme-co__codex-copilot-internal__branches__main__protection"
 
   run_engine "$st" "$log" --brief "$brief"
 
   assert_eq "test20: a non-403 branch-protection error still halts the run" "1" "$RUN_EXIT"
-  assert_contains "test20: stdout carries a failed branch-protection step" "$RUN_STDOUT" '"step":"branch-protection:codex-copilot","result":"failed"'
+  assert_contains "test20: stdout carries a failed branch-protection step" "$RUN_STDOUT" '"step":"branch-protection:codex-copilot-internal","result":"failed"'
 }
 
 # ---------------------------------------------------------------------------
@@ -1092,13 +1199,15 @@ test_org_verbatim_mixed_case_accepted() {
   echo "admin" > "$st/orgs/Acme-Copilot/membership_earladmin"
   echo "admin" > "$st/orgs/Acme-Copilot/default_permission"
   mkdir -p "$st/tags/Everyone-Needs-A-Copilot"
-  printf 'v5.13.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
+  printf 'v0.6.0\n' > "$st/tags/Everyone-Needs-A-Copilot/codex-copilot"
 
   brief="$WORKDIR/brief-mixed-case-org.md"
   cat > "$brief" <<'EOF'
 ---
 schema_version: "1.0"
 org: Acme-Copilot
+github_app:
+  client_id: Iv1.a1b2c3d4e5f6a7b8
 harness:
   - codex
 departments:
@@ -1126,7 +1235,7 @@ EOF
   assert_eq "test22: no repo is ever created under a lowercased org path" "0" "$repo_count_lowercased"
   assert_true "test22: the department team is created under the verbatim org path" \
     "$([[ "$team_count_verbatim" -gt 0 ]]; echo $?)" "count=$team_count_verbatim"
-  assert_contains "test22: the created harness repo is reported under the verbatim path" "$RUN_STDOUT" "Created Acme-Copilot/codex-copilot, private."
+  assert_contains "test22: the created harness repo is reported under the verbatim path" "$RUN_STDOUT" "Created Acme-Copilot/codex-copilot-internal, private."
   assert_contains "test22: the created department repo is reported under the verbatim path" "$RUN_STDOUT" "Created Acme-Copilot/codex-copilot-accounting, private."
 }
 
@@ -1211,6 +1320,401 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# Test 25: "internal" is reserved for the org layer, so a department literally
+# named "internal" refuses (it would collide with the org-layer repo names,
+# e.g. knowledge-copilot-internal), zero mutating calls.
+# ---------------------------------------------------------------------------
+
+test_department_named_internal_refuses() {
+  local st brief log
+  st="$(new_org_state dept-named-internal)"
+  brief="$WORKDIR/brief-dept-named-internal.md"
+  cat > "$brief" <<'EOF'
+---
+schema_version: "1.0"
+org: acme-co
+harness:
+  - codex
+departments:
+  - accounting
+  - internal
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+
+# Standup brief for acme-co (department named "internal" fixture)
+EOF
+  log="$WORKDIR/dept-named-internal.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test25: a department named \"internal\" refuses (exit 2)" "2" "$RUN_EXIT"
+  assert_contains "test25: stdout carries a refused validate-slug step" "$RUN_STDOUT" '"step":"validate-slug","result":"refused"'
+  assert_contains "test25: stderr explains the org-layer reservation" "$RUN_STDERR" "\"internal\" is reserved for the org layer"
+  assert_contains "test25: stderr tells the operator to rename the department" "$RUN_STDERR" "update the brief"
+
+  local mutating
+  mutating="$(count_mutating_calls "$log")"
+  assert_eq "test25: zero mutating calls before the refusal" "0" "$mutating"
+}
+
+# ---------------------------------------------------------------------------
+# Test 26: --plan is read-only and distinguishes private, confirmed-missing,
+# public collisions, and unreadable responses before setup can mutate.
+# ---------------------------------------------------------------------------
+
+test_repository_plan_is_fail_closed() {
+  local st brief log states mutations public_state unknown_state
+  st="$(new_org_state repository-plan)"
+  brief="$WORKDIR/brief-repository-plan.md"
+  write_both_harness_brief "$brief"
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal
+  log="$WORKDIR/repository-plan.log"
+
+  run_engine "$st" "$log" --plan --brief "$brief" --json
+  assert_eq "test26: repository plan exits 0 when every target is private or confirmed missing" "0" "$RUN_EXIT" "$RUN_STDERR"
+  assert_eq "test26: repository plan emits valid JSON" "1" "$(printf '%s' "$RUN_STDOUT" | jq -e '.schema_version == "1.0"' >/dev/null && echo 1 || echo 0)"
+  assert_eq "test26: both-harness no-department plan has all four org repositories" "4" "$(printf '%s' "$RUN_STDOUT" | jq '.repositories | length')"
+  states="$(printf '%s' "$RUN_STDOUT" | jq -r '.repositories[] | select(.name == "codex-copilot-internal") | .state')"
+  assert_eq "test26: existing private repository is reused" "existing-private" "$states"
+  mutations="$(count_mutating_calls "$log")"
+  assert_eq "test26: plan makes zero mutating calls" "0" "$mutations"
+
+  echo false > "$st/repos/acme-co/codex-copilot-internal/private"
+  run_engine "$st" "$log" --plan --brief "$brief" --json
+  public_state="$(printf '%s' "$RUN_STDOUT" | jq -r '.repositories[] | select(.name == "codex-copilot-internal") | .state')"
+  assert_eq "test26: public collision blocks the plan" "1" "$RUN_EXIT"
+  assert_eq "test26: public collision is explicit" "conflict-public" "$public_state"
+  assert_eq "test26: blocked public plan makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+
+  echo true > "$st/repos/acme-co/codex-copilot-internal/private"
+  mkdir -p "$st/inject-error"
+  touch "$st/inject-error/repos__acme-co__knowledge-copilot-internal"
+  run_engine "$st" "$log" --plan --brief "$brief" --json
+  unknown_state="$(printf '%s' "$RUN_STDOUT" | jq -r '.repositories[] | select(.name == "knowledge-copilot-internal") | .state')"
+  assert_eq "test26: unreadable repository blocks the plan" "1" "$RUN_EXIT"
+  assert_eq "test26: unreadable response is unknown, never missing" "unknown" "$unknown_state"
+  assert_eq "test26: blocked unknown plan makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+}
+
+# ---------------------------------------------------------------------------
+# Test 27: a two-harness standup writes and verifies independent Claude and
+# Codex foundation references in one shared ecosystem.
+# ---------------------------------------------------------------------------
+
+test_two_harness_foundations_are_independent() {
+  local st brief log ecosystem_content verify_log verify_out
+  st="$(new_org_state two-harness-foundations)"
+  brief="$WORKDIR/brief-two-harness-foundations.md"
+  write_both_harness_brief "$brief"
+  log="$WORKDIR/two-harness-foundations.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test27: two-harness standup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  ecosystem_content="$(cat "$st/repos/acme-co/claude-copilot-internal/refs/main/ecosystem.yml")"
+  assert_contains "test27: ecosystem.yml pins Claude independently" "$ecosystem_content" 'claude: "^5.8.0"'
+  assert_contains "test27: ecosystem.yml pins Codex independently" "$ecosystem_content" 'codex: "^0.6.0"'
+
+  verify_log="$WORKDIR/two-harness-foundations-verify.log"
+  run_engine "$st" "$verify_log" --verify --brief "$brief" --json
+  verify_out="$RUN_STDOUT"
+  assert_eq "test27: two-harness verify exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+  assert_eq "test27: Claude foundation verifies" "pass" "$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:claude") | .status')"
+  assert_eq "test27: Codex foundation verifies" "pass" "$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "foundation-pin:codex") | .status')"
+}
+
+# ---------------------------------------------------------------------------
+# Test 28: a missing OAuth client ID is refused while the run is still purely
+# local, before even a read-only GitHub probe.
+# ---------------------------------------------------------------------------
+
+test_missing_oauth_client_id_refuses_before_github() {
+  local st brief log
+  st="$(new_org_state missing-oauth-client-id)"
+  brief="$WORKDIR/brief-missing-oauth-client-id.md"
+  cat > "$brief" <<'EOF'
+---
+schema_version: "1.0"
+org: acme-co
+harness:
+  - codex
+departments: []
+store:
+  status: deferred
+contacts:
+  admin: "Earl P."
+---
+EOF
+  log="$WORKDIR/missing-oauth-client-id.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test28: missing OAuth client ID exits 2" "2" "$RUN_EXIT"
+  assert_contains "test28: refusal asks only for the public client ID" "$RUN_STDERR" "public GitHub OAuth App client ID"
+  assert_contains "test28: refusal warns against the client secret" "$RUN_STDERR" "never add the client secret"
+  assert_eq "test28: missing OAuth client ID makes zero GitHub calls" "0" "$(wc -l < "$log" | tr -d ' ')"
+}
+
+# ---------------------------------------------------------------------------
+# Test 29: existing organization identity config is never overwritten. The
+# conflict is detected after read-only repository inventory and before any
+# repository, permission, branch, team, or content mutation.
+# ---------------------------------------------------------------------------
+
+test_existing_oauth_identity_conflict_refuses_before_mutation() {
+  local st brief log existing
+  st="$(new_org_state oauth-identity-conflict)"
+  existing=$'schema_version: "2.0"\norg: acme-co\nharness:\n  - codex\ncomponents:\n  - knowledge\n  - cli\n  - codex\ndepartments:\nstore:\n  status: deferred\ngithub_app:\n  client_id: "Iv1.ffffffffffffffff"\nfoundation:\n  refs:\n    codex: "^0.6.0"\npersonal:\n  owner: user\n  rank: 10\n  repository_pattern: "<user>/<component>-copilot-private"'
+  seed_content_bearing_repo "$st" acme-co codex-copilot-internal "$existing"
+  brief="$WORKDIR/brief-oauth-identity-conflict.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/oauth-identity-conflict.log"
+
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test29: different existing OAuth client ID exits 2" "2" "$RUN_EXIT"
+  assert_contains "test29: refusal names the identity conflict" "$RUN_STDERR" "different github_app.client_id"
+  assert_contains "test29: refusal states that identity will not be replaced" "$RUN_STDERR" "won't replace organization identity config"
+  assert_eq "test29: identity conflict makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+}
+
+# ---------------------------------------------------------------------------
+# Test 30: layer-package preflight is transactional. Existing unfamiliar
+# content or a mismatched package is detected before any repository/team/
+# permission/content mutation occurs.
+# ---------------------------------------------------------------------------
+
+test_layer_package_conflicts_refuse_before_mutation() {
+  local st brief setup_log log repo_dir
+  st="$(new_org_state layer-package-content-conflict)"
+  brief="$WORKDIR/brief-layer-package-content-conflict.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  setup_log="$WORKDIR/layer-package-content-conflict-setup.log"
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test30: content-conflict fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  repo_dir="$st/repos/acme-co/codex-copilot-internal/refs/main"
+  rm -f "$repo_dir/copilot.layer.yml"
+  printf '%s\n' '# Existing organization documentation' > "$repo_dir/README.md"
+  log="$WORKDIR/layer-package-content-conflict.log"
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test30: unfamiliar content without a package is refused" "2" "$RUN_EXIT"
+  assert_contains "test30: unfamiliar-content refusal names the layer package" "$RUN_STDERR" "without a layer package"
+  assert_eq "test30: unfamiliar-content conflict makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+
+  st="$(new_org_state layer-package-manifest-conflict)"
+  setup_log="$WORKDIR/layer-package-manifest-conflict-setup.log"
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test30: manifest-conflict fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+  repo_dir="$st/repos/acme-co/codex-copilot-internal/refs/main"
+  sed -i.bak 's/role: organization/role: department/' "$repo_dir/copilot.layer.yml"
+  rm -f "$repo_dir/copilot.layer.yml.bak"
+  log="$WORKDIR/layer-package-manifest-conflict.log"
+  run_engine "$st" "$log" --brief "$brief"
+  assert_eq "test30: mismatched layer package is refused" "2" "$RUN_EXIT"
+  assert_contains "test30: mismatched package refusal is explicit" "$RUN_STDERR" "different layer package"
+  assert_eq "test30: package conflict makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+}
+
+# ---------------------------------------------------------------------------
+# Test 31: the packaged app's JSON brief twin drives the same read-only plan
+# without invoking the Markdown/Python parser.
+# ---------------------------------------------------------------------------
+
+test_json_brief_drives_read_only_plan() {
+  local st brief log
+  st="$(new_org_state json-brief-plan)"
+  brief="$WORKDIR/brief-packaged-admin.json"
+  write_both_harness_json_brief "$brief"
+  log="$WORKDIR/json-brief-plan.log"
+
+  run_engine "$st" "$log" --plan --brief "$brief" --json
+  assert_eq "test31: JSON brief plan exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+  assert_eq "test31: JSON brief preserves the organization" "acme-co" "$(printf '%s' "$RUN_STDOUT" | jq -r '.owner')"
+  assert_eq "test31: JSON brief includes four no-department org repositories" "4" "$(printf '%s' "$RUN_STDOUT" | jq '.repositories | length')"
+  assert_eq "test31: JSON brief plan makes zero mutating calls" "0" "$(count_mutating_calls "$log")"
+}
+
+# ---------------------------------------------------------------------------
+# Test 32: macOS store verification uses the system HTTP client, not Bash's
+# unsupported /dev/tcp pseudo-device. A local HTTP endpoint passes while it
+# is listening and fails after it stops, without relying on external network.
+# ---------------------------------------------------------------------------
+
+test_store_reachability_uses_bounded_http_probe() {
+  local st brief setup_log verify_log port_file port endpoint store_block
+  local ready_status stopped_status
+  st="$(new_org_state store-http-probe)"
+  brief="$WORKDIR/brief-store-http-probe.md"
+  setup_log="$WORKDIR/store-http-probe-setup.log"
+  verify_log="$WORKDIR/store-http-probe-verify.log"
+  port_file="$WORKDIR/store-http-probe.port"
+
+  python3 - "$port_file" <<'PYEOF' &
+import http.server
+import sys
+
+class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), QuietHandler)
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    handle.write(str(server.server_address[1]))
+server.serve_forever()
+PYEOF
+  HTTP_TEST_PID=$!
+
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    [[ -s "$port_file" ]] && break
+    sleep 0.05
+  done
+  if [[ ! -s "$port_file" ]]; then
+    not_ok "test32: local HTTP fixture starts" "server did not publish a port"
+    return
+  fi
+
+  port="$(cat "$port_file")"
+  endpoint="http://127.0.0.1:$port"
+  store_block=$'store:\n  status: connected\n  type: infisical\n  endpoint: '"$endpoint"$'\n  workspace_id: "workspace-acme"\n  environment: prod\n  secret_path: "/shared"\n  team_scopes:\n    - { team: accounting, scope: dept/accounting }\n    - { team: sales, scope: dept/sales }'
+  write_brief "$brief" "$store_block"
+
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test32: connected-store fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  run_engine "$st" "$verify_log" --verify --brief "$brief" --json
+  ready_status="$(printf '%s' "$RUN_STDOUT" | jq -r '.checks[] | select(.check == "store") | .status')"
+  assert_eq "test32: listening HTTP store verifies ready" "pass" "$ready_status" "$RUN_STDOUT"
+
+  kill "$HTTP_TEST_PID" 2>/dev/null || true
+  wait "$HTTP_TEST_PID" 2>/dev/null || true
+  HTTP_TEST_PID=""
+
+  run_engine "$st" "$verify_log" --verify --brief "$brief" --json
+  stopped_status="$(printf '%s' "$RUN_STDOUT" | jq -r '.checks[] | select(.check == "store") | .status')"
+  assert_eq "test32: stopped HTTP store verifies unavailable" "fail" "$stopped_status" "$RUN_STDOUT"
+}
+
+# ---------------------------------------------------------------------------
+# Test 33: existing protection that requires administrators to obtain a review
+# is repaired without removing the review rule itself. This is the solo-admin
+# deadlock that blocked the live Accounting ecosystem pull request.
+# ---------------------------------------------------------------------------
+
+test_branch_protection_preserves_admin_recovery() {
+  local st brief setup_log repair_log repo_dir delete_count step_result
+  st="$(new_org_state admin-recovery)"
+  brief="$WORKDIR/brief-admin-recovery.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  setup_log="$WORKDIR/admin-recovery-setup.log"
+  repair_log="$WORKDIR/admin-recovery-repair.log"
+
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test33: fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  repo_dir="$st/repos/acme-co/codex-copilot-internal"
+  echo true > "$repo_dir/enforce_admins"
+
+  run_engine "$st" "$repair_log" --brief "$brief"
+  assert_eq "test33: solo-admin protection repair exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  delete_count="$(count_calls "$repair_log" '^DELETE$' '^repos/acme-co/codex-copilot-internal/branches/main/protection/enforce_admins$')"
+  step_result="$(printf '%s\n' "$RUN_STDOUT" | jq -r 'select(.step == "branch-protection:codex-copilot-internal") | .result')"
+  assert_eq "test33: removes administrator enforcement exactly once" "1" "$delete_count"
+  assert_eq "test33: reports the protection repair as updated" "updated" "$step_result"
+  assert_eq "test33: administrator recovery is restored" "false" "$(cat "$repo_dir/enforce_admins")"
+  assert_true "test33: required-review protection remains present" "$(test -f "$repo_dir/protected"; echo $?)"
+}
+
+# ---------------------------------------------------------------------------
+# Test 34: the public copilot-bootstrap repo must stay public (org-question
+# copy spec §1/Appendix E.2) — an existing PRIVATE copilot-bootstrap refuses
+# rather than ever having its visibility changed.
+# ---------------------------------------------------------------------------
+
+test_bootstrap_repo_private_conflict_refuses() {
+  local st brief log
+  st="$(new_org_state bootstrap-private-conflict)"
+  brief="$WORKDIR/brief-bootstrap-private.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/bootstrap-private.log"
+
+  mkdir -p "$st/repos/acme-co/copilot-bootstrap"
+  echo true > "$st/repos/acme-co/copilot-bootstrap/private"
+  echo main > "$st/repos/acme-co/copilot-bootstrap/default_branch"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test34: standup refuses (exit 2)" "2" "$RUN_EXIT"
+  assert_contains "test34: refusal names the visibility rule" "$RUN_STDERR" "must stay public"
+  local yml_writes
+  yml_writes="$(count_calls "$log" '^PUT$' 'copilot-bootstrap/contents/bootstrap\.yml$')"
+  assert_eq "test34: bootstrap.yml is never written once the repo conflicts" "0" "$yml_writes"
+}
+
+# ---------------------------------------------------------------------------
+# Test 35: bootstrap.yml is guarded — it can carry ONLY org and
+# github_app.client_id, so foreign content already there is never
+# overwritten (org-question copy spec Appendix E.2's own guard).
+# ---------------------------------------------------------------------------
+
+test_bootstrap_yml_foreign_content_refuses() {
+  local st brief log
+  st="$(new_org_state bootstrap-foreign-content)"
+  brief="$WORKDIR/brief-bootstrap-foreign.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  log="$WORKDIR/bootstrap-foreign.log"
+
+  mkdir -p "$st/repos/acme-co/copilot-bootstrap/refs/main"
+  echo false > "$st/repos/acme-co/copilot-bootstrap/private"
+  echo main > "$st/repos/acme-co/copilot-bootstrap/default_branch"
+  touch "$st/repos/acme-co/copilot-bootstrap/has_commits"
+  printf 'org: "acme-co"\ngithub_app:\n  client_id: "some-other-id"\nnotes: "hand-added"\n' \
+    > "$st/repos/acme-co/copilot-bootstrap/refs/main/bootstrap.yml"
+
+  run_engine "$st" "$log" --brief "$brief"
+
+  assert_eq "test35: standup refuses (exit 2)" "2" "$RUN_EXIT"
+  assert_contains "test35: refusal names the unrecognized field" "$RUN_STDERR" "fields I didn't write"
+  local yml_writes
+  yml_writes="$(count_calls "$log" '^PUT$' 'copilot-bootstrap/contents/bootstrap\.yml$')"
+  assert_eq "test35: the foreign bootstrap.yml is never overwritten" "0" "$yml_writes"
+}
+
+# ---------------------------------------------------------------------------
+# Test 36: verify must not report a standing org as ready while the public
+# signed-out bootstrap artifact is absent. Both rows fail independently and
+# the read-only verb never creates or writes either artifact.
+# ---------------------------------------------------------------------------
+
+test_verify_fails_when_bootstrap_artifact_is_missing() {
+  local st brief setup_log verify_log verify_out repo_status yml_status must_fix mutating
+  st="$(new_org_state bootstrap-verify-missing)"
+  brief="$WORKDIR/brief-bootstrap-verify-missing.md"
+  write_brief "$brief" "$STORE_DEFERRED"
+  setup_log="$WORKDIR/bootstrap-verify-missing-setup.log"
+  verify_log="$WORKDIR/bootstrap-verify-missing.log"
+
+  run_engine "$st" "$setup_log" --brief "$brief"
+  assert_eq "test36: fixture setup exits 0" "0" "$RUN_EXIT" "$RUN_STDERR"
+
+  rm -rf "$st/repos/acme-co/copilot-bootstrap"
+  run_engine "$st" "$verify_log" --verify --brief "$brief" --json
+  verify_out="$RUN_STDOUT"
+
+  assert_eq "test36: verify exits 0 and reports check-level failures in JSON" "0" "$RUN_EXIT" "$RUN_STDERR"
+  repo_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "bootstrap-repo") | .status')"
+  yml_status="$(printf '%s' "$verify_out" | jq -r '.checks[] | select(.check == "bootstrap-yml") | .status')"
+  must_fix="$(printf '%s' "$verify_out" | jq -r '.summary.must_fix')"
+  mutating="$(count_mutating_calls "$verify_log")"
+  assert_eq "test36: missing public bootstrap repo is a failure" "fail" "$repo_status"
+  assert_eq "test36: missing bootstrap.yml is a failure" "fail" "$yml_status"
+  assert_eq "test36: both missing bootstrap obligations count toward must_fix" "2" "$must_fix"
+  assert_eq "test36: verify never repairs the missing bootstrap artifact" "0" "$mutating"
+}
+
+# ---------------------------------------------------------------------------
 # Run everything
 # ---------------------------------------------------------------------------
 
@@ -1238,6 +1742,18 @@ test_engine_runs_cwd_independent_from_outside_repo
 test_org_verbatim_mixed_case_accepted
 test_invalid_org_values_refuse_at_preflight
 test_department_case_only_still_refuses
+test_department_named_internal_refuses
+test_repository_plan_is_fail_closed
+test_two_harness_foundations_are_independent
+test_missing_oauth_client_id_refuses_before_github
+test_existing_oauth_identity_conflict_refuses_before_mutation
+test_layer_package_conflicts_refuse_before_mutation
+test_json_brief_drives_read_only_plan
+test_store_reachability_uses_bounded_http_probe
+test_branch_protection_preserves_admin_recovery
+test_bootstrap_repo_private_conflict_refuses
+test_bootstrap_yml_foreign_content_refuses
+test_verify_fails_when_bootstrap_artifact_is_missing
 
 echo
 echo "-----------------------------------------"

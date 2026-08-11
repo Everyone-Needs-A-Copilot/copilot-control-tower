@@ -7,8 +7,8 @@
 
 > **Model note (read this before the rest):** after this build, an audit found
 > the repo's model needed correction (the Copilot Solutioning Ecosystem, CSE).
-> See [`docs/reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md)
-> and [`docs/reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md)
+> See [`docs/10-reference/cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md)
+> and [`docs/10-reference/copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md)
 > for the governing model. Two things below are now stated in the corrected
 > vocabulary: what this file called "product" (Knowledge/CLI/Claude/Codex) is a
 > **component**; "Product/Project" is reserved for a built output, never synced

@@ -20,7 +20,7 @@ workflow without creating a separate product or giving fleet administrators
 release-signing authority.
 
 For the full role split and handoff, see
-[`../reference/publisher-admin-experience.md`](../reference/publisher-admin-experience.md).
+[`../10-reference/publisher-admin-experience.md`](../10-reference/publisher-admin-experience.md).
 
 ## Publisher vs. administrator
 
@@ -240,10 +240,44 @@ profile. The existing release workflow expects:
 
 - `APPLE_NOTARY_KEY_ID`
 - `APPLE_NOTARY_KEY_ISSUER`
-- `APPLE_NOTARY_KEY_PATH`
+- `APPLE_NOTARY_KEY` (the `.p8` contents; the workflow materializes an
+  owner-only temporary file)
 
 Apple's current notarization tooling is `notarytool`; see:
 <https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool>
+
+### Credential troubleshooting
+
+If a probe reports the `ct-notary` profile missing, that is not by itself
+evidence the profile is gone. Unless `store-credentials` was given an explicit
+`--keychain`, Apple stores the profile in the macOS **Data Protection
+Keychain**. It is not necessarily visible to `security find-generic-password`
+queries against `login.keychain-db`; Apple documents this boundary in
+[TN3147](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool).
+
+A stored profile is not consumed by notarization. Diagnose it with
+`notarytool`, not by searching the file-based login keychain:
+
+1. Run `xcrun notarytool history --keychain-profile ct-notary --output-format json`.
+2. If it reports `No Keychain password item found`, retry it three times. Treat
+   those failures as **profile unavailable to this process**, not deletion.
+3. If all retries fail, run the same command from a fresh Terminal session as
+   the logged-in release owner. A Terminal opened programmatically by the
+   failing automation is supporting evidence, not an independent user-context
+   check.
+4. If any later probe succeeds, the profile exists and is usable. Continue the
+   release; do not ask the owner for credentials or rerun Publisher Setup.
+5. Only repeated failures from the logged-in user context, with no subsequent
+   successful `notarytool` probe, justify treating the profile as unavailable.
+   A remote authentication rejection such as HTTP 401 is a separate condition:
+   report that Apple rejected the credential, not that the Keychain item is
+   missing.
+
+Never ask the owner to generate a new Apple app-specific password, re-run
+Publisher Setup, or re-store `ct-notary` on the strength of a local lookup
+failure. Release scripts must preflight before expensive work and retry only
+transient Keychain lookup failures; they must never bypass notarization or
+verification. See `AGENTS.md` and `CLAUDE.md` for the same standing rule.
 
 ## 6. Create a local-only release environment file manually
 
@@ -279,37 +313,82 @@ release notes.
 Use the terminal commands only as a fallback for debugging or headless
 publisher machines.
 
-The local build has one important gotcha: the `copilot` CLI may also be
-installed as `cc`, which can shadow the system C compiler. Force the real C
-compiler when building the Tauri app:
+The release command packages the native Swift User app—not the historical
+Tauri surface—and builds an exact pushed branch or tag from a temporary clone.
+Before any signing work, it verifies that `packaging/cc/cc` matches its pinned
+checksum, is a signed universal Mach-O with matching upstream Apple
+notarization evidence, satisfies `controltower.compat.json`, and is not a
+development placeholder:
 
 ```bash
-PATH="/usr/bin:$PATH" CC=/usr/bin/cc npm run tauri build
+./scripts/package-user-release.sh
 ```
 
-The repo's signing and notarization scripts read the environment; they do not
-hardcode credentials:
+The command refuses to proceed when local `HEAD` does not equal the selected
+remote ref. Pass a branch or tag explicitly when needed:
+
+```bash
+./scripts/package-user-release.sh --source-ref app-build
+```
+
+It invokes the repo's signing and notarization scripts, which read the
+environment and never hardcode credentials:
 
 - [`../../scripts/sign.sh`](../../scripts/sign.sh)
 - [`../../scripts/notarize.sh`](../../scripts/notarize.sh)
 
-Run the explicit signing pass:
+The pipeline embeds that independently signed helper at
+`Contents/Resources/cc` without re-signing it, builds with ad-hoc signing
+disabled, applies the Developer ID signature to the outer app, creates the
+drag-install DMG, notarizes and staples the app and DMG, validates both tickets,
+runs Gatekeeper assessment, and emits a SHA-256 sidecar plus
+`release-metadata.json` (including the helper version and SHA-256), the
+compatibility matrix, and the upstream helper notarization record under
+`dist/user-release/`.
+
+Before notarization, the same command runs the final app binary's production
+Detect seam without displaying the menu bar item or wizard:
 
 ```bash
-./scripts/sign.sh "src-tauri/target/release/bundle/macos/Copilot Control Tower.app"
+./scripts/headless-detect.sh \
+  --app "build/Copilot Control Tower.app"
+
+./scripts/headless-setup-transaction.sh \
+  --app "build/Copilot Control Tower.app"
 ```
 
-Then submit, staple, and validate:
+The runner preserves the signed-in user session, substitutes Finder's `PATH`,
+calls `--headless-detect`, and requires successful typed responses from every
+production call made by Detect: `auth status`, `doctor`, and the read-only
+two-product onboarding plan, including an actual `layer-manifest` inspection.
+A blocked user-state result remains honest JSON; an unreadable response or a
+broken app/helper contract blocks the release.
 
-```bash
-./scripts/notarize.sh \
-  "src-tauri/target/release/bundle/macos/Copilot Control Tower.app" \
-  "src-tauri/target/release/bundle/dmg/Copilot Control Tower.dmg"
-```
+The setup-transaction runner uses the inert fixture helper, not the bundled
+real helper. It exercises the production `WizardModel`'s Set up -> Verify
+tail, requires the exact two-product `--apply` argv, and requires the separate
+verify-time doctor call. This proves app orchestration and decoding without
+changing the publisher's or user's setup.
 
 The result is a publisher-produced artifact suitable for admin/fleet testing.
 It is not, by itself, a complete `stable` self-update promotion until the
 update-manifest signing custody decision is resolved.
+
+The pipeline's last gate mounts the final DMG only long enough to copy its app
+to a private temporary install directory, then detaches the image before it
+executes the embedded helper or inspects the copied app. Never execute the app
+or `Contents/Resources/cc` directly from a mounted DMG: macOS treats the image
+as a removable volume and may repeatedly ask for Files and Folders access. Run
+the same safe verification independently with:
+
+```bash
+./scripts/verify-user-install-artifact.sh \
+  --release-dir dist/user-release
+```
+
+Native smoke SELFTESTs likewise run before any status item or window is
+created. Visual-test builds remain the explicit path for screenshots; routine
+QA must not steal focus by flashing the User or Admin window for each scenario.
 
 ## 8. Promote the proven path into CI
 
@@ -321,7 +400,7 @@ secrets used by [`../../.github/workflows/release.yml`](../../.github/workflows/
 - `APPLE_CERTIFICATE_PASSWORD`
 - `APPLE_NOTARY_KEY_ID`
 - `APPLE_NOTARY_KEY_ISSUER`
-- `APPLE_NOTARY_KEY_PATH`
+- `APPLE_NOTARY_KEY`
 
 The workflow is tag-triggered (`v*`) and should remain owner-gated. Do not use
 CI to discover missing credentials for the first time; prove them locally first,

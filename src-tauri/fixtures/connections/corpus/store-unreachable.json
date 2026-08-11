@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "result": "ok",
+  "detail": null,
+  "org": "Acme-Co",
+  "store": {
+    "type": "infisical",
+    "reachable": false,
+    "scope": null,
+    "detail": "The shared credential store could not be reached on this Mac."
+  },
+  "connections": [
+    {
+      "id": "git",
+      "name": "git",
+      "description": "Git repository operations",
+      "tier": "org-internal",
+      "mode": "adopt",
+      "requires_secret": [],
+      "store_scope": null,
+      "secret_state": "ready",
+      "missing": []
+    },
+    {
+      "id": "coolify",
+      "name": "coolify",
+      "description": "Coolify infrastructure management",
+      "tier": "org-internal",
+      "mode": "provides",
+      "requires_secret": [{ "name": "COOLIFY_API_KEY", "from": "store" }],
+      "store_scope": null,
+      "secret_state": "no-store",
+      "missing": ["COOLIFY_API_KEY"]
+    },
+    {
+      "id": "brevo",
+      "name": "brevo",
+      "description": "Brevo email marketing",
+      "tier": "org-internal",
+      "mode": "provides",
+      "requires_secret": [{ "name": "BREVO_API_KEY", "from": "any" }],
+      "store_scope": null,
+      "secret_state": "no-store",
+      "missing": ["BREVO_API_KEY"]
+    }
+  ]
+}

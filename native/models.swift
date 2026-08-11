@@ -189,110 +189,141 @@ struct RenderState {
     let components: [ComponentView]
 }
 
-/// Mock-only placeholder. `copilot layers --json` (the real source for
-/// Region 3's "Join available" row and the wizard's Departments step) is not
-/// yet a frozen contract verb (native-experience-architecture.md §6, open
-/// decision 3) — `src/types.ts` has no DTO for it today, so this struct is
-/// this prototype's own stand-in shape, not a mirror of a real contract type.
-struct JoinableDepartment: Identifiable {
-    let id = UUID()
-    let name: String
+// MARK: - Local app persistence (first-run flag)
+
+/// A tiny explicit-`$HOME`-aware persistence helper for this app's own local
+/// flags (currently just `ct.hasCompletedFirstRun`, read by
+/// `control-tower-tray.swift`'s `AppDelegate` and written by
+/// `wizard.swift`'s `WizardModel.finish()`). Deliberately NOT
+/// `UserDefaults`/cfprefsd: this binary ships today as a bare,
+/// non-`.app`-bundled `swiftc` executable with no `CFBundleIdentifier`, and
+/// on this OS cfprefsd resolves EVERY preferences domain (whether reached via
+/// `UserDefaults.standard`, an explicit `UserDefaults(suiteName:)`, or the
+/// `defaults(1)` CLI) against the real logged-in account's home directory via
+/// `getpwuid` — it ignores a process's `$HOME` environment override
+/// entirely, and `NSHomeDirectory()` does too. That makes cfprefsd-backed
+/// storage fundamentally incompatible with `scripts/tests/smoke-scenarios.sh`'s
+/// per-scenario scratch-`HOME` isolation (S1: a truly fresh, empty state;
+/// S2: a pre-seeded `ct.hasCompletedFirstRun=true` state) — two different
+/// scenarios would otherwise silently collide on the ONE real, persistent,
+/// cross-run domain on the machine running the tests.
+///
+/// `LocalDefaults` instead reads its effective home directory from the raw
+/// `HOME` environment variable (which DOES reflect a test harness's scratch
+/// override, unlike `NSHomeDirectory()`) and reads/writes a plain property
+/// list file directly, bypassing cfprefsd altogether. The file path
+/// (`~/Library/Preferences/com.everyoneneedsacopilot.controltower.plist`) is
+/// deliberately the SAME path cfprefsd itself would use for that bundle
+/// identifier — so once this app ships as a real signed `.app` with that
+/// `CFBundleIdentifier` (`src-tauri/tauri.conf.json`'s existing
+/// `identifier`), a normal `UserDefaults.standard` read picks up this exact
+/// file with no migration needed.
+enum LocalDefaults {
+    private static let domain = "com.everyoneneedsacopilot.controltower"
+
+    private static var fileURL: URL {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        return URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent("Library/Preferences", isDirectory: true)
+            .appendingPathComponent("\(domain).plist")
+    }
+
+    private static func readPlist() -> [String: Any] {
+        guard let data = try? Data(contentsOf: fileURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return [:] }
+        return plist
+    }
+
+    static func bool(forKey key: String) -> Bool {
+        (readPlist()[key] as? Bool) ?? false
+    }
+
+    static func set(_ value: Bool, forKey key: String) {
+        let url = fileURL
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        var plist = readPlist()
+        plist[key] = value
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0) else { return }
+        try? data.write(to: url)
+    }
 }
 
-// MARK: - Mock fixtures (the three states the owner judges)
+// MARK: - Local admin-standup signal (Holding H6-vs-H7, `native/wizard.swift`)
 
-extension RenderState {
-    private static var allPassLayers: [LayerView] {
-        Layer.allCases.map { LayerView(layer: $0, severity: .pass, badgeState: .pass, detail: nil) }
+/// Whether Admin mode's own standup already wrote its non-secret brief on
+/// THIS Mac (`AdminPaths.briefPath`/`briefJSONPath`, `native/admin.swift`,
+/// Admin-only) — the one zero-network, machine-local signal that tells "a
+/// genuine end user" apart from "the person who provisioned this very Mac as
+/// the org's admin." No CLI verb carries an org-role token (none could: at
+/// the moment Holding's H6 fires there is no credential yet for one to ride
+/// on), so this is the only honest discriminator available (invariant #1:
+/// still parsing, never computing — reading back a file this Mac's own
+/// earlier admin action already wrote is not resolution/sync/compute logic).
+///
+/// `native/wizard.swift` (compiled into BOTH the User and Admin builds, per
+/// `scripts/build-user.command`/`scripts/build-admin.command`'s own source
+/// lists) reads this on its own rather than referencing `AdminPaths`, which
+/// is Admin-only and unavailable to the User build.
+///
+/// Reads the path the SAME way `LocalDefaults` above reads its plist (env
+/// `HOME`, never `NSHomeDirectory()`, which empirically ignores a process's
+/// `$HOME` override even though it does resolve the real logged-in user's
+/// home when unset) so `scripts/tests/smoke-scenarios.sh`'s per-scenario
+/// scratch-`HOME` isolation can fake presence/absence deterministically; in
+/// production `HOME` always matches the real home directory, so this names
+/// the exact same file `AdminPaths.briefPath`/`briefJSONPath` do.
+enum LocalAdminSignal {
+    private static var supportDirectory: URL {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        return URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent("Library/Application Support/CopilotControlTower", isDirectory: true)
     }
 
-    private static func component(_ name: String, layers: [LayerView], worst: Severity = .pass) -> ComponentView {
-        ComponentView(component: name, worstSeverity: worst, layers: layers)
+    /// Mirrors `AdminPaths.briefPath` exactly (`standup-brief.md`).
+    static var standupBriefExists: Bool {
+        FileManager.default.fileExists(atPath: supportDirectory.appendingPathComponent("standup-brief.md").path)
     }
 
-    /// (a) Current / healthy: every component, every entitled layer at
-    /// `pass`. Tray glyph bare, popover shows Regions 1-2 only (§7.1).
-    static let healthy = RenderState(
-        clientState: .ok,
-        cliUnreadableReason: nil,
-        host: "This Mac",
-        status: .healthy,
-        offline: false,
-        header: HeaderView(glyphState: .none, sentence: "Everything is set up."),
-        components: [
-            component("Claude Copilot", layers: allPassLayers),
-            component("CLI Copilot", layers: allPassLayers),
-            component("Codex Copilot", layers: allPassLayers),
-            component("Knowledge Copilot", layers: allPassLayers),
-        ]
-    )
-
-    /// (b) Join available: a department the user is entitled to but has not
-    /// joined. Per §2.4/§7.2 this does NOT badge the tray (glyph stays
-    /// `none`, bare) — it is a quiet Region 3 row only, never an alarm.
-    static let joinAvailable = RenderState(
-        clientState: .ok,
-        cliUnreadableReason: nil,
-        host: "This Mac",
-        status: .healthy,
-        offline: false,
-        header: HeaderView(glyphState: .none, sentence: "Everything on this Mac is set up."),
-        components: [
-            component("Claude Copilot", layers: allPassLayers),
-            component(
-                "CLI Copilot",
-                layers: [
-                    LayerView(layer: .foundation, severity: .pass, badgeState: .pass, detail: nil),
-                    LayerView(layer: .org, severity: .pass, badgeState: .pass, detail: nil),
-                    LayerView(layer: .dept, severity: .warn, badgeState: .hollow, detail: "Entitled, not yet joined"),
-                    LayerView(layer: .personal, severity: .pass, badgeState: .pass, detail: nil),
-                ],
-                worst: .warn
-            ),
-            component("Codex Copilot", layers: allPassLayers),
-            component("Knowledge Copilot", layers: allPassLayers),
-        ]
-    )
-
-    /// (c) CLI-unreadable / "bang": the honest "versions don't match, won't
-    /// guess" degrade. Per §2.4 the tree and Join row are both hidden; the
-    /// only red in the product.
-    static let cliUnreadable = RenderState(
-        clientState: .cliUnreadable,
-        cliUnreadableReason: .parseError,
-        host: nil,
-        status: nil,
-        offline: false,
-        header: HeaderView(
-            glyphState: .bang,
-            sentence: "I can't read the setup right now, so I won't guess."
-        ),
-        components: []
-    )
-}
-
-/// The three judgeable states, switched via the tray's right-click menu
-/// (dev-only — see `StatusBarController.buildMenu()`).
-enum DevScenario: String, CaseIterable, Identifiable {
-    case healthy = "Healthy"
-    case joinAvailable = "Join available"
-    case cliUnreadable = "CLI unreadable"
-    var id: String { rawValue }
-
-    var state: RenderState {
-        switch self {
-        case .healthy: return .healthy
-        case .joinAvailable: return .joinAvailable
-        case .cliUnreadable: return .cliUnreadable
-        }
+    /// Best-effort read of one field from the non-secret machine-readable
+    /// twin (`AdminPaths.briefJSONPath`, `standup-brief.json`): the org's
+    /// GitHub App client id, which the admin typed in with their own hands
+    /// during standup (`AdminModel.githubOAuthClientIDInput`) and which is
+    /// not a secret — GitHub publishes a Client ID, only the App's client
+    /// SECRET is sensitive, and that never reaches this file. `nil` on any
+    /// read/parse failure or a missing/blank field — never a fabricated
+    /// placeholder, so the caller can fall back to the ordinary H6 rather
+    /// than assert a fix that isn't actually known.
+    static var standupGitHubAppClientID: String? {
+        let path = supportDirectory.appendingPathComponent("standup-brief.json").path
+        guard let data = FileManager.default.contents(atPath: path),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let githubApp = payload["github_app"] as? [String: Any],
+              let clientID = githubApp["client_id"] as? String
+        else { return nil }
+        let trimmed = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// Only the Join-available scenario has anything for Region 3 to show.
-    var joinableDepartments: [JoinableDepartment] {
-        switch self {
-        case .joinAvailable: return [JoinableDepartment(name: "Sales")]
-        default: return []
-        }
+    /// Best-effort read of the brief's top-level `org` field (org-question
+    /// copy spec §5/Appendix E.3) — the organization name this Mac's own
+    /// admin typed by hand during standup, read the exact same way
+    /// `standupGitHubAppClientID` above reads `github_app.client_id`: `nil`
+    /// on any read/parse failure or a missing/blank field, never a
+    /// fabricated placeholder. The one signal `org-required`'s silent
+    /// standup-brief retry (`WizardModel.handleOrgRequired`) is allowed to
+    /// act on without ever showing a screen.
+    static var standupOrgName: String? {
+        let path = supportDirectory.appendingPathComponent("standup-brief.json").path
+        guard let data = FileManager.default.contents(atPath: path),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let org = payload["org"] as? String
+        else { return nil }
+        let trimmed = org.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
@@ -306,18 +337,17 @@ enum DevScenario: String, CaseIterable, Identifiable {
 /// or draw no brand image at all where the illustration is illegible at their
 /// size — see `ControlTowerGlyph`'s own doc comment and the call sites in
 /// `control-tower-tray.swift`/`wizard.swift`.) Never the generic `eyeglasses`
-/// SF Symbol as anything but a genuine last-resort fallback.
+/// SF Symbol or any other substitute.
 ///
-/// Resolves `src-tauri/icons/aviators.svg` repo-relative to the working
-/// directory (the launcher `cd`s to the repo root before exec, same convention
-/// `PublisherSetupModel.loadBrandIcon()` uses for `docs/10-reference/control-tower.svg`
-/// in `scripts/publisher_setup.swift`). Returns a **template** `NSImage` (every
+/// Resolves the packaged `aviator-glyph.svg` from `Bundle.main` first, then
+/// the canonical repo assets for an unbundled development binary. Returns a
+/// **template** `NSImage` (every
 /// non-transparent pixel becomes a tintable mask, regardless of the `#2D294E`
 /// fill baked into the SVG) sized to `targetHeight`, so the tray glyph's own
 /// caller tints it via `contentTintColor`/`.foregroundColor` (`.labelColor`).
-/// Falls back to the `eyeglasses` SF Symbol ONLY if the asset genuinely can't be
-/// resolved on disk (e.g. launched from an unexpected working directory) — a
-/// real last resort, not the default path.
+/// There is deliberately no substitute-symbol fallback: a missing asset may
+/// never silently replace the product's settled menu-bar identity. Packaging
+/// tests require the resource in every `.app`.
 ///
 /// Results are cached in-memory per requested height: this can be called from a
 /// SwiftUI view `body` (re-evaluated often) without re-reading the file from
@@ -337,24 +367,31 @@ enum AviatorGlyph {
     }
 
     private static func loadFresh(targetHeight: CGFloat) -> NSImage {
-        let relativePath = "src-tauri/icons/aviators.svg"
-        let cwd = FileManager.default.currentDirectoryPath
-        let url = URL(fileURLWithPath: relativePath, relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
-
-        if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
-            let aspect = svg.size.width / svg.size.height
-            svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
-            svg.isTemplate = true
-            return svg
+        var candidates: [URL] = []
+        if let bundled = Bundle.main.url(forResource: "aviator-glyph", withExtension: "svg") {
+            candidates.append(bundled)
         }
 
-        // Genuine last-resort fallback: the SVG could not be resolved at all.
-        let fallback = NSImage(
-            systemSymbolName: "eyeglasses",
-            accessibilityDescription: "Copilot Control Tower"
-        ) ?? NSImage()
-        fallback.isTemplate = true
-        return fallback
+        // Unbundled development/selftest binaries run from the repository.
+        let cwd = FileManager.default.currentDirectoryPath
+        let primary = URL(fileURLWithPath: "assets/brand/aviator-glyph.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        let legacyFallback = URL(fileURLWithPath: "src-tauri/icons/aviators.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        candidates.append(contentsOf: [primary, legacyFallback])
+
+        for url in candidates {
+            if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
+                let aspect = svg.size.width / svg.size.height
+                svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
+                svg.isTemplate = true
+                return svg
+            }
+        }
+
+        // A blank image is safer than showing the wrong identity. Production
+        // packaging fails before distribution if the bundled SVG is absent.
+        let missing = NSImage(size: NSSize(width: targetHeight * 1.6, height: targetHeight))
+        missing.isTemplate = true
+        return missing
     }
 }
 
@@ -393,18 +430,24 @@ enum ControlTowerGlyph {
     }
 
     private static func loadFresh(targetHeight: CGFloat) -> NSImage {
-        let relativePath = "docs/10-reference/control-tower.svg"
+        // Phase F: canonical brand assets moved to assets/brand/ (see
+        // AviatorGlyph.loadFresh's matching comment above). The old
+        // docs/10-reference/control-tower.svg path is kept as a fallback for
+        // the same mid-migration/unexpected-cwd reason.
         let cwd = FileManager.default.currentDirectoryPath
-        let url = URL(fileURLWithPath: relativePath, relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        let primary = URL(fileURLWithPath: "assets/brand/control-tower-logo.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
+        let legacyFallback = URL(fileURLWithPath: "docs/10-reference/control-tower.svg", relativeTo: URL(fileURLWithPath: cwd)).standardizedFileURL
 
-        if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
-            let aspect = svg.size.width / svg.size.height
-            svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
-            svg.isTemplate = false
-            return svg
+        for url in [primary, legacyFallback] {
+            if let svg = NSImage(contentsOfFile: url.path), svg.size.width > 0, svg.size.height > 0 {
+                let aspect = svg.size.width / svg.size.height
+                svg.size = NSSize(width: targetHeight * aspect, height: targetHeight)
+                svg.isTemplate = false
+                return svg
+            }
         }
 
-        // Genuine last-resort fallback: the SVG could not be resolved at all.
+        // Genuine last-resort fallback: neither SVG could be resolved at all.
         let fallback = NSImage(
             systemSymbolName: "building.2",
             accessibilityDescription: "Copilot Control Tower"

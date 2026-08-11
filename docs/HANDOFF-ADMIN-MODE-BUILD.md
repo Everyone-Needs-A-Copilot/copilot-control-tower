@@ -31,8 +31,8 @@
 1. This file (orientation for the native/Admin-mode work specifically).
 2. Root [`CLAUDE.md`](../CLAUDE.md) — the six architectural invariants that govern everything in
    this repo. Invariant #1 ("parse, never compute") is the one this build leans on hardest.
-3. [`docs/reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md)
-   and [`docs/reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md) — the
+3. [`docs/10-reference/copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md)
+   and [`docs/10-reference/cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md) — the
    canonical product model (see "Product model" below) and the decision record (D1-D10) that
    corrected the repo onto it.
 4. [`docs/03-design/control-tower-admin-flow.md`](03-design/control-tower-admin-flow.md) — the
@@ -88,9 +88,9 @@ knowledge/CLI/Claude/Codex Copilot *components* — across four inheritance laye
 (Foundation → Org → Department → Personal), entitled by GitHub repo access. It does **not** manage
 the user's own products/projects. MDM was dropped completely as a mechanism (no `.mobileconfig`,
 no forced-managed-domain, no fleet console). See
-[`docs/reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md) and
+[`docs/10-reference/copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md) and
 the decision record D1-D10 in
-[`docs/reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md).
+[`docs/10-reference/cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md).
 
 ---
 
@@ -117,7 +117,7 @@ call or shells out to a real `copilot`/`cc` CLI verb.
 - 8 phases plus a holding state: `welcome`, `detect`, `chooseComponents`, `departments`,
   `integrations`, `materialize`, `verify`, `done` (`native/wizard.swift:439-446`), plus a separate
   `.holding` phase.
-- `ControlTowerGlyph` (`native/models.swift:382`) loads `docs/reference/control-tower.svg` as the
+- `ControlTowerGlyph` (`native/models.swift:382`) loads `docs/10-reference/control-tower.svg` as the
   in-app hero illustration — the code notes it is illegible below ~40pt, hence used only for large
   brand art, never the menu-bar icon.
 

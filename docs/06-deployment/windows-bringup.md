@@ -6,7 +6,7 @@
 > docs. Until it is, treat Windows as **deprioritized**, not cancelled: this
 > runbook is left as-is (its substance is not rewritten here) but should not
 > be treated as near-term work. It has also been lightly reconciled with
-> [`../reference/cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md)
+> [`../10-reference/cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md)
 > D4 (MDM dropped): the steps that assumed a device-management push have
 > been marked not-applicable below, without rewriting the rest of the
 > checklist.
@@ -115,7 +115,7 @@ This step's checklist (write to `HKLM\Software\Policies\ENAC\ControlTower`,
 confirm `Absent` vs. `Forced` behavior, push the same policy via a
 device-management console, test every enrollment state a fleet console can
 produce) mirrored the macOS forced-domain design this repo has since dropped
-in full; see [`../reference/cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md)
+in full; see [`../10-reference/cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md)
 D4. There is no forced/managed config domain in the current deployment model
 (GitHub repo access is the entitlement spine instead), so there is nothing
 here to verify on a real Windows box. Left as a numbered step, not deleted,

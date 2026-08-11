@@ -1,3 +1,6 @@
 {
-  "cssTheme": "Dracula Official"
+  "cssTheme": "Dracula Official",
+  "enabledCssSnippets": [
+    "wider-reading"
+  ]
 }

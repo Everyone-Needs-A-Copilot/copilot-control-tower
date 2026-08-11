@@ -6,8 +6,8 @@ comes after that across the three roles the product now has to serve.
 
 > **Model note (read before the rest):** since this handoff was first written,
 > an audit found the product model needed correction: the Copilot Solutioning
-> Ecosystem (CSE). See [`docs/reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md)
-> and [`docs/reference/copilot-solutioning-ecosystem.md`](reference/copilot-solutioning-ecosystem.md),
+> Ecosystem (CSE). See [`docs/10-reference/cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md)
+> and [`docs/10-reference/copilot-solutioning-ecosystem.md`](10-reference/copilot-solutioning-ecosystem.md),
 > which now govern, and the reframed [`docs/03-design/three-role-journeys.md`](03-design/three-role-journeys.md).
 > The Publisher section below is unaffected (it is about signing the binary).
 > The **Admin section is rebuilt** around GitHub repos, team-grant entitlement,
@@ -54,13 +54,13 @@ data and explicit sign-in. Do not blur these credentials or decisions.
 
 ## Files To Read First
 
-- `docs/reference/cse-alignment-decisions.md` and
-  `docs/reference/copilot-solutioning-ecosystem.md` for the governing model
+- `docs/10-reference/cse-alignment-decisions.md` and
+  `docs/10-reference/copilot-solutioning-ecosystem.md` for the governing model
   (read these first; they correct several assumptions below).
 - `docs/03-design/three-role-journeys.md` for the reframed Publisher/Admin/User
   journeys this handoff now matches.
 - `SOUL.md` for product boundaries and the Publisher/Admin/User mental model.
-- `docs/reference/publisher-admin-experience.md` for the Publisher/Admin split
+- `docs/10-reference/publisher-admin-experience.md` for the Publisher/Admin split
   (Publisher content still accurate; Admin content predates the CSE realignment).
 - `docs/07-contributing/publisher-release-runbook.md` for publisher setup.
 - `docs/06-deployment/README.md` and `docs/06-deployment/standup-runbook.md`
@@ -126,11 +126,9 @@ Validation already run for the uncommitted change:
 Still needed:
 
 - Real end-to-end run of **Build, Sign, and Notarize** on Pablo's Mac.
-- Confirm the expected DMG path after `npm run tauri build`; adjust the app if
-  Tauri emits a versioned DMG filename rather than
-  `Copilot Control Tower.dmg`.
 - Confirm failure logs are readable and copy cleanly.
-- Commit the uncommitted publisher runner/doc changes after the real run.
+- Confirm the native artifact paths and checksum shown on the Admin handoff
+  screen match `dist/user-release/release-metadata.json`.
 
 ### What Comes After That
 
@@ -352,7 +350,7 @@ config, Git, YAML, or terminal commands.
 
 1. Finish the uncommitted publisher app-run publishing flow.
 2. Commit it after a real end-to-end artifact run or a documented blocker.
-3. Update `docs/reference/publisher-admin-experience.md` so Publisher step 7
+3. Update `docs/10-reference/publisher-admin-experience.md` so Publisher step 7
    says the app runs publishing directly, not "run commands."
 4. Start Admin with the GitHub-topology teach + verify screen and the seed
    generator, not fleet dashboard polish (the fleet dashboard is no longer
@@ -365,8 +363,9 @@ config, Git, YAML, or terminal commands.
 
 ## Known Risks
 
-- The publisher app currently assumes fixed artifact paths. Tauri may emit a
-  versioned DMG name; verify before relying on the Admin handoff screen.
+- The publisher app resolves the native pipeline's versioned DMG under
+  `dist/user-release/`; verify its displayed checksum against
+  `release-metadata.json` before relying on the Admin handoff screen.
 - Admin mode has a strong design, but much of the standup path is still
   designed/not built, and the design itself just changed (MDM dropped; repos/
   teams/secret-store/seed is the new center of gravity). Re-check any Admin

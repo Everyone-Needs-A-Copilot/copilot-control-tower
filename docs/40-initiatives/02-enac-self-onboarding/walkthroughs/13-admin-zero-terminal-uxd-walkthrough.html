@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>13 · Admin zero-terminal readiness — UX walkthrough</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f2f2f4;
+      --panel: #ffffff;
+      --field: #f6f6f7;
+      --text: #1d1d1f;
+      --muted: #696970;
+      --line: #d9d9de;
+      --accent: #1769e0;
+      --ok: #25854a;
+      --warn: #b65f00;
+    }
+    [data-theme="dark"] {
+      --bg: #18181a;
+      --panel: #242427;
+      --field: #2d2d31;
+      --text: #f4f4f5;
+      --muted: #b2b2b8;
+      --line: #414147;
+      --accent: #68a2ff;
+      --ok: #63c987;
+      --warn: #ffb35c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header, main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; }
+    header { padding: 28px 0 18px; display: flex; gap: 20px; align-items: start; }
+    header h1 { margin: 0; font-size: 24px; }
+    header p { margin: 6px 0 0; color: var(--muted); }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 8px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    header button { margin-left: auto; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    nav a { color: var(--accent); }
+    section { margin: 0 0 40px; scroll-margin-top: 16px; }
+    .commentary { margin: 0 0 12px; color: var(--muted); max-width: 78ch; }
+    .window {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      min-height: 560px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      box-shadow: 0 18px 50px rgb(0 0 0 / 12%);
+    }
+    aside { border-right: 1px solid var(--line); padding: 20px; }
+    aside strong { display: block; margin-bottom: 18px; }
+    aside ol { margin: 0; padding-left: 22px; color: var(--muted); }
+    aside li { padding: 6px 0; }
+    aside .current { color: var(--text); font-weight: 650; }
+    .content { display: flex; flex-direction: column; padding: 28px; }
+    .eyebrow { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+    h2 { margin: 5px 0 6px; font-size: 25px; }
+    .intro { margin: 0 0 20px; color: var(--muted); max-width: 66ch; }
+    label { display: block; margin: 12px 0 5px; font-size: 13px; font-weight: 650; }
+    input {
+      width: min(420px, 100%);
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--field);
+      color: var(--text);
+    }
+    .card { margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; }
+    .row { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; padding: 14px; }
+    .row + .row { border-top: 1px solid var(--line); }
+    .row p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+    .ok { color: var(--ok); }
+    .waiting { color: var(--warn); }
+    .primary { background: var(--accent); border-color: var(--accent); color: white; }
+    .footer { margin-top: auto; display: flex; justify-content: space-between; align-items: center; padding-top: 24px; }
+    .status { color: var(--muted); }
+    .pager { display: flex; justify-content: space-between; margin-top: 12px; }
+    @media (max-width: 720px) {
+      .window { grid-template-columns: 1fr; }
+      aside { display: none; }
+      .content { padding: 20px; }
+      .row { grid-template-columns: 24px 1fr; }
+      .row button { grid-column: 2; justify-self: start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Admin readiness without a terminal</h1>
+      <p>Wireframe walkthrough: automatic checks, owner-only actions, and honest recovery.</p>
+    </div>
+    <button id="theme" type="button">Toggle theme</button>
+  </header>
+  <main>
+    <nav aria-label="Walkthrough screens">
+      <a href="#checking">1. Automatic check</a>
+      <a href="#authorize">2. Authorization needed</a>
+      <a href="#owner">3. Owner action needed</a>
+      <a href="#ready">4. Ready</a>
+    </nav>
+
+    <section id="checking">
+      <p class="commentary"><strong>Trust moment:</strong> opening Admin begins the check. The administrator is not asked to know which command to run or which package manager exists.</p>
+      <div class="window">
+        <aside><strong>Organization setup</strong><ol><li>Overview</li><li>Prerequisites</li><li class="current">Get this Mac ready</li><li>Describe organization</li><li>Review setup</li></ol></aside>
+        <div class="content">
+          <span class="eyebrow">ONBOARDING</span>
+          <h2>Get this Mac ready</h2>
+          <p class="intro">Admin includes the local tools it needs. It is checking GitHub access and your organization now.</p>
+          <label for="org-1">Organization</label><input id="org-1" value="acme-co">
+          <div class="card" aria-live="polite">
+            <div class="row"><span>✓</span><div><strong>Admin tools are included</strong></div></div>
+            <div class="row"><span>◌</span><div><strong>GitHub account</strong><p>Checking your sign-in…</p></div></div>
+            <div class="row"><span>◌</span><div><strong>Organization ownership</strong><p>Waiting for the GitHub check…</p></div></div>
+            <div class="row"><span>◌</span><div><strong>Setup permission</strong><p>Waiting for the GitHub check…</p></div></div>
+          </div>
+          <div class="footer"><button>Back</button><span class="status">Checking GitHub access…</span><button disabled>Checking…</button></div>
+        </div>
+      </div>
+      <div class="pager"><span></span><a href="#authorize">Next: authorization needed →</a></div>
+    </section>
+
+    <section id="authorize">
+      <p class="commentary"><strong>Recovery:</strong> when identity or scopes are missing, one product-language action starts GitHub’s browser authorization. No shell command is displayed.</p>
+      <div class="window">
+        <aside><strong>Organization setup</strong><ol><li>Overview</li><li>Prerequisites</li><li class="current">Get this Mac ready</li><li>Describe organization</li><li>Review setup</li></ol></aside>
+        <div class="content">
+          <span class="eyebrow">ONBOARDING</span>
+          <h2>Get this Mac ready</h2>
+          <p class="intro">GitHub needs your approval before Admin can create private organization spaces.</p>
+          <label for="org-2">Organization</label><input id="org-2" value="acme-co">
+          <div class="card">
+            <div class="row"><span class="ok">✓</span><div><strong>Admin tools are included</strong></div></div>
+            <div class="row"><span class="waiting">!</span><div><strong>GitHub account</strong><p>This Mac is not connected to GitHub yet.</p></div><button>Authorize GitHub</button></div>
+            <div class="row"><span>○</span><div><strong>Organization ownership</strong><p>Checked after authorization.</p></div></div>
+            <div class="row"><span>○</span><div><strong>Setup permission</strong><p>Requested during authorization.</p></div></div>
+          </div>
+          <div class="footer"><button>Back</button><span></span><button class="primary">Authorize GitHub</button></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#checking">← Previous</a><a href="#owner">Next: owner action →</a></div>
+    </section>
+
+    <section id="owner">
+      <p class="commentary"><strong>Authority boundary:</strong> the app cannot promote a person to organization owner or create an organization-owned OAuth App. It identifies the exact owner action and opens the correct GitHub surface.</p>
+      <div class="window">
+        <aside><strong>Organization setup</strong><ol><li>Overview</li><li>Prerequisites</li><li class="current">Get this Mac ready</li><li>Describe organization</li><li>Review setup</li></ol></aside>
+        <div class="content">
+          <span class="eyebrow">ONBOARDING</span>
+          <h2>Get this Mac ready</h2>
+          <p class="intro">Your GitHub account is connected. One organization-owner action is still required.</p>
+          <div class="card">
+            <div class="row"><span class="ok">✓</span><div><strong>Admin tools are included</strong></div></div>
+            <div class="row"><span class="ok">✓</span><div><strong>GitHub account</strong><p>Connected as earl-admin.</p></div></div>
+            <div class="row"><span class="waiting">!</span><div><strong>Organization ownership</strong><p>This account is not an active owner of acme-co.</p></div><button>Open organization settings</button></div>
+            <div class="row"><span class="ok">✓</span><div><strong>Setup permission</strong></div></div>
+          </div>
+          <label for="oauth">GitHub OAuth App client ID</label><input id="oauth" placeholder="20-character public Client ID">
+          <button style="margin-top:8px;align-self:flex-start">Open OAuth App settings</button>
+          <div class="footer"><button>Back</button><span></span><button disabled>Continue</button></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#authorize">← Previous</a><a href="#ready">Next: ready →</a></div>
+    </section>
+
+    <section id="ready">
+      <p class="commentary"><strong>Completion:</strong> all checkmarks come from local tool presence or GitHub truth. Continue becomes available only after the public Client ID is valid.</p>
+      <div class="window">
+        <aside><strong>Organization setup</strong><ol><li>Overview</li><li>Prerequisites</li><li class="current">Get this Mac ready</li><li>Describe organization</li><li>Review setup</li></ol></aside>
+        <div class="content">
+          <span class="eyebrow">ONBOARDING</span>
+          <h2>This Mac is ready</h2>
+          <p class="intro">Admin can safely inspect and set up acme-co.</p>
+          <div class="card">
+            <div class="row"><span class="ok">✓</span><div><strong>Admin tools are included</strong></div></div>
+            <div class="row"><span class="ok">✓</span><div><strong>GitHub account</strong><p>Connected as earl-admin.</p></div></div>
+            <div class="row"><span class="ok">✓</span><div><strong>Organization ownership</strong><p>Active owner of acme-co.</p></div></div>
+            <div class="row"><span class="ok">✓</span><div><strong>Setup permission</strong></div></div>
+          </div>
+          <label for="oauth-ready">GitHub OAuth App client ID</label><input id="oauth-ready" value="Iv1.a1b2c3d4e5f6a7b8">
+          <div class="footer"><button>Back</button><span class="status">Everything required is ready.</span><button class="primary">Continue</button></div>
+        </div>
+      </div>
+      <div class="pager"><a href="#owner">← Previous</a><span></span></div>
+    </section>
+  </main>
+  <script>
+    const root = document.documentElement;
+    document.querySelector("#theme").addEventListener("click", () => {
+      root.dataset.theme = root.dataset.theme === "dark" ? "system" : "dark";
+    });
+  </script>
+</body>
+</html>

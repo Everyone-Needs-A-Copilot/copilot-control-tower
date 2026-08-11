@@ -1,0 +1,209 @@
+{
+  "schema_version": "2.0",
+  "run_id": "run_11111111111111111111111111111111",
+  "generated_at": "2026-08-04T18:00:00Z",
+  "machine": {
+    "state": "ready",
+    "helper": {
+      "state": "ready",
+      "version": "2.6.1",
+      "path": "/Applications/Copilot Control Tower.app/Contents/Resources/cc",
+      "detail": "The helper is available."
+    },
+    "frameworks": [
+      {
+        "component": "claude",
+        "state": "ready",
+        "path": "/Frameworks/claude",
+        "version": "5.13.3",
+        "detail": "Claude is ready."
+      },
+      {
+        "component": "codex",
+        "state": "ready",
+        "path": "/Frameworks/codex",
+        "version": "0.6.1",
+        "detail": "Codex is ready."
+      }
+    ],
+    "configuration": {
+      "state": "ready",
+      "path": "/private/config.json",
+      "approved_roots": [
+        "/Projects"
+      ],
+      "detail": "The approved project folder is available."
+    },
+    "authentication": {
+      "state": "signed-in",
+      "credential_state": "present",
+      "detail": "Sign-in is available."
+    },
+    "connectivity": {
+      "state": "online",
+      "detail": "Network checks passed."
+    },
+    "layers": {
+      "state": "ready",
+      "ready": 16,
+      "total": 16,
+      "detail": "Every required layer is ready."
+    },
+    "dependencies": [],
+    "blockers": [],
+    "next_action": "Choose the projects you want to set up."
+  },
+  "projects": [
+    {
+      "path": "/Projects/One",
+      "root": "/Projects",
+      "name": "One",
+      "scope": { "kind": "product-project" },
+      "inspection_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "presence": "none",
+      "route": "safe-setup-available",
+      "selected_components": [
+        "claude"
+      ],
+      "components": [
+        {
+          "component": "claude",
+          "state": "safe-setup-available",
+          "selected": true,
+          "recommended": true,
+          "recommendation_reason": "Claude can be added without replacing project-owned work.",
+          "responsible_actor": "person",
+          "evidence": [],
+          "missing_requirements": [
+            {
+              "id": "component-setup",
+              "state": "missing",
+              "detail": "Claude project setup is absent."
+            }
+          ],
+          "next_action": "Review the Claude setup plan.",
+          "recipe_options": [
+            {
+              "recipe_id": "claude-project-setup-v1",
+              "component": "claude",
+              "summary": "Add portable Claude project setup."
+            }
+          ]
+        },
+        {
+          "component": "codex",
+          "state": "not-selected",
+          "selected": false,
+          "recommended": true,
+          "recommendation_reason": "Codex is available but was not selected.",
+          "responsible_actor": "person",
+          "evidence": [],
+          "missing_requirements": [
+            {
+              "id": "component-setup",
+              "state": "missing",
+              "detail": "Codex project setup is absent."
+            }
+          ],
+          "next_action": "Choose Codex if you want it in this project.",
+          "recipe_options": [
+            {
+              "recipe_id": "codex-project-setup-v1",
+              "component": "codex",
+              "summary": "Add portable Codex project setup."
+            }
+          ]
+        }
+      ],
+      "blockers": [],
+      "next_action": "Review the selected project setup.",
+      "dossier": {
+        "inspection_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "current_evidence": [],
+        "missing_requirements": [
+          {
+            "id": "component-setup",
+            "state": "missing",
+            "detail": "Project setup is absent."
+          }
+        ],
+        "preservation": [
+          {
+            "kind": "project-owned",
+            "path": "README.md",
+            "detail": "Keep this project-owned file unchanged."
+          }
+        ],
+        "allowed_targets": [
+          "CLAUDE.md"
+        ],
+        "prohibited_actions": [
+          "overwrite-project-owned-content"
+        ],
+        "verification": [
+          "cc workspace verify --project /Projects/One --json"
+        ],
+        "stop_conditions": [
+          "Stop if the project identity changes."
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "project_counts": {
+      "ready": 0,
+      "copilot-not-present": 0,
+      "safe-setup-available": 1,
+      "safe-update-available": 0,
+      "customized-guided-route": 0,
+      "held": 0,
+      "owner-decision": 0,
+      "could-not-verify": 0,
+      "excluded": 0,
+      "source-unavailable": 0,
+      "ecosystem-managed": 0,
+      "total": 1
+    },
+    "scope_counts": {
+      "total_repositories": 1,
+      "product_projects": 1,
+      "ecosystem_repositories": 0
+    },
+    "selected_projects": 1,
+    "overlap_explanation": "Each project is counted once by its primary route."
+  },
+  "next_actions": [
+    "Review the selected project setup."
+  ],
+  "phase": "apply",
+  "result": "partial",
+  "request_fingerprint": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "requested_plan_id": "plan_22222222222222222222222222222222",
+  "plan_id": "plan_22222222222222222222222222222222",
+  "ledger": [
+    {
+      "path": "/Projects/One",
+      "status": "incomplete-rollback",
+      "detail": "The project needs recovery before another apply.",
+      "completed_operation_ids": [
+        "op_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      ],
+      "verification": "failed",
+      "rollback": [
+        {
+          "target": "CLAUDE.md",
+          "status": "conflict",
+          "detail": "The target changed before it could be restored."
+        }
+      ]
+    }
+  ],
+  "diagnostics": {
+    "schema_version": "2.0",
+    "id": "diagnostic_33333333333333333333333333333333",
+    "state": "available",
+    "path": "/private/diagnostics/reconciliation.json",
+    "created_at": "2026-08-04T18:01:00Z",
+    "detail": "A private diagnostic record is available."
+  }
+}

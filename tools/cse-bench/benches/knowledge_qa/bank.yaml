@@ -1,7 +1,7 @@
 # bank.yaml — B-9 private-fact question bank (TASK-92).
 #
 # Authored by hand against the product dossiers under
-# /Volumes/Dev/Sites/COPILOT/knowledge-copilot/02-products/04-applications/
+# /Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal/02-products/04-applications/
 # (convoco/, insights-copilot/). This is the LLM-judgment step the task
 # calls out: every question below was chosen because its answer is a
 # PRIVATE fact — a version number, internal module name, canonical config

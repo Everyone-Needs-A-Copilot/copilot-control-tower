@@ -1,84 +1,90 @@
 # Copilot Control Tower — Design Package Status
 
-> **Purpose:** Pick this up in a new conversation to finish the design package.
-> **How to use:** Tell Claude "Check TODO-DESIGN-PACKAGE.md for where I left off"
-> **Note:** Phases 1–5 are complete. Phase 6 (Prototype) is the next open item — that's where you pick up.
+> **Status — rebuilt from evidence 2026-08-02.** Describes **v0.4.0** (released 2026-08-02). Product status is **DOGFOODING** — live on one organization (ENAC), sixteen of sixteen layers applied, not offered to outside organizations and not generally available.
+>
+> ⚠️ **Known stale as of 2026-08-03. The product is now v0.5.0.** The P1 visual refresh landed a formal design system (`native/design-system.swift`) that `04-experience-design/60-ui-design.md` states does not exist, and the new **Connect sheet** — a whole user-facing surface — appears in no document here. Six documents still carry `v0.3.2` in status lines or claims and fourteen carry `v0.4.0`. This is recorded, not hidden: it is finding **C2** in [`../04-validation/audit-2026-08-02-findings.md`](../04-validation/audit-2026-08-02-findings.md), and the one-day interval between a careful rebuild and its falsification is the most useful measurement this package has produced. **Re-ground before relying on the Phase 4 documents.**
+>
+> **Purpose:** the resume point. Pick this up in a new conversation to see exactly where the design package stands.
+> **How to use it:** tell Claude *"Check `docs/product-design/TODO-DESIGN-PACKAGE.md` for where I left off."*
 
 ---
 
-## Foundational decisions
+## What happened on 2026-08-02
 
-### ✅ RESOLVED & RATIFIED (owner, 2026-07-07)
+The entire package was **rebuilt from evidence**. The prior version was not incomplete — it was *inaccurate*, which is worse, because it read as authoritative. Written between 2026-07-08 and 2026-07-17, it described a Tauri/Rust product with live MDM deployment, and a README claiming the build had not started. By 2026-08-02 the real product was ~22,650 lines of native SwiftUI/AppKit shipping at v0.4.0 with eight version lines and seven retained signed releases behind it.
 
-1. **Writable org/dept tiers vs. never-destroy** → RESOLVED. Consumer-read-only / author-writable split preserves invariant #3 intact. See [`../01-architecture/inheritance-and-publish.md`](../01-architecture/inheritance-and-publish.md).
-2. **Non-technical merge-conflict resolution** → RESOLVED. Layered `copilot publish` (auto-merge → keep-yours/theirs/**both** chooser → park-and-escalate); "keep both" is the no-data-loss floor. Same doc; new `copilot publish --json` verb added to WS-A.
-3. **Credentials-carrier for pull-based inheritance** → RESOLVED. OS keychain + per-integration OAuth; `requires_secret:` references-not-secrets; never git. See [`../05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md).
-4. **Author git-push-credential provisioning** → RESOLVED (2026-07-07 amendment). On-device ed25519 keypair + GitHub Team-membership ACL. See credentials doc §6.
+Every one of the fifteen facilitated documents was re-derived from the shipping code, the release history, the accepted ADRs, and the ratified decision records. `SOUL.md` was rebuilt and ratified as **v2.0**. Ten contradicted documents outside this package were repaired in the same pass.
 
-These four safety rules were **elevated to CLAUDE.md invariants** (new invariant #6): secrets-never-in-git · no cross-tier write · sync pull-only/downward · fail-closed leak-scan.
-
-A shared, IT-managed secret store (recommended: Infisical, self-hosted via Coolify; alternative: OpenBao) is now the recommended path for sharing integration credentials at tier scope — still references-not-secrets. See credentials doc §1.6.
-
-### ⏳ STILL OPEN
-
-1. **Personal-layer content scope** — what belongs in the personal layer (writing styles, etc.) is unsettled.
-2. **Admin/IT operator experience** — unvalidated hypothesis; needs real IT operators to confirm.
-3. **Multi-writer authoring flow** — unvalidated hypothesis; needs real writers to confirm.
-4. **Pre-existing engineering TODOs** — cadence values, urgent-revocation propagation, signing custody, kiosk depth, Codex parity.
+**Read this before trusting any older design artifact in this repository.** The lesson the package now carries in its own bones: an honest marked gap always beats a confident fabrication.
 
 ---
 
-## Status Summary
+## Owner answers ratified 2026-08-02
+
+These govern every document in the package and are not to be re-litigated without a new ratification.
+
+| # | Decision |
+|---|---|
+| A-1 | **Audience**, in weight order: the owner's future self and session continuity; non-technical buyers and evaluators; teams and organizations looking for new ways to transform their organization. Explicitly *not* open-source contributors, and *not* a developer receiving a handoff |
+| A-2 | **Essence remains DEMOCRATIZATION** — a technical person's superpowers in a non-technical person's hands. Organizations are the buyer; the individual is where value lands. Reframing the essence around organizational transformation was explicitly rejected |
+| A-3 | **Status is DOGFOODING, live on one org.** Never "the build has not started" (false), never general availability. Remaining: the V-5 cold-laptop proof, then publicize, in that order because the second is irreversible |
+| A-4 | **Tauri** is retired as the shipping stack but **its code tree stays on disk — no code is removed**. **Windows** is formally out of scope. **MDM** is dropped completely as a mechanism |
+| A-5 | **The invariant-enforcement gap is documented honestly as a named open item**, not fixed in this pass and not quietly reframed away |
+| — | **Priority order ratified:** say-only-what-you-can-prove **>** parse-never-compute > plain-words-or-nothing > route-by-competence × reversibility > as-little-app, under the inviolable security-posture-never-weakened. Honesty was promoted *above* invariant #1 because on 2026-07-31 the app satisfied parse-never-compute and still lied |
+| — | **Pure OSS, free forever** reaffirmed as absolute, re-put specifically in light of the newly-named buyer and organization audiences. Openness *is* the security guarantee |
+
+---
+
+## Status summary
 
 | Status | Count |
 |--------|-------|
-| NOT STARTED | 1 |
+| DONE (rebuilt from evidence 2026-08-02) | 15 facilitated documents + `SOUL.md` |
+| DONE (recorded 2026-08-03) | Phase 6 outcome — the 16th output |
+| NOT STARTED | 0 |
 | IN PROGRESS | 0 |
-| DONE | 15 |
 
-Both checkpoints have **PASSED**: Design Foundation and Design Complete. Phases 1–2 were revised from a live owner interview conducted 2026-07-06.
+Both checkpoints **PASSED**. The package is **complete**: 16 outputs plus `SOUL.md`, matching the template package's 17. Phase 6 closed by a different route than the template anticipated — see below.
 
 ---
 
 ## Phase 1: Discovery
 
-### Design Foundation Checkpoint requirement: Vision + scope + success metrics exist — MET
+**Design Foundation Checkpoint requirement — vision + scope + success metrics exist: MET**
 
 | # | Document | Status | Notes |
 |---|----------|--------|-------|
-| 1 | `00-overview/00-vision.md` | DONE | Problem, users, vision, forces, JTBD, AI philosophy, capabilities, ecosystem context, warning signs |
-| 2 | `00-overview/10-scope-and-non-goals.md` | DONE | Scope, non-goals, anti-features, constraints, integration boundaries |
-| 3 | `00-overview/20-success-metrics.md` | DONE | User outcomes, business outcomes, leading/failure indicators, ecosystem health |
-
----
+| 1 | `00-overview/00-vision.md` | DONE | Problem, users, forces map, JTBD, magic moment, non-goals, Capabilities & Essence (the upstream input `SOUL.md` formalises) |
+| 2 | `00-overview/10-scope-and-non-goals.md` | DONE | In-scope at v0.4.0, non-goals with rationale, anti-features, constraints. Windows out of scope; MDM dropped; `publish`/`repair` deferred per ADR-008 |
+| 3 | `00-overview/20-success-metrics.md` | DONE | Rewritten to remove targets nothing in the product could produce. Two honest gaps marked: nobody at ENAC beyond the owner is known to run it, and no baseline study exists for a time-savings claim |
 
 ## Phase 2: Research & Service Design
 
-### Design Foundation Checkpoint requirement: At least 1 completed interview + journeys/JTBD/moments exist — MET
+**Design Foundation Checkpoint requirement — an interview plus journeys/JTBD/moments exist: MET**
 
 | # | Document | Status | Notes |
 |---|----------|--------|-------|
-| 4 | `01-research/10-interviews/01-interview-self.md` | DONE | Self-interview (product owner interviews themselves as primary user) |
-| 5 | `02-service-design/30-jtbd.md` | DONE | Jobs to be done across all personas |
-| 6 | `02-service-design/20-journey-maps.md` | DONE | Personas, journey narrative, struggling moments, emotional arc |
-| 7 | `02-service-design/40-moments-that-matter.md` | DONE | Critical moments with success/failure criteria |
-| 8 | `02-service-design/10-service-blueprint.md` | DONE | Frontstage, backstage, support processes |
+| 4 | `01-research/10-interviews/01-interview-self.md` | DONE | ⚠️ **Sole surviving primary owner testimony.** The cited `scratchpad/interview-ground-truth.md` no longer exists — gitignored, never committed, absent from every ref. Eight verbatim 2026-07-06 quotes are preserved here unchanged; everything else is labelled inference or decision-of-record |
+| 5 | `02-service-design/30-jtbd.md` | DONE | Primary job, supporting jobs, ranking, competing solutions. Key reframe: the product is not hired to manage an ecosystem, it is hired to make an unverifiable system trustworthy enough to be left alone by someone who cannot check it |
+| 6 | `02-service-design/20-journey-maps.md` | DONE | Personas: **Bob** (non-technical adopter, primary, grounded), **Earl** (org owner/admin — run once by the author, the largest untested bet), **Pablo** (author who publishes upstream, observed continuously) |
+| 7 | `02-service-design/40-moments-that-matter.md` | DONE | MTM-1 the account of what just happened · MTM-2 the day nothing happens (the false-green class) · MTM-3 the stop that is not a failure |
+| 8 | `02-service-design/10-service-blueprint.md` | DONE | Nine backstage seams (B1–B9) and four failure points, drawn from real incidents |
+
+**── CHECKPOINT: Design Foundation — PASSED ──**
+
+- [x] Vision, scope and success metrics complete (#1–3)
+- [x] At least one completed interview (#4)
+- [x] Journeys, JTBD and Moments That Matter complete (#5–7)
 
 ---
 
---- CHECKPOINT: Design Foundation — PASSED ---
+## SOUL.md — RATIFIED v2.0
 
-- [x] Vision + scope + success metrics complete (#1-3)
-- [x] At least 1 completed interview (#4)
-- [x] Journeys, JTBD, and Moments That Matter complete (#5-7)
+| Document | Status | Notes |
+|----------|--------|-------|
+| [`../../SOUL.md`](../../SOUL.md) (project root — deliberately not in `docs/`) | DONE | **RATIFIED v2.0, 2026-08-02.** Five principles each carrying a rejection test; ten named anti-patterns, four newly dated to real incidents; a six-gate Feature Filter with thirty case-law rows; settled priority order. §6 states what the quality bar does **not** enforce, because a soul claiming a bar the product does not meet is itself a Comfortable Lie |
 
----
-
-## SOUL.md — RATIFIED v1.3
-
-| # | Document | Status | Notes |
-|---|----------|--------|-------|
-| — | `../../SOUL.md` (project root — not in docs/) | DONE | RATIFIED v1.1: soul statement, IS/IS-NOT table, design principles with rejection tests, named anti-patterns, Feature Filter gates. See `skills/REF-soul-file.md` |
+The four newly named and dated anti-patterns: **The Comfortable Lie** (2026-07-31 — an apply reported it stopped "before changing anything" after two repositories had already been created and seeded) · **The Quiet Bulldozer** (2026-07-27 — 12,537 lines reconcile-deleted through a symlink and pushed to origin) · **The Contract That Drifted** (2026-07-28 — a `component:`→`product:` field rename turned an optional hook into total prompt rejection) · **The Machine Talking To Itself** (a **live** leak at `control-tower-tray.swift:1375`).
 
 ---
 
@@ -86,48 +92,73 @@ Both checkpoints have **PASSED**: Design Foundation and Design Complete. Phases 
 
 | # | Document | Status | Notes |
 |---|----------|--------|-------|
-| 9 | `03-requirements/10-user-stories.md` | DONE | User stories grouped by persona, prioritized |
-| 10 | `03-requirements/20-use-cases-and-scenarios.md` | DONE | E2E scenarios, edge cases, critical view scenarios |
-| 11 | `03-requirements/30-acceptance-criteria.md` | DONE | Given/When/Then, performance, quality criteria |
-
----
+| 9 | `03-requirements/10-user-stories.md` | DONE | 35 stories — Bob 19, Earl 8, Pablo-author 8. 26 SHIPPED / 6 PARTIAL / 3 NOT SHIPPED. Unfinished work concentrates entirely in the author's *writable* direction |
+| 10 | `03-requirements/20-use-cases-and-scenarios.md` | DONE | Scenarios drawn from real events, not hypotheticals — the ENAC live run and the three incidents above |
+| 11 | `03-requirements/30-acceptance-criteria.md` | DONE | 53 criteria. **10 have automated verification that gates a release; 18 have a harness that does not gate one; 1 rests on the single live run; 24 rest on code review alone.** Two recorded NOT MET: no rollback instruction shipped in v0.4.0, and no contrast audit exists |
 
 ## Phase 4: Experience Design
 
 | # | Document | Status | Notes |
 |---|----------|--------|-------|
-| 12 | `04-experience-design/50-ux-design.md` | DONE | IA, task flows, interaction patterns, responsive, accessibility |
-| 13 | `04-experience-design/60-ui-design.md` | DONE | Visual direction, design tokens, component patterns |
-| 14 | `04-experience-design/70-copy-voice.md` | DONE | Voice character, speech patterns, key UI copy, banned language |
-
----
+| 12 | `04-experience-design/50-ux-design.md` | DONE | Real IA: one menu-bar glyph opening a six-region popover, a nine-step setup window, and a read-only Settings window, alongside the separately-built 16-surface Admin app |
+| 13 | `04-experience-design/60-ui-design.md` | DONE | Named direction **Quiet Instrument** (in the two-app "Native Calm" family); named anti-direction **The Alert Machine**. Tokens documented from real `NSColor` semantics, not invented |
+| 14 | `04-experience-design/70-copy-voice.md` | DONE | Voice: a calm operator who refuses to guess. 17 jargon leaks catalogued with file:line, each paired with a marked recommendation, none fixed in code |
 
 ## Phase 5: Design Challenge
 
 | # | Document | Status | Notes |
 |---|----------|--------|-------|
-| 15 | `05-design-challenge/00-brief.md` | DONE | Critical views, creative direction, concepts per view, evaluation criteria |
+| 15 | `05-design-challenge/00-brief.md` | DONE | Eight critical views. Primary evaluation standard: *does this change make it easier or harder to say something unprovable?* Plus 13 instant rejections |
 
----
+**── CHECKPOINT: Design Complete — PASSED ──**
 
---- CHECKPOINT: Design Complete — PASSED ---
-
-- [x] All requirements documents complete (#9-11)
-- [x] UX, UI, and copy documents complete (#12-14)
+- [x] All requirements documents complete (#9–11)
+- [x] UX, UI and copy documents complete (#12–14)
 - [x] Design challenge brief written and approved (#15)
-- [x] Critical views list confirmed
+- [x] Critical views list confirmed (eight)
 
 ---
 
-## Phase 6: Prototype — NOT STARTED (deferred — the build phase)
+## Phase 6: Prototype — COMPLETE, by a different route
 
-Choose ONE output format. See `06-prototype/README.md` for guidance.
+**The prior tracker's most misleading claim was here.** It pointed a resumer at an unstarted Figma / Design-Spec / Storybook / Next.js choice. None of that happened, and none of it is going to.
+
+The prototype phase was satisfied by **building the real product**. The output is the shipping native SwiftUI/AppKit application at v0.4.0 — three signed executables, notarized and released — and its design of record is the native design triad, not a template document:
+
+| Output | Path |
+|--------|------|
+| Experience architecture | [`../03-design/control-tower-native-experience-architecture.md`](../03-design/control-tower-native-experience-architecture.md) |
+| Interaction spec | [`../03-design/control-tower-interaction-spec.md`](../03-design/control-tower-interaction-spec.md) |
+| Visual system | [`../03-design/control-tower-visual-system.md`](../03-design/control-tower-visual-system.md) |
 
 | # | Document | Status | Notes |
 |---|----------|--------|-------|
-| 16 | `06-prototype/[chosen-output].md` | NOT STARTED | User chooses format: Figma, Design Spec, Storybook, or Next.js |
+| 16 | `06-prototype/00-outcome.md` | DONE | **The Phase 6 output.** Records that the phase was satisfied by shipping the real product, why each of the four template formats was rejected against an already-built app, where the real design specification lives, and — honestly — the three things this route does not give you (no accessibility spec, no consolidated component catalogue, two undocumented status vocabularies) |
 
-**Chosen format:** _Not yet decided_
+Ratified with the owner on 2026-08-03. A Design Specification was considered seriously and rejected on the product's own principle: its content already exists across `60-ui-design.md`, `50-ux-design.md` and the triad, so consolidating it would create a fourth copy of the same truth — and duplicated documentation drifting into untruth is precisely what this rebuild had to repair.
+
+---
+
+## Open items — carried honestly
+
+None of these block the package. All are real and none were fixed during the documentation rebuild, because the owner scoped that pass to documentation and forbade code changes.
+
+**Full write-up with severity, root cause and proposed fix for each: [`../04-validation/audit-2026-08-02-findings.md`](../04-validation/audit-2026-08-02-findings.md).** That document is the durable record — it ranks these Critical → Low, adds the ones that are not design-package concerns (accessibility, repository hygiene, the closed security audit), and preserves the raw evidence the rebuild was derived from.
+
+| ID | Item |
+|----|------|
+| **C2** | **The Phase 4 documents were falsified by v0.5.0, one day after the rebuild.** `60-ui-design.md:74` says there is no bespoke token layer; `native/design-system.swift` (734 lines, `CTColor`/`CTType`/`CTSpace`/`CTRadius`/`CTMotion`) ships in both build targets. The Connect sheet is documented nowhere here. Re-grounding `60-ui-design.md` and `50-ux-design.md` against `native/design-system.swift` and [`../03-design/native-visual-refresh-spec.md`](../03-design/native-visual-refresh-spec.md) is a narrow two-document pass, not another rebuild |
+| **M6** | **No link-integrity check.** A wrong path to the design triad propagated from the rebuild brief into two documents and was caught by hand, not by tooling. `check-crosslinks.py` and `install-crosslinks-hook.sh` already exist in `shared-docs/scripts/`; installing the hook here is one command and the best value-to-effort item on the whole list |
+| **G-1** | **The invariants are stated but not enforced.** All 40 `fitness_*.rs` tests scan `src-tauri/src/**` — the retired Rust tree — and cannot see one line of the shipping Swift. The CI job that runs them is disabled behind `vars.RELEASE_CI_ENABLED`. Porting the suite to scan `native/` is open work |
+| **G-2** | **Invariant #2's `launchd` crash-only watchdog is not implemented** in the shipping Swift app; it exists only in the retired Rust tree |
+| **G-3** | Phase 6 never happened as the template describes — recorded above rather than left as a false resume point |
+| — | **V-5 cold-laptop proof** — a two-machine onboarding run against an empty keychain, proving the experience holds for someone who is not the owner |
+| — | **Publicize** — making the supporting foundation repos public, gated on a credential rotation their prior private history requires. Irreversible, so it follows V-5 |
+| — | **Live jargon leak** at `control-tower-tray.swift:1375` (and VoiceOver at `:1387`) — raw layer ids and the CLI's raw severity enum on the most-read surface, while the ratified plain labels sit 25 lines earlier, bypassed. Structurally, the ban is unenforceable in the app because CLI-authored `detail` prose passes straight through under invariant #1; the fix belongs in the `cc` contract |
+| — | `control-tower-logo.svg` is not bundled, so the wizard hero falls back to `building.2` — contradicting the ratified brand rule |
+| — | Two divergent badge vocabularies (tray uses 12 tokens, Settings maintains a separate 5-state set); `update` and `spinner` are defined but unreachable |
+| — | No rollback instruction in the v0.4.0 changelog; no contrast audit; no light/dark Dynamic Type proof; no keyboard pass |
+| — | **The primary persona has never been validated.** Bob is grounded in design but no non-technical adopter outside the owner is known to have completed setup unaided. This is the single highest-value unmeasured fact about the product |
 
 ---
 
@@ -135,6 +166,7 @@ Choose ONE output format. See `06-prototype/README.md` for guidance.
 
 | File | Purpose |
 |------|---------|
-| `01-research/10-interviews/00-interview-template.md` | Generic interview template — copy and rename for additional interviews |
-| `06-prototype/README.md` | Guidance on choosing the right prototype format |
-</content>
+| [`../../SOUL.md`](../../SOUL.md) | The decision instrument. Run any proposed feature through its six-gate Feature Filter before building |
+| [`../../CLAUDE.md`](../../CLAUDE.md) | The six invariants — the product's spine |
+| [`01-research/10-interviews/00-interview-template.md`](01-research/10-interviews/00-interview-template.md) | Generic interview template — copy and rename for additional interviews. **This is the instrument for closing findings H3 and M5**: neither the primary persona (Bob) nor the admin persona (Earl) has ever been validated by anyone other than the author, and the V-5 cold-laptop proof is the occasion to run a real one |
+| [`06-prototype/README.md`](06-prototype/README.md) | The template's format chooser, retained for reference. The choice made here is recorded in [`06-prototype/00-outcome.md`](06-prototype/00-outcome.md) |

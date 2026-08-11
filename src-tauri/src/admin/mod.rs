@@ -37,7 +37,7 @@
 //! (`cc/core/ecosystem/manifest.py`'s `load_layers`/`validate_layers`)
 //! parses `copilot.layers.yml`, the DERIVE **OUTPUT** `cc derive` produces
 //! **from** this seed, not the seed itself. What DOES exist is a detailed,
-//! human-written worked example: `docs/reference/ecosystem-architecture.md`
+//! human-written worked example: `docs/10-reference/ecosystem-architecture.md`
 //! §4.2's YAML block (`version`/`org`/`host`/`api_base`/`ssh_host`/
 //! `foundation{owner,mirror,root_key,key_set}`/`auth`/`products`/
 //! `departments`/`policy_signers`), plus

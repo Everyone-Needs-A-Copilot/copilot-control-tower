@@ -1,0 +1,21 @@
+{
+  "schema_version": "2.0",
+  "phase": "guide-status",
+  "result": "ready",
+  "run_id": "run_44444444444444444444444444444444",
+  "generated_at": "2026-08-05T18:15:00Z",
+  "guide_id": "guide_11111111111111111111111111111111",
+  "workspace_root": "/Projects",
+  "workspace_roots": ["/Projects"],
+  "instructions_path": "/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/INSTRUCTIONS.md",
+  "start_prompt": "Read and follow every instruction in `/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/INSTRUCTIONS.md` before doing anything. Work through every project listed there in this one conversation.",
+  "projects_path": "/Projects/.copilot-control-tower/reconciliation/guide_11111111111111111111111111111111/PROJECTS.json",
+  "selected_projects": ["/Projects/One", "/Projects/Two"],
+  "project_status": [
+    {"path":"/Projects/One","state":"ready","detail":"The selected Claude setup passed a fresh check.","reasons":[],"checked_at":"2026-08-05T18:04:00Z"},
+    {"path":"/Projects/Two","state":"ready","detail":"The selected Claude and Codex setup passed a fresh check.","reasons":[],"checked_at":"2026-08-05T18:14:00Z"}
+  ],
+  "progress": {"state":"ready","selected_project_count":2,"verified_project_count":2,"remaining_project_count":0,"needs_conversation_count":0,"last_checked_project":"/Projects/Two","detail":"Every selected project passed a fresh Python check."},
+  "detail": "Every selected project passed a fresh Python check.",
+  "next_actions": ["Every selected project passed a fresh check."]
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "result": "org-config-unavailable",
+  "detail": "This Mac has no organization configuration yet, so connections could not be checked against the shared store.",
+  "org": null,
+  "store": {
+    "type": null,
+    "reachable": false,
+    "scope": null,
+    "detail": "No organization configuration was found on this Mac."
+  },
+  "connections": [
+    {
+      "id": "git",
+      "name": "git",
+      "description": "Git repository operations",
+      "tier": "org-internal",
+      "mode": "adopt",
+      "requires_secret": [],
+      "store_scope": null,
+      "secret_state": "ready",
+      "missing": []
+    },
+    {
+      "id": "coolify",
+      "name": "coolify",
+      "description": "Coolify infrastructure management",
+      "tier": "org-internal",
+      "mode": "provides",
+      "requires_secret": [{ "name": "COOLIFY_API_KEY", "from": "store" }],
+      "store_scope": null,
+      "secret_state": "no-store",
+      "missing": ["COOLIFY_API_KEY"]
+    }
+  ]
+}

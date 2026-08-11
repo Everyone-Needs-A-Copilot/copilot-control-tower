@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>17 · The connect experience — UX walkthrough</title>
+  <style>
+    :root{color-scheme:light dark;--page:#ececef;--paper:#fff;--panel:#f7f7f8;--rail:#f0f0f2;--ink:#202024;--muted:#66666d;--faint:#929299;--line:#d4d4d9;--accent:#1768ca;--ok:#2b8547;--warn:#9b671e;--danger:#b93936;--shadow:0 20px 60px rgb(20 20 26 / 15%)}
+    [data-theme="light"]{color-scheme:light}
+    [data-theme="dark"]{color-scheme:dark;--page:#111113;--paper:#1c1c1f;--panel:#252529;--rail:#19191c;--ink:#f1f1f3;--muted:#acacb3;--faint:#7f7f87;--line:#3b3b40;--accent:#6aa9ff;--ok:#65c77d;--warn:#e1b462;--danger:#ff7772;--shadow:0 24px 70px rgb(0 0 0 / 45%)}
+    @media(prefers-color-scheme:dark){html[data-theme="auto"]{--page:#111113;--paper:#1c1c1f;--panel:#252529;--rail:#19191c;--ink:#f1f1f3;--muted:#acacb3;--faint:#7f7f87;--line:#3b3b40;--accent:#6aa9ff;--ok:#65c77d;--warn:#e1b462;--danger:#ff7772;--shadow:0 24px 70px rgb(0 0 0 / 45%)}}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif}
+    header{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--page) 90%,transparent);backdrop-filter:blur(16px)}header strong{white-space:nowrap}.toc{display:flex;gap:5px;overflow:auto}.toc a,.theme{min-width:32px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);padding:6px 9px;text-decoration:none;font:inherit}.toc a{font:700 11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;text-align:center}.theme{margin-left:auto;white-space:nowrap}
+    main{width:min(1180px,calc(100% - 30px));margin:34px auto 80px}.intro{max-width:840px;margin-bottom:20px}.kicker{font-size:11px;font-weight:750;letter-spacing:.08em;color:var(--accent)}h1{font-size:42px;line-height:1.04;letter-spacing:-.035em;margin:7px 0 13px}.intro p{font-size:17px;color:var(--muted);margin:0 0 12px}.legend{max-width:840px;margin-bottom:44px;color:var(--faint);font-size:13px}
+    section{margin:0 0 64px;scroll-margin-top:80px}.part{margin:0 0 22px;padding-top:6px;border-top:1px solid var(--line);color:var(--accent);font-size:11px;font-weight:750;letter-spacing:.08em}.screen-title{display:flex;align-items:baseline;gap:11px;margin-bottom:13px}.number{color:var(--faint);font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace}.screen-title h2{font-size:21px;margin:0}.layout{display:grid;grid-template-columns:minmax(0,1fr) 275px;gap:20px;align-items:start}
+    .window{min-height:620px;overflow:hidden;border:1px solid var(--line);border-radius:17px;background:var(--paper);box-shadow:var(--shadow)}.titlebar{height:45px;display:flex;align-items:center;gap:7px;padding:0 15px;border-bottom:1px solid var(--line);font-weight:650}.dot{width:11px;height:11px;border:1px solid var(--line);border-radius:50%}.titlebar span{margin-left:10px}.app{display:grid;grid-template-columns:220px 1fr;min-height:575px}.rail{padding:17px 11px;background:var(--rail);border-right:1px solid var(--line)}.brand{margin:0 9px 16px;font-weight:700}.rail .group{margin:16px 9px 7px;color:var(--faint);font-size:11px;font-weight:750;letter-spacing:.06em}.stage{display:grid;grid-template-columns:18px 1fr;gap:7px;padding:7px 9px;border-radius:7px;color:var(--muted)}.stage.current{background:var(--panel);color:var(--ink);font-weight:650}.stage.done b{color:var(--ok)}.stage.current b{color:var(--accent)}
+    .content{display:flex;flex-direction:column;min-width:0;padding:29px 34px}.eyebrow{font-size:11px;font-weight:750;letter-spacing:.07em;color:var(--accent)}h3{font-size:27px;line-height:1.14;letter-spacing:-.025em;margin:6px 0 8px}.lead{max-width:670px;margin:0 0 20px;color:var(--muted)}.summary{color:var(--ink);font-weight:650}
+    .card{padding:15px;border:1px solid var(--line);border-radius:10px;background:var(--paper);margin-bottom:12px}.card.inset{background:var(--panel)}.card.next{border-left:3px solid var(--accent)}.card.flag{border-left:3px solid var(--danger)}.card-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:7px;color:var(--muted);font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.05em}.row{display:grid;grid-template-columns:25px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0}.row+.row{border-top:1px solid var(--line)}.row strong,.row small{display:block}.row strong{font-weight:650}.row small{margin-top:2px;color:var(--muted)}.status{font-size:12px;font-weight:700}.ok{color:var(--ok)}.warn{color:var(--warn)}.danger{color:var(--danger)}.info{color:var(--accent)}.muted{color:var(--muted)}.glyph{text-align:center;font-weight:800}
+    .chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:1px 8px;color:var(--muted);font:700 10px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.06em;vertical-align:middle}.chip.new{border-color:var(--accent);color:var(--accent)}
+    .footer{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:auto;padding-top:18px}.actions{display:flex;gap:8px;flex-wrap:wrap}button{min-height:34px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);padding:7px 11px;font:inherit}.primary{border-color:var(--accent);background:var(--accent);color:white;font-weight:650}.plain{border-color:transparent;background:transparent;color:var(--muted)}button[disabled]{opacity:.45}
+    .progress{height:6px;overflow:hidden;border-radius:99px;background:var(--panel);margin:4px 0 14px}.progress span{display:block;height:100%;background:var(--accent)}.callout{display:grid;grid-template-columns:24px 1fr;gap:10px}.callout p{margin:3px 0 0;color:var(--muted)}.decision{display:grid;grid-template-columns:132px 1fr;gap:10px;padding:8px 0}.decision+.decision{border-top:1px solid var(--line)}.decision b{font-size:12px;color:var(--muted)}.actor{display:block;margin-top:10px;padding-top:8px;border-top:1px solid var(--line);color:var(--faint);font-size:12px}
+    .popover{width:min(430px,100%);margin:25px auto;border:1px solid var(--line);border-radius:18px;background:var(--paper);overflow:hidden;box-shadow:var(--shadow)}.popover-head,.popover-foot{padding:15px 18px}.popover-head{border-bottom:1px solid var(--line)}.popover-head strong,.popover-head small{display:block}.popover-head small{color:var(--muted)}.popover .body{padding:10px 18px}.popover .body p{color:var(--muted)}.popover-foot{display:flex;gap:10px;border-top:1px solid var(--line)}.popover-foot button{border:0;padding:4px;background:transparent}.aviators{display:inline-block;font-size:25px;letter-spacing:-6px;margin-right:8px}.state-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    code,.mono{font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}.command{margin:9px 0 0;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--muted)}.code{display:block;margin:6px 0 4px;font:750 27px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em}.field{font-size:12px;font-weight:700;color:var(--muted)}.rules{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}.rules div{display:grid;grid-template-columns:20px 1fr;gap:8px;padding:9px 0;border-top:1px solid var(--line)}.rules b{color:var(--faint);font:700 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}.rules span{color:var(--muted)}.rules strong{color:var(--ink)}
+    aside.note{border-left:2px solid var(--accent);padding:2px 0 2px 14px}.note h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.05em}.note p,.note li{color:var(--muted)}.note ul{padding-left:18px;margin:0}.note li{margin-bottom:6px}.pager{display:flex;justify-content:space-between;margin-top:11px}.pager a{color:var(--accent);text-decoration:none}
+    @media(max-width:880px){.layout{grid-template-columns:1fr}.note{max-width:760px}}@media(max-width:680px){.app{grid-template-columns:1fr}.rail{display:none}.content{padding:24px}.row{grid-template-columns:25px 1fr}.row>.status,.row>button{grid-column:2}.state-grid,.rules{grid-template-columns:1fr}.footer{align-items:flex-end;flex-direction:column}.toc{display:none}h1{font-size:34px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  </style>
+</head>
+<body>
+  <header>
+    <strong>The connect experience · UX</strong>
+    <nav class="toc" aria-label="Screens">
+      <a href="#s1">01</a><a href="#s2">02</a><a href="#s3">03</a><a href="#s4">04</a><a href="#s5">05</a><a href="#s6">06</a><a href="#s7">07</a><a href="#s8">08</a><a href="#s9">09</a><a href="#s10">10</a><a href="#s11">11</a><a href="#s12">12</a><a href="#s13">13</a><a href="#s14">14</a><a href="#s15">15</a><a href="#s16">16</a>
+    </nav>
+    <button class="theme" id="theme" aria-label="Change color theme">Theme: system</button>
+  </header>
+  <main>
+    <div class="intro">
+      <span class="kicker">UX WALKTHROUGH · DRAFT FOR ALIGNMENT</span>
+      <h1>The best connect experience is the one Bob never has.</h1>
+      <p>Bob is an accountant. He has no job to be done with a credential store; his job is to close the month. This walkthrough renders both answers to the open fork: the North Star, where being on his team <em>is</em> the access and no Connect moment ever exists, and the pragmatic first release, where one well designed approval stands in for it until the store can be team gated.</p>
+    </div>
+    <p class="legend"><span class="chip new">NEW</span> marks a capability today's product does not have. Every quoted string is drafted in the copy deck's voice and is CLI authored: the app renders the sentence, it never composes it (invariant #1). Screens 01 to 03 are what ships today, and they are the reason for the rest.</p>
+
+    <p class="part">PART ONE · WHAT SHIPS TODAY</p>
+
+    <section id="s1">
+      <div class="screen-title"><span class="number">01</span><h2>A heading that implies an action, over a row with no action</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage current"><b>●</b><span>Your connections</span></div><div class="stage"><b>○</b><span>Your projects</span></div><div class="stage"><b>○</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">STEP 6 OF 9 · SHIPPED TODAY</span><h3>Your connections</h3><p class="lead">These are the connections Control Tower can prove are ready for you. If your organization makes another connection available, it will appear here with a working Connect button.</p>
+            <div class="card"><div class="card-title"><span>Ready to use</span></div><div class="row"><b class="glyph muted">●</b><div><strong>GitHub</strong><small>Signed in as bob-alvarez.</small></div><span class="status muted">Ready</span></div></div>
+            <div class="card flag"><div class="card-title"><span>Available to connect</span></div><div class="row"><b class="glyph danger">!</b><div><strong>Infisical</strong><small>Needs 2 credentials in your organization's secret store: INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET.</small></div><span class="status danger">No action</span></div></div>
+            <div class="card inset callout"><b class="danger">!</b><div><strong>The Connect button this screen promises exists nowhere in the product.</strong><p>On the owner's fully working Mac this same row still reads as unconnected. It is the one row Bob would ever be told to connect, and it is structurally impossible to connect.</p></div></div>
+            <div class="footer"><button>Back</button><button class="primary">Continue</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>The form that isn't for me</h4><ul><li>A heading that implies an action, and nothing under it that can be pressed.</li><li>Two names Bob has never seen, on a screen about his own setup. Naming a key is as unreadable to him as showing one.</li><li>What he feels is not frustration. It is the quieter belief that he has already done this wrong and should not ask.</li></ul></aside>
+      </div><div class="pager"><span></span><a href="#s2">Next →</a></div>
+    </section>
+
+    <section id="s2">
+      <div class="screen-title"><span class="number">02</span><h2>Told there is something still to do, and nothing he can do</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage done"><b>✓</b><span>Your connections</span></div><div class="stage done"><b>✓</b><span>Your projects</span></div><div class="stage done"><b>✓</b><span>Set up</span></div><div class="stage current"><b>✓</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">SETUP VERIFIED · STEP 9 OF 9 · SHIPPED TODAY</span><h3>You're set up.</h3><p class="lead">Control Tower now lives quietly in your menu bar. When it has nothing to say, it says nothing.</p>
+            <div class="card"><div class="card-title"><span>Ready now</span></div><div class="row"><b class="glyph ok">✓</b><div><strong>Your GitHub connection</strong><small>Signed in as bob-alvarez.</small></div><span class="status ok">Ready</span></div><div class="row"><b class="glyph ok">✓</b><div><strong>4 copilots</strong><small>Knowledge, CLI, Claude, and Codex</small></div><span class="status ok">Ready</span></div></div>
+            <div class="card flag"><div class="card-title"><span>Still to do</span><span class="status danger">Nobody is named</span></div><p style="margin:0;color:var(--muted)">Shared team connections are not available on this Mac yet. Your existing credentials were kept, and you can check again later from Control Tower.</p></div>
+            <div class="card inset callout"><b class="danger">!</b><div><strong>Setup declared success anyway.</strong><p>The shared store stage is the one stage exempted from the completion rule, so it cannot fail. A stage that cannot fail cannot be trusted when it passes.</p></div></div>
+            <div class="footer"><span></span><button class="primary">Done</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>Learned helplessness, with a receipt</h4><ul><li>"Check again later" re-runs the same failing call forever, and names no human.</li><li>The promise made on screen 01 is withdrawn here, on the one screen Bob can personally verify.</li><li>His next move is a message to a colleague asking for "the key," which is exactly the behaviour the security model exists to prevent. Today's design manufactures the risk it was built to remove.</li></ul></aside>
+      </div><div class="pager"><a href="#s1">← Previous</a><a href="#s3">Next →</a></div>
+    </section>
+
+    <section id="s3">
+      <div class="screen-title"><span class="number">03</span><h2>Step 6 reports on something step 8 has not set up yet</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Order of operations</span></div><div class="content">
+          <span class="eyebrow">A DEFECT THAT SURVIVES ANY CREDENTIAL MODEL</span><h3>This one is sequencing, not copy</h3><p class="lead">The store is reachable and Bob is authorized. His Mac simply does not know yet where the store is, because the step that brings his organization's setup onto the Mac has not run.</p>
+          <div class="card"><div class="decision"><b>Step 6 today</b><span>Asks what his team's shared connections are, and reports the answer as a fault.</span></div><div class="decision"><b>Step 8 today</b><span>Brings his organization's setup, including where the store lives, onto this Mac.</span></div><div class="decision"><b>Consequence</b><span>A screen that reports on a thing that has not been set up yet can only say something untrue or something confusing.</span></div></div>
+          <div class="state-grid">
+            <div class="card"><div class="card-title"><span>Option A: move it</span></div><div class="callout"><b class="info">→</b><div><strong>Ask after Set up.</strong><p>Step 6 moves after materialization, where the answer can be true. The sidebar order changes, which is visible to everyone who has seen the wizard once.</p></div></div></div>
+            <div class="card"><div class="card-title"><span>Option B: narrow it</span></div><div class="callout"><b class="info">→</b><div><strong>Keep the position, speak only about what is knowable.</strong><p>At step 6 the only knowable truth is his own accounts. Shared rows appear once his organization's setup is on the Mac.</p></div></div></div>
+          </div>
+          <div class="card inset callout"><b>i</b><div><strong>Fix this whichever way the fork goes.</strong><p>Neither credential model repairs an ordering defect. This is the second dead end in the shipped path and it belongs to sequencing alone.</p></div></div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s4'">Go to the North Star →</button></div>
+        </div></div>
+        <aside class="note"><h4>Two honest repairs</h4><p>Both are acceptable. What is not acceptable is the third thing today's product does, which is to answer a question it has not yet been given the information to answer, and render the gap as machinery language.</p></aside>
+      </div><div class="pager"><a href="#s2">← Previous</a><a href="#s4">Next →</a></div>
+    </section>
+
+    <p class="part">PART TWO · NORTH STAR: MEMBERSHIP IS ACCESS</p>
+
+    <section id="s4">
+      <div class="screen-title"><span class="number">04</span><h2>Day zero: one admin act, and a claim proved before it is made</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Copilot Control Tower Administration</span></div><div class="app">
+          <aside class="rail"><div class="brand">Administration</div><div class="group">ONBOARDING</div><div class="stage done"><b>✓</b><span>Orientation</span></div><div class="stage done"><b>✓</b><span>Prerequisites</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Describe your organization</span></div><div class="stage done"><b>✓</b><span>Integrations</span></div><div class="stage current"><b>●</b><span>Your shared secret store</span></div><div class="stage"><b>○</b><span>Review and hand off</span></div></aside>
+          <div class="content"><span class="eyebrow">ONBOARDING</span><h3>Your shared secret store</h3><p class="lead">A shared secret store is one service that holds your organization's keys and hands them out by team. That is why a key never lives in a repo or in this app.</p>
+            <div class="card"><div class="decision"><b>Store type</b><span>Infisical</span></div><div class="decision"><b>Store address</b><span><code>https://secrets.enac.example</code> · This is a web address, not a secret.</span></div><div class="decision"><b>Which teams can use it</b><span>Accounting, Sales</span></div></div>
+            <div class="card next"><div class="card-title"><span>Who can use it</span><span class="chip new">NEW</span></div><p style="margin:0;color:var(--muted)">Use the same sign-in your team already uses for GitHub, so being on a team is what hands out the keys. Nobody has to be sent a key, ever.</p></div>
+            <div class="card inset callout"><b class="ok">✓</b><div><strong>Connected. Anyone on the teams you named gets these keys automatically.</strong><p>Control Tower checked that this store really does hand out keys by team before saying so. <span class="chip new">NEW</span></p></div></div>
+            <div class="card inset callout"><b class="warn">−</b><div><strong>I couldn't confirm this store hands out keys by team, so I won't say it's connected.</strong><p>The refusal variant. Never fake healthy applies to the administrator exactly as it applies to Bob.</p></div></div>
+            <div class="footer"><button>Back</button><button class="primary">Continue</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>One item on the list, forever</h4><ul><li>The day Bob is hired, his admin adds him to the Accounting team on GitHub. That is the entire provisioning event.</li><li>No credential with Bob's name on it is created anywhere, so there is nothing to send, nothing to queue, and nothing to lose.</li><li>Prove before claiming. The screen only says "connected" once it has checked the property it is asserting.</li></ul></aside>
+      </div><div class="pager"><a href="#s3">← Previous</a><a href="#s5">Next →</a></div>
+    </section>
+
+    <section id="s5">
+      <div class="screen-title"><span class="number">05</span><h2>Step 6 is a receipt, not a form</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage current"><b>●</b><span>What your team set up</span></div><div class="stage"><b>○</b><span>Your projects</span></div><div class="stage"><b>○</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">STEP 6 OF 9</span><h3>What your team has set up for you <span class="chip new">NEW</span></h3><p class="lead">Some of these were set up by your team, so they are already working for you. The rest use your own accounts, so they need your sign-in.</p>
+            <div class="card"><div class="card-title"><span>Shared with your team</span><span class="muted" style="text-transform:none;font-weight:400">Ready for you. Nothing to sign into.</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>NetSuite</strong><small>Your team set this up.</small></div><span class="status ok">Ready</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>The department's research assistant</strong><small>Your team set this up.</small></div><span class="status ok">Ready</span></div>
+            </div>
+            <div class="card"><div class="card-title"><span>Your accounts</span></div>
+              <div class="row"><b class="glyph muted">○</b><div><strong>Slack</strong><small>Uses your own account.</small></div><button>Sign in to Slack</button></div>
+            </div>
+            <div class="card inset callout"><b>i</b><div><strong>No shared row ever carries a button.</strong><p>"Available to connect" does not appear here because in this model the state cannot occur. A shared thing is ready, because he is on the team, or it is not his team's yet, and then the actor is his admin.</p></div></div>
+            <div class="footer"><button>Back</button><div class="actions"><button class="plain">Skip for now</button><button class="primary">Continue</button></div></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>The best moment is the one he does not notice</h4><ul><li>The absence of a button where he expected a chore is the strongest moment in the flow, and it works precisely because nothing draws attention to it.</li><li>It names NetSuite, which he uses daily, never a key he has never heard of. Recognition, not delight, is the correct target.</li><li>The sidebar row is renamed too. "Your connections" is the sentence that created the expectation of connecting.</li></ul></aside>
+      </div><div class="pager"><a href="#s4">← Previous</a><a href="#s6">Next →</a></div>
+    </section>
+
+    <section id="s6">
+      <div class="screen-title"><span class="number">06</span><h2>The shared keys stage becomes a check that is allowed to fail</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage done"><b>✓</b><span>What your team set up</span></div><div class="stage done"><b>✓</b><span>Your projects</span></div><div class="stage current"><b>●</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">STEP 8 OF 9</span><h3>Getting your team's shared keys ready</h3><p class="lead">This part runs on its own. Keep this window open, or close it and let Control Tower finish in the menu bar.</p>
+            <div class="progress"><span style="width:72%"></span></div>
+            <div class="card"><div class="card-title"><span>Part 3 of 4</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>Setting up your four copilots</strong></div><span class="status ok">Done</span></div>
+              <div class="row"><b class="glyph info">●</b><div><strong>Getting your team's shared keys ready</strong><small>Checking that your team's keys answer to your sign-in.</small></div><span class="status info">Now</span></div>
+              <div class="row"><b class="glyph muted">○</b><div><strong>Finishing up</strong></div><span class="status muted">Next</span></div>
+            </div>
+            <div class="card inset callout"><b>i</b><div><strong>This stage is no longer exempt from the completion rule. <span class="chip new">NEW</span></strong><p>It is a check now, not a connection, so it can genuinely succeed. Anything that can genuinely succeed must be allowed to genuinely fail, or its success means nothing.</p></div></div>
+            <div class="footer"><span></span><button disabled>Setting up...</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>A check, not a connection</h4><p>Nothing is being connected here, because nothing needs connecting. The phase is named, never timed, and if the check does not pass, Verify renders the honest terminal instead of declaring success.</p></aside>
+      </div><div class="pager"><a href="#s5">← Previous</a><a href="#s7">Next →</a></div>
+    </section>
+
+    <section id="s7">
+      <div class="screen-title"><span class="number">07</span><h2>Done, with nothing still to do</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage done"><b>✓</b><span>What your team set up</span></div><div class="stage done"><b>✓</b><span>Your projects</span></div><div class="stage done"><b>✓</b><span>Set up</span></div><div class="stage current"><b>✓</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">SETUP VERIFIED · STEP 9 OF 9</span><h3>You're set up.</h3><p class="lead">Control Tower now lives quietly in your menu bar. When it has nothing to say, it says nothing. That quiet icon means everything's current.</p>
+            <div class="card"><div class="card-title"><span>Ready now</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>Your GitHub connection</strong><small>Signed in as bob-alvarez.</small></div><span class="status ok">Ready</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>4 copilots</strong><small>Knowledge, CLI, Claude, and Codex</small></div><span class="status ok">Ready</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>What your team shares with you</strong><small>NetSuite and the department's research assistant</small></div><span class="status ok">Ready</span></div>
+            </div>
+            <div class="card inset callout"><b class="aviators" aria-hidden="true">● ●</b><div><strong>When you're added to a new department later</strong><p>It'll show up in the menu bar as "Available to join," whenever you're ready.</p></div></div>
+            <div class="footer"><span></span><button class="primary">Done</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>The success state is an absence</h4><ul><li>There is no "Still to do" card, because nothing was deferred. Compare screen 02, which is the same screen in the same product on the same day.</li><li>No celebration, no percentage, no time. The strongest version of this whole design is a Done screen with nothing extra on it.</li></ul></aside>
+      </div><div class="pager"><a href="#s6">← Previous</a><a href="#s8">Next →</a></div>
+    </section>
+
+    <section id="s8">
+      <div class="screen-title"><span class="number">08</span><h2>First real use: nothing happens, visibly</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Thursday, in the menu bar</span></div>
+          <div class="popover"><div class="popover-head"><strong><span class="aviators" aria-hidden="true">● ●</span>Everything is set up.</strong><small>Bob's MacBook Air</small></div><div class="body"><div class="card-title"><span>Your copilots</span></div><div class="row"><b class="glyph ok">✓</b><div><strong>Knowledge Copilot</strong><small>Core · Organization · Accounting · This Mac</small></div><span class="status ok">Ready</span></div><div class="row"><b class="glyph ok">✓</b><div><strong>CLI Copilot</strong><small>Core · Organization · Accounting · This Mac</small></div><span class="status ok">Ready</span></div><div class="row"><b class="glyph ok">✓</b><div><strong>Claude Copilot</strong><small>Core · Organization · Accounting · This Mac</small></div><span class="status ok">Ready</span></div><div class="row"><b class="glyph ok">✓</b><div><strong>Codex Copilot</strong><small>Core · Organization · Accounting · This Mac</small></div><span class="status ok">Ready</span></div></div><div class="popover-foot"><button>Sync now</button><button>What changed</button><button>Settings...</button></div></div>
+          <div class="content" style="padding-top:0"><div class="card inset callout"><b>i</b><div><strong>What Bob actually did.</strong><p>He asked his copilot to pull last month's close from NetSuite and sanity check three variances. It answered. He never opened this popover.</p></div></div></div>
+        </div>
+        <aside class="note"><h4>He never learns the word</h4><ul><li>A skill named the key it needed. The CLI asked the store, using the fact that Bob is on the Accounting team.</li><li>The store checked that fact against the same sign-in Bob used on day one, and handed back a value that existed for the lifetime of one process. Nothing was written to disk.</li><li>Asked how his copilot reaches NetSuite, Bob would say "it just does." That answer is this design's highest possible score.</li></ul></aside>
+      </div><div class="pager"><a href="#s7">← Previous</a><a href="#s9">Next →</a></div>
+    </section>
+
+    <section id="s9">
+      <div class="screen-title"><span class="number">09</span><h2>Unreachable is not removed, and neither is "not yours yet"</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Bob's lane, when it breaks</span></div><div class="content">
+          <span class="eyebrow">HONEST DEGRADE</span><h3>Two situations with different next actors never share a sentence <span class="chip new">NEW</span></h3><p class="lead">Technically an outage and a removal are one status code apart, and today's product would render them identically. They are different human situations, so they get different sentences and different actors.</p>
+          <div class="state-grid">
+            <div class="card"><div class="card-title"><span>Can't be reached</span></div><div class="callout"><b class="muted">◌</b><div><strong>Your team's shared connections can't be reached right now.</strong><p>Nothing on this Mac changed, and I'll keep checking.</p><span class="actor">Next actor: Control Tower, and it says so. No button, because there is nothing for him to press.</span></div></div></div>
+            <div class="card"><div class="card-title"><span>Still can't be reached</span></div><div class="callout"><b class="warn">−</b><div><strong>Your team's shared connections still aren't reachable, so this one belongs to whoever looks after your Mac.</strong><div class="actions" style="margin-top:10px"><button>Copy details for support</button></div><span class="actor">Next actor: a named human, once waiting has stopped being a plausible answer.</span></div></div></div>
+            <div class="card"><div class="card-title"><span>Access turned off</span><span class="chip new">NEW</span></div><div class="callout"><b class="warn">−</b><div><strong>Your access to your team's shared connections was turned off.</strong><p>Anything you saved on this Mac is still yours, and nothing was removed.</p><p>If that's a surprise, ask whoever looks after Accounting.</p><span class="actor">Next actor: whoever looks after Accounting. No button, because pressing one would imply he could argue with it.</span></div></div></div>
+            <div class="card"><div class="card-title"><span>Not made available</span></div><div class="row" style="padding-top:0"><b class="glyph muted">○</b><div><strong>Salesforce</strong><small>Your team hasn't made this available to you.</small></div><span class="status muted">Not yours</span></div><div class="callout"><b>i</b><div><p style="margin:0">Whoever looks after Accounting can add it.</p><div class="actions" style="margin-top:10px"><button>Copy a note to your admin</button><span class="chip new">NEW</span></div><span class="actor">Next actor: the admin. The composer writes plain text he can paste into chat. It invents no request system.</span></div></div></div>
+          </div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s10'">See offboarding →</button></div>
+        </div></div>
+        <aside class="note"><h4>Never red, never raw, never alone in a loop</h4><ul><li>Shared rows go quiet rather than red. An outage is not Bob's fault, his fix, or his task.</li><li>Access loss is stated as a fact about access, with his own work preserved in the same breath. He is never asked to judge a security event and never blamed for one.</li><li>Silence would read as a bug. A Connect button would read as a promise. The unavailable service gets a sentence and a route instead.</li></ul></aside>
+      </div><div class="pager"><a href="#s8">← Previous</a><a href="#s10">Next →</a></div>
+    </section>
+
+    <section id="s10">
+      <div class="screen-title"><span class="number">10</span><h2>Offboarding uses the same lever as onboarding</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Someone left</span></div><div class="content">
+          <span class="eyebrow">ONE REMOVAL, BOTH REVOKED</span><h3>The grant and the revoke are the same act</h3><p class="lead">Because membership was never a second fact, removing it removes the access. Offboarding cannot be half done.</p>
+          <div class="state-grid">
+            <div class="card"><div class="card-title"><span>Admin · Governance</span></div><p style="margin:0 0 10px;color:var(--muted)">This app doesn't manage people. When someone leaves, remove them from their teams on GitHub. Then rotate the keys those teams could reach in your shared store, so their old access is worthless.</p>
+              <div class="row"><b class="glyph muted">›</b><div><strong>Accounting team</strong><small>Teams they were on</small></div><button>Open on GitHub ›</button></div>
+              <div class="row"><b class="glyph muted">›</b><div><strong>NETSUITE_TOKEN (Accounting)</strong><small>Keys to rotate</small></div><button>Open the store ›</button></div>
+              <span class="actor">No offboard button. The screen triggers nothing, it instructs.</span>
+            </div>
+            <div class="card"><div class="card-title"><span>Bob's Mac, next time it looks</span></div><div class="callout"><b class="warn">−</b><div><strong>Your access to your team's shared connections was turned off.</strong><p>Anything you saved on this Mac is still yours, and nothing was removed.</p><p>If that's a surprise, ask whoever looks after Accounting.</p><span class="actor">The same sentence as screen 09. One situation, one string, wherever it surfaces.</span></div></div></div>
+          </div>
+          <div class="card inset"><div class="decision"><b>What is revoked</b><span>His access to the team's shared keys, at the next invocation, because it was never a separate grant.</span></div><div class="decision"><b>What is not</b><span>Content already on his disk. That is the accepted residual, and the copy never implies otherwise.</span></div><div class="decision"><b>What is not claimed</b><span>Control Tower does not say it wiped anything, because it did not. Never destroy holds on the way out too.</span></div></div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s11'">Go to the pragmatic release →</button></div>
+        </div></div>
+        <aside class="note"><h4>Revocation with nothing to remember</h4><p>In every other model, revoking is a second action in a second system that someone has to remember. This is the paragraph that makes membership as access a security answer and not only a user experience one.</p></aside>
+      </div><div class="pager"><a href="#s9">← Previous</a><a href="#s11">Next →</a></div>
+    </section>
+
+    <p class="part">PART THREE · PRAGMATIC FIRST RELEASE: THE APPROVAL, DESIGNED PROPERLY</p>
+
+    <section id="s11">
+      <div class="screen-title"><span class="number">11</span><h2>One row he can act on, shown only if he can act</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage current"><b>●</b><span>What your team set up</span></div><div class="stage"><b>○</b><span>Your projects</span></div><div class="stage"><b>○</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">STEP 6 OF 9 · IF THE STORE CANNOT BE TEAM GATED YET</span><h3>What your team has set up for you</h3><p class="lead">Some of these were set up by your team, so they are already working for you. The rest use your own accounts, so they need your sign-in.</p>
+            <div class="card"><div class="card-title"><span>Available to your team</span></div>
+              <div class="row"><b class="glyph info">→</b><div><strong>Your team's shared connections</strong><small>Needs one approval from your admin</small></div><button class="primary">Ask for access</button></div>
+            </div>
+            <div class="card"><div class="card-title"><span>Your accounts</span></div>
+              <div class="row"><b class="glyph muted">○</b><div><strong>Slack</strong><small>Uses your own account.</small></div><button>Sign in to Slack</button></div>
+            </div>
+            <div class="card inset callout"><b>i</b><div><strong>The button does not say Connect, because "connect" does not describe what pressing it does. <span class="chip new">NEW</span></strong><p>This row appears only when the CLI reports that the request is actionable by him. If his organization has not turned on approvals, the row does not exist and he sees "Your team hasn't made this available to you" instead.</p></div></div>
+            <div class="footer"><button>Back</button><div class="actions"><button class="plain">Skip for now</button><button class="primary">Continue</button></div></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>Routed, not universal</h4><ul><li>A request button in an organization that cannot receive requests is today's Connect button, rebuilt. The CLI decides; the app renders the decision.</li><li>It is an admin owned approval that Bob merely initiates, never a credential task Bob owns.</li><li>He is blocked on a person, and the design cannot hide that. It can only make the ask short, familiar, and survivable.</li></ul></aside>
+      </div><div class="pager"><a href="#s10">← Previous</a><a href="#s12">Next →</a></div>
+    </section>
+
+    <section id="s12">
+      <div class="screen-title"><span class="number">12</span><h2>A code sheet that deliberately rhymes with day one</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Ask for access</span></div>
+          <div class="popover"><div class="popover-head"><strong>Ask for access</strong><small>Read this code to whoever set up Copilot for your team.</small></div>
+            <div class="body"><p>When they approve it, your team's shared connections arrive here on their own. You'll never have to type a key.</p>
+              <div class="card inset"><span class="field">Your code</span><span class="code">4TQ9-KMD2</span><button>Copy code</button></div>
+              <p class="muted">Waiting for your admin to approve...</p>
+            </div>
+            <div class="popover-foot"><button>Cancel</button></div>
+          </div>
+          <div class="content" style="padding-top:0"><div class="card inset callout"><b>i</b><div><strong>If Bob closes the wizard, the request survives and moves to his menu bar. <span class="chip new">NEW</span></strong><p>When it lands, the reward is silence plus one past tense line in What changed: "Your team's shared connections are ready."</p></div></div></div>
+        </div>
+        <aside class="note"><h4>Familiar shape beats explanation</h4><ul><li>It is the same shape as the GitHub sign in he completed four minutes earlier: a short code, a human step, then the wizard moves on by itself.</li><li>The code is not a secret. Read aloud across an open plan office it grants nobody anything, because approval still requires the admin's own sign in.</li><li>That property is why it can travel through a human channel at all, and it is stated to the admin, never to Bob, who does not need to carry the reasoning.</li></ul></aside>
+      </div><div class="pager"><a href="#s11">← Previous</a><a href="#s13">Next →</a></div>
+    </section>
+
+    <section id="s13">
+      <div class="screen-title"><span class="number">13</span><h2>The admin's counterpart, and the fallback for orgs without Admin mode</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Copilot Control Tower Administration</span></div><div class="app">
+          <aside class="rail"><div class="brand">Administration</div><div class="group">GOVERNANCE</div><div class="stage"><b>○</b><span>Add a department</span></div><div class="stage"><b>○</b><span>Someone left</span></div><div class="stage current"><b>●</b><span>Requests for access</span></div><div class="stage"><b>○</b><span>Org setup</span></div></aside>
+          <div class="content"><span class="eyebrow">GOVERNANCE</span><h3>Requests for access <span class="chip new">NEW</span></h3><p class="lead">Someone on your team asked for their Mac to be given access to your organization's shared keys. Approving gives that one Mac its own key.</p>
+            <div class="card"><div class="card-title"><span>Waiting for you · 1</span></div>
+              <div class="row"><b class="glyph info">→</b><div><strong>Bob Alvarez (Accounting) asked from a Mac named "Bob's MacBook Air".</strong><small>Code 4TQ9. He will read this code to you, so you can check that the request in front of you is his.</small></div><div class="actions"><button class="primary">Approve</button><button>Not now</button></div></div>
+            </div>
+            <div class="card inset callout"><b class="ok">✓</b><div><strong>Approved. Bob's Mac picks this up on its own. You never have to send him a key.</strong><p>This gives that one Mac its own key, which you can turn off later without changing anyone else's.</p></div></div>
+            <div class="card"><div class="card-title"><span>For organizations without Admin mode</span></div><p style="margin:0;color:var(--muted)">Claude Code approves this in your terminal, the same way it set up your organization. It never deletes or overwrites anything already there.</p><div class="command"><code>cc access approve 4TQ9</code></div><div class="actions" style="margin-top:10px"><button class="primary">Copy the command to approve it</button></div></div>
+            <div class="footer"><button>Back</button><span class="muted">Nothing is sent to Bob. His Mac collects it.</span></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>Her attention becomes a dependency</h4><ul><li>This is one act per person per Mac, forever, plus a queue she has to notice. It is worst on the day it matters most: new hire, admin in back to back meetings.</li><li>The fallback is not a downgrade. It is the house's existing baton pass, the same shape as "Connect the shared store" today.</li><li>Offboarding now takes two acts in two systems: remove from GitHub, then remember to turn off the per Mac key. That is the honest price of this option.</li></ul></aside>
+      </div><div class="pager"><a href="#s12">← Previous</a><a href="#s14">Next →</a></div>
+    </section>
+
+    <section id="s14">
+      <div class="screen-title"><span class="number">14</span><h2>A state changes. A value never appears.</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Landing, and the honest degrades</span></div><div class="content">
+          <span class="eyebrow">THE PRAGMATIC FLOOR</span><h3>The row flips, the heading disappears, and nothing is ever shown</h3>
+          <div class="card"><div class="card-title"><span>Shared with your team</span><span class="muted" style="text-transform:none;font-weight:400">Ready for you. Nothing to sign into.</span></div>
+            <div class="row"><b class="glyph ok">✓</b><div><strong>Your team's shared connections</strong><small>Your team set this up.</small></div><span class="status ok">Ready</span></div>
+          </div>
+          <div class="card inset callout"><b class="ok">✓</b><div><strong>Never a value, never a masked value, never the first four characters. <span class="chip new">NEW</span></strong><p>The human channel carried only the code. Approval mints a scoped, revocable, per machine key, and the CLI on Bob's Mac receives it once and writes it straight into his keychain. The "Available to your team" heading is gone, because nothing under it is pending any more.</p></div></div>
+          <div class="card"><div class="card-title"><span>When it does not go smoothly</span><span>Six states, each with a named next actor</span></div>
+            <div class="decision"><b>Still waiting</b><span>"Your request is still waiting on whoever looks after Accounting." with <em>Copy details for support</em>. A named human, never a timer.</span></div>
+            <div class="decision"><b>Approved, offline</b><span>"Your access was approved. I'll finish setting it up when you're back online." Control Tower is the actor, and it says so.</span></div>
+            <div class="decision"><b>Declined</b><span>"That request wasn't approved. Whoever looks after Accounting can tell you why." No retry button, because a retry that re-fails is a slot machine.</span></div>
+            <div class="decision"><b>Not on the team</b><span>"Your team hasn't made this available to you." A different situation from a decline, so it never borrows the decline sentence.</span></div>
+            <div class="decision"><b>Two Macs</b><span>"Each of your Macs asks for its own access. This one is asking now." Said once, or he reads the second ask as a bug.</span></div>
+            <div class="decision"><b>Store down</b><span>The same outage sentence as screen 09. Never invent a second dialect for the same fact.</span></div>
+          </div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s15'">See the floor →</button></div>
+        </div></div>
+        <aside class="note"><h4>Six states where the other model has two</h4><p>Every one of these needs copy, testing, and a route. That cost is permanent while the benefit is temporary, which is the shape of a bridge and the reason it carries a deletion date.</p></aside>
+      </div><div class="pager"><a href="#s13">← Previous</a><a href="#s15">Next →</a></div>
+    </section>
+
+    <p class="part">PART FOUR · THE FLOOR, AND THE FORK</p>
+
+    <section id="s15">
+      <div class="screen-title"><span class="number">15</span><h2>Eleven rules that hold whichever way the fork goes</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Non-negotiables</span></div><div class="content">
+          <span class="eyebrow">UNBLOCKED BY THE DECISION</span><h3>The floor underneath both answers</h3><p class="lead">Whichever credential model wins, Bob's Mac will one day be offline, or the store will be down, or he will have been removed from a team. On that day the product must say a true sentence that names a human. Today it says raw developer output, or nothing.</p>
+          <div class="rules">
+            <div><b>01</b><span><strong>No raw error text, ever, on any Bob surface.</strong> The CLI authors a sentence for a person, or the app says nothing. This applies to the admin's screens too.</span></div>
+            <div><b>02</b><span><strong>No dotfile, Terminal, or file path advice as a user facing step.</strong> If the only real fix is a command, it lives behind the existing "show me the step" sheet, and only for someone the product can prove is the admin.</span></div>
+            <div><b>03</b><span><strong>No secret value on screen, in any form, and no secret names either.</strong> Name the service, never the key.</span></div>
+            <div><b>04</b><span><strong>No state whose only action is impossible.</strong> If a row cannot be acted on by the person reading it, it must not be styled as an action.</span></div>
+            <div><b>05</b><span><strong>No "check again later" without a named next actor.</strong> Either Control Tower says it will keep checking, in its own voice, or a human is named.</span></div>
+            <div><b>06</b><span><strong>No promise the next card contradicts.</strong> Either the affordance exists or the sentence goes. This is the honesty violation Bob can personally verify.</span></div>
+            <div><b>07</b><span><strong>No button on a shared row.</strong> A thing his team set up is not his to operate, and the absence of the button is how he learns that without being told.</span></div>
+            <div><b>08</b><span><strong>No stage exempt from the completion rule while setup still claims success.</strong> A stage that cannot fail cannot be trusted when it passes.</span></div>
+            <div><b>09</b><span><strong>Two situations with different next actors never share a sentence.</strong> Unreachable is not removed. Declined is not ineligible.</span></div>
+            <div><b>10</b><span><strong>Bob is never asked to judge a security event, and never blamed for one.</strong> Access loss is stated as a fact about access, with his own work preserved in the same breath.</span></div>
+            <div><b>11</b><span><strong>No celebration, no time estimate, no percentage.</strong> Silence is the success state.</span></div>
+            <div><b>→</b><span><strong>Fix the floor first.</strong> It cannot be wasted work under either answer, and today's screen tells an accountant to edit a dotfile.</span></div>
+          </div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s16'">Go to the question →</button></div>
+        </div></div>
+        <aside class="note"><h4>Honesty is not the same as working</h4><p>Making the absence of a connection completely legible removes every dead end, and it makes nothing new work. Bob who is told clearly that his keys are unavailable still cannot close the month. The floor is necessary and it is not the answer.</p></aside>
+      </div><div class="pager"><a href="#s14">← Previous</a><a href="#s16">Next →</a></div>
+    </section>
+
+    <section id="s16">
+      <div class="screen-title"><span class="number">16</span><h2>The one question the owner has to answer</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>The fork</span></div><div class="content">
+          <span class="eyebrow">DECISION NEEDED · OWNER</span><h3>Is "your organization's shared store must answer to the same sign-in as your GitHub teams" a product requirement, or a recommended configuration with a supported fallback?</h3><p class="lead">Everything in this walkthrough follows from that single fork, and the fork is not technical. It is a choice between an operational cost the organization pays once, and a permanent surface Bob and his admin pay for every day.</p>
+          <div class="state-grid">
+            <div class="card next"><div class="card-title"><span>Answer: requirement</span><span class="status ok">Screens 04 to 10</span></div>
+              <div class="decision"><b>Bob's day one</b><span>Zero credential moments. He signs in to GitHub once, at step 2, and never meets the subject again.</span></div>
+              <div class="decision"><b>What he learns</b><span>Nothing. He cannot describe the mechanism and never needs to.</span></div>
+              <div class="decision"><b>Failure surface</b><span>Two states, both routed: unreachable, or turned off.</span></div>
+              <div class="decision"><b>Admin's grant</b><span>One act, forever: add to the GitHub team.</span></div>
+              <div class="decision"><b>Admin's revoke</b><span>The same act as the grant. Offboarding cannot be half done.</span></div>
+              <div class="decision"><b>The cost</b><span>An organization that cannot wire its store that way is not supported on shared connections at all.</span></div>
+            </div>
+            <div class="card"><div class="card-title"><span>Answer: recommended, with a fallback</span><span class="status info">Screens 11 to 14 ship alongside</span></div>
+              <div class="decision"><b>Bob's day one</b><span>One moment, well designed, that ends in waiting on another human before his first run is complete.</span></div>
+              <div class="decision"><b>What he learns</b><span>That there is a thing called shared access, that his admin controls it, and that he had to ask. It moves him from "it works" to "someone lets me."</span></div>
+              <div class="decision"><b>Failure surface</b><span>Six states, all needing copy, plus both of the other model's.</span></div>
+              <div class="decision"><b>Admin's grant</b><span>One act per person per Mac, forever, plus a queue she must notice.</span></div>
+              <div class="decision"><b>Admin's revoke</b><span>Two acts in two systems. Offboarding is only as good as her memory.</span></div>
+              <div class="decision"><b>Lifespan</b><span>A bridge with a deletion date. The delivery pipeline built for it is discarded when the other answer lands.</span></div>
+            </div>
+          </div>
+          <div class="card inset callout"><b>i</b><div><strong>The sharpener, before answering.</strong><p>Is there a real member who needs shared connections before the store can be team gated? If the honest answer is no, the fallback is a pipeline built for nobody.</p></div></div>
+          <div class="footer"><button class="plain" onclick="location.hash='s15'">The floor needs no answer</button><button class="primary" onclick="location.hash='s1'">Restart walkthrough</button></div>
+        </div></div>
+        <aside class="note"><h4>Decide on felt experience, not plumbing</h4><p>The delta is not schema work. It is zero credential moments against one, two failure states against six, and one lever that both grants and revokes against a queue plus a second thing to remember. Screens 15 and the honest degrade floor are correct under either branch and are not blocked by this decision.</p></aside>
+      </div><div class="pager"><a href="#s15">← Previous</a><a href="#s1">Restart ↺</a></div>
+    </section>
+  </main>
+  <script>
+    const root=document.documentElement,button=document.querySelector("#theme");
+    const themes=["auto","light","dark"];
+    button.addEventListener("click",()=>{const next=themes[(themes.indexOf(root.dataset.theme)+1)%themes.length];root.dataset.theme=next;button.textContent="Theme: "+(next==="auto"?"system":next)});
+  </script>
+</body>
+</html>

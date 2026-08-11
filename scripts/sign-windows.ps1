@@ -70,7 +70,7 @@
 .EXAMPLE
   $env:CT_SIGN_THUMBPRINT = '<the real EV cert thumbprint>'
   $env:CT_SIGNTOOL_PATH   = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe'
-  ./scripts/sign-windows.ps1 -MsiPath 'C:\out\CopilotControlTower_0.1.0_x64.msi'
+  ./scripts/sign-windows.ps1 -MsiPath 'C:\out\CopilotControlTower_0.1.1_x64.msi'
 #>
 
 [CmdletBinding()]

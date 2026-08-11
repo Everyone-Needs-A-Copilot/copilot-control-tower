@@ -1,7 +1,7 @@
 """
 product_usage.py — usage archaeology for two products: CLI Copilot (the
 `copilot`/`cli_copilot` binary, repo `cli-copilot`) and Knowledge Copilot
-(the knowledge repo, canonically `knowledge-copilot/`, aliased as
+(the knowledge repo, canonically `knowledge-copilot-internal/`, aliased as
 `shared-docs` and `~/.claude/knowledge`).
 
 Question under investigation: are these products *actually used* in real
@@ -51,10 +51,13 @@ Knowledge Copilot path aliasing
 ===========================================================================
 
 `shared-docs` and `~/.claude/knowledge` are both **symlinks** to the same
-`knowledge-copilot/` directory (verified via `ls -la` / `readlink`):
+`knowledge-copilot-internal/` directory (verified via `ls -la` / `readlink`;
+the mature content was renamed from bare `knowledge-copilot` to
+`knowledge-copilot-internal` — a new, thin, generic public-base repo now
+occupies the bare `knowledge-copilot` name):
 
-    /Volumes/Dev/Sites/COPILOT/shared-docs -> knowledge-copilot
-    ~/.claude/knowledge -> /Volumes/Dev/Sites/COPILOT/knowledge-copilot
+    /Volumes/Dev/Sites/COPILOT/shared-docs -> knowledge-copilot-internal
+    ~/.claude/knowledge -> /Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal
 
 `cc config get paths.knowledge_repo` (machine config,
 `~/.claude/cc/config.json`) additionally lists a second, much smaller repo:
@@ -233,14 +236,16 @@ def classify_bash_command(cmd: str) -> list[BashClassification]:
 # ---------------------------------------------------------------------------
 
 KNOWLEDGE_PRIMARY_MARKERS = re.compile(
-    r"/shared-docs(?:/|$)|/knowledge-copilot(?:/|$)|/\.claude/knowledge(?:/|$)"
+    r"/shared-docs(?:/|$)|/knowledge-copilot(?:-internal)?(?:/|$)|/\.claude/knowledge(?:/|$)"
 )
 KNOWLEDGE_SECONDARY_MARKERS = re.compile(r"claude-copilot-private/knowledge(?:/|$)")
 
 
 def classify_knowledge_path(path: str) -> Optional[str]:
-    """Return 'primary' (knowledge-copilot / shared-docs / ~/.claude/knowledge
-    — these are the SAME directory via symlinks, verified by readlink),
+    """Return 'primary' (knowledge-copilot-internal / shared-docs /
+    ~/.claude/knowledge — these are the SAME directory via symlinks,
+    verified by readlink; the bare `knowledge-copilot` name also matches,
+    since it is checked without the `-internal` suffix too),
     'secondary' (claude-copilot-private/knowledge, a distinct much smaller
     repo also registered in paths.knowledge_repo), or None."""
     if not path:
@@ -254,9 +259,9 @@ def classify_knowledge_path(path: str) -> Optional[str]:
 
 def normalize_knowledge_relpath(path: str) -> Optional[str]:
     """Strip whichever alias prefix was used and return the path relative to
-    the knowledge-copilot repo root, for cross-referencing against the real
-    on-disk file inventory. Returns None if not a knowledge path."""
-    for marker in ("/shared-docs/", "/knowledge-copilot/", "/.claude/knowledge/"):
+    the knowledge-copilot-internal repo root, for cross-referencing against
+    the real on-disk file inventory. Returns None if not a knowledge path."""
+    for marker in ("/shared-docs/", "/knowledge-copilot-internal/", "/knowledge-copilot/", "/.claude/knowledge/"):
         idx = path.find(marker)
         if idx != -1:
             return path[idx + len(marker):]
@@ -573,7 +578,11 @@ def print_report(result: dict, knowledge_repo: Path) -> None:
     n_kn = sum(1 for s in sessions.values() if (s.knowledge_primary_reads + s.knowledge_secondary_reads) > 0)
     print(f"Sessions with >=1 Read/Grep/Glob into a knowledge repo: {n_kn}/{n} ({n_kn/n*100:.1f}%)")
 
-    own_repo_slugs = {"-Volumes-Dev-Sites-COPILOT-shared-docs", "-Volumes-Dev-Sites-COPILOT-knowledge-copilot"}
+    own_repo_slugs = {
+        "-Volumes-Dev-Sites-COPILOT-shared-docs",
+        "-Volumes-Dev-Sites-COPILOT-knowledge-copilot-internal",
+        "-Volumes-Dev-Sites-COPILOT-knowledge-copilot",  # pre-rename slug, kept for historical transcripts
+    }
     kn_sessions = [s for s in sessions.values() if (s.knowledge_primary_reads + s.knowledge_secondary_reads) > 0]
     n_own = sum(1 for s in kn_sessions if s.project_slug in own_repo_slugs)
     n_cross = len(kn_sessions) - n_own
@@ -702,7 +711,7 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--projects-dir", default=str(Path.home() / ".claude" / "projects"))
-    ap.add_argument("--knowledge-repo", default="/Volumes/Dev/Sites/COPILOT/knowledge-copilot")
+    ap.add_argument("--knowledge-repo", default="/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal")
     ap.add_argument("--out", default=str(Path(__file__).parent / "output"))
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()

@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>14 · Admin form placeholders — UI walkthrough</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: #f4f3f7;
+      --panel: #ffffff;
+      --field: #ffffff;
+      --text: #24212e;
+      --muted: #6f6a7a;
+      --faint: #918b9d;
+      --line: #d9d5df;
+      --accent: #2d294e;
+      --accent-text: #ffffff;
+      --radius: 12px;
+      --shadow: 0 18px 45px rgb(31 27 45 / 13%);
+    }
+    [data-theme="dark"] {
+      --page: #18171c;
+      --panel: #25232b;
+      --field: #302e37;
+      --text: #f2eff6;
+      --muted: #bbb5c5;
+      --faint: #958fa0;
+      --line: #494551;
+      --accent: #aaa4d6;
+      --accent-text: #211f2b;
+      --shadow: 0 18px 45px rgb(0 0 0 / 35%);
+    }
+    @media (prefers-color-scheme: dark) {
+      html[data-theme="auto"] {
+        --page: #18171c;
+        --panel: #25232b;
+        --field: #302e37;
+        --text: #f2eff6;
+        --muted: #bbb5c5;
+        --faint: #958fa0;
+        --line: #494551;
+        --accent: #aaa4d6;
+        --accent-text: #211f2b;
+        --shadow: 0 18px 45px rgb(0 0 0 / 35%);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--page) 90%, transparent);
+      backdrop-filter: blur(16px);
+    }
+    header strong { letter-spacing: -.01em; }
+    nav { display: flex; gap: 8px; flex-wrap: wrap; }
+    nav a, button {
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 7px 10px;
+      text-decoration: none;
+      font: inherit;
+      cursor: pointer;
+    }
+    main { width: min(1120px, calc(100% - 32px)); margin: 32px auto 70px; }
+    .intro { max-width: 760px; margin-bottom: 42px; }
+    .intro h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.05; margin: 0 0 14px; letter-spacing: -.035em; }
+    .intro p, .comment p { color: var(--muted); }
+    .screen { scroll-margin-top: 90px; margin: 0 0 64px; }
+    .screen-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+    .number {
+      color: var(--faint);
+      font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em;
+    }
+    .screen h2 { margin: 0; font-size: 22px; }
+    .registers { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+    .window {
+      overflow: hidden;
+      min-height: 490px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .titlebar { height: 38px; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 14px; gap: 7px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+    .app { display: grid; grid-template-columns: 190px 1fr; min-height: 452px; }
+    .sidebar { border-right: 1px solid var(--line); padding: 20px 14px; color: var(--muted); font-size: 13px; }
+    .sidebar b { color: var(--text); display: block; margin-bottom: 14px; }
+    .sidebar span { display: block; padding: 7px 8px; border-radius: 6px; }
+    .sidebar .active { color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 600; }
+    .content { padding: 28px 32px; }
+    .eyebrow { color: var(--faint); font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
+    .content h3 { margin: 4px 0 6px; font-size: 26px; letter-spacing: -.025em; }
+    .lead { color: var(--muted); max-width: 620px; margin: 0 0 22px; }
+    .card { border-radius: var(--radius); background: color-mix(in srgb, var(--field) 92%, var(--page)); padding: 16px; display: grid; gap: 13px; }
+    .field { display: grid; gap: 5px; }
+    .field label { color: var(--muted); font-size: 12px; font-weight: 650; }
+    .input {
+      min-height: 31px;
+      display: flex;
+      align-items: center;
+      padding: 5px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--field);
+      color: var(--faint);
+      box-shadow: inset 0 1px 1px rgb(0 0 0 / 4%);
+    }
+    .input.filled { color: var(--text); }
+    .hint { color: var(--faint); font-size: 12px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+    .primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+    .comment { border-left: 2px solid var(--accent); padding: 2px 0 2px 16px; }
+    .comment h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+    .comment ul { padding-left: 18px; color: var(--muted); }
+    .next { margin-top: 14px; display: flex; justify-content: space-between; }
+    @media (max-width: 820px) {
+      .registers { grid-template-columns: 1fr; }
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .comment { max-width: 680px; }
+    }
+    @media (max-width: 560px) {
+      header { align-items: flex-start; }
+      nav { display: none; }
+      .content { padding: 22px 18px; }
+      .row { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Admin placeholders</strong>
+    <nav aria-label="Walkthrough screens">
+      <a href="#contacts">Contacts</a>
+      <a href="#github">GitHub</a>
+      <a href="#organization">Organization</a>
+      <a href="#store">Store</a>
+    </nav>
+    <button id="theme" type="button" aria-label="Toggle light and dark theme">Theme</button>
+  </header>
+  <main>
+    <section class="intro">
+      <p class="eyebrow">UI DESIGN WALKTHROUGH</p>
+      <h1>Every empty field explains what belongs there.</h1>
+      <p>Examples use the existing Native Calm field treatment. They begin with “e.g.” so placeholder copy cannot be mistaken for saved organization data. Labels remain the primary instruction; placeholders supply format and level of specificity.</p>
+    </section>
+
+    <section class="screen" id="contacts">
+      <div class="screen-head"><span class="number">01</span><h2>Contacts</h2></div>
+      <div class="registers">
+        <div class="window">
+          <div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div>
+          <div class="app">
+            <aside class="sidebar"><b>Copilot Control Tower</b><span>Orientation</span><span>Prerequisites</span><span class="active">Contacts</span><span>Get this Mac ready</span></aside>
+            <div class="content">
+              <span class="eyebrow">Onboarding</span><h3>Who's who</h3>
+              <p class="lead">Record who owns this setup, so the handoff is never guesswork.</p>
+              <div class="card">
+                <div class="field"><label>Publisher</label><div class="input">e.g. Jordan Vale</div></div>
+                <div class="field"><label>Admin</label><div class="input">e.g. Earl Reyes</div></div>
+                <div class="field"><label>Point of contact</label><div class="input">e.g. Priya Shah</div></div>
+              </div>
+              <div class="footer"><button>Back</button><button class="primary">Continue</button></div>
+            </div>
+          </div>
+        </div>
+        <aside class="comment"><h4>Recognition, not recall</h4><p>The established prototype names become examples, making it clear that each field expects a person's name. Nothing appears saved.</p><ul><li>Placeholder disappears on entry.</li><li>Label remains visible.</li><li>VoiceOver announces the label and empty example.</li></ul></aside>
+      </div>
+      <div class="next"><span></span><a href="#github">Next: GitHub →</a></div>
+    </section>
+
+    <section class="screen" id="github">
+      <div class="screen-head"><span class="number">02</span><h2>GitHub identity</h2></div>
+      <div class="registers">
+        <div class="window">
+          <div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div>
+          <div class="app">
+            <aside class="sidebar"><b>Copilot Control Tower</b><span>Contacts</span><span class="active">Get this Mac ready</span><span>Describe organization</span></aside>
+            <div class="content">
+              <span class="eyebrow">Onboarding</span><h3>Get this Mac ready</h3>
+              <p class="lead">Admin checks GitHub access and your organization automatically.</p>
+              <div class="card">
+                <div class="field"><label>Organization</label><div class="input">e.g. acme-co</div></div>
+                <div class="field"><label>GitHub OAuth App client ID</label><div class="input">e.g. Iv1.a1b2c3d4e5f6a7b8</div><span class="hint">Paste the public Client ID. Never paste its client secret.</span></div>
+              </div>
+              <div class="footer"><button>Back</button><button class="primary">Check again</button></div>
+            </div>
+          </div>
+        </div>
+        <aside class="comment"><h4>Format without jargon</h4><p>The organization example demonstrates GitHub's dashed-name format. The Client ID example demonstrates the exact public shape while the existing safety copy preserves the secret boundary.</p></aside>
+      </div>
+      <div class="next"><a href="#contacts">← Contacts</a><a href="#organization">Next: Organization →</a></div>
+    </section>
+
+    <section class="screen" id="organization">
+      <div class="screen-head"><span class="number">03</span><h2>Organization and departments</h2></div>
+      <div class="registers">
+        <div class="window">
+          <div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div>
+          <div class="app">
+            <aside class="sidebar"><b>Copilot Control Tower</b><span>Get this Mac ready</span><span class="active">Describe organization</span><span>Integrations</span></aside>
+            <div class="content">
+              <span class="eyebrow">Onboarding</span><h3>Describe your organization</h3>
+              <p class="lead">Nothing is created here. This is the plan setup will follow.</p>
+              <div class="card">
+                <div class="field"><label>Organization name</label><div class="input">e.g. acme-co</div></div>
+                <div class="field"><label>Departments</label><div class="input">e.g. Accounting</div></div>
+              </div>
+              <div class="footer"><button>Back</button><button class="primary">Continue</button></div>
+            </div>
+          </div>
+        </div>
+        <aside class="comment"><h4>One convention everywhere</h4><p>The same organization example appears wherever the same value is requested. Department copy uses a human name rather than exposing its derived repository slug.</p></aside>
+      </div>
+      <div class="next"><a href="#github">← GitHub</a><a href="#store">Next: Store →</a></div>
+    </section>
+
+    <section class="screen" id="store">
+      <div class="screen-head"><span class="number">04</span><h2>Shared store and governance</h2></div>
+      <div class="registers">
+        <div class="window">
+          <div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div>
+          <div class="app">
+            <aside class="sidebar"><b>Copilot Control Tower</b><span>Integrations</span><span class="active">Secret store</span><span>Review setup</span><span>Someone left</span></aside>
+            <div class="content">
+              <span class="eyebrow">Onboarding</span><h3>Your shared secret store</h3>
+              <p class="lead">The examples identify configuration, never secret values.</p>
+              <div class="card">
+                <div class="field"><label>Store address</label><div class="input">e.g. https://vault.acme-co.com</div></div>
+                <div class="field"><label>Workspace ID</label><div class="input">e.g. workspace-acme</div></div>
+                <div class="row">
+                  <div class="field"><label>Environment</label><div class="input">e.g. prod</div></div>
+                  <div class="field"><label>Shared secret path</label><div class="input">e.g. /shared</div></div>
+                </div>
+                <div class="field"><label>Accounting access</label><div class="input">e.g. dept/accounting</div></div>
+              </div>
+              <div class="footer"><button>Back</button><button class="primary">Connect store</button></div>
+            </div>
+          </div>
+        </div>
+        <aside class="comment"><h4>Configuration only</h4><p>URL, workspace identifier, environment, and path examples establish the expected kind of value without inventing a provider-specific format. The “e.g.” prefix and existing helper copy prevent examples from looking like live credentials. Governance reuses the same placeholders, including “e.g. octocat” for a GitHub username.</p></aside>
+      </div>
+      <div class="next"><a href="#organization">← Organization</a><span></span></div>
+    </section>
+  </main>
+  <script>
+    const root = document.documentElement;
+    const button = document.querySelector("#theme");
+    button.addEventListener("click", () => {
+      const current = root.dataset.theme;
+      root.dataset.theme = current === "dark" ? "light" : "dark";
+    });
+  </script>
+</body>
+</html>

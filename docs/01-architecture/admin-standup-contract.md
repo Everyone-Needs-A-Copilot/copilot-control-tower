@@ -1,12 +1,24 @@
 # The Admin standup contract (machine contracts for the redesigned Admin experience)
 
+> **Implementation amendment — 2026-07-23.** The packaged Admin app now owns
+> the complete zero-terminal transaction. It automatically checks its bundled
+> tools, GitHub identity, required scopes, and active organization-owner role;
+> browser-authorizes GitHub when needed; renders the engine's read-only
+> repository plan; invokes apply only after **Set up organization**; and renders
+> verify from a fresh read. This supersedes the historical baton-pass language
+> in §0, §1's “app → terminal” framing, §2, and the skill-materialization
+> requirements. The deterministic engine, brief schema, fail-closed plan/apply
+> behavior, idempotence, ownership boundary, and verify schema remain
+> normative. The Markdown brief remains human-readable; the app passes its
+> JSON twin to the engine so Python is not a packaged runtime dependency.
+
 | | |
 |---|---|
-| **Status** | Proposed (architecture). Pins the machine contracts the owner-approved Admin-mode redesign implies, as one versioned document. Control-tower-originated; folds into WS-A at freeze (§8). |
+| **Status** | Implemented with the 2026-07-23 zero-terminal amendment above. Historical baton-pass sections remain for lineage and are non-normative where the amendment supersedes them. |
 | **Serves** | `docs/03-design/admin-experience-service-design.md` (the approved service blueprint, Journeys A/B/C) and `docs/03-design/admin-experience-interaction-design.md` (the 16-surface interaction spec). Everything here must render exactly what those two design docs describe. |
 | **Reads on (authoritative)** | `docs/10-reference/four-tier-topology.md` (resolver / teams / auth mechanics), `docs/01-architecture/cli-contract.md` + `schemas/_envelope.schema.json` (schema_version, fail-closed conventions), `docs/10-reference/copilot-solutioning-ecosystem.md` (CSE component model). |
 | **Supersedes (in part)** | `docs/03-design/admin-agentic-setup.md` and `docs/03-design/control-tower-admin-flow.md` — see the reconciliation table (§7). |
-| **Governing invariants** | #1 parse-never-compute (the app collects and renders; a deterministic engine computes and executes; Claude Code narrates) · #3 never-destroy (additive/idempotent) · #4 security inherited-not-weakened (no `--force`/`--skip-verify`, no bypass; **no signing/policy-signer machinery anywhere in v1**) · #6 one-way inheritance, secrets never in git (no field defined here may hold a secret). |
+| **Governing invariants** | #1 parse-never-compute (the app collects, confirms, invokes, and renders; a deterministic engine computes and executes) · #3 never-destroy (additive/idempotent) · #4 security inherited-not-weakened (no `--force`/`--skip-verify`, no bypass; **no signing/policy-signer machinery anywhere in v1**) · #6 one-way inheritance, secrets never in git (no field defined here may hold a secret). |
 
 ---
 
@@ -20,6 +32,20 @@ enough that the app, the skill, and the script can be built against it independe
 | **The app** (Control Tower, Admin mode) | Collects the org description into a non-secret **brief** (§1); renders the **verify verb** (§3) and the read-only **registry** roll-up (§5). | Fires no GitHub mutation; computes no verdict; holds no token. |
 | **Claude Code + the `admin-bootstrap` skill** | Reads the brief as opening context, re-confirms with Earl, drives the **engine script** (§6), narrates each `{step,result,detail}` in plain language. | Makes no check-then-act decision itself — the script does (invariant #1 one level up). |
 | **The engine** (a deterministic idempotent `gh` script now; `copilot admin bootstrap` at freeze) | The ordered additive GitHub matrix (§6), naming enforcement, branch protection, `ecosystem.yml` authorship, fail-closed leak-scan, and the `--verify` read (§3). | Never touches a dirty tree, never `--force`, never provisions people, never writes an integration. |
+
+### 0.1 Shared setup and personal handoff
+
+Admin Setup owns the overall readiness outcome, but its write authority ends at
+the shared organization boundary. It creates or verifies foundation references
+and organization repositories, then emits a non-secret handoff that User Setup
+consumes after the individual authenticates with their own GitHub identity.
+
+User Setup creates or selects the individual's personal repositories and installs
+rank-10 content. Admin Setup may render only the opaque result returned by `cc`
+(present/missing, resolved rank, source provenance, and health); it never creates,
+owns, clones, inspects, or writes a personal repository. This boundary applies to
+both Claude and Codex and is ratified in
+[`ADR-004`](../40-initiatives/02-enac-self-onboarding/decisions/ADR-004-admin-shared-user-personal-onboarding.md).
 
 **Every artifact and verb defined here carries `schema_version` from day one** (§8), following the
 `_envelope.schema.json` convention: `MAJOR.MINOR[.PATCH]`, range-gated in both directions,
@@ -75,9 +101,14 @@ store:                             # connected -> pointer; deferred -> explicit 
   status: connected                # connected | deferred
   type: infisical                  # store type (picker value); omitted when deferred
   endpoint: https://vault.acme-co.com   # a URL, NOT a secret
+  workspace_id: "workspace-acme"   # project/workspace identifier, NOT a secret
+  environment: prod                # exact environment slug for device read access
+  secret_path: "/shared"           # exact path for device read access
   team_scopes:                     # which team maps to which store scope
     - { team: accounting, scope: dept/accounting }
     - { team: sales,      scope: dept/sales }
+github_app:                        # the company's OWN GitHub OAuth App (device-flow sign-in)
+  client_id: Iv1.a1b2c3d4e5f6a7b8  # PUBLIC identifier, NOT a secret; the client secret is never used
 contacts:                          # metadata for the handoff header + verify owners; not user mgmt
   publisher: "Dana R."
   admin: "Earl P."
@@ -98,6 +129,12 @@ store is connected. This file carries no secrets and no integrations.
 Connected: Infisical at https://vault.acme-co.com. Accounting -> dept/accounting,
 Sales -> dept/sales.
 
+## Company GitHub app
+acme-co created its own GitHub OAuth App, "Copilot Control Tower", with device flow
+enabled. Its Client ID is public config that travels in the org setup file, so every
+person's "Connect GitHub" sign-in runs through acme-co's own app. The app's client
+secret is never collected and never used.
+
 ## What this file is
 A plain description Claude Code reads as a starting point. It confirms it with you,
 then does the work. GitHub is the source of truth; the Setup check reads it fresh.
@@ -114,10 +151,12 @@ The **deferred** store renders as `store: { status: deferred }` in front-matter 
 | `schema_version` | string `MAJOR.MINOR[.PATCH]` | `"1.0"`. Range-gated; a brief outside the app's floor/ceiling is refused, not guessed. |
 | `org` | string (GitHub organization login, verbatim) | The **existing** GitHub org's real login, case-preserving: GitHub's own org/username rule (ASCII letters of either case, digits, single hyphens, never leading/trailing/doubled, 1-39 chars) is validated at collection, but the value itself is never transformed (never lowercased, never slugified) — it names something that already exists on GitHub, unlike `departments` below. |
 | `harness` | list of `claude` \| `codex` | Org-wide harness choice(s). One entry at standup; the second-harness re-run appends the other. Drives every repo name. |
-| `departments` | list of slugs | The **full current** expected set (a re-run rewrites the whole list). Unlike `org`, these are slugs the engine itself **generates** repo names from, so they are forced lowercase (`_valid_slug`), distinct from `org`'s case-preserving `_valid_org` rule. |
+| `departments` | list of slugs | The **full current** expected set (a re-run rewrites the whole list). Unlike `org`, these are slugs the engine itself **generates** repo names from, so they are forced lowercase (`_valid_slug`), distinct from `org`'s case-preserving `_valid_org` rule. **`internal` is reserved** for the org layer (`<C>-copilot-internal`) and is refused as a department name. |
 | `store.status` | `connected` \| `deferred` | Deferred is a first-class, honest value, never an omission. |
 | `store.type` / `store.endpoint` | string / URL | Present only when connected. Endpoint is not a secret (access stays gated at the store by GitHub-team membership). |
+| `store.workspace_id` / `store.environment` / `store.secret_path` | strings | Required for connected Infisical. Non-secret scope identifiers used by User Setup to provision exact-path, read-only device access. |
 | `store.team_scopes[]` | `{team, scope}` | Non-secret mapping; present only when connected. |
+| `github_app.client_id` | string (GitHub OAuth App client id) | The company's **own** OAuth App identifier, created during standup (§1.6). **Public, not a secret** (it rides in every device-flow request); the client secret is never collected or used. Written into `ecosystem.yml` (§4) so user installs read it for the "Connect GitHub" device flow. Collection accepts GitHub's stable 20-character public identifier shape (ASCII letters, digits, or dots), including legacy `Iv1.` and current prefixes. |
 | `contacts.{publisher,admin,point_of_contact}` | string | Labels for the handoff header and verify-verb owner names. Never grant or change access. |
 
 No `integrations` block (the admin declares none; existence lives in per-repo registries, §5).
@@ -150,6 +189,39 @@ refusal fires **at collection** (the app rejects a secret-shaped value inline an
 on the two surfaces that still collect a store endpoint), so the brief is secret-free by
 construction. The engine's fail-closed leak-scan (§6 step 6) is the defense-in-depth backstop over
 `ecosystem.yml` before any push, not the primary guarantee.
+
+### 1.6 The company's GitHub OAuth App (device-flow sign-in)
+
+**DECISION (owner-ratified, 2026-07-16):** every company creates **its own** GitHub OAuth
+App during standup. The foundation never provides one, and no company uses another company's
+client id. The app's **Client ID is public** (it appears in every device-flow request), so it
+travels in the org's inherited `ecosystem.yml` (§4) and each person's "Connect GitHub"
+device-flow sign-in runs through the company's own app. Rationale: GitHub's device flow is the
+only secret-free native path (integration-auth-research §3.1), and org OAuth-app access
+restrictions are on by default for new orgs, so a per-company app is the honest, self-contained
+shape. A client id is not a secret and may travel in inheritance; the client secret never is and
+never travels (invariant #6).
+
+**The admin step (a documented standup surface, near Connect GitHub).** Plain instructions the
+app teaches; the admin does the GitHub-web action, the app collects the result:
+
+1. Go to github.com, open the company org, then **Settings -> Developer settings -> OAuth Apps
+   -> New OAuth App**.
+2. Name it clearly, for example **Copilot Control Tower**. The homepage and callback URLs can be
+   the company's own site; device flow does not use the callback.
+3. **Enable Device Flow** on the app.
+4. **Leave the client secret unused.** The product never needs it and never asks for it.
+5. Copy the app's **Client ID** and paste it into the standup field. The app validates GitHub's
+   20-character public identifier shape and records it in the brief as `github_app.client_id`.
+
+**Where it goes.** The brief carries `github_app.client_id` (§1.3); the engine writes it into the
+org's `ecosystem.yml` (§4). No secret is collected at any point: the collection field takes only
+the public client id, and the secret-shape refusal (§1.5) still guards it.
+
+**Verify behavior.** The verify verb (§3) emits a `github-app` row and asserts that
+`ecosystem.yml` carries the same present, well-formed `github_app.client_id` as the brief. A
+missing, malformed, or different identifier is a fixable Admin-owned failure rather than a silent
+failure at every user's first sign-in.
 
 ---
 
@@ -230,7 +302,7 @@ emitting the **identical** JSON. The app **renders** these rows; it computes no 
     {
       "check": "org-triplet",
       "status": "pass",
-      "detail": "acme-co/codex-copilot, knowledge-copilot, cli-copilot exist, private.",
+      "detail": "acme-co/codex-copilot-internal, knowledge-copilot-internal, cli-copilot-internal exist, private.",
       "owner": "Admin",
       "fix_surface": "describe"
     }
@@ -276,18 +348,24 @@ For a brief with harness list `H` and departments `D`:
 
 | `check` id | Passes when | `owner` on fail/unknown | `fix_surface` |
 |---|---|---|---|
-| `org-triplet` | for each `h` in `H`, `<org>/<h>-copilot` exists; and `<org>/knowledge-copilot`, `<org>/cli-copilot` exist; all private. | Admin | describe |
+| `org-triplet` | for each `h` in `H`, `<org>/<h>-copilot-internal` exists; and `<org>/knowledge-copilot-internal`, `<org>/cli-copilot-internal` exist; all private. | Admin | describe |
 | `org-base-read` | org `default_repository_permission = read`. | GitHub org owner | external |
 | `dept-triplet` (one row per dept) | for dept `d`: for each `h` in `H`, `<h>-copilot-<d>` exists; and `knowledge-copilot-<d>`, `cli-copilot-<d>` exist. | Admin | describe |
 | `dept-team-grant` (one row per dept) | team `<org>/<d>` exists **and** grants read/write on its whole triplet. | Admin | describe |
-| `ecosystem-file` | `ecosystem.yml` exists in `<org>/<harness>-copilot`, parses, and matches the brief (org, harness set, departments, store status). | Admin | describe |
+| `ecosystem-file` | `ecosystem.yml` exists in `<org>/<harness>-copilot-internal`, parses, and matches the brief (org, harness set, departments, store status). | Admin | describe |
 | `store` | connected -> the endpoint answers and team_scopes map; **deferred -> `deferred`** (neutral). | IT infra (connected) / Admin (deferred) | connect-store |
-| `foundation-pin` | the version-pinned anon-HTTPS foundation reference resolves. | ENAC/external | external |
+| `foundation-pin:<harness>` | each product-specific, version-pinned anon-HTTPS foundation reference resolves. | ENAC/external | external |
+| `github-app` | `ecosystem.yml` carries the same well-formed public `github_app.client_id` as the brief. | Admin | describe |
+| `personal-handoff` | `ecosystem.yml` declares user-owned personal onboarding for every harness, rank 10, without a personal repo URL, credential, or content pointer. | Admin | describe |
 
 **Drift rows are emitted, not inferred by the app.** A department or a second harness present on
 GitHub but absent from the brief emits a `present-undeclared` `dept-triplet`/`org-triplet` row; the
 app renders it calm. The `store` row is the only one that can carry `deferred`. A re-run against an
 already-standing org reads as a column of `pass` with `must_fix: 0`.
+
+The `github-app` and `personal-handoff` checks are independently visible even though both values
+live in `ecosystem.yml`. While an ecosystem PR is awaiting review, all affected rows remain
+`fail`; they become `pass` only after the values are present on the default branch.
 
 ---
 
@@ -297,7 +375,7 @@ The org's config-of-record, written once and living forever, that every user's c
 resolver reads.
 
 **Home.** **DECISION (owner-ratified, sd §7.1):** the **org-level harness component repo**
-(`<org>/<harness>-copilot`) — the instruction layer every user inherits. For a two-harness org the
+(`<org>/<harness>-copilot-internal`) — the instruction layer every user inherits. For a two-harness org the
 canonical copy lives in the first-declared harness repo; the second-harness re-run keeps it there
 (it is not duplicated per component).
 
@@ -322,14 +400,35 @@ store:
   status: connected         # connected | deferred
   type: infisical
   endpoint: https://vault.acme-co.com
+  workspace_id: "workspace-acme"
+  environment: prod
+  secret_path: "/shared"
   team_scopes:
     - { team: accounting, scope: dept/accounting }
     - { team: sales,      scope: dept/sales }
+github_app:                 # the company's OWN GitHub OAuth App (§1.6)
+  client_id: Iv1.a1b2c3d4e5f6a7b8   # PUBLIC; users' device-flow sign-in reads it, secret unused
 foundation:
-  ref: "^5.x"               # the pin the SCRIPT applies; Earl chooses no version in v1
+  refs:                      # product-specific pins applied by the script
+    claude: "^5.8.0"
+    codex: "^0.6.0"
+personal:
+  owner: user                # Admin never creates or owns this layer
+  rank: 10
+  repository_pattern: "<user>/<component>-copilot-private"
 ```
 
 Deferred store: `store: { status: deferred }` (no endpoint, no team_scopes).
+
+**`github_app.client_id`** is the company's own OAuth App identifier (§1.6). It is **public config,
+not a secret**: it is the one field here that every user install reads, so their "Connect GitHub"
+device flow runs through the company's own app. The engine writes it verbatim from the brief; the
+client secret never enters the brief, this file, or any repo (invariant #6).
+
+**`personal` is a handoff contract, not a personal declaration.** It tells User
+Setup how to create or select user-owned repositories after personal sign-in. It
+must not contain a username, repository URL, token, key, or content path. The
+effective no-department ranks are personal 10, organization 30, foundation 40.
 
 **Additive-merge on re-run.** The script re-authors `ecosystem.yml` by **adding** entries and
 **never rewriting** existing ones: a new department appends to `departments`; the second harness
@@ -351,7 +450,7 @@ The distributed home of "which integrations exist," gated by entitlement. Author
 engineers in Journey B; the admin app renders it read-only.
 
 **Location.** **DECISION:** one registry per layer, living **only in that layer's `cli-copilot`
-component repo** (org: `<org>/cli-copilot`; dept: `<org>/cli-copilot-<unit>`), **not** per
+component repo** (org: `<org>/cli-copilot-internal`; dept: `<org>/cli-copilot-<unit>`), **not** per
 component. Rationale: an integration is, by the CSE model, a **CLI Copilot / integration-layer**
 artifact (a small CLI tool that reaches an outside system); a registry per component would scatter
 one concept across three repos for no gain, and the approved design's own mock places it at
@@ -411,11 +510,17 @@ POST/PATCH/PUT). The script, not the model, makes every decision.
 |---|---|---|---|
 | 0 | **Preflight auth + scope** | `gh auth status`; actor is an **owner** of `<org>`; scopes `repo` + `admin:org`. | **Refuses** (exit 2, plain instruction, teaches `gh auth refresh -s admin:org -s repo`) if any fail. No mutation before this passes. |
 | 1 | **Org base permission = read** | `PATCH /orgs/{org} -f default_repository_permission=read`. | Set-to-value no-op if already `read`. |
-| 2 | **Create the org triplet** | for each `h` in harness: GET-then-POST `<org>/<h>-copilot`; plus `<org>/knowledge-copilot`, `<org>/cli-copilot` (all **private**). | Existing repo with content -> `already-present`, never clobbered. |
-| 3 | **Branch protection on org repos** (in lieu of signing) | GET-then-PUT protection (require PR review; private) on each org repo. | PUT of the same ruleset is idempotent. |
-| 4 | **Per department (loop)** | 4a create triplet `<h>-copilot-<unit>` (each `h`), `knowledge-copilot-<unit>`, `cli-copilot-<unit>` (private); 4b create team `<org>/<unit>` (**not** nested under an org-parent team, four-tier §6.3); 4c grant the team read/write on its **whole triplet** (`PUT .../teams/{unit}/repos/...`); 4d branch protection on each dept repo. | Existing repo/team -> `already-present`; grant PUT and protection PUT are natively idempotent. |
-| 5 | **Write/update `ecosystem.yml`** | Additive merge (§4) into `<org>/<harness>-copilot`: components, departments (`topology: separate` default), harness list, store pointer, foundation pin. Initial commit on an empty repo; PR once the repo carries content. | Re-run **adds** a new dept/harness/store entry; **never rewrites** an existing one. |
+| 2 | **Create the org triplet** | for each `h` in harness: GET-then-POST `<org>/<h>-copilot-internal`; plus `<org>/knowledge-copilot-internal`, `<org>/cli-copilot-internal` (all **private**). | Existing repo with content -> `already-present`, never clobbered. |
+| 3 | **Initialize organization harness packages + protect** | After the handoff write, seed a minimal rank-30 `copilot.layer.yml` only in a confirmed-empty harness repository or the engine's known-safe handoff branch, then require PR review. | A valid existing package is reused; unfamiliar content or a different manifest is refused, never overwritten. |
+| 4 | **Per department (loop)** | 4a create triplet `<h>-copilot-<unit>` (each `h`), `knowledge-copilot-<unit>`, `cli-copilot-<unit>` (private); 4b create team `<org>/<unit>`; 4c grant the team its whole triplet; 4d seed minimal rank-20 harness packages only in confirmed-empty repos; 4e branch protection. | Existing package/repo/team -> `already-present`; unfamiliar content holds; grant/protection are idempotent. |
+| 5 | **Write/update `ecosystem.yml`** | Additive merge (§4) into `<org>/<harness>-copilot-internal`: components, departments (`topology: separate` default), harness list, store pointer, **the company GitHub app's public `client_id`** (§1.6), product-specific foundation pins, and the non-secret personal handoff. Initial commit on an empty repo; PR once the repo carries content. | Re-run **adds** a new dept/harness/store entry or first-time public client id/handoff; **never rewrites** an existing organization identity, personal ownership rule, or foundation pin. |
 | 6 | **Fail-closed leak-scan** | Run the leak-scan over `ecosystem.yml` **before any push** (deny-list: key prefixes, `BEGIN PRIVATE KEY`, `.env` shapes, high entropy). | A secret-shaped value -> **refuse to push** (invariant #6). The file carries only the non-secret endpoint + `requires_secret`-free content. |
+
+Required-review protection applies to non-administrators. Organization administrators retain
+recovery access because GitHub forbids pull-request authors from approving their own changes; a
+review rule enforced against administrators therefore deadlocks a solo-admin organization. On a
+re-run, the engine removes only administrator enforcement from an existing deadlocked rule and
+preserves the required-review rule itself.
 
 **Explicitly NOT steps (killed):**
 - **No team-member provisioning.** GitHub is the only user-management surface; the script creates
@@ -429,7 +534,7 @@ POST/PATCH/PUT). The script, not the model, makes every decision.
 **Re-run shapes.**
 - **Add a department:** runs steps 4-6 for the one unit + the base steps as no-ops; existing units
   are a full no-op.
-- **Add the second harness:** steps 2/3 create the new `<h>-copilot*` repos additively, step 4a
+- **Add the second harness:** steps 2/3 create the new `<h>-copilot-internal` repos additively, step 4a
   adds each department's second-harness repo, step 5 appends `harness`/`components`; everything
   else `already-present`.
 - **Connect the store later:** step 5 flips `store.status` and adds the pointer; step 6 re-scans.
@@ -463,7 +568,7 @@ So a developer never builds from a stale paragraph. Status: **current** / **supe
 | §0 Vocabulary (component/layer/tier/entitlement) | **Current.** |
 | §1.1 Skill(face)+CLI(engine) split; three-faces-one-engine | **Current.** |
 | §1.2 Interim `gh` script -> `copilot admin bootstrap` at freeze | **Current** (see §6/§8 here). |
-| §1.3 GitHub sequence — **naming** (`copilot-org`, `copilot-dept-<unit>`) | **Superseded by** §6 here: component-first naming (`<org>/<harness>-copilot`, `knowledge-copilot`, `cli-copilot`, each `-<unit>` per dept). |
+| §1.3 GitHub sequence — **naming** (`copilot-org`, `copilot-dept-<unit>`) | **Superseded by** §6 here: component-first naming — org layer `<org>/<C>-copilot-internal`, department `<org>/<C>-copilot-<unit>`, foundation (public, read-only) `Everyone-Needs-A-Copilot/<C>-copilot`. |
 | §1.3 step 3c **team-member provisioning** | **Superseded by** §6 (killed — GitHub is the user-management surface). |
 | §1.3 step 4 seed carries `policy_signers` + per-layer `integrations` | **Superseded by** §4 (`ecosystem.yml` v2 drops both) + §5 (registries) + §6 step 3/4d (branch protection). |
 | §1.3 single-repo-per-tier model | **Superseded by** §4/§6: a **triplet** (3 components) per layer. |
@@ -495,6 +600,20 @@ So a developer never builds from a stale paragraph. Status: **current** / **supe
 authoritative for resolver/teams/auth **mechanics**, but its illustrative repo names
 (`copilot-org`, `copilot-dept-<unit>`, single repo per tier) are superseded by the owner-ratified
 **component-first** naming and the **triplet-per-layer** matrix used throughout this contract.
+
+**Component-first naming convention (owner-ratified 2026-07-16 — universal, load-bearing).**
+For `<C>` ∈ {`<harness>`, `knowledge`, `cli`}:
+
+| Layer | Repo | Visibility | Read as |
+|---|---|---|---|
+| Foundation | `Everyone-Needs-A-Copilot/<C>-copilot` | public | anon HTTPS (bare name, never suffixed) |
+| Org | `<org>/<C>-copilot-internal` | private | the org's own layer |
+| Department | `<org>/<C>-copilot-<unit>` | private | one triplet per department |
+
+`internal` is a **fixed literal**, not the org name, so the org layer never collides with the
+foundation and both can live in one org (the ENAC/publisher case). It is therefore a **reserved
+department slug**: the engine refuses a department named `internal`, and the undeclared-department
+scanner skips `<C>-copilot-internal` (it is the org layer, not a department).
 
 ---
 

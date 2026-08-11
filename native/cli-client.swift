@@ -1,0 +1,1247 @@
+//
+// Copilot Control Tower — the CLI seam.
+//
+// This file is the ONE place in the app that ever spawns the `copilot`/`cc`
+// CLI. Everything downstream (`native/render-state.swift`, the tray, the
+// wizard, admin) renders `CliClient`'s typed results; nothing else in this
+// app touches `Process` for a CLI invocation. That is invariant #1
+// ("Parse, never compute" — `CLAUDE.md`): Control Tower calls versioned
+// `--json` verbs and renders the result, never resolves/syncs/computes
+// ecosystem state itself.
+//
+// Contract source of truth: `docs/01-architecture/cli-contract.md` and the
+// versioned schemas in `docs/01-architecture/schemas/`. The DTOs this file's
+// typed verbs decode into live in `native/cli-dtos.swift` (split out to keep
+// this file to "how do I call the CLI", not "what does it hand back").
+//
+// SECURITY / FAIL-CLOSED NOTES (see `CLAUDE.md` invariant #4):
+//   - The CLI is NEVER invoked via a shell (`no shell, no -lc`). `Process`
+//     is given an absolute `executableURL` and a plain `[String]` argument
+//     array — no string ever gets anywhere near `/bin/sh`.
+//   - The CLI path itself is never a bare name (`cc`/`copilot`) that would
+//     resolve through `$PATH` at exec time — see `CliLocator` below.
+//   - `SchemaGate` decodes ONLY `schema_version` before trusting any other
+//     field of a response, so a schema-out-of-range payload never gets far
+//     enough to leak a stale/attacker-shaped field into the render layer.
+//   - Exit code 2 is the CLI's own "trust nothing but this envelope" signal
+//     (env/credential error) — the body is decoded ONLY as the shared
+//     `{schema_version, error:{code,message}}` envelope in that case, never
+//     as the verb's normal success shape.
+//
+// CRITICAL SwiftUI/AppKit ordering constraint (see `.claude/memory` and this
+// repo's other `native/*.swift` file headers): nothing in this file may be
+// invoked from a SwiftUI `@State`/`@StateObject` `init()`. `CliClient` is a
+// plain `actor` (not `@MainActor`), so every one of its methods already runs
+// off the main actor/thread by default; the one exception (Process spawning)
+// additionally hops to a background `DispatchQueue` explicitly below, so
+// this is safe to call from a view's `.task { }` or a button action, never
+// from a property-wrapper initializer.
+
+import Darwin
+import Foundation
+import Security
+
+// MARK: - Shared process-pipe plumbing
+//
+// `LineFramer`/`ProcessDrain` live here (not in `native/admin.swift`, where
+// `ShellRunner` also uses them) because this is the one process-utility file
+// compiled into BOTH the User build (`scripts/build-user.command`) and the
+// Admin build (`scripts/build-admin.command`); `native/admin.swift` is
+// Admin-only.
+
+/// Frames arbitrary incremental byte chunks into complete lines, splitting on
+/// `\n` (a trailing `\r` is trimmed so CRLF output frames the same as LF).
+/// A partial line is held until either a later chunk completes it or
+/// `flush()` delivers it as-is (e.g. at end-of-stream), so a final line with
+/// no trailing newline is still delivered exactly once, never dropped.
+/// Callers feed it from a single serial source (one pipe's readability
+/// handler, invoked serially by construction) — this is not safe to `feed`
+/// from more than one thread at a time.
+final class LineFramer {
+    private var buffer = Data()
+    private let onLine: (String) -> Void
+
+    init(onLine: @escaping (String) -> Void) {
+        self.onLine = onLine
+    }
+
+    func feed(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        buffer.append(chunk)
+        while let newlineIndex = buffer.firstIndex(of: 0x0A) {
+            emit(buffer[buffer.startIndex..<newlineIndex])
+            buffer.removeSubrange(buffer.startIndex...newlineIndex)
+        }
+    }
+
+    /// Delivers any held partial line (no trailing newline) exactly once —
+    /// call this once, at end-of-stream. A no-op when nothing is held.
+    func flush() {
+        guard !buffer.isEmpty else { return }
+        emit(buffer[buffer.startIndex...])
+        buffer.removeAll()
+    }
+
+    private func emit(_ lineData: Data.SubSequence) {
+        var trimmed = lineData
+        if trimmed.last == 0x0D { trimmed = trimmed.dropLast() }
+        onLine(String(decoding: trimmed, as: UTF8.self))
+    }
+}
+
+/// Shared pipe-draining core for every child process this app spawns
+/// (`CliClient.runRaw` below and `native/admin.swift`'s `ShellRunner`). Both
+/// runners used to either call `waitUntilExit()` before reading their pipes
+/// at all, or drain stdout and stderr strictly one after the other — either
+/// way, a child that writes more than one pipe buffer's worth (64KB) to
+/// BOTH streams can deadlock: it blocks on a full pipe write while nothing
+/// is reading that pipe. Draining both pipes concurrently via
+/// `readabilityHandler`, independent of when `waitUntilExit()` is called,
+/// makes that deadlock structurally impossible here, not just unlikely.
+enum ProcessDrain {
+    struct Result {
+        let stdout: Data
+        let stderr: Data
+        /// True when `timeout` elapsed and the process was killed rather
+        /// than exiting on its own. The caller's `terminationStatus` in
+        /// that case reflects the kill, not a real program outcome.
+        let timedOut: Bool
+    }
+
+    /// `process` must already be running (`try process.run()` already
+    /// called) with `stdoutPipe`/`stderrPipe` set as its `standardOutput`/
+    /// `standardError`. `onStdoutLine`, when non-nil, is fed every stdout
+    /// chunk through a `LineFramer` as it arrives — purely additive, the
+    /// returned `stdout` still carries the complete accumulated output
+    /// either way, so an existing non-streaming caller is unaffected.
+    /// `timeout`, when non-nil and positive, terminates the process and
+    /// sets `timedOut` if it has not exited within that many seconds,
+    /// instead of waiting forever.
+    static func run(
+        process: Process,
+        stdoutPipe: Pipe,
+        stderrPipe: Pipe,
+        timeout: TimeInterval?,
+        onStdoutLine: ((String) -> Void)?
+    ) -> Result {
+        let outHandle = stdoutPipe.fileHandleForReading
+        let errHandle = stderrPipe.fileHandleForReading
+        let outDrained = DispatchSemaphore(value: 0)
+        let errDrained = DispatchSemaphore(value: 0)
+        let lineFramer = onStdoutLine.map(LineFramer.init(onLine:))
+
+        // Each pipe is drained by a BLOCKING read loop on its own dedicated
+        // thread, and deliberately NOT by `readabilityHandler`.
+        //
+        // This function blocks its caller until the child exits. A handler
+        // that never gets scheduled cannot drain, the pipe buffer fills, the
+        // child blocks forever on its next write, and so it never exits —
+        // which means the wait below never returns either. That deadlock is
+        // not hypothetical: it hung every single CLI call and was only caught
+        // by `scripts/tests/smoke-cli.sh`, because the in-binary bundle
+        // self-tests never spawn a real child. Draining must never depend on
+        // the caller's thread being free to service callbacks.
+        //
+        // `availableData` blocks until at least one byte is readable and
+        // returns empty exactly at EOF, so each loop ends on its own when the
+        // child's pipe closes.
+        //
+        // The accumulators are each touched by exactly one thread before its
+        // semaphore is signalled, and read by the caller only after both
+        // waits below have returned — that ordering is the synchronisation.
+        // NOTE: `onStdoutLine` is therefore invoked on a background thread;
+        // callers that touch UI state must hop to the main actor themselves.
+        nonisolated(unsafe) var outData = Data()
+        nonisolated(unsafe) var errData = Data()
+
+        let drainQueue = DispatchQueue(label: "control-tower.process-drain", attributes: .concurrent)
+        drainQueue.async {
+            while case let chunk = outHandle.availableData, !chunk.isEmpty {
+                outData.append(chunk)
+                lineFramer?.feed(chunk)
+            }
+            lineFramer?.flush()
+            outDrained.signal()
+        }
+        drainQueue.async {
+            while case let chunk = errHandle.availableData, !chunk.isEmpty {
+                errData.append(chunk)
+            }
+            errDrained.signal()
+        }
+
+        // Poll `isRunning` instead of dispatching `waitUntilExit()`. On
+        // macOS 26, a very short-lived child can exit between `run()` and
+        // the background wait task starting; Foundation's wait then remains
+        // in its private run loop even though the child is already gone.
+        // The grant mock exposed that race reliably. Polling the Process
+        // state avoids a notification-registration race while the two
+        // dedicated drain loops continue consuming both pipes.
+        var timedOut = false
+        let deadline = timeout.flatMap { value in
+            value > 0 ? Date().addingTimeInterval(value) : nil
+        }
+        while process.isRunning {
+            if let deadline, Date() >= deadline {
+                timedOut = true
+                process.terminate()
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        if timedOut {
+            let terminationDeadline = Date().addingTimeInterval(5)
+            while process.isRunning, Date() < terminationDeadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+        }
+
+        // Both read loops hit EOF once the child's pipes close, which happens
+        // at or just after exit. Bounded anyway, so a pipe held open by some
+        // surviving grandchild degrades to truncated output instead of a hang.
+        _ = outDrained.wait(timeout: .now() + 5)
+        _ = errDrained.wait(timeout: .now() + 5)
+
+        return Result(stdout: outData, stderr: errData, timedOut: timedOut)
+    }
+}
+
+// MARK: - The compiled-in production trust root (invariant #4)
+
+/// The one Developer ID team this app and its vendored `cc` helper are ever
+/// released under (see `docs/01-architecture/architecture.md`'s "Signing
+/// identity" line and `CLAUDE.md`'s credentials doctrine — this string is
+/// already public: it is printed by `codesign -dvv` on every artifact this
+/// project ships, and is not a secret). It is a literal, compiled-in
+/// constant, never read from a file, environment variable, or any other
+/// user-editable local config, matching invariant #4 ("nothing
+/// security-critical comes from user-editable local config").
+enum ProductionTrustAnchor {
+    static let teamIdentifier = "3SYGVX2HB8"
+
+    /// "Signed by Apple's real Developer ID chain, AND by this exact team" —
+    /// the standard macOS pattern an app uses to recognize its own other
+    /// artifacts (the same shape Sparkle-style updaters use to accept a
+    /// downloaded update). `anchor apple generic` requires the certificate
+    /// to genuinely chain to Apple's built-in root, which is what makes this
+    /// unforgeable by a locally-generated self-signed certificate — a bare
+    /// string compare against `kSecCodeInfoTeamIdentifier` without this
+    /// anchor clause would NOT be, since that field is parsed from the
+    /// binary's own embedded certificate without verifying who issued it.
+    private static let requirementString =
+        "anchor apple generic and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
+
+    /// True when the file at `path` is validly signed (its signature is
+    /// internally consistent with its own contents — this alone rejects a
+    /// tampered or truncated binary) AND that signature satisfies
+    /// `requirementString` above. Inspects the file's own embedded signature
+    /// fresh on every call; never trusts a cached Gatekeeper assessment,
+    /// never trusts the caller's claim about what the file is.
+    static func isSatisfied(byFileAt path: String) -> Bool {
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(
+            requirementString as CFString,
+            SecCSFlags(),
+            &requirement
+        ) == errSecSuccess, let requirement else {
+            return false
+        }
+
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(
+            URL(fileURLWithPath: path) as CFURL,
+            SecCSFlags(),
+            &staticCode
+        ) == errSecSuccess, let staticCode else {
+            return false
+        }
+
+        return SecStaticCodeCheckValidity(staticCode, SecCSFlags(), requirement) == errSecSuccess
+    }
+}
+
+// MARK: - Locating the CLI binary
+
+/// Resolves the absolute path to the `cc` CLI binary this app supervises.
+/// NEVER returns a bare command name — the caller (`CliClient.runRaw`) hands
+/// this straight to `Process.executableURL`, which does not consult `$PATH`,
+/// so a bare name here would simply fail to launch rather than silently
+/// resolving to an attacker-controlled binary earlier on `$PATH`. That is the
+/// point: this app decides which `cc` it trusts, `$PATH` does not decide for
+/// it.
+enum CliLocator {
+    /// Dev/test override — wins over every standard location, but ONLY when
+    /// it actually points at an executable file, AND (see `locate(_:_:)`
+    /// below) only when this process is not itself the production-signed
+    /// article. An unset, non-executable, or (in a signed release build)
+    /// unverified override is not an error here; it just falls through to
+    /// the standard search below (the standard locations remain a legitimate
+    /// real-machine answer even when a stale/typo'd `CT_CLI_PATH` is sitting
+    /// in the environment).
+    private static let overrideEnvVar = "CT_CLI_PATH"
+
+    /// Standard install locations, checked in this order. Mirrors the
+    /// install locations `cc`'s own installer documents (`~/.local/bin` for
+    /// a user-scoped pipx/uv install, then the two common Homebrew prefixes).
+    private static let standardLocations = [
+        "~/.local/bin/cc",
+        "/opt/homebrew/bin/cc",
+        "/usr/local/bin/cc",
+    ]
+
+    /// SECURITY (Phase 9.2 review finding A, `tc wp get 525`): `CT_CLI_PATH`
+    /// used to win over every other location with nothing stronger than
+    /// "is this file executable" — in the shipped, notarized app, a local
+    /// attacker able to set the app's process environment (e.g.
+    /// `launchctl setenv CT_CLI_PATH ...`) could redirect EVERY `cc`
+    /// invocation this app makes, including the Terminal-launched
+    /// reconciliation assistant, to an arbitrary unverified binary. That
+    /// contradicts invariant #4 outright.
+    ///
+    /// The fix does not touch the override's behavior in a dev/test build —
+    /// every existing harness under `scripts/`/`scripts/tests/` builds an
+    /// ad-hoc-signed (or, mid-release-pipeline, briefly unsigned) app, which
+    /// never satisfies `ProductionTrustAnchor`, so `isProductionSignedBuild`
+    /// is false there and the override behaves exactly as it always has.
+    /// Only once THIS process is itself running as the compiled-in-trusted,
+    /// Developer-ID-signed article (the one shape Gatekeeper/notarization
+    /// ever lets an ordinary user launch) does the override additionally
+    /// have to satisfy that same trust anchor before it can preempt the
+    /// bundled/standard resolution below — an unverified override never
+    /// wins over a trusted running app's own trust decision.
+    static func locate(
+        bundledResourceURL: URL? = Bundle.main.resourceURL,
+        runningExecutablePath: String? = Bundle.main.executablePath
+    ) -> URL? {
+        let env = ProcessInfo.processInfo.environment
+        let isProductionSignedBuild = runningExecutablePath
+            .map(ProductionTrustAnchor.isSatisfied(byFileAt:)) ?? false
+
+        if let override = env[overrideEnvVar], !override.isEmpty {
+            let expanded = (override as NSString).expandingTildeInPath
+            if FileManager.default.isExecutableFile(atPath: expanded),
+               !isProductionSignedBuild || ProductionTrustAnchor.isSatisfied(byFileAt: expanded) {
+                return URL(fileURLWithPath: expanded)
+            }
+        }
+
+        // A release app carries the independently signed, checksum-pinned
+        // helper at Contents/Resources/cc. Keep the explicit test override
+        // ahead of it, but prefer this translocation-safe bundle-relative
+        // path over every machine-installed copy. The native release pipeline
+        // refuses to package the placeholder artifact.
+        if let bundled = bundledResourceURL?.appendingPathComponent("cc"),
+           FileManager.default.isExecutableFile(atPath: bundled.path) {
+            return bundled
+        }
+
+        for candidate in standardLocations {
+            let expanded = (candidate as NSString).expandingTildeInPath
+            if FileManager.default.isExecutableFile(atPath: expanded) {
+                return URL(fileURLWithPath: expanded)
+            }
+        }
+
+        return nil
+    }
+}
+
+/// The only command handed to Terminal for a fleet-level project handoff.
+/// It changes to Python's approved root and stops. Control Tower never starts
+/// an assistant, pastes a prompt, or owns the resulting conversation.
+struct ReconciliationGuideTerminalCommand: Equatable {
+    let workspaceRoot: String
+
+    var commandLine: String {
+        "cd \(Self.shellQuote(workspaceRoot))"
+    }
+
+    var appleScriptSource: String {
+        """
+        tell application "Terminal"
+            do script \(Self.appleScriptLiteral(commandLine))
+            activate
+        end tell
+        """
+    }
+
+    static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+
+    static func appleScriptLiteral(_ value: String) -> String {
+        "\""
+            + value
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+            + "\""
+    }
+}
+
+// MARK: - Errors
+
+/// Every way a CLI call can fail to produce a trustworthy result. This is
+/// the app-side half of `CliUnreadableReason` (`native/models.swift`) — that
+/// enum is the RENDER vocabulary (what the popover says), this one is the
+/// CALL-SITE vocabulary (what actually went wrong). `native/render-state.swift`
+/// maps every case here onto a `CliUnreadableReason` for the "bang" fallback.
+enum CliError: Error, Equatable {
+    /// `CliLocator.locate()` found nothing executable anywhere it looked.
+    case notFound
+    /// `Process.run()` itself threw (e.g. the resolved path stopped being
+    /// executable between `locate()` and launch).
+    case launchFailed
+    /// Exit code 2 — the CLI's own "no trustworthy body" signal, decoded as
+    /// the shared `{schema_version, error:{code,message}}` envelope.
+    case exit2(code: String, message: String)
+    /// The body did not decode as the expected shape (and was not a
+    /// recognizable exit-2 envelope either).
+    case parse
+    /// `SchemaGate` rejected `schema_version` before trusting anything else.
+    case schemaOutOfRange
+    /// A required security-relevant field (`destructive`/`signed`/`severity`)
+    /// was absent — fail-closed per `_envelope.schema.json`'s header comment
+    /// ("Missing security-relevant fields fail closed at the consumer").
+    case missingSecurityField
+}
+
+// MARK: - Schema gate
+
+/// Range-gates `schema_version` BEFORE any other field of a CLI response is
+/// ever decoded or trusted (`cli-contract.md`'s "Requirements" section:
+/// "Control Tower declares a `min_schema`/`max_schema` range and gates BOTH
+/// directions — a CLI schema older than its floor is as fatal as one
+/// newer"). For most of this phase's frozen contract (every schema in
+/// `docs/01-architecture/schemas/` OTHER than `onboard.schema.json` is major
+/// version 1, floor `1.0`) that range collapses to one rule per verb: the
+/// major component must be exactly 1. A wider `min_schema`/`max_schema`
+/// range is a future-phase concern once a second major version actually
+/// exists to gate against for a given verb.
+///
+/// `onboard` and `reconcile` have their OWN accepted majors. Onboard's
+/// history is task 208/task 210,
+/// G-5/G-7): `onboard.schema.json` bumped 1.0 -> 2.0 (required `layers_state`,
+/// fully-populated `ecosystemLayer` rows, the `completed_actions`/`resume`
+/// ledger) — a helper still emitting the 1.x shape is now CONTRACT-INCOMPLETE
+/// for this app's rendering (task 210's retryable-vs-not classification, task
+/// 211's ledger rendering) and must be rejected, never silently decoded with
+/// the new fields absent.
+enum SchemaGate {
+    /// Retained for any existing external reference to "the" required
+    /// major — equal to `requiredMajor(forVerb:)`'s default (every verb
+    /// except `onboard` and `reconcile`).
+    static let requiredMajor = 1
+    static let minSchema = "1.0"
+
+    /// The one accepted major version for `verb` (`args.first` from the
+    /// argv `decodeVerb` was called with — e.g. `"onboard"`, `"doctor"`,
+    /// `"layers"`). Never string-matches beyond the verb name itself; every
+    /// OTHER verb keeps the prior blanket major-1 gate unchanged.
+    static func requiredMajor(forVerb verb: String) -> Int {
+        switch verb {
+        case "onboard": return 2
+        case "reconcile": return 2
+        default: return requiredMajor
+        }
+    }
+
+    private struct VersionOnly: Decodable {
+        let schemaVersion: String
+    }
+
+    /// Decodes ONLY `schema_version` — never any other key of `data` — so a
+    /// schema-out-of-range payload is rejected before any other (possibly
+    /// security-relevant) field is ever trusted.
+    static func check(_ data: Data, verb: String) -> Result<Void, CliError> {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        guard let versionOnly = try? decoder.decode(VersionOnly.self, from: data) else {
+            return .failure(.parse)
+        }
+
+        let parts = versionOnly.schemaVersion.split(separator: ".").compactMap { Int($0) }
+        guard parts.count >= 2, let major = parts.first else {
+            return .failure(.schemaOutOfRange)
+        }
+        guard major == requiredMajor(forVerb: verb) else {
+            return .failure(.schemaOutOfRange)
+        }
+        return .success(())
+    }
+}
+
+/// Gives the frozen helper a small, app-owned extraction directory instead of
+/// inheriting the session-wide macOS `TMPDIR`. PyInstaller's one-file runtime
+/// expands native modules before `cc` starts; a heavily populated or unhealthy
+/// shared temporary directory can otherwise stall before the CLI can emit its
+/// first JSON byte. This directory is runtime plumbing only—ecosystem
+/// repositories are never stored here.
+enum CliRuntimeEnvironment {
+    private static let cacheSubpath = "Library/Caches/com.everyoneneedsacopilot.controltower/cc-runtime"
+
+    static func childProcessEnvironment(
+        base: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
+    ) -> [String: String]? {
+        let home = base["HOME"] ?? NSHomeDirectory()
+        let runtimeDirectory = URL(fileURLWithPath: home, isDirectory: true)
+            .appendingPathComponent(cacheSubpath, isDirectory: true)
+        do {
+            try fileManager.createDirectory(
+                at: runtimeDirectory,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+        } catch {
+            return nil
+        }
+
+        var environment = base
+        environment["TMPDIR"] = runtimeDirectory.path
+        environment["COPILOT_MANAGED_BY"] = "controltower"
+        return environment
+    }
+}
+
+// MARK: - The CLI client
+
+/// The single seam every CLI call in this app goes through. A plain `actor`
+/// (not `@MainActor`) — its methods run on the actor's own executor, off the
+/// main thread, by construction; `runRaw` additionally hops to a background
+/// `DispatchQueue` for the actual `Process` spawn/wait, matching the
+/// off-main-thread convention `native/admin.swift`'s `ShellRunner` already
+/// establishes elsewhere in this app (that runner intentionally goes through
+/// the user's login shell for PATH-sensitive admin tooling; this one
+/// deliberately does NOT — see the file header).
+actor CliClient {
+    static let shared = CliClient()
+
+    private init() {}
+
+    /// Spawns `cc <args>` with an absolute `executableURL` and a plain
+    /// argument array. NEVER a shell, NEVER `-lc` — every argument is passed
+    /// as its own `Process.arguments` element, so nothing is ever
+    /// interpolated into a shell command line.
+    ///
+    /// `onStdoutLine`, when non-nil, is invoked once per complete line of
+    /// stdout as it arrives (newline-framed; see `LineFramer` above) IN
+    /// ADDITION to the full accumulated `stdout` this method always
+    /// returns — an opt-in streaming callback, additive to every existing
+    /// call site, none of which pass one. It fires off the main
+    /// thread/actor; a caller that touches `@MainActor` state from it must
+    /// hop there itself.
+    /// `stdin`, when non-nil, is written to the child's standard input and the
+    /// pipe is then closed (the child sees a clean EOF). This is the ONLY way
+    /// a secret VALUE ever reaches the CLI from this app — never an argument
+    /// (`ps` and the shell history would show it), never an environment
+    /// variable (inherited by every descendant, and visible in a crash
+    /// report), never a temporary file (it would outlive the process on disk).
+    /// The `Data` is written once and never retained, logged, or returned;
+    /// nothing downstream of this method can read it back.
+    ///
+    /// The write happens on its OWN queue, concurrently with `ProcessDrain`'s
+    /// stdout/stderr draining, for the same structural reason the drain reads
+    /// both pipes concurrently: a payload larger than one pipe buffer would
+    /// otherwise block this thread on the write while nothing drains the
+    /// child's output, and the child blocks on its own output write — a
+    /// deadlock that no realistic credential size would hit today and that
+    /// would be a lurking trap the first time one did.
+    func runRaw(
+        _ args: [String],
+        stdin: Data? = nil,
+        onStdoutLine: ((String) -> Void)? = nil
+    ) async -> Result<(stdout: Data, exit: Int32), CliError> {
+        guard let executableURL = CliLocator.locate() else {
+            return .failure(.notFound)
+        }
+
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let childEnvironment = CliRuntimeEnvironment.childProcessEnvironment() else {
+                    continuation.resume(returning: .failure(.launchFailed))
+                    return
+                }
+                let process = Process()
+                process.executableURL = executableURL
+                process.arguments = args
+                process.environment = childEnvironment
+
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
+
+                let stdinPipe: Pipe? = stdin == nil ? nil : Pipe()
+                if let stdinPipe {
+                    process.standardInput = stdinPipe
+                }
+
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(returning: .failure(.launchFailed))
+                    return
+                }
+
+                if let stdinPipe, let payload = stdin {
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let handle = stdinPipe.fileHandleForWriting
+                        // A child that exits before reading everything makes
+                        // this write raise SIGPIPE/an ObjC exception rather
+                        // than returning an error; `try?` on the throwing
+                        // variant keeps that from taking the app down, and the
+                        // child's own exit code and envelope remain the single
+                        // source of truth for what happened.
+                        try? handle.write(contentsOf: payload)
+                        try? handle.close()
+                    }
+                }
+
+                // `ProcessDrain` (native/admin.swift) drains both pipes
+                // CONCURRENTLY, independent of when/whether
+                // `waitUntilExit()` runs — this used to read stdout fully,
+                // then stderr fully, then wait, which can still deadlock a
+                // chatty child: if it fills the stderr pipe buffer while
+                // this call is only draining stdout, the child blocks on
+                // its stderr write and never produces the rest of stdout
+                // either. stderr is drained (never surfaced) purely so the
+                // child never blocks on it — per the copy deck, this app
+                // never shows raw CLI/stderr text to the user
+                // (`control-tower-copy-deck.md` hard rule "never shows a
+                // raw error").
+                let drained = ProcessDrain.run(
+                    process: process,
+                    stdoutPipe: stdoutPipe,
+                    stderrPipe: stderrPipe,
+                    timeout: nil,
+                    onStdoutLine: onStdoutLine
+                )
+
+                continuation.resume(returning: .success((stdout: drained.stdout, exit: process.terminationStatus)))
+            }
+        }
+    }
+
+    // MARK: Typed verbs (frozen signatures — see the Phase F plan extract)
+
+    func doctor() async -> Result<DoctorReport, CliError> {
+        await decodeVerb(["doctor", "--json"])
+    }
+
+    func authStatus() async -> Result<AuthStatus, CliError> {
+        await decodeVerb(["auth", "status", "--json"])
+    }
+
+    /// `org`, when non-nil, is passed as `--org <name>` (copy spec Appendix
+    /// E.3/§2.1.1): the one thing that resolves `org-required` — the CLI
+    /// cannot ask which organization a signed-out Mac is with (it must stay
+    /// non-interactive and `--json`-parseable), so the app supplies it here,
+    /// either read silently from this Mac's own admin standup brief or typed
+    /// by the person on the organization question screen. `nil` (the
+    /// default) is every other call site: the CLI resolves from whatever
+    /// organization pointer is already set on this Mac, exactly as before
+    /// this parameter existed.
+    func authLoginInitiate(org: String? = nil) async -> Result<AuthDeviceCode, CliError> {
+        var args = ["auth", "login"]
+        if let org, !org.isEmpty { args += ["--org", org] }
+        args.append("--json")
+        return await decodeVerb(args)
+    }
+
+    /// The poll needs `org` too, not just the initiate call — the CLI
+    /// re-resolves the organization's GitHub App client id on every poll
+    /// (`build_auth_poll_report`, copy spec Appendix E.3), so a poll that
+    /// omits it can re-hit `org-required` mid-flow for the same organization
+    /// the initiate call already resolved.
+    func authLoginPoll(deviceCode: String, org: String? = nil) async -> Result<AuthPoll, CliError> {
+        var args = ["auth", "login", "--poll", "--device-code", deviceCode]
+        if let org, !org.isEmpty { args += ["--org", org] }
+        args.append("--json")
+        return await decodeVerb(args)
+    }
+
+    /// Persists the resolved organization pointer (copy spec §2.1.1: "written
+    /// only after the sign-in ceremony actually starts... a name that never
+    /// resolved is never persisted") — called ONLY once `authLoginInitiate`
+    /// has already returned a real device code for this `org`, never before.
+    /// `cc config set` has no `--json` output (copy spec Appendix E.4, an
+    /// open contract question flagged to the owner rather than resolved
+    /// here) — this reads ONLY the process exit code, never stdout, and
+    /// never trusts a partial or human-formatted body. A `false` return
+    /// means the pointer was NOT written; the caller degrades to the
+    /// existing `environment-error` H2 hold rather than silently claiming
+    /// success (copy spec §2.1.1's own "pointer could not be written" row).
+    func configSetGithubAppOrg(_ org: String) async -> Bool {
+        switch await runRaw(["config", "set", "github_app.org", org]) {
+        case .success(let raw): return raw.exit == 0
+        case .failure: return false
+        }
+    }
+
+    /// H7's primary action. The grant variants are frozen in
+    /// `docs/01-architecture/schemas/auth.schema.json`, so both calls use
+    /// the ordinary schema-major gate and strict non-optional DTOs.
+    func authGrantInitiate() async -> Result<AuthGrantStart, CliError> {
+        await decodeVerb(["auth", "grant", "--json"])
+    }
+
+    func authGrantPoll(deviceCode: String) async -> Result<AuthGrantPoll, CliError> {
+        await decodeVerb(["auth", "grant", "--poll", "--device-code", deviceCode, "--json"])
+    }
+
+    func layers() async -> Result<LayersReport, CliError> {
+        await decodeVerb(["layers", "--json"])
+    }
+
+    func layersJoin(id: String) async -> Result<JoinResult, CliError> {
+        await decodeVerb(["layers", "join", id, "--json"])
+    }
+
+    func freshness() async -> Result<Freshness, CliError> {
+        await decodeVerb(["freshness", "--json"])
+    }
+
+    /// The organization's declared connections roster + shared-store
+    /// reachability (`connections.schema.json`, task 221 bridge stage C).
+    /// Read-only, same gate as every other verb here (`SchemaGate.requiredMajor(forVerb:)`'s
+    /// `default` case already covers major 1 -- no per-verb override needed).
+    /// The bundled 0.3.2 app's `cc 2.1.2` helper predates this verb entirely;
+    /// that surfaces as an ordinary `CliError` (verified live: exit 2, no
+    /// readable envelope -- Click's own "no such command" usage-error shape),
+    /// which callers degrade from gracefully (`CliError.looksLikeMissingConnectionsVerb`,
+    /// `native/render-state.swift`) rather than this method special-casing it.
+    func connections() async -> Result<ConnectionsReport, CliError> {
+        await decodeVerb(["connections", "--json"])
+    }
+
+    /// `cc connect <service-id> --json` (`connect.schema.json`, task 222) —
+    /// the ONE call in this app that carries a secret VALUE, and it carries it
+    /// over stdin only (see `runRaw`'s `stdin:` note for why not argv/env/a
+    /// file). `values` is `{"<NAME>": "<value>"}`; the CLI writes each to the
+    /// per-user OS keychain, re-runs `cc connections`' own presence checks, and
+    /// returns the fresh row plus a per-credential outcome list.
+    ///
+    /// This app never decides what a service requires, what is missing, or
+    /// whether a write succeeded — all four answers come back from the CLI
+    /// (invariant #1). The `values` dictionary is built at the call site from
+    /// the CLI's OWN `missing` names and is released the moment this returns;
+    /// it is never stored, never logged, and never echoed into any DTO, and
+    /// the reply is contractually guaranteed to carry no value or substring of
+    /// one.
+    ///
+    /// A `JSONEncoder` failure here is impossible for a `[String: String]` and
+    /// is mapped to `.parse` rather than force-unwrapped, so a hypothetical
+    /// future value type that cannot encode fails closed instead of trapping.
+    func connect(serviceId: String, values: [String: String]) async -> Result<ConnectReport, CliError> {
+        guard let payload = try? JSONEncoder().encode(values) else {
+            return .failure(.parse)
+        }
+        return await decodeVerb(["connect", serviceId, "--json"], stdin: payload)
+    }
+
+    /// `cc connect <service-id> --check --json` — read-only re-evaluation of
+    /// one row, no stdin read and no write. This is the post-connect refresh:
+    /// it re-asks the CLI the same question the sheet just changed the answer
+    /// to, rather than the app assuming the write took.
+    func connectCheck(serviceId: String) async -> Result<ConnectReport, CliError> {
+        await decodeVerb(["connect", serviceId, "--check", "--json"])
+    }
+
+    /// TEST-ONLY, never called from `ConnectSheet` or any other production
+    /// call site: sends `rawStdin` verbatim rather than JSON-encoding a real
+    /// `[String: String]`, so `native/wizard.swift`'s `CT_SELFTEST_STEP=connect`
+    /// harness can drive `connect.schema.json`'s `invalid-input` result
+    /// end to end (task 222) — a shape `connect(serviceId:values:)` can never
+    /// produce on its own, since it always encodes a well-formed dictionary.
+    /// Reuses the exact same `decodeVerb` pipeline as every real verb; only
+    /// the stdin payload differs.
+    func rawConnectForSelftest(serviceId: String, rawStdin: String) async -> Result<ConnectReport, CliError> {
+        await decodeVerb(["connect", serviceId, "--json"], stdin: rawStdin.data(using: .utf8))
+    }
+
+    func freshnessAllProjects() async -> Result<AllProjectsFreshness, CliError> {
+        await decodeVerb(["freshness", "--all-projects", "--json"])
+    }
+
+    func update() async -> Result<UpdateReport, CliError> {
+        await decodeVerb(["update", "--json"])
+    }
+
+    func updateFanout() async -> Result<FanoutReport, CliError> {
+        await decodeVerb(["update", "--fanout", "--json"])
+    }
+
+    func updateProject(path: String) async -> Result<UpdateReport, CliError> {
+        await decodeVerb(["update", "--project", path, "--json"])
+    }
+
+    func onboardPlan(components: [String]) async -> Result<OnboardReport, CliError> {
+        await decodeVerb(["onboard", "--scope", "personal", "--components", components.joined(separator: ","), "--json"])
+    }
+
+    func onboardApply(components: [String]) async -> Result<OnboardReport, CliError> {
+        await decodeVerb(["onboard", "--scope", "personal", "--components", components.joined(separator: ","), "--apply", "--json"])
+    }
+
+    /// `adoptExisting` is component-scoped consent (B1, adopt-existing
+    /// content): components the person selected on the "One question first"
+    /// screen. Empty by default — an unlisted adoptable component is a
+    /// no-op on the CLI side, never an implicit decline (`onboard.py`'s own
+    /// doc comment on `adopt_existing`). Appended only when non-empty so an
+    /// ordinary plan/apply call's argv is unchanged from before this flag
+    /// existed.
+    func ecosystemOnboardPlan(products: [String], adoptExisting: [String] = [], repositoryRoot: String? = nil) async -> Result<EcosystemOnboardReport, CliError> {
+        await decodeVerb(onboardArguments(org: "auto", products: products, apply: false, adoptExisting: adoptExisting, repositoryRoot: repositoryRoot))
+    }
+
+    func ecosystemOnboardApply(products: [String], adoptExisting: [String] = [], repositoryRoot: String? = nil) async -> Result<EcosystemOnboardReport, CliError> {
+        await decodeVerb(onboardArguments(org: "auto", products: products, apply: true, adoptExisting: adoptExisting, repositoryRoot: repositoryRoot))
+    }
+
+    private func onboardArguments(org: String, products: [String], apply: Bool, adoptExisting: [String], repositoryRoot: String?) -> [String] {
+        var arguments = ["onboard", "--org", org, "--products", products.joined(separator: ",")]
+        if apply {
+            arguments.append("--apply")
+        }
+        if !adoptExisting.isEmpty {
+            arguments.append(contentsOf: ["--adopt-existing", adoptExisting.joined(separator: ",")])
+        }
+        if let repositoryRoot, !repositoryRoot.isEmpty {
+            arguments.append(contentsOf: ["--repository-root", repositoryRoot])
+        }
+        arguments.append("--json")
+        return arguments
+    }
+
+    func workspaces() async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb(["workspace", "--all", "--json"])
+    }
+
+    /// One authoritative detail inspection. Unlike `workspaces()`'s bounded
+    /// summary rows, this may carry the generated prompt and owner handoff.
+    func workspace(path: String) async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb(["workspace", "--project", path, "--json"])
+    }
+
+    /// Preview or apply exactly the opaque safe action emitted by the same
+    /// project's latest inspection. The app never turns `will_add` into file
+    /// operations of its own.
+    func finishWorkspace(
+        path: String,
+        actionId: String,
+        apply: Bool
+    ) async -> Result<WorkspacesReport, CliError> {
+        var arguments = [
+            "workspace", "finish", "--project", path,
+            "--action-id", actionId,
+        ]
+        if apply {
+            arguments.append("--apply")
+        }
+        arguments.append("--json")
+        return await decodeVerb(arguments)
+    }
+
+    /// Re-inspect the complete Claude/Codex project contract. An external
+    /// assistant's success message is never an input to this call.
+    func verifyWorkspace(path: String) async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb(["workspace", "verify", "--project", path, "--json"])
+    }
+
+    /// Fetch the CLI-authored guided prompt and owner handoff for one project.
+    func workspaceIntegrationPlan(path: String) async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb(["workspace", "plan", "--project", path, "--json"])
+    }
+
+    // MARK: Python-owned ecosystem reconciliation
+
+    /// Complete read-only machine and project truth. The app does not merge
+    /// this report with `doctor`, `workspace`, or any other local inference.
+    func reconciliationAssess() async -> Result<ReconciliationOutcome<ReconciliationAssessReport>, CliError> {
+        await decodeReconciliationVerb(["reconcile", "assess", "--json"])
+    }
+
+    /// Perform the bounded beginning-of-setup work: local Product-project
+    /// checkpoints, download-only shared repository refresh, then one fresh
+    /// assessment. Git authority and every mutation stay Python-owned.
+    func reconciliationPrepare() async -> Result<ReconciliationOutcome<ReconciliationPrepareReport>, CliError> {
+        await decodeReconciliationVerb(["reconcile", "prepare", "--json"])
+    }
+
+    /// Create one bounded, opaque assistant-preparation session for the exact
+    /// request bytes selected by the person. Project paths stay in the private
+    /// request file and are never copied onto the visible Terminal command.
+    func reconciliationAssistantPrepare(
+        request: ReconciliationRequest
+    ) async -> Result<ReconciliationOutcome<ReconciliationAssistantPrepareReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            ["reconcile", "assistant-prepare", "--request", requestPath, "--json"]
+        }
+    }
+
+    /// Poll Python-owned session truth. The opaque identifier is the only
+    /// value Swift sends; proposal content remains inside the helper boundary.
+    func reconciliationAssistantStatus(
+        sessionId: String
+    ) async -> Result<ReconciliationOutcome<ReconciliationAssistantStatusReport>, CliError> {
+        await decodeReconciliationVerb([
+            "reconcile", "assistant-status", "--session-id", sessionId, "--json",
+        ])
+    }
+
+    /// Write one Python-authored instruction package for the exact selected
+    /// fleet. Swift neither composes nor edits the runbook.
+    func reconciliationGuidePrepare(
+        request: ReconciliationRequest
+    ) async -> Result<ReconciliationOutcome<ReconciliationGuideReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            ["reconcile", "guide-prepare", "--request", requestPath, "--json"]
+        }
+    }
+
+    /// Read Python-owned per-project progress for one opaque guided session.
+    func reconciliationGuideStatus(
+        guideId: String
+    ) async -> Result<ReconciliationOutcome<ReconciliationGuideReport>, CliError> {
+        await decodeReconciliationVerb([
+            "reconcile", "guide-status", "--guide-id", guideId, "--json",
+        ])
+    }
+
+    /// Force a fresh whole-batch verification if the assistant omitted its
+    /// final helper command. Assistant self-report is never consumed.
+    func reconciliationGuideFinalize(
+        guideId: String
+    ) async -> Result<ReconciliationOutcome<ReconciliationGuideReport>, CliError> {
+        await decodeReconciliationVerb([
+            "reconcile", "guide-finalize", "--guide-id", guideId, "--json",
+        ])
+    }
+
+    /// Fresh exact plan for the person's explicit roots/projects/components.
+    /// The exact encoded request bytes travel through a private mode-0600 file
+    /// because the helper's frozen contract accepts `--request <path>`.
+    func reconciliationPlan(
+        request: ReconciliationRequest
+    ) async -> Result<ReconciliationOutcome<ReconciliationPlanReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            ["reconcile", "plan", "--request", requestPath, "--json"]
+        }
+    }
+
+    /// Claim and apply exactly the Python-issued opaque plan id. No retry,
+    /// replacement-plan adoption, or operation construction exists in Swift.
+    func reconciliationApply(
+        request: ReconciliationRequest,
+        planId: String
+    ) async -> Result<ReconciliationOutcome<ReconciliationApplyReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            [
+                "reconcile", "apply", "--request", requestPath,
+                "--plan-id", planId, "--json",
+            ]
+        }
+    }
+
+    /// Fresh Python verification for the exact explicit selection.
+    func reconciliationVerify(
+        request: ReconciliationRequest
+    ) async -> Result<ReconciliationOutcome<ReconciliationVerifyReport>, CliError> {
+        await withReconciliationRequest(request) { requestPath in
+            ["reconcile", "verify", "--request", requestPath, "--json"]
+        }
+    }
+
+    /// Finalize interrupted private transaction evidence. Recovery needs no
+    /// app-authored project selection because Python owns the durable intent.
+    func reconciliationRecover() async -> Result<ReconciliationOutcome<ReconciliationRecoverReport>, CliError> {
+        await decodeReconciliationVerb(["reconcile", "recover", "--json"])
+    }
+
+    /// Persist only an opaque machine-local incomplete owner-decision hold.
+    /// The CLI never writes the project or marks it Ready through this route.
+    func holdWorkspaceIntegration(
+        path: String,
+        planId: String
+    ) async -> Result<WorkspacesReport, CliError> {
+        await decodeVerb([
+            "workspace", "hold", "--project", path,
+            "--plan-id", planId, "--apply", "--json",
+        ])
+    }
+
+    func configureWorkspace(
+        path: String,
+        components: [String],
+        shareWithProject: Bool,
+        apply: Bool
+    ) async -> Result<WorkspacesReport, CliError> {
+        var arguments = [
+            "workspace", "configure", "--project", path,
+            "--components", components.joined(separator: ","),
+        ]
+        if shareWithProject {
+            arguments.append("--share-with-project")
+        }
+        if apply {
+            arguments.append("--apply")
+        }
+        arguments.append("--json")
+        return await decodeVerb(arguments)
+    }
+
+    /// **Set up** (wizard Step 8) applying every project the person selected
+    /// in **Your projects** in one call, rather than one `configureWorkspace`
+    /// round trip per project.
+    func configureAllWorkspaces(components: String = "auto", apply: Bool) async -> Result<WorkspacesReport, CliError> {
+        var arguments = ["workspace", "configure", "--apply-all", "--components", components]
+        if apply {
+            arguments.append("--apply")
+        }
+        arguments.append("--json")
+        return await decodeVerb(arguments)
+    }
+
+    func approveWorkspaceRoot(path: String) async -> Result<WorkspaceRootReport, CliError> {
+        await decodeVerb(["workspace", "approve-root", "--path", path, "--apply", "--json"])
+    }
+
+    func forgetWorkspaceRoot(path: String) async -> Result<WorkspaceRootReport, CliError> {
+        await decodeVerb(["workspace", "forget-root", "--path", path, "--apply", "--json"])
+    }
+
+    /// `cc workspace roots --json` — every approved folder plus detected
+    /// one-click candidates. Read-only; never approves anything itself.
+    func workspaceRoots() async -> Result<WorkspaceRootsListReport, CliError> {
+        await decodeVerb(["workspace", "roots", "--json"])
+    }
+
+    /// "I don't keep projects on this Mac" / "Not on this Mac" — the
+    /// machine-wide opt-out. Reversible by approving a folder later.
+    func declineWorkspaces() async -> Result<WorkspaceDeclineReport, CliError> {
+        await decodeVerb(["workspace", "decline", "--apply", "--json"])
+    }
+
+    /// **Undo** — removes only the files the CLI recorded as its own (and
+    /// whose recorded checksums still match), keeps everything else, and
+    /// records the project as excluded from automatic setup. Decodes
+    /// `WorkspaceRevertReport`, NOT `WorkspacesReport` — `cc workspace
+    /// revert`'s own report is a narrower shape (no `summary`); see that
+    /// type's doc comment in `native/cli-dtos.swift`.
+    func revertWorkspace(path: String, apply: Bool) async -> Result<WorkspaceRevertReport, CliError> {
+        var arguments = ["workspace", "revert", "--project", path]
+        if apply {
+            arguments.append("--apply")
+        }
+        arguments.append("--json")
+        return await decodeVerb(arguments)
+    }
+
+    // MARK: Shared decode pipeline
+
+    /// Encode only explicit person intent and preserve those exact bytes in a
+    /// private request file for the duration of one helper invocation. The
+    /// helper remains solely responsible for validation and canonicalization.
+    private func withReconciliationRequest<Report: Decodable>(
+        _ request: ReconciliationRequest,
+        arguments: (String) -> [String]
+    ) async -> Result<ReconciliationOutcome<Report>, CliError> {
+        guard let payload = try? request.encoded() else {
+            return .failure(.parse)
+        }
+        guard let requestURL = Self.writePrivateReconciliationRequest(payload) else {
+            return .failure(.launchFailed)
+        }
+        defer { _ = Darwin.unlink(requestURL.path) }
+        return await decodeReconciliationVerb(arguments(requestURL.path))
+    }
+
+    /// Creates a no-follow, exclusive, current-user-owned mode-0600 file
+    /// below the app's private runtime directory. The random path is passed as
+    /// one literal Process argument and is never rendered or logged.
+    private static func writePrivateReconciliationRequest(_ payload: Data) -> URL? {
+        guard
+            let environment = CliRuntimeEnvironment.childProcessEnvironment(),
+            let runtimePath = environment["TMPDIR"]
+        else {
+            return nil
+        }
+
+        let runtimeURL = URL(fileURLWithPath: runtimePath, isDirectory: true)
+        let requestDirectory = runtimeURL.appendingPathComponent(
+            "reconciliation-requests",
+            isDirectory: true
+        )
+        guard Self.isPrivateDirectory(runtimeURL) else {
+            return nil
+        }
+        let directoryResult = Darwin.mkdir(
+            requestDirectory.path,
+            mode_t(S_IRWXU)
+        )
+        guard directoryResult == 0 || errno == EEXIST else { return nil }
+        guard Self.isPrivateDirectory(requestDirectory) else { return nil }
+
+        let requestURL = requestDirectory.appendingPathComponent(
+            "request-\(UUID().uuidString.lowercased()).json",
+            isDirectory: false
+        )
+        let descriptor = Darwin.open(
+            requestURL.path,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+            mode_t(S_IRUSR | S_IWUSR)
+        )
+        guard descriptor >= 0 else { return nil }
+        defer { Darwin.close(descriptor) }
+
+        guard Darwin.fchmod(descriptor, mode_t(S_IRUSR | S_IWUSR)) == 0 else {
+            _ = Darwin.unlink(requestURL.path)
+            return nil
+        }
+        let wroteAllBytes = payload.withUnsafeBytes { bytes -> Bool in
+            guard let baseAddress = bytes.baseAddress else { return payload.isEmpty }
+            var offset = 0
+            while offset < bytes.count {
+                let written = Darwin.write(
+                    descriptor,
+                    baseAddress.advanced(by: offset),
+                    bytes.count - offset
+                )
+                guard written > 0 else { return false }
+                offset += written
+            }
+            return true
+        }
+        guard wroteAllBytes, Darwin.fsync(descriptor) == 0 else {
+            _ = Darwin.unlink(requestURL.path)
+            return nil
+        }
+        return requestURL
+    }
+
+    private static func isPrivateDirectory(_ url: URL) -> Bool {
+        var metadata = stat()
+        guard Darwin.lstat(url.path, &metadata) == 0 else {
+            return false
+        }
+        return metadata.st_mode & S_IFMT == S_IFDIR
+            && metadata.st_uid == Darwin.geteuid()
+            && metadata.st_mode & 0o077 == 0
+    }
+
+    /// Reconciliation defines its own structured error branch on exit 1 or
+    /// exit 2. Gate response schema 2.0 first, then preserve either the strict expected
+    /// phase report or Python's safe error report as typed truth.
+    private func decodeReconciliationVerb<Report: Decodable>(
+        _ args: [String]
+    ) async -> Result<ReconciliationOutcome<Report>, CliError> {
+        switch await runRaw(args) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let raw):
+            guard [Int32(0), Int32(1), Int32(2)].contains(raw.exit) else {
+                return .failure(.parse)
+            }
+            if case .failure(let gateError) = SchemaGate.check(raw.stdout, verb: "reconcile") {
+                return .failure(gateError)
+            }
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            do {
+                let outcome = try decoder.decode(
+                    ReconciliationOutcome<Report>.self,
+                    from: raw.stdout
+                )
+                switch outcome {
+                case .error(let report):
+                    guard report.exitCode == Int(raw.exit) else {
+                        return .failure(.parse)
+                    }
+                case .report:
+                    guard raw.exit != 2 else {
+                        return .failure(.parse)
+                    }
+                }
+                return .success(outcome)
+            } catch {
+                return .failure(.parse)
+            }
+        }
+    }
+
+    /// The shared `{schema_version, error:{code,message}}` envelope every
+    /// verb emits on exit 2 (`cli-contract.md`'s "Requirements" section;
+    /// `auth.schema.json`'s `errorEnvelope` def is the canonical shape).
+    private struct ErrorEnvelope: Decodable {
+        struct Body: Decodable {
+            let code: String
+            let message: String
+        }
+        let schemaVersion: String
+        let error: Body
+    }
+
+    /// `runRaw` → exit==2 decodes ONLY the shared error envelope → `.exit2`;
+    /// otherwise `SchemaGate` first (gated to `args.first`'s own accepted
+    /// major — see `SchemaGate.requiredMajor(forVerb:)`), then a real decode
+    /// of `T` with `.convertFromSnakeCase`. Exit 1 with a valid JSON body is
+    /// a normal business outcome (e.g. `doctor`'s "at least one checker
+    /// failed") and is decoded exactly like exit 0 — only exit 2 changes
+    /// what shape is trusted.
+    private func decodeVerb<T: Decodable>(_ args: [String], stdin: Data? = nil) async -> Result<T, CliError> {
+        let verb = args.first ?? ""
+        switch await runRaw(args, stdin: stdin) {
+        case .failure(let error):
+            return .failure(error)
+
+        case .success(let raw):
+            if raw.exit == 2 {
+                // Exit code 2 is ITSELF the "no trustworthy body" signal
+                // (cli-contract.md: "2 = env/credential error"); this ALWAYS
+                // maps to `.exit2`, never falls through to the generic
+                // `.parse` case, regardless of whether a body happened to be
+                // emitted at all. Some real (and mock) exit-2 paths print
+                // nothing usable on stdout, only a diagnostic on stderr —
+                // that is a valid instance of this same "don't trust it"
+                // outcome, not a different, less-specific failure.
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                if let envelope = try? decoder.decode(ErrorEnvelope.self, from: raw.stdout) {
+                    return .failure(.exit2(code: envelope.error.code, message: envelope.error.message))
+                }
+                return .failure(.exit2(code: "unknown", message: "no readable error body"))
+            }
+
+            if case .failure(let gateError) = SchemaGate.check(raw.stdout, verb: verb) {
+                return .failure(gateError)
+            }
+
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            do {
+                return .success(try decoder.decode(T.self, from: raw.stdout))
+            } catch {
+                return .failure(Self.mapDecodingError(error))
+            }
+        }
+    }
+
+    /// Distinguishes "a required SECURITY field was missing" from every
+    /// other decode failure, per `_envelope.schema.json`'s fail-closed rule
+    /// (a missing `destructive`/`signed`/`severity` is treated as
+    /// destructive/unsigned/fail, never safe) — the caller (`render-state.swift`)
+    /// renders `.missingSecurityField` with its own distinct, honest copy
+    /// ("I can't confirm your setup is safe right now") rather than folding
+    /// it into the generic "I can't read your setup" `.parse` message.
+    private static let securityFieldKeys: Set<String> = ["destructive", "signed", "severity"]
+
+    private static func mapDecodingError(_ error: Error) -> CliError {
+        if case .keyNotFound(let key, _) = error as? DecodingError {
+            if securityFieldKeys.contains(key.stringValue) {
+                return .missingSecurityField
+            }
+        }
+        return .parse
+    }
+}

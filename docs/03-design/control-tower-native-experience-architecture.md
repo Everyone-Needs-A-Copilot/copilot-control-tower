@@ -2,8 +2,8 @@
 
 Stage 1 of 3 of the native-app redesign (this = structure / IA / state inventory;
 uxd = interaction; uids = visual system). Grounded in the **corrected CSE model**
-(`docs/reference/copilot-solutioning-ecosystem.md`), the alignment decisions
-(`docs/reference/cse-alignment-decisions.md`, D1–D10), the conformed
+(`docs/10-reference/copilot-solutioning-ecosystem.md`), the alignment decisions
+(`docs/10-reference/cse-alignment-decisions.md`, D1–D10), the conformed
 `docs/03-design/three-role-journeys.md`, `docs/05-security/credentials-and-boundary.md`,
 `docs/01-architecture/cli-contract.md` (the new `copilot layers`/`layers join`
 verbs), and the closed sets in `src/types.ts`. No visual/pixel design here.

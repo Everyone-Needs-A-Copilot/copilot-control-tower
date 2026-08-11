@@ -77,7 +77,7 @@ version: 1
 layers:
   - id: personal-pablo
     role: personal              # open vocabulary, not a closed enum
-    component: claude            # WHICH CSE component this layer belongs to (§4.x) — required, non-empty
+    product: claude              # WHICH CSE product this layer belongs to (§4.x) — required, non-empty
     rank: 10                    # lower = higher precedence; gaps leave room to insert
     source:
       repo: git@github-personal:pablitoalejo/claude-copilot-private.git
@@ -87,7 +87,7 @@ layers:
 
   - id: dept-engineering
     role: department
-    component: claude
+    product: claude
     unit: engineering           # WHICH department this layer serves (§5)
     rank: 20
     source:
@@ -97,7 +97,7 @@ layers:
 
   - id: org-acme
     role: org
-    component: claude
+    product: claude
     rank: 30
     source:
       repo: git@github-work:acme-corp/copilot-org.git
@@ -106,7 +106,7 @@ layers:
 
   - id: foundation
     role: foundation
-    component: claude
+    product: claude
     rank: 40
     source:
       repo: https://github.com/Everyone-Needs-A-Copilot/claude-copilot.git
@@ -114,13 +114,13 @@ layers:
     auth: anon                  # public HTTPS, no credential
 ```
 
-**`component`** is a **required, non-empty** string on every layer entry, one of the config-driven
-CSE component set (initially `knowledge` | `cli` | `claude` | `codex`; adding a fifth component is a
-data edit, not a schema change). It is already **implied** by the `copilot-<component>-<tier>`
-repo-naming convention (e.g. `copilot-dept-engineering` under a `claude` component's org, or a
+**`product`** is a **required, non-empty** string on every layer entry, one of the config-driven
+CSE product set (initially `knowledge` | `cli` | `claude` | `codex`; adding a fifth product is a
+data edit, not a schema change). It is already **implied** by the `copilot-<product>-<tier>`
+repo-naming convention (e.g. `copilot-dept-engineering` under a `claude` product's org, or a
 `copilot-knowledge-dept-finance` repo per `ecosystem-architecture.md` §4.1); this field just
-**declares** it explicitly on the layer so the resolver doesn't have to infer component from a URL
-string. Invariant: a layer belongs to exactly one `component` × tier.
+**declares** it explicitly on the layer so the resolver doesn't have to infer product from a URL
+string. Invariant: a layer belongs to exactly one `product` × tier.
 
 **Rules that keep it N-extensible:**
 

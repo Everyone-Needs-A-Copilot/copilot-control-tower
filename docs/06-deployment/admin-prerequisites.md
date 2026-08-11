@@ -4,15 +4,24 @@
 |---|---|
 | **Audience** | An operator standing up their company's copilots for the first time (the app calls this person the Admin). No prior experience with Control Tower assumed. |
 | **Diataxis mode** | How-to (task-oriented: get ready for org setup). This page does not teach the ecosystem model (see the app's own Orientation screen and [`docs/10-reference/copilot-solutioning-ecosystem.md`](../10-reference/copilot-solutioning-ecosystem.md) for that), and it is not the full walkthrough of the setup itself (see [`docs/03-design/admin-experience-service-design.md`](../03-design/admin-experience-service-design.md) for the full journey). Its one job: tell you what has to be true before you start, and why GitHub access setup asks for what it asks for. |
-| **Reads on** | [`docs/01-architecture/admin-standup-contract.md`](../01-architecture/admin-standup-contract.md) (the preflight auth model this page explains in plain language) and [`.claude/skills/admin-bootstrap/SKILL.md`](../../.claude/skills/admin-bootstrap/SKILL.md) (the terminal side that checks the same things). |
+| **Reads on** | [`docs/01-architecture/admin-standup-contract.md`](../01-architecture/admin-standup-contract.md) (the fail-closed plan/apply/verify contract) and [`admin-first-two-machine-setup-runbook.md`](admin-first-two-machine-setup-runbook.md) (the complete operator sequence). |
 
 ## What you need before you start
 
-Three things have to be true before setup can run. None of them happen in Control Tower itself. This is so nothing stops you halfway through.
+Admin checks the software and GitHub access itself. You do not install Homebrew,
+GitHub CLI, `jq`, Python, or Claude Code for the Admin flow, and you do not run
+prerequisite commands.
 
-1. **Your GitHub organization already exists.** Creating a GitHub organization needs billing and a person, so it is not something setup can do for you. If your organization does not have one yet, create it at github.com first, then come back.
-2. **You are an Owner of that organization.** Only an Owner can create the organization's shared spaces (its repositories and teams). If you are not sure, check your role on github.com, or ask whoever administers your GitHub organization today.
-3. **You have GitHub's command-line tool (`gh`) and Claude Code installed on this Mac.** Setup runs through both. If either is missing, the app's Connect GitHub step tells you and helps you install it.
+Three owner-controlled facts still have to be true:
+
+1. **Your GitHub organization already exists.** Creating an organization is a
+   billing and ownership decision, so Admin does not invent one.
+2. **Your GitHub account is an active Owner of that organization.** Admin checks
+   this through GitHub and opens the organization settings if another owner must
+   grant the role.
+3. **The organization has an OAuth App with device flow enabled.** Admin opens
+   the correct GitHub settings page. Paste only the public 20-character Client
+   ID into Admin; never paste the client secret.
 
 ## What GitHub access setup needs, and why
 
@@ -23,15 +32,9 @@ Setup creates your organization's shared repositories and sets up your teams and
 | `repo` | Lets setup create the repositories where your organization's copilots, knowledge, and tools live. |
 | `admin:org` | Lets setup create your teams, grant them access to the right repositories, and set your organization's base permission. |
 
-Setup never needs more than these two scopes. And whatever it does with them, it only ever adds and updates. It never deletes or overwrites anything already there.
-
-To grant both scopes at once, run:
-
-```
-gh auth refresh -s admin:org -s repo
-```
-
-You do not need to memorize this. The app's Connect GitHub step and the `admin-bootstrap` skill in your terminal both check for these scopes automatically, and if either is missing, they hand you this exact command to run.
+Setup never needs more than these scopes. Select **Authorize GitHub** in Admin
+when asked. Admin opens GitHub's browser authorization and checks the result
+again when it closes. No command is displayed or copied.
 
 ## A note on plans
 
@@ -39,8 +42,20 @@ Setup asks GitHub to require a review before your organization's shared setup fi
 
 ## What happens next
 
-Once you are ready, the app collects a plain description of your organization, writes it to a non-secret brief on your Mac, and hands you a single command to run in your terminal. Claude Code reads that brief, confirms the plan with you by real repository and team names, and drives the setup. When it says it is done, you come back to the app and run the Setup check, which reads your organization's state straight from GitHub. See [`docs/03-design/admin-experience-service-design.md`](../03-design/admin-experience-service-design.md) for the full journey, stage by stage.
+Double-click **Copilot Control Tower Admin**. It checks readiness automatically,
+collects a non-secret organization description, reads GitHub to show the exact
+private repositories it will create or reuse, and waits for **Set up
+organization**. That button repeats the full preflight before making additive,
+idempotent changes. **Setup check** then reads GitHub again from scratch. Follow
+[`admin-first-two-machine-setup-runbook.md`](admin-first-two-machine-setup-runbook.md)
+for the complete sequence.
 
 ## Security note
 
-Control Tower never asks for or holds any GitHub secret or token. You authenticate with GitHub yourself, using `gh`. The app only ever runs read-only checks against your GitHub account and organization, and writes a plain, non-secret brief describing what you want set up. The work that changes GitHub, creating repositories, teams, and grants, happens only in your terminal, driven by Claude Code, never by the app itself.
+Control Tower never asks for a GitHub token, OAuth client secret, or integration
+secret. GitHub's own browser flow stores the resulting credential using GitHub
+CLI's normal secure credential mechanism. Admin invokes its packaged,
+checksum-pinned tools and deterministic engine only after explicit
+confirmation. It creates only confirmed-missing private repositories, reuses
+existing private repositories, and blocks on public, unreadable, or unfamiliar
+content instead of overwriting it.

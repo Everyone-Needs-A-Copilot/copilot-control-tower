@@ -1,0 +1,1944 @@
+<title>Control Tower: End-User Experience Walkthrough</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, "Cascadia Mono", monospace;
+    --tl-red: #ff5f57; --tl-yellow: #febc2e; --tl-green: #28c840;
+
+    /* Commentary register: hue-biased neutral ground + one restrained accent */
+    --pg-bg: #f3f2ef; --pg-bg2: #eae8e3; --pg-surface: #ffffff;
+    --pg-ink: #1b1b1d; --pg-ink-soft: #55565c; --pg-ink-faint: #8c8c92;
+    --pg-line: #e2e0da; --pg-line-strong: #cfccc4; --pg-accent: #2f5fce;
+    --pg-shadow: 0 1px 2px rgba(30,25,15,.05), 0 8px 24px rgba(30,25,15,.06);
+
+    /* Quiet Instrument register: the mock windows */
+    --qi-window: #ececf0; --qi-card: #ffffff; --qi-field: #f7f7f9; --qi-sidebar: #e4e4ea;
+    --qi-ink: #1d1d1f; --qi-ink-soft: #6b6b70; --qi-ink-faint: #9a9aa0;
+    --qi-sep: rgba(0,0,0,.11); --qi-accent: #0968e5;
+    --qi-green: #1f9d55; --qi-orange: #b25900; --qi-red: #d92c1f; --qi-blue: #0968e5;
+    --qi-shadow: 0 1px 2px rgba(20,20,25,.08), 0 16px 40px rgba(20,20,25,.14);
+
+    /* Terminal: the non-app touchpoint */
+    --term-bg: #1c1c1f; --term-ink: #e7e7ea; --term-dim: #8b8b92; --term-accent: #5fd97a; --term-sep: rgba(255,255,255,.09);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --pg-bg: #16161a; --pg-bg2: #1c1c21; --pg-surface: #1f1f24;
+      --pg-ink: #eeeeef; --pg-ink-soft: #a9a9af; --pg-ink-faint: #77777d;
+      --pg-line: #2c2c32; --pg-line-strong: #3a3a41; --pg-accent: #6f9bff;
+      --pg-shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.4);
+
+      --qi-window: #232327; --qi-card: #1e1e22; --qi-field: #29292f; --qi-sidebar: #27272c;
+      --qi-ink: #f2f2f4; --qi-ink-soft: #a5a5ac; --qi-ink-faint: #77777e;
+      --qi-sep: rgba(255,255,255,.12); --qi-accent: #4a9bff;
+      --qi-green: #34d374; --qi-orange: #ffb454; --qi-red: #ff6b60; --qi-blue: #4a9bff;
+      --qi-shadow: 0 1px 2px rgba(0,0,0,.4), 0 20px 48px rgba(0,0,0,.45);
+
+      --term-bg: #101013; --term-ink: #eaeaec; --term-dim: #7c7c83; --term-accent: #58e07a; --term-sep: rgba(255,255,255,.07);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --pg-bg: #f3f2ef; --pg-bg2: #eae8e3; --pg-surface: #ffffff;
+    --pg-ink: #1b1b1d; --pg-ink-soft: #55565c; --pg-ink-faint: #8c8c92;
+    --pg-line: #e2e0da; --pg-line-strong: #cfccc4; --pg-accent: #2f5fce;
+    --pg-shadow: 0 1px 2px rgba(30,25,15,.05), 0 8px 24px rgba(30,25,15,.06);
+
+    --qi-window: #ececf0; --qi-card: #ffffff; --qi-field: #f7f7f9; --qi-sidebar: #e4e4ea;
+    --qi-ink: #1d1d1f; --qi-ink-soft: #6b6b70; --qi-ink-faint: #9a9aa0;
+    --qi-sep: rgba(0,0,0,.11); --qi-accent: #0968e5;
+    --qi-green: #1f9d55; --qi-orange: #b25900; --qi-red: #d92c1f; --qi-blue: #0968e5;
+    --qi-shadow: 0 1px 2px rgba(20,20,25,.08), 0 16px 40px rgba(20,20,25,.14);
+
+    --term-bg: #1c1c1f; --term-ink: #e7e7ea; --term-dim: #8b8b92; --term-accent: #5fd97a; --term-sep: rgba(255,255,255,.09);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --pg-bg: #16161a; --pg-bg2: #1c1c21; --pg-surface: #1f1f24;
+    --pg-ink: #eeeeef; --pg-ink-soft: #a9a9af; --pg-ink-faint: #77777d;
+    --pg-line: #2c2c32; --pg-line-strong: #3a3a41; --pg-accent: #6f9bff;
+    --pg-shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.4);
+
+    --qi-window: #232327; --qi-card: #1e1e22; --qi-field: #29292f; --qi-sidebar: #27272c;
+    --qi-ink: #f2f2f4; --qi-ink-soft: #a5a5ac; --qi-ink-faint: #77777e;
+    --qi-sep: rgba(255,255,255,.12); --qi-accent: #4a9bff;
+    --qi-green: #34d374; --qi-orange: #ffb454; --qi-red: #ff6b60; --qi-blue: #4a9bff;
+    --qi-shadow: 0 1px 2px rgba(0,0,0,.4), 0 20px 48px rgba(0,0,0,.45);
+
+    --term-bg: #101013; --term-ink: #eaeaec; --term-dim: #7c7c83; --term-accent: #58e07a; --term-sep: rgba(255,255,255,.07);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; overflow-x: hidden; background: var(--pg-bg); color: var(--pg-ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1180px; margin: 0 auto; padding: clamp(20px,4vw,56px) clamp(16px,4vw,40px) 80px; overflow-x: hidden; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } html { scroll-behavior: auto; } }
+
+  /* ---------- page header / commentary type ---------- */
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .13em; text-transform: uppercase; color: var(--pg-ink-faint); margin: 0 0 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pg-accent); flex-shrink: 0; }
+  h1 { font-weight: 680; font-size: clamp(28px,4.6vw,46px); line-height: 1.05; letter-spacing: -.02em; text-wrap: balance; margin: 0 0 16px; }
+  h1 em { font-style: normal; color: var(--pg-accent); }
+  .thesis { font-size: clamp(15.5px,1.9vw,18px); color: var(--pg-ink-soft); max-width: 74ch; margin: 0 0 26px; text-wrap: pretty; }
+  .thesis strong { color: var(--pg-ink); font-weight: 620; }
+
+  nav.toc { display: flex; flex-direction: column; gap: 6px; }
+  .group-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--pg-ink-faint); margin: 14px 0 8px; }
+  .group-label:first-child { margin-top: 0; }
+  .toc-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  .toc-row a { font-family: var(--mono); font-size: 12px; text-decoration: none; color: var(--pg-ink-soft); border: 1px solid var(--pg-line); border-radius: 999px; padding: 5px 12px; background: var(--pg-surface); transition: border-color .15s, color .15s; }
+  .toc-row a:hover { color: var(--pg-accent); border-color: color-mix(in srgb, var(--pg-accent) 45%, var(--pg-line)); }
+  .toc-row a:focus-visible { outline: 2px solid var(--pg-accent); outline-offset: 2px; color: var(--pg-accent); }
+  .toc-row a b { color: var(--pg-accent); margin-right: 2px; }
+
+  /* ---------- section rhythm ---------- */
+  section, .journey-head { margin-top: clamp(40px,5.5vw,64px); scroll-margin-top: 18px; }
+  .screen { margin-top: clamp(46px,6vw,72px); scroll-margin-top: 18px; }
+  .screen.peak { margin-top: clamp(60px,7.5vw,96px); }
+  .sec-head { display: flex; align-items: baseline; gap: 13px; margin-bottom: 16px; flex-wrap: wrap; }
+  .sec-num { font-family: var(--mono); font-size: 12.5px; font-weight: 650; color: var(--pg-accent); border: 1px solid color-mix(in srgb, var(--pg-accent) 35%, var(--pg-line)); border-radius: 7px; padding: 2px 8px; flex-shrink: 0; }
+  h2 { font-size: clamp(19px,2.6vw,25px); font-weight: 640; letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+  h3.journey-title { font-size: clamp(22px,3vw,29px); font-weight: 660; letter-spacing: -.015em; margin: 0; }
+  .sec-sub { color: var(--pg-ink-soft); font-size: 14.5px; margin: 6px 0 0; max-width: 70ch; flex-basis: 100%; }
+  .journey-head .sec-sub { max-width: 78ch; font-size: 15px; }
+  .journey-head { border-top: 1px solid var(--pg-line-strong); padding-top: 30px; }
+  .arc-sub-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--pg-accent); margin: 34px 0 4px 2px; }
+
+  /* ---------- the mock window (Quiet Instrument register) ---------- */
+  .window-wrap { overflow-x: auto; margin: 20px 0 0; padding-bottom: 4px; }
+  .window { width: 100%; min-width: 760px; max-width: 960px; border-radius: 12px; overflow: hidden; border: 1px solid var(--qi-sep); box-shadow: var(--qi-shadow); background: var(--qi-window); font-family: var(--sans); }
+  .win-titlebar { height: 36px; display: flex; align-items: center; padding: 0 14px; gap: 10px; background: var(--qi-sidebar); border-bottom: 1px solid var(--qi-sep); }
+  .traffic { display: flex; gap: 7px; flex-shrink: 0; }
+  .traffic span { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .traffic .r { background: var(--tl-red); } .traffic .y { background: var(--tl-yellow); } .traffic .g { background: var(--tl-green); }
+  .win-titlebar .t { flex: 1; text-align: center; font-size: 12px; font-weight: 600; color: var(--qi-ink-soft); margin-right: 52px; }
+
+  .win-body { display: flex; align-items: stretch; }
+  .win-sidebar { width: 204px; flex-shrink: 0; background: var(--qi-sidebar); border-right: 1px solid var(--qi-sep); padding: 14px 8px; }
+  .sb-section-label { font-family: var(--mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--qi-ink-faint); margin: 14px 8px 6px; font-weight: 650; }
+  .sb-section-label:first-child { margin-top: 2px; }
+  .sb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .sb-item { display: flex; align-items: center; gap: 7px; padding: 5px 9px; border-radius: 6px; font-size: 12px; color: var(--qi-ink); line-height: 1.3; }
+  .sb-item .mark { width: 13px; text-align: center; flex-shrink: 0; font-size: 10.5px; line-height: 1; }
+  .sb-item.done .mark { color: var(--qi-green); }
+  .sb-item.current { background: color-mix(in srgb, var(--qi-accent) 15%, transparent); font-weight: 650; }
+  .sb-item.current .mark { color: var(--qi-accent); }
+  .sb-item.upcoming { color: var(--qi-ink-soft); }
+  .sb-item.upcoming .mark { color: var(--qi-ink-faint); }
+
+  .win-detail { flex: 1; min-width: 0; padding: 22px 26px; background: var(--qi-window); display: flex; flex-direction: column; }
+  .win-eyebrow { font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--qi-accent); font-weight: 700; margin: 0 0 8px; }
+  .win-detail h3 { font-size: 18.5px; font-weight: 700; margin: 0 0 9px; color: var(--qi-ink); letter-spacing: -.01em; }
+  .win-intro { font-size: 12.8px; color: var(--qi-ink-soft); margin: 0 0 16px; max-width: 58ch; line-height: 1.5; }
+  .win-content { flex: 1; }
+  .win-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--qi-sep); font-size: 12px; color: var(--qi-ink-faint); }
+  .win-footer .status { flex: 1; text-align: center; }
+  .win-footer .grp { display: flex; align-items: center; gap: 8px; }
+
+  .qi-block { background: var(--qi-card); border: 1px solid var(--qi-sep); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+  .qi-block:last-child { margin-bottom: 0; }
+  .qi-block-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--qi-ink-faint); margin: 0 0 9px; font-weight: 700; }
+  .qi-block p { margin: 0 0 8px; font-size: 12.3px; color: var(--qi-ink-soft); line-height: 1.5; }
+  .qi-block p:last-child { margin-bottom: 0; }
+  .qi-mono { font-family: var(--mono); color: var(--qi-ink); }
+  .qi-note { font-size: 11.8px; color: var(--qi-ink-faint); margin-top: 10px; line-height: 1.5; }
+
+  .qi-field-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12.3px; }
+  .qi-field-row:last-child { margin-bottom: 0; }
+  .qi-field-row label { width: 148px; flex-shrink: 0; color: var(--qi-ink-soft); }
+  .qi-input { flex: 1; border: 1px solid var(--qi-sep); background: var(--qi-field); border-radius: 6px; padding: 5px 9px; color: var(--qi-ink); font-size: 12.3px; font-family: var(--mono); min-width: 0; }
+  .qi-help { display: block; font-size: 11px; color: var(--qi-ink-faint); margin-top: 4px; margin-left: 158px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 12px; font-weight: 650; padding: 5px 13px; border-radius: 6px; border: 1px solid var(--qi-sep); background: var(--qi-card); color: var(--qi-ink); white-space: nowrap; }
+  .btn.primary { background: var(--qi-accent); border-color: var(--qi-accent); color: #fff; }
+  .btn.text { border: none; background: none; color: var(--qi-accent); padding: 4px 2px; font-weight: 650; }
+  .btn.small { font-size: 10.8px; padding: 3px 9px; }
+  .btn.copied { background: var(--qi-green); border-color: var(--qi-green); color: #fff; }
+  .btn[disabled], .btn.disabled { opacity: .55; }
+
+  .qi-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+  .qi-steps li { display: flex; gap: 11px; }
+  .qi-steps .num { width: 21px; height: 21px; border-radius: 50%; background: var(--qi-sidebar); border: 1px solid var(--qi-sep); display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; color: var(--qi-ink-soft); flex-shrink: 0; }
+  .qi-steps .txt b { display: block; font-size: 12.6px; color: var(--qi-ink); margin-bottom: 2px; }
+  .qi-steps .txt span { font-size: 11.8px; color: var(--qi-ink-soft); }
+
+  .qi-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+  .qi-facts li { display: flex; gap: 9px; font-size: 12.3px; color: var(--qi-ink-soft); line-height: 1.5; }
+  .qi-facts li::before { content: "•"; color: var(--qi-ink-faint); flex-shrink: 0; }
+  .qi-facts li b { color: var(--qi-ink); font-weight: 620; }
+  .qi-facts.muted li { color: var(--qi-ink-faint); }
+  .qi-facts.muted li::before { content: "–"; }
+
+  .qi-form-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; }
+  .qi-form-row label { font-size: 10.8px; color: var(--qi-ink-soft); }
+  .qi-error { color: var(--qi-red); font-size: 11px; margin-top: 4px; display: flex; gap: 5px; align-items: flex-start; line-height: 1.4; }
+
+  .qi-rows { display: flex; flex-direction: column; }
+  .qi-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 0; font-size: 12.3px; }
+  .qi-row + .qi-row { border-top: 1px solid var(--qi-sep); }
+  .qi-row .g { width: 15px; flex-shrink: 0; text-align: center; font-weight: 700; margin-top: 1px; font-size: 11.5px; }
+  .qi-row.ok .g { color: var(--qi-green); }
+  .qi-row.fail .g { color: var(--qi-red); }
+  .qi-row.unknown .g { color: var(--qi-orange); }
+  .qi-row.present .g { color: var(--qi-green); }
+  .qi-row.deferred .g { color: var(--qi-ink-soft); }
+  .qi-row .body2 { flex: 1; color: var(--qi-ink); min-width: 0; }
+  .qi-row .body2 .cap { display: block; color: var(--qi-ink-faint); font-size: 10.8px; margin-top: 3px; line-height: 1.4; }
+  .qi-row .tag { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--qi-ink-soft); background: var(--qi-sidebar); border: 1px solid var(--qi-sep); border-radius: 5px; padding: 2px 6px; margin-left: 6px; white-space: nowrap; flex-shrink: 0; }
+  .qi-row .fix { color: var(--qi-accent); font-weight: 650; font-size: 11.2px; white-space: nowrap; margin-left: 8px; flex-shrink: 0; }
+  .qi-row .ready { color: var(--qi-ink-faint); font-size: 10.8px; margin-left: 8px; white-space: nowrap; flex-shrink: 0; }
+
+  .qi-code { background: var(--qi-field); border: 1px solid var(--qi-sep); border-radius: 8px; padding: 9px 12px; font-family: var(--mono); font-size: 11.8px; color: var(--qi-ink); overflow-x: auto; white-space: pre; }
+  .qi-copyrow { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+  /* ---------- inset alternate-state panels ---------- */
+  .inset-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; }
+  .inset { flex: 1 1 280px; min-width: 0; }
+  .inset-caption { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--pg-ink-faint); margin: 0 0 7px; }
+  .inset-win { border: 1px solid var(--qi-sep); border-radius: 9px; background: var(--qi-card); padding: 12px 14px; box-shadow: var(--qi-shadow); }
+
+  /* ---------- annotation cards (commentary register) ---------- */
+  .annot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+  .annot-card { background: var(--pg-surface); border: 1px solid var(--pg-line); border-radius: 10px; padding: 15px 17px; box-shadow: var(--pg-shadow); }
+  .annot-card .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; margin: 0 0 8px; font-weight: 700; }
+  .annot-card.earl { border-left: 3px solid var(--pg-accent); }
+  .annot-card.earl .lbl { color: var(--pg-accent); }
+  .annot-card.actual { border-left: 3px solid var(--pg-ink-faint); }
+  .annot-card.actual .lbl { color: var(--pg-ink-faint); }
+  .annot-card p { margin: 0; font-size: 13px; color: var(--pg-ink-soft); line-height: 1.55; }
+  .annot-card code { font-family: var(--mono); font-size: .92em; background: var(--pg-bg2); padding: 1px 5px; border-radius: 5px; }
+
+  /* ---------- terminal (non-app touchpoint, referenced but unused directly here) ---------- */
+  .term-wrap { overflow-x: auto; margin: 18px 0 0; }
+  .terminal { min-width: 660px; width: 100%; max-width: 960px; background: var(--term-bg); color: var(--term-ink); border-radius: 11px; padding: 16px 20px 18px; font-family: var(--mono); font-size: 12.2px; line-height: 1.7; box-shadow: var(--qi-shadow); }
+  .term-titlebar { display: flex; gap: 7px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--term-sep); }
+  .term-titlebar span { width: 10px; height: 10px; border-radius: 50%; opacity: .55; }
+  .term-titlebar .r { background: var(--tl-red); } .term-titlebar .y { background: var(--tl-yellow); } .term-titlebar .g { background: var(--tl-green); }
+  .terminal .ln { white-space: pre-wrap; word-break: break-word; }
+  .terminal .prompt { color: var(--term-accent); }
+  .terminal .dim { color: var(--term-dim); }
+  .terminal .say { color: var(--term-ink); }
+  .terminal .indent { padding-left: 2ch; }
+
+  /* ---------- table + callout + killed-grid ---------- */
+  .table-wrap { overflow-x: auto; margin-top: 16px; }
+  table.phases { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px; }
+  .phases th, .phases td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--pg-line); vertical-align: top; }
+  .phases th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--pg-ink-faint); font-weight: 650; }
+  .phases td.phase { font-weight: 660; color: var(--pg-ink); white-space: nowrap; }
+  .phases td { color: var(--pg-ink-soft); line-height: 1.5; }
+
+  .callout { background: color-mix(in srgb, var(--pg-accent) 7%, var(--pg-surface)); border: 1px solid color-mix(in srgb, var(--pg-accent) 26%, var(--pg-line)); border-radius: 12px; padding: 15px 18px; font-size: 13.5px; color: var(--pg-ink-soft); margin-top: 20px; line-height: 1.55; }
+  .callout b { color: var(--pg-ink); }
+  .callout ul { margin: 9px 0 0; padding-left: 19px; }
+  .callout li { margin-bottom: 5px; }
+
+  .killed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 12px; margin-top: 18px; }
+  .killed-card { background: var(--pg-surface); border: 1px solid var(--pg-line); border-left: 3px solid var(--pg-ink-faint); border-radius: 10px; padding: 13px 15px; box-shadow: var(--pg-shadow); }
+  .killed-card h4 { margin: 0 0 6px; font-size: 13.3px; font-weight: 650; color: var(--pg-ink); }
+  .killed-card p { margin: 0; font-size: 12.3px; color: var(--pg-ink-soft); line-height: 1.48; }
+
+  footer.page-footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--pg-line); font-family: var(--mono); font-size: 11.5px; color: var(--pg-ink-faint); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+  /* ---------- NEW: principles strip ---------- */
+  .principles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 12px; margin: 18px 0 6px; }
+  .principle-card { background: var(--pg-surface); border: 1px solid var(--pg-line); border-left: 3px solid var(--pg-accent); border-radius: 10px; padding: 14px 16px; box-shadow: var(--pg-shadow); }
+  .principle-card .pn { font-family: var(--mono); font-size: 10px; color: var(--pg-accent); margin: 0 0 7px; font-weight: 700; }
+  .principle-card h4 { margin: 0 0 6px; font-size: 13.2px; font-weight: 650; color: var(--pg-ink); line-height: 1.35; }
+  .principle-card p { margin: 0; font-size: 12.1px; color: var(--pg-ink-soft); line-height: 1.5; }
+
+  /* ---------- NEW: system-chrome surfaces (email, browser, Finder, Gatekeeper): neutral, non-app register ---------- */
+  .sys-window { width: 100%; max-width: 640px; border-radius: 10px; overflow: hidden; border: 1px solid var(--qi-sep); box-shadow: var(--qi-shadow); background: var(--qi-card); font-family: var(--sans); }
+  .sys-titlebar { height: 34px; display: flex; align-items: center; padding: 0 14px; gap: 10px; background: var(--qi-sidebar); border-bottom: 1px solid var(--qi-sep); }
+  .sys-titlebar .t { flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--qi-ink-soft); margin-right: 52px; }
+
+  .mail-head { padding: 14px 18px; border-bottom: 1px solid var(--qi-sep); }
+  .mail-row { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--qi-ink-soft); margin-bottom: 4px; }
+  .mail-row .org-logo { width: 22px; height: 22px; border-radius: 5px; background: var(--qi-sidebar); flex-shrink: 0; }
+  .mail-row b { color: var(--qi-ink); font-weight: 650; }
+  .mail-subject { font-size: 14.5px; font-weight: 680; color: var(--qi-ink); margin-top: 6px; }
+  .mail-body { padding: 18px; font-size: 13px; color: var(--qi-ink-soft); line-height: 1.6; }
+  .mail-body p { margin: 0 0 12px; }
+  .mail-cta { margin: 10px 0 8px; }
+  .mail-fallback { font-size: 11.3px; color: var(--qi-accent); }
+  .mail-sig { margin-top: 16px; font-size: 12px; color: var(--qi-ink-faint); }
+
+  .browser-bar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--qi-sidebar); border-bottom: 1px solid var(--qi-sep); }
+  .browser-url { flex: 1; background: var(--qi-field); border: 1px solid var(--qi-sep); border-radius: 6px; padding: 4px 10px; font-family: var(--mono); font-size: 11px; color: var(--qi-ink-soft); }
+  .browser-content { padding: 30px 26px; text-align: center; }
+  .dl-glyph { font-size: 24px; margin-bottom: 8px; }
+  .dl-title { font-size: 17px; font-weight: 680; color: var(--qi-ink); margin: 0 0 6px; }
+  .dl-sub { font-size: 12.6px; color: var(--qi-ink-soft); margin: 0 auto 18px; max-width: 44ch; }
+  .dl-quiet { font-size: 11.3px; color: var(--qi-ink-faint); margin-top: 10px; }
+  .dl-steps { display: flex; justify-content: center; gap: 18px; margin-top: 22px; flex-wrap: wrap; }
+  .dl-step { font-size: 11.3px; color: var(--qi-ink-soft); max-width: 14ch; }
+  .dl-step .n { display: block; width: 20px; height: 20px; border-radius: 50%; background: var(--qi-sidebar); border: 1px solid var(--qi-sep); margin: 0 auto 6px; font-size: 10.5px; font-weight: 700; color: var(--qi-ink-soft); line-height: 18px; }
+  .dl-footer { border-top: 1px solid var(--qi-sep); padding: 12px 18px; font-size: 11px; color: var(--qi-ink-faint); text-align: center; }
+
+  .dmg-window { padding: 30px 20px 18px; background: var(--qi-field); }
+  .dmg-icons { display: flex; align-items: center; justify-content: center; gap: 26px; }
+  .dmg-icon { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 11px; color: var(--qi-ink-soft); }
+  .dmg-icon .glyph { width: 64px; height: 64px; border-radius: 14px; background: var(--qi-card); border: 1px solid var(--qi-sep); display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .dmg-arrow { font-size: 22px; color: var(--qi-ink-faint); }
+  .dmg-caption { text-align: center; font-size: 12px; color: var(--qi-ink); font-weight: 620; margin-top: 20px; }
+  .dmg-caption span { display: block; font-weight: 400; color: var(--qi-ink-faint); font-size: 11px; margin-top: 4px; }
+
+  .gatekeeper-stage { background: color-mix(in srgb, #000 35%, transparent); border-radius: 12px; padding: 50px 18px; display: flex; align-items: center; justify-content: center; }
+  .gatekeeper-alert { width: 320px; background: var(--qi-card); border-radius: 13px; box-shadow: var(--qi-shadow); padding: 22px 22px 16px; text-align: center; }
+  .gk-icon { width: 50px; height: 50px; border-radius: 12px; background: var(--qi-sidebar); margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .gatekeeper-alert h4 { margin: 0 0 8px; font-size: 12.8px; font-weight: 660; color: var(--qi-ink); line-height: 1.4; }
+  .gatekeeper-alert p { margin: 0 0 18px; font-size: 11.4px; color: var(--qi-ink-soft); line-height: 1.5; }
+  .gk-buttons { display: flex; gap: 8px; justify-content: center; }
+  .gk-buttons .btn { flex: 1; justify-content: center; padding: 7px 0; }
+  .gk-outside-caption { max-width: 54ch; margin: 14px auto 0; text-align: center; font-size: 12.3px; color: var(--pg-ink-soft); }
+
+  .menubar-strip { display: flex; align-items: center; justify-content: flex-end; gap: 16px; height: 26px; padding: 0 14px; background: var(--qi-sidebar); border: 1px solid var(--qi-sep); border-radius: 8px; font-size: 12px; color: var(--qi-ink-soft); }
+  .menubar-strip .sys-icon { opacity: .5; font-size: 11px; }
+  .tray-glyph { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; font-size: 13px; color: var(--qi-ink); position: relative; }
+  .tray-glyph .badge { position: absolute; bottom: -4px; right: -5px; font-size: 8px; line-height: 1; }
+  .tray-glyph .badge.ring { color: var(--qi-ink-faint); }
+  .tray-glyph .badge.key { color: var(--qi-orange); }
+  .tray-glyph .badge.sync { color: var(--qi-accent); }
+  .tray-glyph .badge.warn { color: var(--qi-orange); }
+  .tray-glyph .badge.offline { color: var(--qi-red); }
+  .tray-spot { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .tray-callout { font-size: 11.6px; color: var(--pg-ink-soft); border: 1px dashed var(--pg-line-strong); border-radius: 8px; padding: 9px 13px; max-width: 40ch; }
+  .tray-legend { display: flex; flex-wrap: wrap; gap: 16px; }
+  .tray-legend-item { display: flex; align-items: center; gap: 7px; font-size: 11.3px; color: var(--qi-ink-soft); }
+  .tray-legend-item .tray-glyph { position: static; }
+
+  .video-slot { aspect-ratio: 16/9; background: var(--qi-field); border: 1px dashed var(--qi-sep); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; }
+  .video-slot .play { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--qi-sep); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--qi-ink-faint); background: var(--qi-card); }
+  .video-slot .cap { font-size: 11.8px; color: var(--qi-ink-soft); font-weight: 620; }
+  .video-slot .sub { font-size: 10.6px; color: var(--qi-ink-faint); }
+
+  /* ---------- NEW: brand SVGs (logo = marketing/app-icon surfaces, aviator = tray only) ---------- */
+  .brand-logo { display: block; flex-shrink: 0; }
+  .aviator-icon { display: block; width: 15px; height: auto; color: inherit; }
+  .aviator-icon.lg { width: 20px; }
+
+  /* ---------- NEW: YouTube link-out affordance (all video slots are placeholders) ---------- */
+  .yt-chip { display: inline-flex; align-items: center; gap: 2px; font-family: var(--mono); font-size: 9px; letter-spacing: .03em; color: var(--qi-ink-faint); border: 1px solid var(--qi-sep); border-radius: 999px; padding: 1px 7px; margin-left: 6px; white-space: nowrap; vertical-align: middle; }
+  .video-link { display: inline-flex; align-items: center; gap: 8px; font-size: 12.3px; color: var(--qi-accent); font-weight: 650; text-decoration: none; }
+  .video-link .play-sm { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--qi-sep); display: flex; align-items: center; justify-content: center; font-size: 9px; color: var(--qi-ink-soft); background: var(--qi-card); flex-shrink: 0; }
+
+  /* ---------- NEW: read-only confirmation rows (Welcome list, What you're getting) ---------- */
+  .confirm-rows { display: flex; flex-direction: column; }
+  .confirm-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 9px 0; }
+  .confirm-row + .confirm-row { border-top: 1px solid var(--qi-sep); }
+  .confirm-row .name { display: block; font-size: 12.4px; font-weight: 650; color: var(--qi-ink); }
+  .confirm-row .desc { display: block; font-size: 11.6px; color: var(--qi-ink-soft); margin-top: 2px; line-height: 1.4; }
+
+  /* ---------- NEW: per-provider integration cards ---------- */
+  .provider-cards { display: flex; flex-direction: column; gap: 9px; }
+  .provider-card { border: 1px solid var(--qi-sep); border-radius: 8px; padding: 10px 12px; background: var(--qi-card); }
+  .provider-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .provider-name { font-size: 12.4px; font-weight: 650; color: var(--qi-ink); }
+  .provider-note { font-size: 10.9px; color: var(--qi-ink-faint); margin: 6px 0 0; line-height: 1.4; }
+
+  /* ---------- NEW: Done screen send-off beat ---------- */
+  .send-off { font-size: 16.5px; font-weight: 700; color: var(--qi-ink); margin: 2px 0 14px; letter-spacing: -.005em; }
+
+  /* ---------- NEW: tray badge-state contrast tiles ---------- */
+  .badge-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px,1fr)); gap: 14px; margin-top: 2px; }
+  .badge-tile { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .badge-tile-glyph { position: relative; width: 40px; height: 40px; border-radius: 10px; background: var(--qi-sidebar); border: 1px solid var(--qi-sep); display: flex; align-items: center; justify-content: center; color: var(--qi-ink); }
+  .badge-tile-glyph .mark-overlay { position: absolute; bottom: -3px; right: -3px; width: 15px; height: 15px; }
+  .badge-tile-cap { font-size: 10.6px; color: var(--qi-ink-soft); text-align: center; line-height: 1.3; }
+
+  .popover { width: 360px; max-width: 100%; background: var(--qi-card); border: 1px solid var(--qi-sep); border-radius: 11px; box-shadow: var(--qi-shadow); overflow: hidden; margin-top: 10px; margin-left: auto; }
+  .pop-header { display: flex; gap: 10px; align-items: flex-start; padding: 14px 16px; border-bottom: 1px solid var(--qi-sep); }
+  .pop-header .g { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .pop-status { font-size: 12.6px; font-weight: 650; color: var(--qi-ink); line-height: 1.4; }
+  .pop-host { font-size: 10.6px; color: var(--qi-ink-faint); margin-top: 3px; }
+  .pop-section { padding: 11px 16px; border-bottom: 1px solid var(--qi-sep); }
+  .pop-section:last-child { border-bottom: none; }
+  .pop-label { font-family: var(--mono); font-size: 9.3px; letter-spacing: .08em; text-transform: uppercase; color: var(--qi-ink-faint); margin: 0 0 8px; font-weight: 700; }
+  .pop-legend { display: grid; grid-template-columns: 1fr repeat(4,32px); font-size: 8.4px; color: var(--qi-ink-faint); margin-bottom: 5px; text-align: center; }
+  .pop-legend span:first-child { text-align: left; }
+  .pop-comp { display: grid; grid-template-columns: 1fr repeat(4,32px); align-items: center; padding: 4px 0; font-size: 11.6px; color: var(--qi-ink); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--qi-green); margin: 0 auto; display: block; }
+  .dot.off { background: var(--qi-sep); }
+  .pop-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 11.8px; color: var(--qi-ink); }
+  .pop-row .st { color: var(--qi-ink-faint); font-size: 10.8px; }
+  .pop-note { font-size: 10.4px; color: var(--qi-ink-faint); margin: 2px 0 8px; line-height: 1.4; }
+  .pop-actions { display: flex; align-items: center; gap: 12px; padding: 11px 16px; }
+  .pop-actions .btn.text { padding: 0; font-size: 11.6px; }
+  .pop-bob { padding: 11px 16px; background: color-mix(in srgb, var(--qi-accent) 5%, var(--qi-card)); border-top: 1px dashed var(--qi-sep); font-size: 11.8px; color: var(--qi-ink-soft); line-height: 1.5; }
+  .pop-bob .btn { margin-top: 8px; }
+  .pop-empty { font-size: 11px; color: var(--qi-ink-faint); padding: 2px 0; }
+  .pop-banner { background: color-mix(in srgb, var(--qi-orange) 12%, var(--qi-card)); border-top: 1px solid color-mix(in srgb, var(--qi-orange) 40%, var(--qi-sep)); padding: 10px 16px; font-size: 11.6px; color: var(--qi-ink); line-height: 1.5; }
+  .pop-banner .btn { margin-top: 8px; }
+
+  @media (max-width: 760px) {
+    .annot-grid { grid-template-columns: 1fr; }
+    .popover { margin-left: 0; }
+  }
+</style>
+
+<main class="page">
+
+  <header>
+    <p class="eyebrow"><span class="dot"></span> Copilot Control Tower &middot; End-user experience &middot; 2026-07-16 &middot; rev 3</p>
+    <h1>Bob's whole journey, screen by <em>screen</em></h1>
+    <p class="thesis">
+      Every surface Bob sees, from the invitation email in his inbox to the moment an update goes wrong and quietly
+      recovers on its own, rendered in the product's own "Quiet Instrument" visual language. Each screen pairs what
+      Bob experiences with what the app actually does underneath, and names what is still a placeholder today.
+      <strong>Control Tower sets up and keeps current what Bob is entitled to, on its own, without ever asking him to
+      judge anything about his organization's setup; it never touches his own unsaved work, and when there is nothing
+      to say, it says nothing.</strong>
+    </p>
+    <nav class="toc" aria-label="Screens in this walkthrough">
+      <p class="group-label">Arc 1 &middot; Getting it</p>
+      <div class="toc-row">
+        <a href="#e1"><b>1</b>The invitation email</a>
+        <a href="#e2"><b>2</b>The download page</a>
+        <a href="#e3"><b>3</b>Drag to Applications</a>
+        <a href="#e4"><b>4</b>First open</a>
+        <a href="#e5"><b>5</b>Menu bar, first light</a>
+      </div>
+      <p class="group-label">Arc 2 &middot; Setting up</p>
+      <div class="toc-row">
+        <a href="#w1"><b>6</b>Welcome</a>
+        <a href="#w2"><b>7</b>Connect GitHub</a>
+        <a href="#w3"><b>8</b>Detect</a>
+        <a href="#w4"><b>9</b>What you're getting</a>
+        <a href="#w5"><b>10</b>Departments</a>
+        <a href="#w6"><b>11</b>Integrations &amp; sign-in</a>
+        <a href="#w7"><b>12</b>Set up</a>
+        <a href="#w8"><b>13</b>Verify</a>
+        <a href="#w9"><b>14</b>Done</a>
+        <a href="#w10"><b>15</b>Holding</a>
+      </div>
+      <p class="group-label">Arc 3 &middot; Living with it</p>
+      <div class="toc-row">
+        <a href="#d1"><b>16</b>The quiet tray</a>
+        <a href="#d2"><b>17</b>Opening the popover</a>
+        <a href="#d3"><b>18</b>Sync now</a>
+        <a href="#d4"><b>19</b>A department appears</a>
+        <a href="#d5"><b>20</b>What Bob never has to do</a>
+      </div>
+      <p class="group-label">Arc 4 &middot; Updates</p>
+      <div class="toc-row">
+        <a href="#u1"><b>21</b>An update lands</a>
+        <a href="#u2"><b>22</b>The honest summary</a>
+        <a href="#u3"><b>23</b>Silent self-update</a>
+        <a href="#u4"><b>24</b>Kept your working version</a>
+      </div>
+      <p class="group-label">Arc 5 &middot; When something goes wrong</p>
+      <div class="toc-row">
+        <a href="#p1"><b>25</b>Auto-fixed and reported</a>
+        <a href="#p2"><b>26</b>Escalated to IT</a>
+        <a href="#p3"><b>27</b>Asked, on his own data</a>
+      </div>
+      <p class="group-label">Review</p>
+      <div class="toc-row">
+        <a href="#assumptions"><b>&middot;</b>Assumptions</a>
+        <a href="#notbuilt"><b>&middot;</b>Not built yet</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- =================================================================== -->
+  <!-- PRINCIPLES STRIP                                                   -->
+  <!-- =================================================================== -->
+  <section id="principles" aria-labelledby="h-principles">
+    <div class="sec-head">
+      <span class="sec-num">&middot;</span>
+      <h2 id="h-principles">Five plain-language promises</h2>
+      <p class="sec-sub">The invariants, translated out of engineer-speak. Each maps to one of the five arcs below. Flat and quiet on purpose: this is not a marketing hero.</p>
+    </div>
+    <div class="principles-grid">
+      <div class="principle-card"><p class="pn">1</p><h4>It sets up your copilots. You don't.</h4><p>Control Tower brings in Claude Copilot, Codex Copilot, Knowledge Copilot, and CLI Copilot, and keeps them current, so you never open a terminal.</p></div>
+      <div class="principle-card"><p class="pn">2</p><h4>When there's nothing to say, it says nothing.</h4><p>A quiet icon in your menu bar means everything is current. There is no "all good" popup to dismiss.</p></div>
+      <div class="principle-card"><p class="pn">3</p><h4>It only ever asks you about your own things.</h4><p>Your sign-ins, your unsaved work, a new team you can join. Anything to do with your organization's setup goes to your IT team, never to you.</p></div>
+      <div class="principle-card"><p class="pn">4</p><h4>It never touches your unsaved work.</h4><p>If your own work is in the way of an update, the update waits. Nothing of yours is ever overwritten or thrown away.</p></div>
+      <div class="principle-card"><p class="pn">5</p><h4>When an update goes wrong, it keeps the version that worked.</h4><p>You will not see a scary failure. You will see one calm line telling you your working version was kept.</p></div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- ARC 1                                                              -->
+  <!-- =================================================================== -->
+  <div class="journey-head" id="arc-1">
+    <h3 class="journey-title">Arc 1. Invitation &amp; install</h3>
+    <p class="sec-sub">Bob has heard about this once: an email with a link. Emotional target is zero anxiety and zero decisions.
+      He should feel this is ordinary, safe, and short. Mostly new design work: the app itself doesn't exist on his Mac yet,
+      so every surface here belongs to email, the browser, Finder, or macOS itself.</p>
+  </div>
+
+  <!-- ---------------- 1. The invitation email ---------------- -->
+  <section id="e1" class="screen" aria-labelledby="h-e1">
+    <div class="sec-head">
+      <span class="sec-num">1</span>
+      <h2 id="h-e1">The invitation email</h2>
+      <p class="sec-sub">Bob's first contact with the product, and it comes from his own IT, not from us. He is wary of an unexpected install request, so the letter reads like an internal note, not a product blast.</p>
+    </div>
+
+    <div class="window-wrap"><div class="sys-window">
+      <div class="sys-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Mail</span></div>
+      <div class="mail-head">
+        <div class="mail-row"><span class="org-logo" aria-hidden="true"><svg class="brand-logo" width="22" height="22" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" focusable="false"><g><g><polygon points="75.85 118.5 52.15 118.5 55 61.5 73 61.5 75.85 118.5" fill="#ededf9"/><path d="M52,54H76a0,0,0,0,1,0,0v7a3,3,0,0,1-3,3H55a3,3,0,0,1-3-3V54A0,0,0,0,1,52,54Z" fill="#537980"/><polygon points="78.5 58 49.5 58 44 28.167 84 28.167 78.5 58" fill="#fb9401"/><path d="M84,26.22H44l1.578-8.573a3,3,0,0,1,2.95-2.457H79.472a3,3,0,0,1,2.95,2.457Z" fill="#385b60"/><polygon points="69.619 58 58.381 58 56.25 28.167 71.75 28.167 69.619 58" fill="#f9d42f"/><rect x="41.373" y="24.192" width="45.253" height="6" fill="#537980"/><rect x="24.192" y="115.5" width="79.615" height="6" fill="#537980"/></g><g><path d="M53.935,82.864l.088,0A1.751,1.751,0,0,0,55.771,81.2l.167-3.357a1.75,1.75,0,0,0-3.5-.176l-.168,3.357A1.752,1.752,0,0,0,53.935,82.864Z" fill="#061720"/><path d="M69.135,106.118l.088,0a1.751,1.751,0,0,0,1.661-1.835l-.3-5.908a1.75,1.75,0,0,0-3.5.174l.3,5.908A1.75,1.75,0,0,0,69.135,106.118Z" fill="#061720"/><path d="M103.808,113.75H97.5a1.75,1.75,0,0,0,0,3.5h4.558v2.5H25.942v-2.5H88.125a1.75,1.75,0,0,0,0-3.5H77.365L74.939,65.325A4.719,4.719,0,0,0,77.75,61V59.75h.75a1.751,1.751,0,0,0,1.721-1.433l4.865-26.375h1.541a1.749,1.749,0,0,0,1.75-1.75v-6a1.75,1.75,0,0,0-1.75-1.75H85.086l-.944-5.1a4.745,4.745,0,0,0-4.672-3.9H65.75V6.5a1.75,1.75,0,0,0-3.5,0v6.94H59.625a1.75,1.75,0,1,0,0,3.5H79.47A1.247,1.247,0,0,1,80.7,17.969l.828,4.473H46.473l.829-4.479A1.246,1.246,0,0,1,48.53,16.94h2.72a1.75,1.75,0,0,0,0-3.5H48.53a4.744,4.744,0,0,0-4.671,3.892l-.945,5.11H41.373a1.75,1.75,0,0,0-1.75,1.75v6a1.749,1.749,0,0,0,1.75,1.75h1.541l4.865,26.375A1.751,1.751,0,0,0,49.5,59.75h.75V61a4.719,4.719,0,0,0,2.811,4.325L52.7,72.541a1.751,1.751,0,0,0,1.66,1.836l.089,0A1.75,1.75,0,0,0,56.2,72.717l.349-6.967H71.456l2.4,48H54.14l1.292-25.791a1.75,1.75,0,0,0-3.5-.176l-1.3,25.967H24.192a1.75,1.75,0,0,0-1.75,1.75v6a1.75,1.75,0,0,0,1.75,1.75h79.616a1.75,1.75,0,0,0,1.75-1.75v-6A1.75,1.75,0,0,0,103.808,113.75ZM77.043,56.25H71.5l1.74-24.308h8.288Zm-17.034,0-1.74-24.308H69.731L67.991,56.25ZM43.123,28.442v-2.5H84.877v2.5Zm3.35,3.5h8.288L56.5,56.25H50.957ZM74.25,59.75V61a1.238,1.238,0,0,1-1.2,1.241h-.03l-.088.007H55.064l-.088-.007h-.03A1.238,1.238,0,0,1,53.75,61V59.75Z" fill="#061720"/></g></g></svg></span><span>From: <b>Earl Mota (IT), Acme</b></span></div>
+        <p class="mail-subject">Set up your copilots on your Mac</p>
+      </div>
+      <div class="mail-body">
+        <p>Hi Bob,</p>
+        <p>We've set up a shared set of copilots for the team: Claude Copilot, Codex Copilot, Knowledge Copilot, and CLI Copilot. Copilot Control Tower is a small app that installs them on your Mac and keeps them current for you. You won't need a terminal, and it won't ask you to set anything up by hand.</p>
+        <p>Download it below, then follow the short setup. It takes a few steps. When it's done, it lives quietly in your menu bar.</p>
+        <p>If anything looks off, reply to this email. That reaches me directly.</p>
+        <p style="margin:0 0 4px;">Curious what all this is? Learn more first:</p>
+        <p class="mail-fallback" style="margin:0 0 14px;">controltower.acme.com</p>
+        <p class="mail-cta"><span class="btn primary">Download Control Tower</span></p>
+        <p class="mail-fallback">Or copy this link: downloads.acme.com/control-tower</p>
+        <p class="mail-sig">Earl Mota &middot; IT &middot; Acme</p>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: plain-text variant</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Same copy, for mail clients that strip HTML. The button becomes a bare URL: <span class="qi-mono">downloads.acme.com/control-tower</span>. Nothing else changes.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: re-send / reminder variant</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Subject becomes <span class="qi-mono">Reminder: set up your copilots</span>, with an added first line: "Following up so this doesn't get lost." Everything else is unchanged.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob opens an email that looks like an ordinary internal note from Earl in IT, not a marketing blast. He reads a short, plain explanation of what's being set up and why (four named copilots, no terminal, nothing to configure by hand), and a real name signs the bottom, so if something looks wrong he knows exactly who to reply to. If he's cautious, a quiet line offers him a place to learn more before he installs anything; if he's ready, one button and a plain-text fallback link sit right below it.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The product has no email-sending capability of its own. This mail is sent by the org's named <code>AdminContact</code>, hosted and dispatched entirely outside Control Tower, from an org-controlled mail system. Clicking the button or the fallback link both resolve to the same org-hosted download URL. The "learn more" link goes to the company's own Control Tower site, the same one that hosts the download, so a cautious reader can learn before installing. Nothing here touches the app or GitHub; it is pure org action, upstream of anything Control Tower controls.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 2. The download page ---------------- -->
+  <section id="e2" class="screen" aria-labelledby="h-e2">
+    <div class="sec-head">
+      <span class="sec-num">2</span>
+      <h2 id="h-e2">The download page</h2>
+      <p class="sec-sub">Bob wants to confirm this is legit and find the right button. It's really the org's Control Tower resource site, with the download as its primary action: a short preview of the whole shape (download, open, set up) so he sees the end before he commits.</p>
+    </div>
+
+    <div class="window-wrap"><div class="sys-window">
+      <div class="sys-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Browser</span></div>
+      <div class="browser-bar"><span class="browser-url">downloads.acme.com/control-tower</span></div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:20px;padding:9px 14px;border-bottom:1px solid var(--qi-sep);font-size:11px;color:var(--qi-ink-faint);">
+        <span>What you get</span><span>Watch how it works</span><span>For admins</span><span>Who to ask</span>
+      </div>
+      <div class="browser-content">
+        <div class="dl-glyph" aria-hidden="true"><svg class="brand-logo" width="40" height="40" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" style="margin:0 auto;" focusable="false"><g><g><polygon points="75.85 118.5 52.15 118.5 55 61.5 73 61.5 75.85 118.5" fill="#ededf9"/><path d="M52,54H76a0,0,0,0,1,0,0v7a3,3,0,0,1-3,3H55a3,3,0,0,1-3-3V54A0,0,0,0,1,52,54Z" fill="#537980"/><polygon points="78.5 58 49.5 58 44 28.167 84 28.167 78.5 58" fill="#fb9401"/><path d="M84,26.22H44l1.578-8.573a3,3,0,0,1,2.95-2.457H79.472a3,3,0,0,1,2.95,2.457Z" fill="#385b60"/><polygon points="69.619 58 58.381 58 56.25 28.167 71.75 28.167 69.619 58" fill="#f9d42f"/><rect x="41.373" y="24.192" width="45.253" height="6" fill="#537980"/><rect x="24.192" y="115.5" width="79.615" height="6" fill="#537980"/></g><g><path d="M53.935,82.864l.088,0A1.751,1.751,0,0,0,55.771,81.2l.167-3.357a1.75,1.75,0,0,0-3.5-.176l-.168,3.357A1.752,1.752,0,0,0,53.935,82.864Z" fill="#061720"/><path d="M69.135,106.118l.088,0a1.751,1.751,0,0,0,1.661-1.835l-.3-5.908a1.75,1.75,0,0,0-3.5.174l.3,5.908A1.75,1.75,0,0,0,69.135,106.118Z" fill="#061720"/><path d="M103.808,113.75H97.5a1.75,1.75,0,0,0,0,3.5h4.558v2.5H25.942v-2.5H88.125a1.75,1.75,0,0,0,0-3.5H77.365L74.939,65.325A4.719,4.719,0,0,0,77.75,61V59.75h.75a1.751,1.751,0,0,0,1.721-1.433l4.865-26.375h1.541a1.749,1.749,0,0,0,1.75-1.75v-6a1.75,1.75,0,0,0-1.75-1.75H85.086l-.944-5.1a4.745,4.745,0,0,0-4.672-3.9H65.75V6.5a1.75,1.75,0,0,0-3.5,0v6.94H59.625a1.75,1.75,0,1,0,0,3.5H79.47A1.247,1.247,0,0,1,80.7,17.969l.828,4.473H46.473l.829-4.479A1.246,1.246,0,0,1,48.53,16.94h2.72a1.75,1.75,0,0,0,0-3.5H48.53a4.744,4.744,0,0,0-4.671,3.892l-.945,5.11H41.373a1.75,1.75,0,0,0-1.75,1.75v6a1.749,1.749,0,0,0,1.75,1.75h1.541l4.865,26.375A1.751,1.751,0,0,0,49.5,59.75h.75V61a4.719,4.719,0,0,0,2.811,4.325L52.7,72.541a1.751,1.751,0,0,0,1.66,1.836l.089,0A1.75,1.75,0,0,0,56.2,72.717l.349-6.967H71.456l2.4,48H54.14l1.292-25.791a1.75,1.75,0,0,0-3.5-.176l-1.3,25.967H24.192a1.75,1.75,0,0,0-1.75,1.75v6a1.75,1.75,0,0,0,1.75,1.75h79.616a1.75,1.75,0,0,0,1.75-1.75v-6A1.75,1.75,0,0,0,103.808,113.75ZM77.043,56.25H71.5l1.74-24.308h8.288Zm-17.034,0-1.74-24.308H69.731L67.991,56.25ZM43.123,28.442v-2.5H84.877v2.5Zm3.35,3.5h8.288L56.5,56.25H50.957ZM74.25,59.75V61a1.238,1.238,0,0,1-1.2,1.241h-.03l-.088.007H55.064l-.088-.007h-.03A1.238,1.238,0,0,1,53.75,61V59.75Z" fill="#061720"/></g></g></svg></div>
+        <p class="dl-title">Copilot Control Tower</p>
+        <p class="dl-sub">Installs your team's copilots on your Mac and keeps them current. No terminal.</p>
+        <p><span class="btn primary">Download for Mac</span></p>
+        <p class="dl-quiet">For macOS. Signed by Acme. About 20 MB.</p>
+        <div class="dl-steps">
+          <div class="dl-step"><span class="n">1</span>Download the app.</div>
+          <div class="dl-step"><span class="n">2</span>Open it and drag it to your Applications.</div>
+          <div class="dl-step"><span class="n">3</span>Open it once. It'll walk you through the rest.</div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-top:26px;">
+          <div>
+            <span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>Watch: a two minute tour<span class="yt-chip">&#8599; YouTube</span></span>
+            <p style="margin:4px 0 0;font-size:10.6px;color:var(--qi-ink-faint);">Video placeholder. Link coming.</p>
+          </div>
+          <div>
+            <span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>Watch: your copilots explained<span class="yt-chip">&#8599; YouTube</span></span>
+            <p style="margin:4px 0 0;font-size:10.6px;color:var(--qi-ink-faint);">Video placeholder. Link coming.</p>
+          </div>
+          <div>
+            <span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>Watch: what admins set up<span class="yt-chip">&#8599; YouTube</span></span>
+            <p style="margin:4px 0 0;font-size:10.6px;color:var(--qi-ink-faint);">Video placeholder. Link coming.</p>
+          </div>
+        </div>
+      </div>
+      <div class="dl-footer">Set up by your IT team. Questions? Reply to the email that sent you here.</div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Refusal: wrong platform</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Button is disabled. Line reads: "Control Tower is for Mac right now. If you're on Windows, reply to IT."</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Holding: download in progress</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Button label becomes <span class="qi-mono">Downloading...</span>. No percentage, no ETA.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob lands on a calm, centered page with a slim row of quiet links across the top: What you get, Watch how it works, For admins, Who to ask. Below that, the product name, a one-line description, one big button, and a quiet line about macOS and file size that tells him it's signed by his own company. The three-step preview (Download, Open, Set up) shows him the whole shape before he commits to anything, three short video links invite him to watch rather than read if he'd rather, and the footer reminds him this is his IT team's doing, not a stranger's.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The page is hosted at an org-controlled URL serving the org's signed <code>.dmg</code> (ASSUMPTION AS-2), not an ENAC or Anthropic-hosted download, and not an App Store link. The control tower logo appears here, full color: the resolved brand rule is that the logo is the mark for the download page and every other marketing surface, and the aviator glyph is menu-bar only (AS-5, resolved). This page ships with the product as a deployable artifact: a company hosts it internally, and can swap the videos, name, and contact for their own. It serves the curious employee arriving from the email, the user here for the download and how-to, and points admins and publishers to their own materials. No app code runs on this page; it is a static resource site the org owns. Full design: <code>docs/03-design/landing-site.md</code>.</p></div>
+    </div>
+
+    <div class="callout"><b>Two builds, one product.</b> What Bob downloads here is the user build. Admins get a separate admin build through a private channel from the publisher, never from this public page. The admin build carries the organization setup surfaces; the user build never shows them.</div>
+  </section>
+
+  <!-- ---------------- 3. Drag to Applications ---------------- -->
+  <section id="e3" class="screen" aria-labelledby="h-e3">
+    <div class="sec-head">
+      <span class="sec-num">3</span>
+      <h2 id="h-e3">Drag to Applications</h2>
+      <p class="sec-sub">The classic macOS drag-install, kept deliberately conventional so Bob recognizes it, whether or not he's done this before.</p>
+    </div>
+
+    <div class="window-wrap"><div class="sys-window">
+      <div class="sys-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Control Tower</span></div>
+      <div class="dmg-window">
+        <div class="dmg-icons">
+          <div class="dmg-icon"><span class="glyph" aria-hidden="true"><svg class="brand-logo" width="34" height="34" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" focusable="false"><g><g><polygon points="75.85 118.5 52.15 118.5 55 61.5 73 61.5 75.85 118.5" fill="#ededf9"/><path d="M52,54H76a0,0,0,0,1,0,0v7a3,3,0,0,1-3,3H55a3,3,0,0,1-3-3V54A0,0,0,0,1,52,54Z" fill="#537980"/><polygon points="78.5 58 49.5 58 44 28.167 84 28.167 78.5 58" fill="#fb9401"/><path d="M84,26.22H44l1.578-8.573a3,3,0,0,1,2.95-2.457H79.472a3,3,0,0,1,2.95,2.457Z" fill="#385b60"/><polygon points="69.619 58 58.381 58 56.25 28.167 71.75 28.167 69.619 58" fill="#f9d42f"/><rect x="41.373" y="24.192" width="45.253" height="6" fill="#537980"/><rect x="24.192" y="115.5" width="79.615" height="6" fill="#537980"/></g><g><path d="M53.935,82.864l.088,0A1.751,1.751,0,0,0,55.771,81.2l.167-3.357a1.75,1.75,0,0,0-3.5-.176l-.168,3.357A1.752,1.752,0,0,0,53.935,82.864Z" fill="#061720"/><path d="M69.135,106.118l.088,0a1.751,1.751,0,0,0,1.661-1.835l-.3-5.908a1.75,1.75,0,0,0-3.5.174l.3,5.908A1.75,1.75,0,0,0,69.135,106.118Z" fill="#061720"/><path d="M103.808,113.75H97.5a1.75,1.75,0,0,0,0,3.5h4.558v2.5H25.942v-2.5H88.125a1.75,1.75,0,0,0,0-3.5H77.365L74.939,65.325A4.719,4.719,0,0,0,77.75,61V59.75h.75a1.751,1.751,0,0,0,1.721-1.433l4.865-26.375h1.541a1.749,1.749,0,0,0,1.75-1.75v-6a1.75,1.75,0,0,0-1.75-1.75H85.086l-.944-5.1a4.745,4.745,0,0,0-4.672-3.9H65.75V6.5a1.75,1.75,0,0,0-3.5,0v6.94H59.625a1.75,1.75,0,1,0,0,3.5H79.47A1.247,1.247,0,0,1,80.7,17.969l.828,4.473H46.473l.829-4.479A1.246,1.246,0,0,1,48.53,16.94h2.72a1.75,1.75,0,0,0,0-3.5H48.53a4.744,4.744,0,0,0-4.671,3.892l-.945,5.11H41.373a1.75,1.75,0,0,0-1.75,1.75v6a1.749,1.749,0,0,0,1.75,1.75h1.541l4.865,26.375A1.751,1.751,0,0,0,49.5,59.75h.75V61a4.719,4.719,0,0,0,2.811,4.325L52.7,72.541a1.751,1.751,0,0,0,1.66,1.836l.089,0A1.75,1.75,0,0,0,56.2,72.717l.349-6.967H71.456l2.4,48H54.14l1.292-25.791a1.75,1.75,0,0,0-3.5-.176l-1.3,25.967H24.192a1.75,1.75,0,0,0-1.75,1.75v6a1.75,1.75,0,0,0,1.75,1.75h79.616a1.75,1.75,0,0,0,1.75-1.75v-6A1.75,1.75,0,0,0,103.808,113.75ZM77.043,56.25H71.5l1.74-24.308h8.288Zm-17.034,0-1.74-24.308H69.731L67.991,56.25ZM43.123,28.442v-2.5H84.877v2.5Zm3.35,3.5h8.288L56.5,56.25H50.957ZM74.25,59.75V61a1.238,1.238,0,0,1-1.2,1.241h-.03l-.088.007H55.064l-.088-.007h-.03A1.238,1.238,0,0,1,53.75,61V59.75Z" fill="#061720"/></g></g></svg></span>Control Tower</div>
+          <span class="dmg-arrow" aria-hidden="true">&rarr;</span>
+          <div class="dmg-icon"><span class="glyph" aria-hidden="true">&#128193;</span>Applications</div>
+        </div>
+        <p class="dmg-caption">Drag Control Tower into Applications<span>Then open it from your Applications folder.</span></p>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: mid-drag</p>
+        <div class="inset-win">
+          <div class="dmg-icons" style="gap:14px;">
+            <div class="dmg-icon"><span class="glyph" aria-hidden="true" style="opacity:.5;"><svg class="brand-logo" width="34" height="34" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" focusable="false"><g><g><polygon points="75.85 118.5 52.15 118.5 55 61.5 73 61.5 75.85 118.5" fill="#ededf9"/><path d="M52,54H76a0,0,0,0,1,0,0v7a3,3,0,0,1-3,3H55a3,3,0,0,1-3-3V54A0,0,0,0,1,52,54Z" fill="#537980"/><polygon points="78.5 58 49.5 58 44 28.167 84 28.167 78.5 58" fill="#fb9401"/><path d="M84,26.22H44l1.578-8.573a3,3,0,0,1,2.95-2.457H79.472a3,3,0,0,1,2.95,2.457Z" fill="#385b60"/><polygon points="69.619 58 58.381 58 56.25 28.167 71.75 28.167 69.619 58" fill="#f9d42f"/><rect x="41.373" y="24.192" width="45.253" height="6" fill="#537980"/><rect x="24.192" y="115.5" width="79.615" height="6" fill="#537980"/></g><g><path d="M53.935,82.864l.088,0A1.751,1.751,0,0,0,55.771,81.2l.167-3.357a1.75,1.75,0,0,0-3.5-.176l-.168,3.357A1.752,1.752,0,0,0,53.935,82.864Z" fill="#061720"/><path d="M69.135,106.118l.088,0a1.751,1.751,0,0,0,1.661-1.835l-.3-5.908a1.75,1.75,0,0,0-3.5.174l.3,5.908A1.75,1.75,0,0,0,69.135,106.118Z" fill="#061720"/><path d="M103.808,113.75H97.5a1.75,1.75,0,0,0,0,3.5h4.558v2.5H25.942v-2.5H88.125a1.75,1.75,0,0,0,0-3.5H77.365L74.939,65.325A4.719,4.719,0,0,0,77.75,61V59.75h.75a1.751,1.751,0,0,0,1.721-1.433l4.865-26.375h1.541a1.749,1.749,0,0,0,1.75-1.75v-6a1.75,1.75,0,0,0-1.75-1.75H85.086l-.944-5.1a4.745,4.745,0,0,0-4.672-3.9H65.75V6.5a1.75,1.75,0,0,0-3.5,0v6.94H59.625a1.75,1.75,0,1,0,0,3.5H79.47A1.247,1.247,0,0,1,80.7,17.969l.828,4.473H46.473l.829-4.479A1.246,1.246,0,0,1,48.53,16.94h2.72a1.75,1.75,0,0,0,0-3.5H48.53a4.744,4.744,0,0,0-4.671,3.892l-.945,5.11H41.373a1.75,1.75,0,0,0-1.75,1.75v6a1.749,1.749,0,0,0,1.75,1.75h1.541l4.865,26.375A1.751,1.751,0,0,0,49.5,59.75h.75V61a4.719,4.719,0,0,0,2.811,4.325L52.7,72.541a1.751,1.751,0,0,0,1.66,1.836l.089,0A1.75,1.75,0,0,0,56.2,72.717l.349-6.967H71.456l2.4,48H54.14l1.292-25.791a1.75,1.75,0,0,0-3.5-.176l-1.3,25.967H24.192a1.75,1.75,0,0,0-1.75,1.75v6a1.75,1.75,0,0,0,1.75,1.75h79.616a1.75,1.75,0,0,0,1.75-1.75v-6A1.75,1.75,0,0,0,103.808,113.75ZM77.043,56.25H71.5l1.74-24.308h8.288Zm-17.034,0-1.74-24.308H69.731L67.991,56.25ZM43.123,28.442v-2.5H84.877v2.5Zm3.35,3.5h8.288L56.5,56.25H50.957ZM74.25,59.75V61a1.238,1.238,0,0,1-1.2,1.241h-.03l-.088.007H55.064l-.088-.007h-.03A1.238,1.238,0,0,1,53.75,61V59.75Z" fill="#061720"/></g></g></svg></span></div>
+            <span class="dmg-arrow" aria-hidden="true">&hellip;</span>
+            <div class="dmg-icon"><span class="glyph" aria-hidden="true">&#128193;</span>Applications</div>
+          </div>
+          <p style="margin:10px 0 0;font-size:11.6px;color:var(--qi-ink-faint);text-align:center;">The ghosted icon sits between the two positions mid-drag. Illustrative only.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob double-clicks the downloaded file and a plain Finder window opens: the app's icon on the left, a big arrow, the Applications folder on the right, and one instruction line baked right into the background. He drags the icon across, the way he's dragged a hundred apps before, or the way the picture makes obvious if he never has.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Distribution is a drag-install <code>.dmg</code> (ASSUMPTION AS-3), matching the signed, notarized, stapled <code>.app</code> the Publisher journey already produces, not a <code>.pkg</code> installer. There is no wizard chrome here; this is pure Finder, and the app has not run a single line of code yet.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 4. First open + Gatekeeper ---------------- -->
+  <section id="e4" class="screen" aria-labelledby="h-e4">
+    <div class="sec-head">
+      <span class="sec-num">4</span>
+      <h2 id="h-e4">First open</h2>
+      <p class="sec-sub">The single most anxiety-prone moment of the install. This is macOS's own dialog, not the product's; the product cannot restyle it, and this walkthrough shows the real thing with its own caption sitting outside it.</p>
+    </div>
+
+    <div class="gatekeeper-stage">
+      <div class="gatekeeper-alert">
+        <div class="gk-icon" aria-hidden="true"><svg class="brand-logo" width="30" height="30" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" focusable="false"><g><g><polygon points="75.85 118.5 52.15 118.5 55 61.5 73 61.5 75.85 118.5" fill="#ededf9"/><path d="M52,54H76a0,0,0,0,1,0,0v7a3,3,0,0,1-3,3H55a3,3,0,0,1-3-3V54A0,0,0,0,1,52,54Z" fill="#537980"/><polygon points="78.5 58 49.5 58 44 28.167 84 28.167 78.5 58" fill="#fb9401"/><path d="M84,26.22H44l1.578-8.573a3,3,0,0,1,2.95-2.457H79.472a3,3,0,0,1,2.95,2.457Z" fill="#385b60"/><polygon points="69.619 58 58.381 58 56.25 28.167 71.75 28.167 69.619 58" fill="#f9d42f"/><rect x="41.373" y="24.192" width="45.253" height="6" fill="#537980"/><rect x="24.192" y="115.5" width="79.615" height="6" fill="#537980"/></g><g><path d="M53.935,82.864l.088,0A1.751,1.751,0,0,0,55.771,81.2l.167-3.357a1.75,1.75,0,0,0-3.5-.176l-.168,3.357A1.752,1.752,0,0,0,53.935,82.864Z" fill="#061720"/><path d="M69.135,106.118l.088,0a1.751,1.751,0,0,0,1.661-1.835l-.3-5.908a1.75,1.75,0,0,0-3.5.174l.3,5.908A1.75,1.75,0,0,0,69.135,106.118Z" fill="#061720"/><path d="M103.808,113.75H97.5a1.75,1.75,0,0,0,0,3.5h4.558v2.5H25.942v-2.5H88.125a1.75,1.75,0,0,0,0-3.5H77.365L74.939,65.325A4.719,4.719,0,0,0,77.75,61V59.75h.75a1.751,1.751,0,0,0,1.721-1.433l4.865-26.375h1.541a1.749,1.749,0,0,0,1.75-1.75v-6a1.75,1.75,0,0,0-1.75-1.75H85.086l-.944-5.1a4.745,4.745,0,0,0-4.672-3.9H65.75V6.5a1.75,1.75,0,0,0-3.5,0v6.94H59.625a1.75,1.75,0,1,0,0,3.5H79.47A1.247,1.247,0,0,1,80.7,17.969l.828,4.473H46.473l.829-4.479A1.246,1.246,0,0,1,48.53,16.94h2.72a1.75,1.75,0,0,0,0-3.5H48.53a4.744,4.744,0,0,0-4.671,3.892l-.945,5.11H41.373a1.75,1.75,0,0,0-1.75,1.75v6a1.749,1.749,0,0,0,1.75,1.75h1.541l4.865,26.375A1.751,1.751,0,0,0,49.5,59.75h.75V61a4.719,4.719,0,0,0,2.811,4.325L52.7,72.541a1.751,1.751,0,0,0,1.66,1.836l.089,0A1.75,1.75,0,0,0,56.2,72.717l.349-6.967H71.456l2.4,48H54.14l1.292-25.791a1.75,1.75,0,0,0-3.5-.176l-1.3,25.967H24.192a1.75,1.75,0,0,0-1.75,1.75v6a1.75,1.75,0,0,0,1.75,1.75h79.616a1.75,1.75,0,0,0,1.75-1.75v-6A1.75,1.75,0,0,0,103.808,113.75ZM77.043,56.25H71.5l1.74-24.308h8.288Zm-17.034,0-1.74-24.308H69.731L67.991,56.25ZM43.123,28.442v-2.5H84.877v2.5Zm3.35,3.5h8.288L56.5,56.25H50.957ZM74.25,59.75V61a1.238,1.238,0,0,1-1.2,1.241h-.03l-.088.007H55.064l-.088-.007h-.03A1.238,1.238,0,0,1,53.75,61V59.75Z" fill="#061720"/></g></g></svg></div>
+        <h4>"Copilot Control Tower" is an app downloaded from the Internet. Are you sure you want to open it?</h4>
+        <p>Apple checked it for malicious software and none was detected.</p>
+        <div class="gk-buttons"><span class="btn">Cancel</span><span class="btn primary">Open</span></div>
+      </div>
+    </div>
+    <p class="gk-outside-caption">This is macOS confirming the app is safe to open. It's signed and checked, so you'll see "no malicious software." Click Open.</p>
+
+    <div class="inset-row">
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Refusal: what you should NOT see (degraded / unsigned)</p>
+        <div class="inset-win">
+          <p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">A hard-block dialog reading roughly "Apple cannot check it for malicious software" with no Open option, only Trash and Cancel. If Bob ever sees this, the walkthrough tells him to reply to IT: no right-click-open workaround is ever taught. The stapled notarization ticket is what keeps him on the friendly path above (ASSUMPTION AS-4).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob opens the app from Applications for the first time and macOS itself, not Control Tower, asks whether he really wants to open something downloaded from the internet. He reads that Apple checked it and found nothing malicious, and clicks Open. It reads like a routine confirmation, not a warning.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>This dialog belongs to macOS's Gatekeeper, not the product; nothing in Control Tower can fake, skip, or restyle it. Because the build is notarized and the ticket is stapled, Bob sees the reassuring wording rather than the hard block. This is the design target and depends entirely on the org's signing and notarization pipeline staying intact.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 5. Menu bar, first light ---------------- -->
+  <section id="e5" class="screen" aria-labelledby="h-e5">
+    <div class="sec-head">
+      <span class="sec-num">5</span>
+      <h2 id="h-e5">Menu bar, first light</h2>
+      <p class="sec-sub">The app opened. Bob's eyes go to a new small icon in his menu bar, while the wizard is about to auto-present. He learns where the app lives, quietly, before it asks him anything.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="menubar-strip">
+        <span class="sys-icon" aria-hidden="true">&#9834;</span>
+        <span class="sys-icon" aria-hidden="true">&#128225;</span>
+        <span class="sys-icon" aria-hidden="true">&#128267;</span>
+        <span class="tray-glyph" aria-hidden="true"><svg class="aviator-icon" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg></span>
+      </div>
+      <div class="tray-spot"><div class="tray-callout">This little icon is Control Tower. It stays up here, out of the way. From now on, this is where you'll find it.</div></div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Background: the login item (invisible to Bob, no dialog)</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">It set itself to start with your Mac, so you never have to launch it again. This happens at the first wizard phase, alongside the crash-only watchdog. There is no confirmation dialog for either; both are quiet background facts, not events Bob approves.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>The app opened and a small new icon appeared in Bob's menu bar. A quiet annotation points it out so he learns, once, where the app lives. He doesn't click anything here; the setup wizard is already opening on its own, centered on his screen.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>On first open the wizard auto-presents (ASSUMPTION AS-6); there is no separate "start setup" confirmation, because opening the app is starting setup. The tray glyph carries no status badge yet (the "Quiet Instrument" at rest); the login item and crash-only watchdog install themselves in the background at this same moment, with no dialog either way.</p></div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- ARC 2                                                              -->
+  <!-- =================================================================== -->
+  <div class="journey-head" id="arc-2">
+    <h3 class="journey-title">Arc 2. First-run wizard</h3>
+    <p class="sec-sub">The built nine-step flow, consolidated rather than reinvented. GitHub comes first, by decision: it's
+      how Control Tower knows what the team shares and where Bob's own space lives. What you're getting replaces the old
+      picker: everyone gets everything, so there's nothing to configure, only a light guided-education moment with a video
+      placeholder that links out to YouTube, so Bob learns what each copilot is by watching, not by choosing. Every step: an
+      eyebrow reading Step N of 9, never a clock, a roadmap sidebar labeled SETUP whose marks never lock anything downstream,
+      and a pinned footer.</p>
+  </div>
+
+  <!-- ---------------- 6. Welcome ---------------- -->
+  <section id="w1" class="screen" aria-labelledby="h-w1">
+    <div class="sec-head">
+      <span class="sec-num">6</span>
+      <h2 id="h-w1">Welcome</h2>
+      <p class="sec-sub">Low stakes. Bob reads what he's getting and presses start. There is no admin opt-in on this screen; admins get a separate build entirely (see the callout on the download page).</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item current"><span class="mark">&#9673;</span>Welcome</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Connect GitHub</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Detect</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>What you're getting</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 1 of 9</p>
+          <svg class="brand-logo" width="40" height="40" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" style="margin:0 0 10px;" aria-hidden="true" focusable="false"><g><g><polygon points="75.85 118.5 52.15 118.5 55 61.5 73 61.5 75.85 118.5" fill="#ededf9"/><path d="M52,54H76a0,0,0,0,1,0,0v7a3,3,0,0,1-3,3H55a3,3,0,0,1-3-3V54A0,0,0,0,1,52,54Z" fill="#537980"/><polygon points="78.5 58 49.5 58 44 28.167 84 28.167 78.5 58" fill="#fb9401"/><path d="M84,26.22H44l1.578-8.573a3,3,0,0,1,2.95-2.457H79.472a3,3,0,0,1,2.95,2.457Z" fill="#385b60"/><polygon points="69.619 58 58.381 58 56.25 28.167 71.75 28.167 69.619 58" fill="#f9d42f"/><rect x="41.373" y="24.192" width="45.253" height="6" fill="#537980"/><rect x="24.192" y="115.5" width="79.615" height="6" fill="#537980"/></g><g><path d="M53.935,82.864l.088,0A1.751,1.751,0,0,0,55.771,81.2l.167-3.357a1.75,1.75,0,0,0-3.5-.176l-.168,3.357A1.752,1.752,0,0,0,53.935,82.864Z" fill="#061720"/><path d="M69.135,106.118l.088,0a1.751,1.751,0,0,0,1.661-1.835l-.3-5.908a1.75,1.75,0,0,0-3.5.174l.3,5.908A1.75,1.75,0,0,0,69.135,106.118Z" fill="#061720"/><path d="M103.808,113.75H97.5a1.75,1.75,0,0,0,0,3.5h4.558v2.5H25.942v-2.5H88.125a1.75,1.75,0,0,0,0-3.5H77.365L74.939,65.325A4.719,4.719,0,0,0,77.75,61V59.75h.75a1.751,1.751,0,0,0,1.721-1.433l4.865-26.375h1.541a1.749,1.749,0,0,0,1.75-1.75v-6a1.75,1.75,0,0,0-1.75-1.75H85.086l-.944-5.1a4.745,4.745,0,0,0-4.672-3.9H65.75V6.5a1.75,1.75,0,0,0-3.5,0v6.94H59.625a1.75,1.75,0,1,0,0,3.5H79.47A1.247,1.247,0,0,1,80.7,17.969l.828,4.473H46.473l.829-4.479A1.246,1.246,0,0,1,48.53,16.94h2.72a1.75,1.75,0,0,0,0-3.5H48.53a4.744,4.744,0,0,0-4.671,3.892l-.945,5.11H41.373a1.75,1.75,0,0,0-1.75,1.75v6a1.749,1.749,0,0,0,1.75,1.75h1.541l4.865,26.375A1.751,1.751,0,0,0,49.5,59.75h.75V61a4.719,4.719,0,0,0,2.811,4.325L52.7,72.541a1.751,1.751,0,0,0,1.66,1.836l.089,0A1.75,1.75,0,0,0,56.2,72.717l.349-6.967H71.456l2.4,48H54.14l1.292-25.791a1.75,1.75,0,0,0-3.5-.176l-1.3,25.967H24.192a1.75,1.75,0,0,0-1.75,1.75v6a1.75,1.75,0,0,0,1.75,1.75h79.616a1.75,1.75,0,0,0,1.75-1.75v-6A1.75,1.75,0,0,0,103.808,113.75ZM77.043,56.25H71.5l1.74-24.308h8.288Zm-17.034,0-1.74-24.308H69.731L67.991,56.25ZM43.123,28.442v-2.5H84.877v2.5Zm3.35,3.5h8.288L56.5,56.25H50.957ZM74.25,59.75V61a1.238,1.238,0,0,1-1.2,1.241h-.03l-.088.007H55.064l-.088-.007h-.03A1.238,1.238,0,0,1,53.75,61V59.75Z" fill="#061720"/></g></g></svg>
+          <h3>Welcome to your copilots.</h3>
+          <p class="win-intro">Your company just gave you a set of AI copilots to help with your everyday work. This app, Copilot Control Tower, is how they land on your Mac and how they stay current.</p>
+          <div class="win-content">
+            <p style="margin:0 0 14px;font-size:12.8px;color:var(--qi-ink-soft);line-height:1.5;max-width:58ch;">You don't need to be technical for any of this. Control Tower sets everything up for you, then keeps it up to date quietly in the background. It lives as a small icon in your menu bar. When the icon is quiet, everything's ready.</p>
+            <div class="qi-block">
+              <p class="qi-block-label">Here's what you're getting:</p>
+              <div class="confirm-rows">
+                <div class="confirm-row"><div><span class="name">Knowledge Copilot</span><span class="desc">Your company's knowledge, ready to ask. Get a straight answer without hunting through documents.</span></div></div>
+                <div class="confirm-row"><div><span class="name">CLI Copilot</span><span class="desc">The quiet engine that keeps your copilots running behind the scenes.</span></div></div>
+                <div class="confirm-row"><div><span class="name">Claude Copilot</span><span class="desc">Your AI copilot for everyday work, from writing and checking numbers to building things.</span></div></div>
+              </div>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Before you start</p>
+              <div class="qi-rows">
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">A GitHub account. It's how your company shares your copilots with you, and where your own space lives. Don't have one yet? Create one first, it's free.<span class="yt-chip">&#8599; github.com</span></span></div>
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">The GitHub command line. A small tool Control Tower uses to bring in what your team shares. If it's not on this Mac, Control Tower sets it up. You'll approve it once, in your browser.</span></div>
+              </div>
+              <p class="qi-note">That's it. Have your GitHub sign-in handy and everything else is handled for you.</p>
+            </div>
+            <p class="welcome-video-line" style="margin:12px 0 0;"><span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>Watch a short welcome video<span class="yt-chip">&#8599; YouTube</span></span></p>
+          </div>
+          <div class="win-footer"><span></span><span class="status"></span><span class="grp"><span class="btn text">Quit</span><span class="btn primary">Get Started</span></span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob reads a short, warm explanation of what just landed on his Mac and why: a set of AI copilots from his company, and this app as how they land and stay current. He doesn't need to be technical; Control Tower does the setup and stays quiet afterward. A calm list names the three copilots he's getting, in plain language, with no checkboxes to fuss over. A quiet "Before you start" block names the one thing he needs: a GitHub account, plus a small command-line tool Control Tower sets up for him if it's missing. A low-emphasis video link offers a minute-long tour if he wants one. He presses Get Started.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Pure render of the wizard's first step, matching the built <code>wizard.swift</code> structure. No time estimate anywhere; step position reads Step 1 of 9, never a clock. The hero shows the control tower logo, full color, never the aviator glyph (R1, resolved brand rule). The old admin opt-in checkbox is gone by decision (ratified 2026-07-16, NB-11): the admin path is a separate executable, distributed privately, never reachable from this screen. The video line is a YouTube link-out placeholder (R7); no player is embedded anywhere. The prerequisites are stated up front by decision: without GitHub the app cannot pull what the team shares or create the user's personal space, so it is step one, not an integration buried later.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 7. Connect GitHub ---------------- -->
+  <section id="w2" class="screen" aria-labelledby="h-w2b">
+    <div class="sec-head">
+      <span class="sec-num">7</span>
+      <h2 id="h-w2b">Connect GitHub</h2>
+      <p class="sec-sub">GitHub comes first, by decision. One code, one browser approval, and Bob is done: it's the one real task he does during setup.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Connect GitHub</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Detect</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>What you're getting</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 2 of 9</p>
+          <h3>Connect GitHub</h3>
+          <p class="win-intro">GitHub comes first. It's how Control Tower knows what your team shares with you, and where your own space lives. Signing in happens in your browser, on GitHub's own page. Control Tower never asks for your password.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Your code</p>
+              <div class="qi-field-row"><label>Your code</label><span class="qi-input">WKQX-7F2P</span><span class="btn small">Copy code</span></div>
+              <p style="margin:10px 0;"><span class="btn primary small">Open GitHub</span></p>
+              <p style="margin:0;font-size:11.6px;color:var(--qi-ink-faint);">Waiting for you to finish in your browser&hellip;</p>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary disabled">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Signed in</p>
+        <div class="inset-win">
+          <div class="qi-row ok" style="border:none;padding:0;"><span class="g">&#10003;</span><span class="body2">Signed in as bob-acme.</span></div>
+          <p style="margin:10px 0 0;"><span class="btn primary small">Continue</span></p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Edge: no GitHub account yet</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Create your account at github.com first, then come back. This screen will wait.<span class="yt-chip">&#8599; github.com</span></p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>This is the one real task Bob does during setup. He reads that GitHub comes first, sees a short code with a copy button, presses Open GitHub, approves in his browser, and returns to one calm line: "Signed in as bob-acme." Continue lights up. If he doesn't have a GitHub account yet, the screen tells him plainly to go make one first and come back; it just waits.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>GitHub device flow via the <code>cc auth</code> seam; the token lands in the keychain via the CLI. The sign-in runs through the company's own GitHub app connection, set up by their admin during standup (its public client id travels in the org's inherited config), so a person always signs in to their own company's app. Team entitlements, department discovery, and the personal space all key off this sign-in. Grounded in <code>docs/03-design/integration-auth-research.md</code>.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 8. Detect ---------------- -->
+  <section id="w3" class="screen" aria-labelledby="h-w3d">
+    <div class="sec-head">
+      <span class="sec-num">8</span>
+      <h2 id="h-w3d">Detect</h2>
+      <p class="sec-sub">Bob watches the app look at his Mac and put the basics in place. He does nothing. It reassures him the app is careful: it looks before it asks.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Detect</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>What you're getting</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 3 of 9</p>
+          <h3>Checking what's already here</h3>
+          <p class="win-intro">Control Tower looks at what's already on this Mac before it asks you anything, and puts the basics in place.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">What's already here</p>
+              <ul class="qi-facts">
+                <li>GitHub: signed in as bob-acme.</li>
+                <li>GitHub command line: already here and current.</li>
+                <li>Claude Copilot is current for your organization and core setup.</li>
+                <li>No personal setup on this Mac yet. Control Tower will create your personal space on GitHub in a later step.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Holding: still checking</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);">Checking what's already here&hellip;</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: the GitHub command line isn't here yet</p>
+        <div class="inset-win">
+          <ul class="qi-facts" style="margin:0;">
+            <li>GitHub: signed in as bob-acme.</li>
+            <li>GitHub command line: setting it up&hellip;</li>
+          </ul>
+          <p style="margin:10px 0 0;font-size:11.6px;color:var(--qi-ink-faint);">You'll approve it once, in your browser.<span class="btn text small" style="margin-left:8px;">Approve in browser</span></p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: unreadable degrade, routes to Holding</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">"I can't read what's already on this Mac right now, so I won't guess." Continues into the Holding screen, <a href="#w10">screen 15</a>.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob watches a brief holding line, then a short list of plain past-tense facts about what's already on his Mac. Nothing is asked of him; he reads that he's signed into GitHub, that the GitHub command line is already here, that Claude Copilot is current for his organization, and that he has no personal setup yet, then continues.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Detect is the verify-and-provision gate: it confirms the GitHub sign-in, finds or installs the GitHub command line (one browser approval), and reads what is already materialized, so every later step can assume the ground is solid. If detection can't read the disk state, it never guesses; it routes to the honest Holding screen instead of fabricating a result. The gh install/approve mechanics are not built yet (NB-13).</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 9. What you're getting ---------------- -->
+  <section id="w4" class="screen" aria-labelledby="h-w4wg">
+    <div class="sec-head">
+      <span class="sec-num">9</span>
+      <h2 id="h-w4wg">What you're getting</h2>
+      <p class="sec-sub">Bob confirms what he already has. Nothing to pick: the only optional add is whether he also uses the other AI coding tool. The natural honest place to teach what each one is stays here too, an inline "What's this?" panel with a video placeholder that links out to YouTube. Education never blocks Continue.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>What you're getting</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 4 of 9</p>
+          <h3>Here's what you're getting</h3>
+          <p class="win-intro">Everyone on your team gets all of this. There's nothing to pick. Control Tower sets it up and keeps it current for you.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Your copilots</p>
+              <div class="confirm-rows">
+                <div class="confirm-row"><div><span class="name">Knowledge Copilot</span><span class="desc">Your company's knowledge, ready to ask.</span></div><span class="btn text small">What's this? &rsaquo;<span class="yt-chip">&#8599; YouTube</span></span></div>
+                <div class="confirm-row"><div><span class="name">CLI Copilot</span><span class="desc">The quiet engine that keeps everything running.</span></div><span class="btn text small">What's this? &rsaquo;<span class="yt-chip">&#8599; YouTube</span></span></div>
+                <div class="confirm-row" style="flex-direction:column;align-items:stretch;">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+                    <div><span class="name">Claude Copilot, your company's pick</span><span class="desc">Your AI copilot for everyday work.</span></div>
+                    <span class="btn text small">What's this? &#9662;</span>
+                  </div>
+                  <div class="qi-block" style="margin:10px 0 0;background:var(--qi-field);">
+                    <div class="video-slot">
+                      <span class="play" aria-hidden="true">&#9654;</span>
+                      <span class="cap">Watch: Claude Copilot in about a minute<span class="yt-chip">&#8599; YouTube</span></span>
+                      <span class="sub">Video placeholder. Link coming.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:6px;">
+              <p class="qi-note" style="margin-top:0;">Use the other one too?</p>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.3px;color:var(--qi-ink);"><span class="qi-input" style="width:auto;display:inline-block;font-family:var(--sans);padding:2px 6px;">&#9634;</span> I also use Codex. Include Codex Copilot too.</label>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="status"></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Alternate: a Codex company</p>
+        <div class="inset-win">
+          <div class="confirm-row"><div><span class="name">Codex Copilot, your company's pick</span><span class="desc">Your AI copilot for everyday work.</span></div><span class="btn text small">What's this? &rsaquo;</span></div>
+          <p class="qi-note" style="margin-top:10px;">Use the other one too?</p>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.3px;color:var(--qi-ink);"><span class="qi-input" style="width:auto;display:inline-block;font-family:var(--sans);padding:2px 6px;">&#9634;</span> I also use Claude Code. Include Claude Copilot too.</label>
+          <p class="qi-note" style="margin-top:10px;">Never both checkboxes at once: a company standardizes on one AI coding tool as its pick, and offers the other as an opt-in add.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob sees three copilots as calm, read-only rows: nothing to check, nothing to pick, just a confirmation of what he already has. Curious what any of them is, he opens "What's this?" and gets a one-sentence, jargon-free description; on Claude Copilot it expands into a short video placeholder that links out to YouTube. Below the rows, one small optional checkbox lets him add Codex Copilot if he also uses it, and nothing else on this screen asks him to decide anything.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>This screen replaces the old picker entirely (ratified 2026-07-16): there is nothing to grant or withhold here, because everyone on the team gets everything, and the company's AI-copilot default is set once, at the admin level. The per-component education panel is entirely new (NB-4), not present in the built <code>wizard.swift</code>. Every video slot is a YouTube link-out placeholder (R7); no player is embedded anywhere, and no video exists yet (ASSUMPTION AS-9).</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 10. Departments ---------------- -->
+  <section id="w5" class="screen" aria-labelledby="h-w5d">
+    <div class="sec-head">
+      <span class="sec-num">10</span>
+      <h2 id="h-w5d">Departments</h2>
+      <p class="sec-sub">The "join my own team without asking anyone" moment. Bob should feel he's allowed, no permission-seeking.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Departments</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 5 of 9</p>
+          <h3>Departments you can join</h3>
+          <p class="win-intro">Joining a department brings in everything your team shares there. You can join now, or come back to this later from Settings or the menu bar.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Departments you can join</p>
+              <div class="qi-rows">
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">Sales <span class="cap">Available to join</span></span><span class="fix">Join</span></div>
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">Accounting <span class="cap">Joined</span></span></div>
+                <div class="qi-row deferred"><span class="g">&#8226;</span><span class="body2">IT <span class="cap">Not available to you</span></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="grp"><span class="btn text">Skip for now</span></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Holding: joining</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);">Joining&hellip;</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Edge: offline</p>
+        <div class="inset-win">
+          <div class="qi-rows"><div class="qi-row deferred"><span class="g">&#8226;</span><span class="body2">Sales</span><span class="ready">Waiting for the network.</span></div></div>
+          <p style="margin:8px 0 0;font-size:11.3px;color:var(--qi-ink-faint);line-height:1.5;">Join waits for the network. The button is quiet until you're back online.</p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Edge: the list was stale</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">If access changed since this list was fetched, the row simply leaves the list on the next look. Joining something you can see essentially always works.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: empty state</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">No departments are available to you yet. When someone adds you to one, it'll show up here.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob sees the departments he's entitled to, one already joined, one waiting with a plain Join button, one he can't reach yet. He presses Join on Sales and it's done, no request sent to anyone, no waiting for approval. If he'd rather decide later, Skip for now carries no penalty.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Department discovery and join, validated by GitHub repo access, is not yet built (NB-2); every row shown is a mock fixture. The real verb will resolve entitlement from the person's team membership and join without any human approval step in the app. Joining something Bob can see essentially always works: the list IS Bob's entitlements, read from the same source that grants access, so showing it and granting it can't disagree except across a brief offline gap or a just-revoked race, both handled quietly rather than as an error.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 11. Integrations & sign-in (PEAK 1) ---------------- -->
+  <section id="w6" class="screen peak" aria-labelledby="h-w6i">
+    <div class="sec-head">
+      <span class="sec-num">11</span>
+      <h2 id="h-w6i">Integrations, and the sign-in peak</h2>
+      <p class="sec-sub">Sanctioned peak #1. Bob sees what's already shared with the team, no action needed, and his own accounts as a stack of provider cards. GitHub is already connected, since he did that in step 2; he presses Connect on the rest, approves in his browser, and it's done. No password or API key is ever shown to him.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Departments</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 6 of 9</p>
+          <h3>Integrations</h3>
+          <p class="win-intro">Some integrations are already set up for you because you're on the team. Others use your own accounts. Signing in always happens in your browser, on the provider's own page. Control Tower never asks for a password.</p>
+          <div class="win-content">
+            <div class="qi-block">
+              <p class="qi-block-label">Shared with your team &middot; ready for you. Nothing to sign into.</p>
+              <div class="qi-rows">
+                <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">Salesforce lookup</span><span class="ready">Ready</span></div>
+                <div class="qi-row deferred"><span class="g">&#8226;</span><span class="body2">Calendar read</span><span class="ready">Not available right now</span></div>
+              </div>
+            </div>
+            <div class="qi-block">
+              <p class="qi-block-label">Your accounts</p>
+              <div class="provider-cards">
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">GitHub</span><span class="fix" style="color:var(--qi-ink-faint);font-weight:500;">Signed in as bob-acme.</span></div><p class="provider-note">Connected at the start.</p></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Google</span><span class="btn small">Connect</span></div></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Microsoft 365</span><span class="btn small">Connect</span></div></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Slack</span><span class="btn small">Connect</span></div></div>
+                <div class="provider-card"><div class="provider-card-head"><span class="provider-name">Salesforce</span><span class="btn small">Connect</span></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="win-footer"><span class="btn">Back</span><span class="grp"><span class="btn text">Skip for now</span></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Google / Microsoft 365 / Slack / Salesforce: waiting (state 2, browser redirect)</p>
+        <div class="inset-win">
+          <p style="margin:0 0 8px;font-size:12.2px;color:var(--qi-ink-soft);">Finish signing in, in your browser.</p>
+          <p style="margin:0;font-size:11.6px;color:var(--qi-ink-faint);">Waiting&hellip;</p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">State 3: needs admin approval, a designed state, not an error</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Waiting on your IT team to approve this app for GitHub. They've been asked.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">State 4: connected, the calm payoff</p>
+        <div class="inset-win">
+          <div class="qi-row ok" style="border:none;padding:0;"><span class="g">&#10003;</span><span class="body2">Signed in as bob@acme.com.</span><span class="fix" style="color:var(--qi-ink-faint);font-weight:500;">Disconnect</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob sees what's already shared because he's on the team, nothing to click there, then his own accounts as a stack of calm cards: GitHub, already showing "Signed in as bob-acme" with a small note that it was connected at the start, then Google, Microsoft 365, Slack, and Salesforce, all plainly enabled and ready for him. He presses Connect on the ones he wants, a short code appears with a copy button (or, for the browser-redirect providers, his browser just opens), he approves on the provider's own page, and returns to one calm row: "Signed in as bob@acme.com." If his org hasn't approved the app yet, the card says so plainly and asks nothing of him. This is the one moment in the whole journey engineered to feel effortless, and it should.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Grounded in <code>docs/03-design/integration-auth-research.md</code>: the app renders states only, it never runs auth machinery. Sign-in happens on the provider's own page, in the system browser, the industry-standard desktop pattern (several providers block embedded sign-in outright). The token is captured by the CLI and stored in the Mac's keychain; the app never holds it. GitHub no longer gates the other four cards: by this point in the flow it is guaranteed, since Bob connected it in step 2. Re-auth after a provider-set token expiry is routine upkeep and reuses the same Connect affordance, never an error. The device-flow personal sign-in verb (<code>cc auth login &lt;provider&gt; --json</code>) is not yet frozen (NB-1); the shared-versus-personal split is also not yet built (NB-3); today all of it is mock fixtures.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 12. Set up (materialize) ---------------- -->
+  <section id="w7" class="screen" aria-labelledby="h-w7s">
+    <div class="sec-head">
+      <span class="sec-num">12</span>
+      <h2 id="h-w7s">Set up</h2>
+      <p class="sec-sub">Bob watches it actually install and bring things in. He can walk away; he should not feel he must babysit it.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Departments</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Integrations</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 7 of 9</p>
+          <h3>Bringing in your Sales department&hellip;</h3>
+          <p class="win-intro">This part runs on its own. Keep this window open, or close it and let Control Tower finish in the menu bar.</p>
+          <div class="win-content">
+            <div class="qi-block" style="text-align:center;padding:24px 18px;">
+              <p style="margin:0;font-size:12.3px;color:var(--qi-ink-faint);">Part 3 of 5</p>
+            </div>
+          </div>
+          <div class="win-footer"><span></span><span class="status"></span><span class="btn primary disabled">Setting up&hellip;</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: phase title only, indeterminate</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.6px;font-weight:650;color:var(--qi-ink);">Setting up Claude Copilot&hellip;</p><p style="margin:6px 0 0;font-size:11.4px;color:var(--qi-ink-faint);">No part count shown; a plain spinner glyph accompanies the title.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: personal-space phase</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.6px;font-weight:650;color:var(--qi-ink);">Creating your personal space on GitHub&hellip;</p><p style="margin:6px 0 0;font-size:11.4px;color:var(--qi-ink-faint);">Part 2 of 5. Runs once, between the component phase and the department phase.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: closed-window variant</p>
+        <div class="inset-win">
+          <div class="menubar-strip" style="margin-bottom:8px;"><span class="tray-glyph" aria-hidden="true"><svg class="aviator-icon" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg><span class="badge sync">&#8635;</span></span></div>
+          <p style="margin:0;font-size:12px;color:var(--qi-ink-soft);">Bringing everything up to date&hellip;</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob watches a plain title that names exactly what's happening right now, "Bringing in your Sales department," told he can close the window and it'll keep going in the menu bar. There's a part count when one exists, never a percentage or a clock, and the primary button reads its own progress rather than pretending to be pressable.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The title is the current phase label, verbatim, rotating as the underlying materialize sequence progresses. No time estimate or percentage renders anywhere, matching the SOUL hard rule. If Bob closes the window, the same sequence continues headless, reporting through the tray instead. The personal layer lives in the user's own GitHub account; setup creates it once, its own rotating phase between the component phase and the department phase.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 13. Verify ---------------- -->
+  <section id="w8" class="screen" aria-labelledby="h-w8v">
+    <div class="sec-head">
+      <span class="sec-num">13</span>
+      <h2 id="h-w8v">Verify</h2>
+      <p class="sec-sub">Bob sees it confirm everything is actually current. Calm, not a fireworks moment: the only success here is everything actually being up to date.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Departments</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Integrations</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Set up</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 8 of 9</p>
+          <h3>Making sure everything's current</h3>
+          <p class="win-intro">The only success here is everything actually being up to date.</p>
+          <div class="win-content">
+            <div class="qi-block" style="text-align:center;padding:22px 18px;">
+              <p style="margin:0;font-size:12.8px;font-weight:650;color:var(--qi-ink);">Everything checks out.</p>
+            </div>
+          </div>
+          <div class="win-footer"><span></span><span class="status"></span><span class="btn primary">Continue</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Holding: still checking</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);">Checking your setup&hellip;</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: honest holding, never fakes a pass</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Something can't be confirmed. Routes to the Holding screen, <a href="#w10">screen 15</a>, rather than reporting success it can't back up.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob watches a brief check, then reads one calm line: "Everything checks out." No confetti, no fireworks; it reads like a fact, not a celebration, because that's exactly what it is.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The app never fakes a pass. If any part of the setup can't be confirmed, this step routes to the honest Holding screen instead of reporting a success it can't back up, matching the SOUL rule that the product never fabricates Healthy.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 14. Done ---------------- -->
+  <section id="w9" class="screen" aria-labelledby="h-w9d">
+    <div class="sec-head">
+      <span class="sec-num">14</span>
+      <h2 id="h-w9d">Done</h2>
+      <p class="sec-sub">Bob leaves understanding the single most important idea for the rest of his life with the product: quiet means current. This is also the one deliberate, owner-ratified send-off beat in an otherwise flat register.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Detect</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>What you're getting</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Departments</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Integrations</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Set up</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Verify</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">Step 9 of 9</p>
+          <h3>That's it. You're ready.</h3>
+          <p class="win-intro">Control Tower now lives quietly in your menu bar. When the icon is quiet, everything's current. And when you're added to a new department later, it'll show up there, ready when you are.</p>
+          <div class="win-content">
+            <p class="send-off">You have the tools. Now go change the world!</p>
+            <p class="welcome-video-line"><span class="video-link"><span class="play-sm" aria-hidden="true">&#9654;</span>See what you can build with this<span class="yt-chip">&#8599; YouTube</span></span></p>
+          </div>
+          <div class="win-footer"><span></span><span class="status"></span><span class="btn primary">Let's go</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Optional: pointer back to the menu-bar icon</p>
+        <div class="inset-win">
+          <div class="menubar-strip"><span class="tray-glyph" aria-hidden="true"><svg class="aviator-icon" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg></span></div>
+          <p style="margin:8px 0 0;font-size:11.6px;color:var(--qi-ink-faint);">This is where you'll come back, whenever there's something to see.</p>
+        </div>
+      </div>
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Ratified: the send-off, in the owner's own words</p>
+        <div class="inset-win">
+          <p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);">"You have the tools. Now go change the world!" was chosen by the owner on 2026-07-16, with the button label <span class="qi-mono">Let's go</span>. This screen is the one deliberate break from the product's flat register.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob reads that the app now lives quietly in his menu bar, and that silence is exactly what success looks like from now on. Then, bigger and bolder than anything else in the whole wizard, one send-off line: "You have the tools. Now go change the world!" A low-emphasis video line invites him to see what he can build, if he's curious. He presses Let's go and that's the last screen of setup he'll ever need to think about.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Pure render, the terminus of the wizard. This screen is a deliberate, owner-ratified override of the flat register: a one-time send-off beat, not a pattern reused elsewhere. The tray stays silent-is-success from here on. The video line is a YouTube link-out placeholder (R7), no player embedded. Alternate send-off lines and button labels are the owner's to pick; none is chosen as final yet. No progression footer beyond this point; closing the window returns Bob to steady state, Arc 3, where the tray and its popover are the only surface he'll see going forward.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 15. Holding ---------------- -->
+  <section id="w10" class="screen" aria-labelledby="h-w10">
+    <div class="sec-head">
+      <span class="sec-num">15</span>
+      <h2 id="h-w10">Holding</h2>
+      <p class="sec-sub">Something outside Bob's control paused setup. He must never hit a dead end or a raw error; he's told plainly who owns the wait. Rendered inline over whichever step raised it, here shown over Detect; it never adds its own sidebar row.</p>
+    </div>
+
+    <div class="window-wrap"><div class="window">
+      <div class="win-titlebar"><span class="traffic" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></span><span class="t">Set Up Copilot Control Tower</span></div>
+      <div class="win-body">
+        <div class="win-sidebar">
+          <div class="sb-section-label">Setup</div>
+          <ul class="sb-list">
+            <li class="sb-item done"><span class="mark">&#10003;</span>Welcome</li>
+            <li class="sb-item done"><span class="mark">&#10003;</span>Connect GitHub</li>
+            <li class="sb-item current"><span class="mark">&#9673;</span>Detect</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>What you're getting</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Departments</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Integrations</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Set up</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Verify</li>
+            <li class="sb-item upcoming"><span class="mark">&#9675;</span>Done</li>
+          </ul>
+        </div>
+        <div class="win-detail">
+          <p class="win-eyebrow">SETUP PAUSED</p>
+          <h3>I can't read your setup, so I've paused</h3>
+          <div class="win-content">
+            <div class="qi-block">
+              <p>I can't reach the network right now, so I've paused. I'll pick this back up as soon as you're online.</p>
+            </div>
+          </div>
+          <div class="win-footer"><span></span><span class="grp"><span class="btn text">Continue in the menu bar</span></span><span class="btn primary">Try again</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Reason: org/IT</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Your organization still has a bit of setup to finish before this can complete. Nothing you need to do.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Reason: entitlement</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">This department isn't available to you anymore, so setup can't finish it.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Reason: unreadable</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">I can't read what's already on this Mac right now, so I won't guess.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Whatever paused setup, Bob reads one calm sentence naming exactly why and who, if anyone, owns fixing it. It's never his fault and never his job in the org and network cases. He can try again, or leave the wizard open and go about his day in the menu bar; setup picks up on its own the moment the reason clears.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Holding is referenced by Detect (screen 8), Integrations (screen 11), and Verify (screen 13) alike; it never adds its own sidebar row, because it isn't a step, it's a pause. Four reason variants exist: network, org/IT, entitlement, and unreadable, each with its own honest line and never a raw error message.</p></div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- ARC 3                                                              -->
+  <!-- =================================================================== -->
+  <div class="journey-head" id="arc-3">
+    <h3 class="journey-title">Arc 3. Daily use, steady state</h3>
+    <p class="sec-sub">The quiet middle of Bob's life with the product. Emotional target is near zero. The whole art is that
+      there is almost nothing to show, and that is the design. Boring is the feature.</p>
+  </div>
+
+  <!-- ---------------- 15. The quiet tray ---------------- -->
+  <section id="d1" class="screen" aria-labelledby="h-d1">
+    <div class="sec-head">
+      <span class="sec-num">16</span>
+      <h2 id="h-d1">The quiet tray</h2>
+      <p class="sec-sub">Days pass. Bob glances at the menu bar. The icon is plain, no badge. He doesn't even think about it. That's the win.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="menubar-strip">
+        <span class="sys-icon" aria-hidden="true">&#9834;</span>
+        <span class="sys-icon" aria-hidden="true">&#128225;</span>
+        <span class="sys-icon" aria-hidden="true">&#128267;</span>
+        <span class="tray-glyph" aria-hidden="true"><svg class="aviator-icon" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg></span>
+      </div>
+      <div class="tray-spot"><div class="tray-callout">No badge means everything's current. There's nothing for you to do, and nothing asking for you. This is the normal state, most of the time.</div></div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Contrast: the tray's badge vocabulary, six tiles, each state distinct by shape</p>
+        <div class="inset-win">
+          <div class="badge-tiles">
+            <div class="badge-tile">
+              <div class="badge-tile-glyph"><svg class="aviator-icon lg" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg></div>
+              <p class="badge-tile-cap">healthy<br>bare glyph, no mark</p>
+            </div>
+            <div class="badge-tile">
+              <div class="badge-tile-glyph"><svg class="aviator-icon lg" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg><svg class="mark-overlay" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><circle cx="9" cy="9" r="6.5" fill="none" stroke="#8E8E93" stroke-width="2"/></svg></div>
+              <p class="badge-tile-cap">setup-needed<br>hollow grey circle</p>
+            </div>
+            <div class="badge-tile">
+              <div class="badge-tile-glyph"><svg class="aviator-icon lg" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg><svg class="mark-overlay" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="3.2" fill="none" stroke="#0A84FF" stroke-width="2"/><path d="M8.3 8.3 L15 15 M12 12 L14 10 M13.5 13.5 L15.5 11.5" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" fill="none"/></svg></div>
+              <p class="badge-tile-cap">signed-out<br>blue key</p>
+            </div>
+            <div class="badge-tile">
+              <div class="badge-tile-glyph"><svg class="aviator-icon lg" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg><svg class="mark-overlay" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M4 9 A5 5 0 0 1 13.2 5.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13.2 5.8 L13.6 3.2 L11 4.6 Z" fill="currentColor"/><path d="M14 9 A5 5 0 0 1 4.8 12.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4.8 12.2 L4.4 14.8 L7 13.4 Z" fill="currentColor"/></svg></div>
+              <p class="badge-tile-cap">syncing<br>two arcs, arrowheads</p>
+            </div>
+            <div class="badge-tile">
+              <div class="badge-tile-glyph"><svg class="aviator-icon lg" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg><svg class="mark-overlay" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M9 2.5 L16 15 H2 Z" fill="#FF9F0A"/><rect x="8.1" y="7" width="1.8" height="4.5" rx="0.9" fill="#1C1C1E"/><circle cx="9" cy="13" r="1" fill="#1C1C1E"/></svg></div>
+              <p class="badge-tile-cap">needs-attention<br>orange triangle, cutout !</p>
+            </div>
+            <div class="badge-tile">
+              <div class="badge-tile-glyph"><svg class="aviator-icon lg" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg><svg class="mark-overlay" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M5.5 12.5 a3 3 0 0 1 -0.3 -6 a4 4 0 0 1 7.6 -1.3 a3.2 3.2 0 0 1 -0.3 7.3 Z" fill="none" stroke="#8E8E93" stroke-width="1.6"/><line x1="3" y1="3" x2="15" y2="15" stroke="#8E8E93" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+              <p class="badge-tile-cap">offline<br>grey slashed cloud</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob's eyes pass over the menu bar dozens of times a day and register nothing, because there's nothing to register. No badge, no color, no motion. He doesn't open it, doesn't wonder about it. That absence of a reason to look is the entire point of steady state.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The aviator glyph carries no status mark when state is <code>.none</code>; nothing is drawn beyond the plain glyph. State is never color alone; every badge above pairs a distinct shape with its color, so the vocabulary still reads correctly for someone who can't distinguish the colors.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 16. Opening the popover ---------------- -->
+  <section id="d2" class="screen" aria-labelledby="h-d2">
+    <div class="sec-head">
+      <span class="sec-num">17</span>
+      <h2 id="h-d2">Opening the popover</h2>
+      <p class="sec-sub">Bob clicks the icon out of curiosity or habit. He sees an honest, calm summary and the reassurance that nothing needs him. Six regions, always in the same order.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="menubar-strip"><span class="tray-glyph" aria-hidden="true"><svg class="aviator-icon" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg></span></div>
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#9679;</span><div><div class="pop-status">Everything is set up.</div><div class="pop-host">This Mac</div></div></div>
+        <div class="pop-section">
+          <p class="pop-label">Your copilots</p>
+          <div class="pop-legend"><span></span><span>Core</span><span>Org</span><span>Dept</span><span>Mac</span></div>
+          <div class="pop-comp">Claude Copilot<span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <div class="pop-comp">CLI Copilot<span class="dot"></span><span class="dot"></span><span class="dot off"></span><span class="dot"></span></div>
+          <div class="pop-comp">Codex Copilot<span class="dot"></span><span class="dot"></span><span class="dot off"></span><span class="dot"></span></div>
+          <div class="pop-comp">Knowledge Copilot<span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        </div>
+        <div class="pop-section">
+          <p class="pop-label">Shared with your team &middot; ready for you. Nothing to sign into.</p>
+          <div class="pop-row">Salesforce lookup<span class="st">Ready</span></div>
+          <p class="pop-label" style="margin-top:10px;">Your accounts</p>
+          <div class="pop-row">Slack<span class="st">Signed in</span></div>
+        </div>
+        <div class="pop-actions"><span class="btn small">Sync now</span><span class="btn text">What changed</span><span class="btn text">Settings&hellip;</span></div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: join-available</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">Everything on this Mac is set up.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: syncing</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">Bringing everything up to date&hellip;</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: offline</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">You're offline. I'll pick up where I left off when you're back.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: signed-out</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">Codex Copilot needs you to sign in. Everything else is fine.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob opens the popover and reads one honest sentence at the top, then a small tree of his four copilots with a quiet dot per layer when it's passing, no detail text to parse. Below that, what's shared with his team (nothing to sign into) and what's his own. At the bottom, one manual lever and two links. Nothing here is a reward; it's just true.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The header is a worst-wins glyph plus one sentence; the component tree carries a quiet dot only when a layer is passing, never detail text. There is no green-checkmark reward anywhere in this surface. Region 3, Available to join, is present only when a joinable department exists, so it is absent here (see <a href="#d4">screen 19</a>) and Region 6, the Bob lane, is empty in Healthy.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 17. Sync now ---------------- -->
+  <section id="d3" class="screen" aria-labelledby="h-d3">
+    <div class="sec-head">
+      <span class="sec-num">18</span>
+      <h2 id="h-d3">Sync now</h2>
+      <p class="sec-sub">Bob wants to feel in control, or just wants a nudge. He presses Sync now. It's the one manual lever, and it never breaks anything.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#9679;</span><div><div class="pop-status">Everything is set up.</div><div class="pop-host">This Mac</div></div></div>
+        <div class="pop-actions"><span class="btn small primary">Sync now</span><span class="btn text">What changed</span><span class="btn text">Settings&hellip;</span></div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">In-flight: button disabled, ring glyph</p>
+        <div class="inset-win"><p style="margin:0 0 8px;font-size:12.4px;font-weight:650;color:var(--qi-ink);">Bringing everything up to date&hellip;</p><span class="btn small disabled">Sync now</span></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Offline: disabled with reason</p>
+        <div class="inset-win"><span class="btn small disabled">Sync now</span><p style="margin:8px 0 0;font-size:11.4px;color:var(--qi-ink-faint);">Waiting for the network.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Completed, with changes</p>
+        <div class="inset-win"><p style="margin:0 0 8px;font-size:12.4px;font-weight:650;color:var(--qi-ink);">Everything is set up.</p><span class="btn small text">What changed</span></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Completed, no changes (silent return)</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-faint);">Header returns to Everything is set up. No toast, no announcement.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob presses Sync now because he feels like it, not because anything told him to. The header briefly reads "Bringing everything up to date," the button disables so he can't double-press it, and then it's back to normal, sometimes with a new What changed link available, sometimes with nothing different at all.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Sync now is the one manual escape hatch in the whole steady-state surface. It is disabled while a sync is already in flight, and disabled with an explicit offline reason when there's no network, never a silent failure. Completion with no changes returns silently; there is no toast for "nothing happened," because nothing happening is not news.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 18. A department appears ---------------- -->
+  <section id="d4" class="screen" aria-labelledby="h-d4">
+    <div class="sec-head">
+      <span class="sec-num">19</span>
+      <h2 id="h-d4">A department appears</h2>
+      <p class="sec-sub">Earl added Bob to a team on GitHub. Later, Bob opens the popover and a new joinable department has quietly appeared. The tray never alarmed him about it.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#9679;</span><div><div class="pop-status">Everything is set up.</div><div class="pop-host">This Mac</div></div></div>
+        <div class="pop-section">
+          <p class="pop-label">Available to join</p>
+          <div class="pop-row">Sales<span class="btn small">Join</span></div>
+        </div>
+        <div class="pop-actions"><span class="btn small">Sync now</span><span class="btn text">What changed</span><span class="btn text">Settings&hellip;</span></div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Holding: joining</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);">Joining Sales&hellip;</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Joined: row leaves, tree fills in, no toast</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">The Available to join section is empty again; Sales now appears with passing dots in the copilot tree above. No confirmation dialog, no toast: the tree filling in is the reward.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Edge: offline</p>
+        <div class="inset-win">
+          <div class="pop-row">Sales<span class="st">Waiting for the network.</span></div>
+          <p style="margin:8px 0 0;font-size:11.3px;color:var(--qi-ink-faint);line-height:1.5;">Join waits for the network. The button is quiet until you're back online.</p>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Edge: the list was stale</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">If access changed since this list was fetched, the row simply leaves the list on the next look. Joining something you can see essentially always works.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob wasn't told anything happened. He just opens the popover one day, the way he sometimes does, and there's a new department waiting with a plain Join button. He presses it, watches a quiet spinner for a moment, and the row disappears while the tree above quietly fills in a new set of passing dots. Nobody asked him to do this and nothing congratulated him for it.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Department discovery and join, validated by GitHub repo access, is not yet built (NB-2); this is a mock fixture. The tray never alarms Bob about a new joinable department; Available to join is a calm, optional section, not a notification demanding action. Same reasoning as the wizard step: the list is Bob's own entitlements, so join essentially cannot fail except across a brief offline gap or a just-revoked race, both quiet, not error framing.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 19. What Bob never has to do ---------------- -->
+  <section id="d5" class="screen" aria-labelledby="h-d5">
+    <div class="sec-head">
+      <span class="sec-num">20</span>
+      <h2 id="h-d5">What Bob never has to do</h2>
+      <p class="sec-sub">A walkthrough summary, not a product screen: the emotional core of steady state is freedom by omission.</p>
+    </div>
+
+    <div class="window-wrap"><div class="inset-win" style="max-width:640px;">
+      <span class="qi-block-label" style="display:inline-block;border:1px solid var(--qi-sep);border-radius:5px;padding:2px 7px;margin-bottom:10px;">Walkthrough summary &middot; not product UI</span>
+      <ul class="qi-facts muted">
+        <li>You never have to open a terminal.</li>
+        <li>You never have to update your copilots by hand. Control Tower does it.</li>
+        <li>You never have to set up a shared tool's password. If it's shared, it's just there.</li>
+        <li>You never have to ask anyone to join a team you've been added to.</li>
+        <li>You never have to decide anything about your organization's setup. That's your IT team's, not yours.</li>
+        <li>You never have to check whether it's working. A quiet icon already told you.</li>
+      </ul>
+    </div></div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Nothing, by design: this is the walkthrough naming, out loud, everything Bob has been spared across the whole journey. Reading the list back to back, the shape of the product becomes obvious: it absorbs work so he never has to see it.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>This card exists only in this document; it is not a screen the product ever renders. It is a deliberate summary of the actor-competence routing rule: reversible things Bob can't judge are auto-acted on, things he can't action are escalated to IT, and only non-deferrable decisions about his own data ever reach him.</p></div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- ARC 4                                                              -->
+  <!-- =================================================================== -->
+  <div class="journey-head" id="arc-4">
+    <h3 class="journey-title">Arc 4. Updates</h3>
+    <p class="sec-sub">Two distinct update stories. Component updates fan a new version out across all of Bob's projects and
+      report it honestly in the past tense. The app updating itself is silent when good, and, when it goes bad, recovers
+      on its own: sanctioned peak #2.</p>
+  </div>
+
+  <p class="arc-sub-label">4A &middot; Component updates, fanned out across projects</p>
+
+  <!-- ---------------- 20. An update lands ---------------- -->
+  <section id="u1" class="screen" aria-labelledby="h-u1">
+    <div class="sec-head">
+      <span class="sec-num">21</span>
+      <h2 id="h-u1">An update lands quietly, on cadence</h2>
+      <p class="sec-sub">The owner published a new version. On its normal cadence sync, Bob's machine notices, verifies signatures in the CLI, and pulls. Bob may see a brief syncing state or nothing at all. He did not ask for this and does not need to.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="menubar-strip"><span class="tray-glyph" aria-hidden="true"><svg class="aviator-icon" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg><span class="badge sync">&#8635;</span></span></div>
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#8635;</span><div><div class="pop-status">Bringing everything up to date&hellip;</div><div class="pop-host">This Mac</div></div></div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: update-available, staged first</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">An update is ready. I'll install it quietly.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: fully-silent variant, small change</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-faint);">No visible state at all. The tray stays plain throughout.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob is doing something else entirely. If he happens to glance at the menu bar, he might catch a brief syncing ring, and if he opens the popover, one line: "Bringing everything up to date." A moment later it's back to quiet. There is never a button labeled Update, because updates install themselves.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Signature verification happens in the CLI, not the app, per the parse-never-compute invariant. The app renders whatever state the CLI reports and never computes whether an update is trustworthy on its own. No update button exists anywhere in this surface.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 21. The honest summary ---------------- -->
+  <section id="u2" class="screen" aria-labelledby="h-u2">
+    <div class="sec-head">
+      <span class="sec-num">22</span>
+      <h2 id="h-u2">The honest summary: 12 projects updated</h2>
+      <p class="sec-sub">Bob opens What changed and sees a calm, past-tense account. He learns his copilots got better without any work from him, and, framed as reassurance rather than detail to manage, which things updated once and which fanned out across all his projects.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#9679;</span><div><div class="pop-status">Everything is set up.</div><div class="pop-host">This Mac</div></div></div>
+        <div class="pop-section">
+          <p class="pop-label">Recently</p>
+          <div class="pop-row">Updated CLI Copilot.<span></span></div>
+          <div class="pop-row">Updated Knowledge Copilot for your organization.<span></span></div>
+          <div class="pop-row">Updated Claude Copilot across 12 of your projects to v5.9.0.<span class="st">See projects &rsaquo;</span></div>
+          <div class="pop-row">Updated Codex Copilot across 4 of your projects to v5.9.0.<span class="st">See projects &rsaquo;</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Drill-in: projects brought up to date</p>
+        <div class="inset-win">
+          <p style="margin:0 0 10px;font-size:12.6px;font-weight:650;color:var(--qi-ink);">Projects brought up to date</p>
+          <p style="margin:0 0 12px;font-size:11.6px;color:var(--qi-ink-faint);line-height:1.5;">Only your copilots' shared files were updated. Your own work in these projects wasn't touched.</p>
+          <div class="qi-rows">
+            <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">acme-website</span><span class="ready">Updated to v5.9.0</span></div>
+            <div class="qi-row ok"><span class="g">&#8226;</span><span class="body2">pipeline-tool</span><span class="ready">Updated to v5.9.0</span></div>
+            <div class="qi-row deferred"><span class="g">&#8226;</span><span class="body2">client-report</span><span class="ready">Waiting on your unsaved changes</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: global-only update, no fan-out row</p>
+        <div class="inset-win"><div class="pop-row">Updated CLI Copilot.<span></span></div></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: large fan-out, list scrolls, never a progress bar</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);">Updated Claude Copilot across 30 of your projects to v5.9.0. <span style="color:var(--qi-accent);font-weight:650;">See projects &rsaquo;</span></p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Empty</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-faint);">Nothing has changed since you last looked.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob opens What changed and reads a short, past-tense list: some lines are one-time, whole-organization updates, others tell him how many of his own projects picked up a new version, with a quiet "See projects" link if he wants the detail. Drilling in, the very first line reassures him that only the copilots' own files moved, never his. One project shows "Waiting on your unsaved changes," which reads as a fact, not a warning.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The whole component fan-out update surface is new (NB-5): a CLI verb that enumerates affected projects and returns per-project results over <code>--json</code>, the global-once versus per-project distinction in that JSON, the See projects details view, and the per-project held-back-for-dirty-WIP state. Claude Copilot and Codex Copilot are assumed to be the fanned-out components, Knowledge and CLI Copilot the global-once ones (ASSUMPTION AS-7); the counts and folder names shown are illustrative fixtures (AS-10).</p></div>
+    </div>
+  </section>
+
+  <p class="arc-sub-label">4B &middot; App self-update</p>
+
+  <!-- ---------------- 22. Silent self-update ---------------- -->
+  <section id="u3" class="screen" aria-labelledby="h-u3">
+    <div class="sec-head">
+      <span class="sec-num">23</span>
+      <h2 id="h-u3">Silent self-update</h2>
+      <p class="sec-sub">Control Tower updates itself. When it works, Bob sees essentially nothing. He is never asked to approve or install an app update.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="menubar-strip"><span class="tray-glyph" aria-hidden="true"><svg class="aviator-icon" viewBox="0 0 487 243" xmlns="http://www.w3.org/2000/svg" focusable="false"><g fill="currentColor"><path d="M120.591 195C79.4965 195 46.1998 171.457 46.1998 118.091C46.1998 64.7258 80.6819 48 138.991 48C197.282 48 230.2 58.1926 230.2 90.5459C230.2 122.899 176.601 195 120.591 195Z"/><path d="M367.409 195C408.503 195 441.8 171.457 441.8 118.091C441.8 64.7258 407.318 48 349.009 48C290.718 48 257.8 58.1926 257.8 90.5459C257.8 122.899 318.23 195 367.409 195Z"/><path d="M230.2 89.3438H227.9V81.3047C227.9 73.1402 231.458 69.8203 244 69.8203C256.525 69.8203 260.1 72.7991 260.1 80.1563V89.3438H257.8V80.1563C257.8 74.1628 255.338 72.1172 244 72.1172C232.698 72.1172 230.2 74.4499 230.2 81.3047V89.3438Z"/><path d="M188.8 52.5938H299.2L294.6 54.8906H193.4L188.8 52.5938Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M41.6 99.6797V98.5312H48.5V107.719H43.9V108.867H41.6V107.719H39.3V110.016H37V99.6797H41.6Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M446.4 99.6797V98.5312H439.5V107.719H444.1V108.867H446.4V107.719H448.7V110.016H451V99.6797H446.4Z"/></g></svg></span></div>
+      <p style="margin:8px 0 0;font-size:12.2px;color:var(--qi-ink-faint);">Nothing renders. The tray stays plain throughout a good self-update.</p>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: brief updating header</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">Updating Control Tower&hellip;</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: staged-ready</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">An update is ready. I'll install it on my own.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob sees nothing, most of the time; occasionally a brief "Updating Control Tower" header, never a dialog, never a restart prompt. He is never asked to click Install or Later, because there is no such choice for him to make.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>App self-update plus the watchdog rollback path (NB-6) checks, downloads, verifies, and stages a new build entirely in the background. Checking, downloading, verifying, and staging all read the same inline header; there is no modal at any point.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 23. Kept your working version (PEAK 2) ---------------- -->
+  <section id="u4" class="screen peak" aria-labelledby="h-u4">
+    <div class="sec-head">
+      <span class="sec-num">24</span>
+      <h2 id="h-u4">Kept your working version</h2>
+      <p class="sec-sub">Sanctioned peak #2. An app update was bad, the new bundle failed to start, and the crash-only watchdog reverted to the version that worked, all before Bob noticed. This is the moment the product earns deep trust.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#9679;</span><div><div class="pop-status">Everything is set up.</div><div class="pop-host">This Mac</div></div></div>
+        <div class="pop-bob">An update didn't work out, so I kept your working version. Nothing to do.</div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset" style="flex-basis:100%;">
+        <p class="inset-caption">Cleared: informational, not persistent</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">On Bob's next look, the Bob-lane notice is gone; the header was already back to Healthy the whole time, since the working version kept running fine. The underlying error is never shown raw: no signature string, no watchdog string, no "crash" word, anywhere.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob opens the popover, maybe hours after it happened, and the header already reads "Everything is set up," because it never actually stopped being true from his side. Below it, one understated line in his own lane: "An update didn't work out, so I kept your working version. Nothing to do." No alarm color, no failure icon, no button, nothing to decide. He reads it once, maybe feels a small flicker of relief he can't quite name, and goes back to what he was doing. This is the moment, more than any other in the product, that teaches him he never has to worry about this app hurting him.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>The new bundle failed to start; the crash-only watchdog (<code>launchd</code> with <code>KeepAlive={SuccessfulExit:false}</code>, never <code>true</code>) reverted to the last-known-good signed build before Bob ever saw a failure. The whole rollback path (NB-6) is rendered here from fixtures; the notice is deliberately informational, never an action Bob must take, and never shown as a dialog.</p></div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- ARC 5                                                              -->
+  <!-- =================================================================== -->
+  <div class="journey-head" id="arc-5">
+    <h3 class="journey-title">Arc 5. Problems</h3>
+    <p class="sec-sub">Three routes, one designed example each, per the actor-competence times reversibility rule: auto-act on
+      reversible things Bob can't judge, escalate to IT what Bob can't action, ask Bob only about a non-deferrable decision
+      on his own data. Most problems never reach him.</p>
+  </div>
+
+  <!-- ---------------- 24. Auto-fixed and reported ---------------- -->
+  <section id="p1" class="screen" aria-labelledby="h-p1">
+    <div class="sec-head">
+      <span class="sec-num">25</span>
+      <h2 id="h-p1">Route A: auto-fixed and reported</h2>
+      <p class="sec-sub">A shared file drifted or a mirror went stale, reversible and disposable. The checker found it, the app rendered the fix. Bob was never asked. He thinks "huh, it fixed itself," and that's exactly right.</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#9679;</span><div><div class="pop-status">Everything is set up.</div><div class="pop-host">This Mac</div></div></div>
+        <div class="pop-section">
+          <p class="pop-label">Recently</p>
+          <div class="pop-row">Brought your Sales department back up to date.<span></span></div>
+          <div class="pop-row">Fixed a file that had drifted in Claude Copilot.<span></span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: security-shadow, Bob-lane notice</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">A setting was weakening your security, so I switched it off and told your IT team.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: security banner, pinned, un-dismissable (flagged, wording needs an owner/UXD pass)</p>
+        <div class="inset-win">
+          <div class="pop-banner">A setting on this Mac was weakening your security, so I switched it off and told your IT team.<br><span class="btn small" style="margin-top:8px;">Confirm my setup</span></div>
+          <p style="margin:8px 0 0;font-size:10.8px;color:var(--qi-ink-faint);">Flagged: Bob should never be asked to judge a security event. This affordance's wording is explicitly unresolved (NB-8).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Later, if Bob ever looks, he sees a couple of past-tense lines in Recently: something drifted, something got fixed. No alarm ever fired while it happened. In the rarer security case, one line tells him a setting was weakened and switched off, and that IT already knows; a small pinned banner stays visible until he confirms, the one persistent element in the whole product.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Content-free safety escalation to IT with a mandatory <code>AdminContact</code> is not yet built (NB-7), nor is the security-override auto-suspend and its un-dismissable banner (NB-8), whose one affordance wording remains explicitly unresolved. Ordinary drift is silent and visible only in history; never a raw error, never the word "failed."</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 25. Escalated to IT ---------------- -->
+  <section id="p2" class="screen" aria-labelledby="h-p2">
+    <div class="sec-head">
+      <span class="sec-num">26</span>
+      <h2 id="h-p2">Route B: escalated to IT</h2>
+      <p class="sec-sub">Something is wrong that Bob categorically cannot fix. The app states plainly that it's waiting on the org, names who to contact, and signals IT content-free. Bob feels "not my problem, and it already told the right person."</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#128295;</span><div><div class="pop-status">CLI Copilot is waiting on setup from your organization.</div><div class="pop-host">This Mac</div></div></div>
+        <div class="pop-section">
+          <p class="pop-label">Who to ask</p>
+          <p style="margin:0 0 6px;font-size:11.8px;color:var(--qi-ink-soft);line-height:1.5;">This one's on your IT team, not you. If it stays this way, reach Earl Mota.</p>
+          <p style="margin:0;font-size:11.6px;color:var(--qi-ink);">Earl Mota &middot; IT &middot; earl@acme.com</p>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: needs-attention-in-department</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.4px;font-weight:650;color:var(--qi-ink);">Knowledge Copilot needs attention in your department.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: shared-integration-unavailable, no button</p>
+        <div class="inset-win"><div class="pop-row">Calendar read<span class="st">Not available right now</span></div></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob sees a header naming the exact copilot and stating plainly that it's waiting on his organization, not on him. There is no button for him to press, because there's nothing he could do. A small card names a real human, Earl Mota in IT, with an email address, so it never reads as "contact support" into a void.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Content-free safety escalation with a mandatory <code>AdminContact</code> (NB-7) is not yet built; the card here is populated from inherited org config and is assumed to show a real human and address (ASSUMPTION AS-8). In every variant, the "IT notified" signal is real and content-free, carrying no details about Bob's Mac or data.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------------- 26. Asked, on his own data ---------------- -->
+  <section id="p3" class="screen" aria-labelledby="h-p3">
+    <div class="sec-head">
+      <span class="sec-num">27</span>
+      <h2 id="h-p3">Route C: asked, on his own data</h2>
+      <p class="sec-sub">An update wants to touch a project where Bob has unsaved work of his own. Only he can decide, because it's his data. The app holds the update, tells him plainly, and offers exactly one affordance: to go look. It never offers "discard."</p>
+    </div>
+
+    <div class="window-wrap"><div style="max-width:640px;">
+      <div class="popover">
+        <div class="pop-header"><span class="g" aria-hidden="true">&#9679;</span><div><div class="pop-status">Everything is set up.</div><div class="pop-host">This Mac</div></div></div>
+        <div class="pop-bob">You have unsaved changes in the way of an update. Nothing was touched.<br><span class="btn small">Review your changes</span></div>
+      </div>
+    </div></div>
+
+    <div class="inset-row">
+      <div class="inset">
+        <p class="inset-caption">Alternate: after Bob saves, prompt clears, no toast</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">The update proceeds on the next sync and the prompt clears on its own; the tree above just fills in. The prompt never gains a discard or overwrite button, at any point.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Alternate: notifications-off variant</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Shown here because notifications are turned off.<br>You have unsaved changes in the way of an update. Nothing was touched.</p></div>
+      </div>
+      <div class="inset">
+        <p class="inset-caption">Related: offboarding, access turned off</p>
+        <div class="inset-win"><p style="margin:0;font-size:12.2px;color:var(--qi-ink-soft);line-height:1.5;">Your access here was turned off. Your unsaved work was kept: client-report.</p></div>
+      </div>
+    </div>
+
+    <div class="annot-grid">
+      <div class="annot-card earl"><p class="lbl">What Bob does and sees</p><p>Bob sees exactly one line in his own lane: he has unsaved changes in the way, and nothing was touched. One button, Review your changes, and nothing else, no discard, no overwrite, no second option. He goes and looks at his own work in his own time; when he's saved it, the prompt simply clears, no toast, no fanfare, and the update finishes on its own.</p></div>
+      <div class="annot-card actual"><p class="lbl">What actually happens</p><p>Dirty-personal-working-tree detection driving this ask-Bob prompt with no destructive affordance (NB-9) is the never-destroy invariant made visible; it is not yet built. This is the one kind of thing only Bob can decide, and the app will never touch his own unsaved work without him, structurally, not by care.</p></div>
+    </div>
+  </section>
+
+  <section id="routes" aria-labelledby="h-routes">
+    <div class="sec-head">
+      <span class="sec-num">&middot;</span>
+      <h2 id="h-routes">The three kinds of problem, and who handles each</h2>
+      <p class="sec-sub">Side by side, so it's obvious most problems never reach Bob at all.</p>
+    </div>
+    <div class="killed-grid">
+      <div class="killed-card"><h4>Route A. Auto-fixed and reported</h4><p>Reversible, disposable-surface problems Bob can't judge. Fixed on its own, reported past-tense, no action, no alarm.</p></div>
+      <div class="killed-card"><h4>Route B. Escalated to IT</h4><p>Problems Bob can't action. Stated plainly, a named human given, IT signaled content-free. No button for Bob.</p></div>
+      <div class="killed-card"><h4>Route C. Asked, on his own data</h4><p>The one non-deferrable decision: his own unsaved work. Held, never touched, exactly one affordance: go look.</p></div>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- ASSUMPTIONS                                                        -->
+  <!-- =================================================================== -->
+  <section id="assumptions" class="screen" aria-labelledby="h-assumptions">
+    <div class="sec-head">
+      <span class="sec-num">&middot;</span>
+      <h2 id="h-assumptions">Design assumptions invented for this walkthrough</h2>
+      <p class="sec-sub">So no one mistakes this document for shipped reality. Every assumption below was invented to give a screen concrete shape; each needs an owner pass before it is load-bearing.</p>
+    </div>
+    <div class="table-wrap">
+      <table class="phases">
+        <thead><tr><th>#</th><th>Assumption</th><th>Where</th><th>Confidence / note</th></tr></thead>
+        <tbody>
+          <tr><td class="phase">AS-1</td><td>The invitation email is sent by a named human <code>AdminContact</code> (Earl Mota, IT), not a no-reply system. The product has no email-send capability; this is an org action.</td><td>Arc 1, screen 1</td><td>High. SOUL routes org trust through a named contact.</td></tr>
+          <tr><td class="phase">AS-2</td><td>The download is hosted at an org-controlled URL serving the org's signed <code>.dmg</code>. Not ENAC or Anthropic-hosted, not an App Store link.</td><td>Arc 1, screen 2</td><td>Medium. Confirm distribution channel.</td></tr>
+          <tr><td class="phase">AS-3</td><td>Distribution is a drag-install <code>.dmg</code>, not a <code>.pkg</code>. A <code>.pkg</code> plus de-quarantine postinstall changes the shape of screens 3 and 4.</td><td>Arc 1, screens 3-4</td><td>Medium. Two valid paths exist in WS-D.</td></tr>
+          <tr><td class="phase">AS-4</td><td>Notarization plus staple means Bob sees the friendly Gatekeeper dialog, not the hard block.</td><td>Arc 1, screen 4</td><td>High.</td></tr>
+          <tr><td class="phase">AS-5</td><td>Resolved 2026-07-16: the control tower logo is the mark for the download page and all marketing surfaces; the aviator glyph is menu-bar only. See <code>docs/03-design/brand-assets.md</code>.</td><td>Arc 1, screens 2, 5</td><td>Resolved. Owner-ratified brand rule.</td></tr>
+          <tr><td class="phase">AS-6</td><td>On first open the wizard auto-presents; opening the app is starting setup.</td><td>Arc 1, screen 5; Arc 2, screen 6</td><td>High. Matches <code>wizard.swift</code>.</td></tr>
+          <tr><td class="phase">AS-7</td><td>Claude Copilot and Codex Copilot are the per-project, fanned-out components; Knowledge and CLI Copilot are global-once.</td><td>Arc 4, screens 21-22</td><td>Medium. Matches the CSE model and owner brief; confirm against the frozen CLI contract.</td></tr>
+          <tr><td class="phase">AS-8</td><td>The <code>AdminContact</code> card on Bob's surface is populated from inherited org config and shows a real human plus address.</td><td>Arc 5, screen 26</td><td>High.</td></tr>
+          <tr><td class="phase">AS-9</td><td>The four education videos are owner-recorded and do not yet exist; every video slot is a labeled placeholder.</td><td>Arc 2, screen 9</td><td>Certain. Videos link out to YouTube; blank placeholders until the owner provides links.</td></tr>
+          <tr><td class="phase">AS-10</td><td>Fan-out counts and folder names shown (12 projects, acme-website) are illustrative fixtures, not live data.</td><td>Arc 4, screen 22</td><td>Certain. Labeled as example data.</td></tr>
+          <tr><td class="phase">AS-11</td><td>The personal layer lives in the user's own GitHub account; setup creates it.</td><td>Arc 2, screens 7, 12</td><td>High, matches the CSE four-layer model.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- =================================================================== -->
+  <!-- NOT YET BUILT                                                      -->
+  <!-- =================================================================== -->
+  <section id="notbuilt" class="screen" aria-labelledby="h-notbuilt">
+    <div class="sec-head">
+      <span class="sec-num">&middot;</span>
+      <h2 id="h-notbuilt">Shown here, not built yet</h2>
+      <p class="sec-sub">Everything this walkthrough shows that is invented or unbuilt, listed honestly, so no one mistakes the walkthrough for shipped reality.</p>
+    </div>
+    <div class="killed-grid">
+      <div class="killed-card"><h4>NB-1 &middot; Personal sign-in seam</h4><p><code>cc auth login &lt;provider&gt; --json</code>: device flow for GitHub, browser PKCE link-out for Google, Microsoft 365, Slack, and Salesforce. The app holds no secret; the real verb is queued for WS-A. Peak #1 depends on it. Arc 2, screen 11 &middot; M3; G12; WS-E E3.</p></div>
+      <div class="killed-card"><h4>NB-2 &middot; Department discovery and join</h4><p>Validated by GitHub repo access. Shown as mock fixtures. Arc 2, screen 10; Arc 3, screen 19 &middot; WS-E E1; G11.</p></div>
+      <div class="killed-card"><h4>NB-3 &middot; Shared-versus-personal integration split</h4><p>Entitled shared integrations resolved from the secret store. Arc 2, screen 11; Arc 3, screen 17; Arc 5, screen 26 &middot; WS-E E3; G12.</p></div>
+      <div class="killed-card"><h4>NB-4 &middot; Per-component education panel and video slots</h4><p>Entirely new to the wizard's Choose-copilots step. Arc 2, screen 9 &middot; new to this walkthrough.</p></div>
+      <div class="killed-card"><h4>NB-5 &middot; Component fan-out update surface</h4><p>A CLI verb enumerating affected projects with per-project results over <code>--json</code>, the global-once versus per-project distinction, the See projects view, and the held-back-for-dirty-WIP state. Arc 4, screen 22 &middot; new; must live in the CLI per parse-never-compute.</p></div>
+      <div class="killed-card"><h4>NB-6 &middot; App self-update and watchdog rollback</h4><p>"Kept your working version," peak #2. Arc 4, screens 23-24 &middot; WS-D D4.</p></div>
+      <div class="killed-card"><h4>NB-7 &middot; Content-free safety escalation to IT</h4><p>With a mandatory <code>AdminContact</code>. Arc 5, screens 25-26 &middot; WS-F F3.</p></div>
+      <div class="killed-card"><h4>NB-8 &middot; Security-override auto-suspend and its banner</h4><p>The banner's one affordance wording is explicitly unresolved. Arc 5, screen 25 &middot; WS-F F2.</p></div>
+      <div class="killed-card"><h4>NB-9 &middot; Dirty-personal-working-tree detection</h4><p>Drives the ask-Bob prompt with no destructive affordance. Arc 5, screen 27; Arc 4, screen 22 &middot; never-destroy; WS-F.</p></div>
+      <div class="killed-card"><h4>NB-10 &middot; The tray and wizard are mock-backed prototypes</h4><p><code>copilot doctor</code>, <code>copilot layers --json</code>, and the <code>wizard_*</code> verbs are not yet frozen. Every state this walkthrough shows is rendered from fixtures today. All arcs &middot; WS-A dependency.</p></div>
+      <div class="killed-card"><h4>NB-11 &middot; Separate admin and user builds</h4><p>Ratified 2026-07-16. Two executables from one codebase: a public user build and a privately distributed admin build. Packaging, signing, and the private admin channel are not yet built. Arc 1, screen 2; Arc 2, screen 6.</p></div>
+      <div class="killed-card"><h4>NB-12 &middot; Deployable resource site</h4><p>The page shown here ships with the product as a deployable org resource site (static site plus the signed <code>.dmg</code>) so a company can host it internally, swap the videos, name, and contact for their own. Full design: <code>docs/03-design/landing-site.md</code>. Hosting story and artifact format are not yet built. Arc 1, screen 2.</p></div>
+      <div class="killed-card"><h4>NB-13 &middot; GitHub command line install and approval flow</h4><p>Detect finds or installs <code>gh</code> and walks the user through a one-time browser approval. Install mechanics, bundling vs download, and the approval UX are not built. Arc 2, screen 8.</p></div>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <span>SOUL.md &middot; control-tower-copy-deck.md &middot; three-role-journeys.md &middot; control-tower-interaction-spec.md &middot; wizard.swift</span>
+    <span>End-user walkthrough &middot; 27 screens &middot; Arcs 1-5</span>
+  </footer>
+
+</main>

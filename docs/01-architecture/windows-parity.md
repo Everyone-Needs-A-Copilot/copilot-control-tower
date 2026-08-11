@@ -1,6 +1,8 @@
 # Windows Parity Tracker
 
-> **Deprioritization note (reconcile pending).** The product direction is moving toward a
+> **SUPERSEDED — 2026-08-02.** The product's native-macOS reconciliation this document's original banner marked "pending" is resolved, and resolved against Windows: Copilot Control Tower shipped (v0.4.0 as of this banner) as a **native macOS SwiftUI/AppKit app**, not the Tauri v2/Rust core every mechanism below assumes. There is no shared Tauri core left for Windows to re-skin, so this entire document's premise — a committed Windows re-skin over that core — no longer holds. **Windows is formally out of scope**, not merely deferred. This document is retained **in place, unmodified below this banner**, as the historical record of what a Windows port would have required against the retired Rust implementation. Do not treat any status below ("Resolved," "Built, cfg-gated, macOS-green," etc.) as a claim about the current native app — none of the code cited below exists in `native/*.swift`, and the `src-tauri/` tree it does exist in is not built by any current release script. If Windows work is ever resumed, it should be scoped fresh against the native Swift app, not picked up from where this document left off.
+
+> **Original deprioritization note (2026-07-08, kept for lineage).** The product direction is moving toward a
 > native macOS app — a separate design-thread decision, not yet fully ratified in this repo.
 > Windows work tracked below is **deprioritized pending that reconciliation**; nothing in
 > this doc should be read as an active near-term commitment until it is resolved. This doc

@@ -13,6 +13,12 @@
       "minLength": 1,
       "description": "Host identifier the update was run for, e.g. 'claude-code'. Present in the upstream design's example (design-control-tower-integration.md §1.2) but not marked required since cli-contract.md's prose table omits it."
     },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ADDITIVE (Component Sync Stream-E, 02-component-sync initiative): the target project's absolute path, present only on a `cc materialize --project <path>`-style per-project result (module: claude-copilot/tools/cc/src/cc/commands/projects.py `build_materialize_project_report()`). Absent on the machine-wide `cc update --json` result this schema also describes -- optional, never required, so this remains a purely additive, backward-compatible widening of the same envelope shape.",
+      "$comment": "ADDED (Stream-E, 02-component-sync): reuses this schema's shape verbatim for the per-project materialize result rather than defining a parallel schema, per the initiative's 'result shape reuses update.schema.json's shape + a path field' build note."
+    },
     "result": {
       "type": "string",
       "enum": ["applied", "up-to-date", "held", "blocked", "offline"],
@@ -29,6 +35,7 @@
         "additionalProperties": false,
         "required": ["dimension", "layer", "item", "op", "signed"],
         "properties": {
+          "product": { "type": "string", "minLength": 1, "description": "Native host product receiving the item." },
           "dimension": { "type": "string" },
           "layer": { "type": "string" },
           "item": { "type": "string" },
@@ -52,6 +59,16 @@
             "type": ["string", "null"],
             "description": "Identifier of the layer/item shadowing this one; null when not shadowed.",
             "$comment": "Prose names the field without a type; encoded as nullable string."
+          },
+          "blocked_winner": {
+            "type": ["string", "null"],
+            "description": "ADDITIVE (task 220 Fix 1, fold un-freeze): non-null only when this change is a fold fallback substitution -- `layer` above is a SHADOWED layer whose own copy verified, materialized in place of the resolver's real OVERRIDE winner named here, which was policy-blocked (unverified) and never applied. Null for every ordinary (non-substituted) change.",
+            "$comment": "ADDED 2026-08-01: closes the fold-never-falls-back-off-a-blocked-winner gap (WP-384) -- see copilot-control-tower/docs task 220. Additive-only widening; absent/null is fully backward compatible with every prior consumer of this schema."
+          },
+          "reason": {
+            "type": ["string", "null"],
+            "description": "Human-readable explanation, present when `blocked_winner` is non-null (e.g. 'winner <layer> blocked: unverified; materialized verified layer <layer> instead'); null otherwise.",
+            "$comment": "ADDED 2026-08-01, task 220 Fix 1 -- additive, mirrors the `reason` field `held_for_approval[]`/`blocked[]` entries already carry."
           }
         }
       }

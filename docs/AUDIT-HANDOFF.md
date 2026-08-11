@@ -8,7 +8,7 @@ is named so you can run it, read it, and try to break it.
 > **Model note (read before auditing):** since the build described here was
 > completed, an audit of the *docs* (separate from this build audit) found the
 > product model needed correction: the Copilot Solutioning Ecosystem (CSE), see
-> [`docs/reference/cse-alignment-decisions.md`](reference/cse-alignment-decisions.md).
+> [`docs/10-reference/cse-alignment-decisions.md`](10-reference/cse-alignment-decisions.md).
 > Two consequences for you as an auditor: (1) MDM is dropped completely as a
 > mechanism going forward (no `.mobileconfig`, no forced/managed domain, no
 > fleet dashboard as Admin's center of gravity); the M5/M9 code below still
@@ -211,7 +211,7 @@ The seams exist and are tested against fixtures; only the far ends are stubbed.
 - **MDM forced-domain**: generator unit-tested; not verified against a live enrolled Mac. Also note: per the model note above, MDM is now dropped as the target mechanism entirely (D4), so this gap is superseded rather than pending completion; do not recommend "finish MDM verification" as the fix.
 - **Windows**: code gated but never built/signed/run (no Windows box + Authenticode cert).
 - **Admin/fleet UX**: UNVALIDATED HYPOTHESIS; no real IT operator has used it.
-- **Three CSE surfaces not yet built or audited** (new since this build; not a defect in the audited code, listed here so you don't go looking for them): department discovery + join by GitHub repo access; a distinct register for entitled shared integrations (org/dept-provisioned) versus personal sign-in (device-flow); personal-key multi-machine sync. See `docs/reference/cse-alignment-decisions.md` D7.
+- **Three CSE surfaces not yet built or audited** (new since this build; not a defect in the audited code, listed here so you don't go looking for them): department discovery + join by GitHub repo access; a distinct register for entitled shared integrations (org/dept-provisioned) versus personal sign-in (device-flow); personal-key multi-machine sync. See `docs/10-reference/cse-alignment-decisions.md` D7.
 
 Full owner-gated detail: [`RESUME-HERE.md`](RESUME-HERE.md) and the per-milestone
 memory notes referenced there.

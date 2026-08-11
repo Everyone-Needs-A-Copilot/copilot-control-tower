@@ -5,7 +5,7 @@
 | **STATUS** | **RATIFIED 2026-07-07 (owner).** Promoted from `proposals/writable-inheritance-and-conflict.md` (draft RFC) to a canonical architecture doc. |
 | **Type** | Architecture RFC (foundational — resolves two of the three open problems in SOUL.md §9) |
 | **Scope** | Reconciles writable org/dept tiers with invariant #3 (never-destroy); designs non-technical merge-conflict resolution (SOUL anti-pattern *The Git Error To A Non-Technical Person*) |
-| **Grounds in** | `architecture.md` §3 · `cli-contract.md` · `reference/four-tier-topology.md` §§3–6 · `reference/ecosystem-architecture.md` §3, §5.2, §5.4, §8.1 · `product-design/02-service-design/10-service-blueprint.md` (W1–W5, F15/F16) · SOUL.md §4 (Leak, Git-Error), §9 |
+| **Grounds in** | `architecture.md` §3 · `cli-contract.md` · `10-reference/four-tier-topology.md` §§3–6 · `10-reference/ecosystem-architecture.md` §3, §5.2, §5.4, §8.1 · `product-design/02-service-design/10-service-blueprint.md` (W1–W5, F15/F16) · SOUL.md §4 (Leak, Git-Error), §9 |
 | **Governed by** | The five invariants in `CLAUDE.md`. This design KEEPS all five intact; the one *optional* invariant-text clarification (§5) was offered for ratification and is **not** adopted unless separately ratified — the ratified design needs no invariant change. |
 | **Red-team IDs addressed** | F15 (merge-conflict UNSOLVED), the #3-strain on writable tiers; adjacent to F16 (credentials-carrier, out of scope here — see §6) |
 
@@ -194,13 +194,56 @@ The invariant **holds as written**; the recommendation needs no change. However,
 
 ## 7. Carried-forward seam — author git-push-credential provisioning — RESOLVED 2026-07-07
 
-**Status change:** this seam is no longer open. The mechanism is per-user, on-device ed25519 key generation (private key keychain/`ssh-agent`-resident, never in git) with the public key registered to the author's **own** GitHub account, authorized via GitHub Team membership — reusing the existing SSH-alias model (`reference/four-tier-topology.md` §6.1) and its own primitives for rotation and revocation. Fully worked in [`docs/05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md) §6, which this section now defers to entirely.
+**Status change:** this seam is no longer open. The mechanism is per-user, on-device ed25519 key generation (private key keychain/`ssh-agent`-resident, never in git) with the public key registered to the author's **own** GitHub account, authorized via GitHub Team membership — reusing the existing SSH-alias model (`10-reference/four-tier-topology.md` §6.1) and its own primitives for rotation and revocation. Fully worked in [`docs/05-security/credentials-and-boundary.md`](../05-security/credentials-and-boundary.md) §6, which this section now defers to entirely.
 
-- **Where it leans.** The intended mechanism was the **four-tier SSH-alias model** — the `ssh-personal` / `ssh-work` / `anon` / `gh-app:<slug>` aliases that `reference/four-tier-topology.md` §6.1 already chose for multi-account git auth. An author's dept/org write credential is the `ssh-work` identity, provisioned once at promotion (§2.4). This reuses existing machinery rather than inventing a new carrier.
+- **Where it leans.** The intended mechanism was the **four-tier SSH-alias model** — the `ssh-personal` / `ssh-work` / `anon` / `gh-app:<slug>` aliases that `10-reference/four-tier-topology.md` §6.1 already chose for multi-account git auth. An author's dept/org write credential is the `ssh-work` identity, provisioned once at promotion (§2.4). This reuses existing machinery rather than inventing a new carrier.
 - **Where it is worked.** The security-side design (generation, GitHub-Team-based authorization, rotation, revocation) lives in `docs/05-security/credentials-and-boundary.md` §6 — now **RATIFIED**, not a draft.
 
 **Net:** the publish contract (§3–§4) and the author-credential provisioning that feeds it are both ratified; write access to a second author is no longer gated on this seam.
 
 ---
 
-*END — RATIFIED 2026-07-07 (owner). This doc closes SOUL §9 open problem #3 (writable-tier vs never-destroy) and specifies the mechanism for F15 (non-technical conflict). It does **not** close F16 (credentials-carrier), which gates it — the carried-forward seam tracked in §6 (open #1) and §7.*
+## Elevating project content today (manual path)
+
+`cc publish` — the CLI-computed, author-side push of a writable org/department tier that §3–§4 above design — is formally deferred per [ADR-008](../40-initiatives/02-enac-self-onboarding/decisions/ADR-008-repair-and-publish-deferred.md) (Accepted 2026-07-31, §3): it is not implemented, and nothing currently scheduled builds it. Everything above this section remains valid forward-looking design — ADR-008's own consequences say so explicitly — not a description of what exists on disk today. This section documents the **safe interim substitute** the 2026-08-01 inheritance-readiness audit (`WP-372`, Case 6) found already works, with zero new code, for the elevation case that actually comes up in practice: moving a project-level agent, skill, or command up to the org or department tier so every consuming machine gets it.
+
+### Why the manual path is safe
+
+Elevation works today because of three facts about the current resolver, each verified directly against `claude-copilot/tools/cc`:
+
+- **`copilot.layer.yml` is inert.** A full grep of the resolution path shows nothing ever reads it; only `commands/onboard.py` writes it when seeding a new layer. It carries no authority over what a layer contributes.
+- **Contribution discovery is purely directory-based.** `discover_contributions()` (`core/ecosystem/discovery.py:82-96`) scans `<layer_root>/<dimension>/` for each layer with a local `source.path` and hashes whatever it finds there. There is no manifest entry to register and no catalog to update — a file's presence under the right directory *is* the contribution.
+- **The fold is nearest-tier-wins `OVERRIDE`** for the `agents`, `skills`, and `commands` dimensions (`core/ecosystem/dimensions.py:25-27`). The nearest contributing tier's copy is the one that materializes to `~/.claude/<dimension>/`; every other contributing tier's copy is reported, never deleted, in that item's `shadowed[]` list.
+
+Put together: elevating a project item to the org tier is nothing more than putting the file where the org repo's own directory scan will find it, then pushing that repo — an ordinary, human-invoked, distinctly-credentialed `git push`, exactly what CLAUDE.md invariant 6 requires of any upward publication. No CLI code path is involved, and none needs to be.
+
+### Step-by-step, with a worked example (project skill → org tier)
+
+Elevating a skill named `budget-variance-check` from a project's `.claude/skills/budget-variance-check/` to the org tier:
+
+1. **Identify the item and its dimension** in the project: `.claude/skills/budget-variance-check/` (agents live under `.claude/agents/<name>.md`, commands under `.claude/commands/<name>.md` — same procedure, different dimension directory).
+2. **Open a clone of the target tier repo.** For the org tier of the `claude` product that is `claude-copilot-internal`; for the Accounting department it is `claude-copilot-accounting`. Each product (`claude`, `cli`, `codex`, `knowledge`) has its own set of tier repos — elevate into the repo matching the product the item belongs to.
+3. **Copy the item into the tier repo's matching top-level dimension directory**, preserving the same shape it has under the project's `.claude/`, at the tier repo's root (not nested under `.claude/`):
+   ```
+   cd /path/to/claude-copilot-internal
+   mkdir -p skills
+   cp -R /path/to/project/.claude/skills/budget-variance-check skills/
+   ```
+4. **Commit**, naming what's being elevated and from where: `git commit -m "Elevate budget-variance-check skill from <project> to org tier"`.
+5. **Push** to the tier repo's remote: `git push origin main`. This is the human-invoked, distinctly-credentialed step — never automated, never run by the app, never run by a background sync.
+6. **On every consuming machine, run `cc update`** (or wait for its next scheduled run). The nearest-tier-wins fold now resolves `skills/budget-variance-check` to the org copy for every machine that pulls org content; any foundation copy of the same name is displaced, not deleted, and appears in `shadowed[]`.
+
+### Verifying the elevation landed
+
+- **`cc skill list --json`** (or `--scope machine`) is the reliable check today: after `cc update`, it shows `budget-variance-check` present, sourced from the materialized `~/.claude/skills/` tree. There is no equivalent `list` verb yet for agents or commands — inspect `~/.claude/agents/<name>.md` / `~/.claude/commands/<name>.md` directly, or check the tier repo clone's own `git log`, to confirm the push landed.
+- **`cc resolve --explain --json`** is the verb designed to show the winning layer and the full `shadowed[]` list (the foundation copy the org copy now displaces) for every resolved item. As of the 2026-08-01 audit, the live manifest on this machine has no static `source.path` per layer, and `discover_contributions()` requires one, so `cc resolve --explain --json` currently returns `items: []` rather than showing the elevation — a separate, already-tracked gap (`P5.1` in the audit), not a defect in the elevation path itself. Once that gap closes, `cc resolve --explain --json` becomes the single command that shows both facts at once: the org copy winning, and the foundation copy it shadows.
+
+> **WARNING — never elevate by symlinking, or by pointing a materialize target at an authoring checkout.**
+>
+> On 2026-07-27, `~/.claude/knowledge` was a symlink into `knowledge-copilot-internal` — the org knowledge repo's own authoring checkout — while also being `cc update`'s materialize target for the `knowledge` dimension. A routine `cc update` reconcile-deleted everything under the paths it owns there: all 5 org agent extensions (including the brand-voice binding), 16 agents, all commands, all memory, hooks, and skills, 10 of 11 top-level `docs/` files, and the knowledge manifest — 12,537 deletions in one commit, which a backup cron then pushed to `origin`. Root cause was two-fold: `guard_personal()` (`core/ecosystem/materialize.py:136-171`) protects a path only if it is a registered `personal_root` or a currently-dirty git tree, and a clean authoring checkout is neither; and `personal_roots` had, and as of `cc 2.0.2` still has, no production feeder (`commands/update.py:97` defaults it to `()`), so the registered-root check never fires for a real authoring checkout in practice. A code-side fix for this guard hole is tracked as `P0.2`/`P0.3` in the 2026-08-01 inheritance audit (`WP-372`) and had not shipped as of this writing. **Even once it ships, treat it as defense-in-depth only, never as permission to link** — the elevation procedure above never points a materialize target at an authoring checkout in the first place, so it is safe independent of that guard's state. Elevation is always **copy → commit → push into the tier repo's own working directory** — never a symlink, a bind-mount, or any other path that lets a materialize target write through to a human-owned checkout. (This is the same tree-separation §2.2 above already names — the authoring checkout is, for never-destroy's purposes, a personal working tree, and `guard_personal()`'s own docstring cites this document's §2.2 for that reasoning; the incident happened because that tree was never registered as one.)
+
+Cross-references: [ADR-008](../40-initiatives/02-enac-self-onboarding/decisions/ADR-008-repair-and-publish-deferred.md) (formal deferral of `cc publish`); the 2026-08-01 inheritance-readiness audit `WP-372` Case 6 (source of the manual-path discovery) and its P0 section (source of the incident above).
+
+---
+
+*END — RATIFIED 2026-07-07 (owner). This doc closes SOUL §9 open problem #3 (writable-tier vs never-destroy) and specifies the mechanism for F15 (non-technical conflict). It does **not** close F16 (credentials-carrier), which gates it — the carried-forward seam tracked in §6 (open #1) and §7. The "Elevating project content today" section above was added 2026-08-01 (P4.1, `WP-372`) as a documentation-only addendum; it does not change this doc's ratification status or invariant analysis.*

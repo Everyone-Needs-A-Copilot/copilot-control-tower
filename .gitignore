@@ -42,6 +42,13 @@ yarn-error.log*
 .claude/memory/memory.db
 .claude/memory/memory.db-*
 
+# Claude Copilot hook runtime state (session-local, matches claude-copilot's
+# own .gitignore convention — never shared/authored content)
+.claude/hooks/state/*.json
+.claude/hooks/state/*.lock
+.claude/hooks/state/*.tmp.*
+.claude/hooks/state/.freeze
+
 # Task Copilot local state (tc init) — local SQLite task DB, not shared config
 .copilot/
 

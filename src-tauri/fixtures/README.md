@@ -10,6 +10,22 @@ scenarios `authorized|denied|expired|timeout|pending`). See
 corpus (`wizard/scenarios/*.json`); this file continues to document the `doctor`-only
 corpus below.
 
+**WS-A Stream-Z addition:** `mock-cc` now also implements `auth status`, `layers`/
+`layers join <id>`, `freshness --all-projects`, and `update --project <path>`/
+`update --fanout` — the app-side surfaces for the WS-A verbs landed in `claude-copilot`'s
+`tools/cc`. The `auth` ceremony/poll bodies additionally carry `schema_version`/`kind`
+(and the ceremony a `device_code`) ADDITIVELY, matching `auth.schema.json`, without
+breaking the existing wizard consumer (unknown fields are dropped by the Rust seam). See
+[`layers/README.md`](layers/README.md) and [`projects/README.md`](projects/README.md)
+for those two new fixture corpora (both validated by `validate.sh`, alongside the
+`doctor` corpus below); `deprovision/corpus/` and `update/corpus/` remain unchanged and
+are still exercised by this repo's Rust-side tests directly, not this Python validator.
+
+**Task 221 bridge stage C addition:** `mock-cc` now also implements `connections` — the
+organization's declared connections roster + shared-store reachability. See
+[`connections/README.md`](connections/README.md) for that fixture corpus (also validated
+by `validate.sh`).
+
 Conforms to [`docs/01-architecture/schemas/doctor.schema.json`](../../docs/01-architecture/schemas/doctor.schema.json)
 (Draft 2020-12) and [`_envelope.schema.json`](../../docs/01-architecture/schemas/_envelope.schema.json).
 

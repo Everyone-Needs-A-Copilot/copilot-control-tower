@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -euo pipefail
+
+case "${1:-}" in
+    -C)
+        assistant="codex"
+        project="${2:-}"
+        prompt="${3:-}"
+        ;;
+    *)
+        assistant="claude"
+        project="${PWD}"
+        prompt="${1:-}"
+        ;;
+esac
+
+result="${CT_LAUNCH_PROBE_RESULT:?CT_LAUNCH_PROBE_RESULT is required}"
+{
+    printf 'assistant=%s\n' "${assistant}"
+    printf 'project=%s\n' "${project}"
+    printf 'prompt=%s\n' "${prompt}"
+} >"${result}"

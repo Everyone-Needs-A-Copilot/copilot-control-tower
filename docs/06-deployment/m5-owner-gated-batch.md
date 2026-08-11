@@ -10,7 +10,7 @@
 
 > **Product model correction (2026-07-08).** M5 was originally scoped
 > "MDM & Security." Per
-> [`../reference/cse-alignment-decisions.md`](../reference/cse-alignment-decisions.md)
+> [`../10-reference/cse-alignment-decisions.md`](../10-reference/cse-alignment-decisions.md)
 > D4, MDM is dropped completely, including the seam. Item 1 below (the old
 > "real MDM enrollment" gate) is **superseded**, not carried forward as an
 > active gate - it's kept in this doc, marked superseded, so nobody

@@ -110,7 +110,7 @@ nothing durable.
 
 - All four CSE products: **Claude Copilot**, **Codex Copilot**, **CLI Copilot**,
   **Knowledge Copilot** — plus the CSE model document itself
-  (`docs/reference/copilot-solutioning-ecosystem.md`), whose "The value" section
+  (`docs/10-reference/copilot-solutioning-ecosystem.md`), whose "The value" section
   is the single largest unfalsifiable surface in the ecosystem.
 - All four inheritance layers — Foundation, Org, Dept, Personal — exercised via a
   **synthetic fixture** (see D-3), because Org and Dept do not exist as real

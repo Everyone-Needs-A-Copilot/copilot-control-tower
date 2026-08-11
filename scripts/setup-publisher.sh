@@ -26,7 +26,7 @@ Options:
   --profile NAME        notarytool keychain profile name (default: ct-notary).
   --env-file PATH       Local env file to write (default: .env.release.local).
   --skip-notary         Only write/validate the local env file.
-  --force               Replace an existing env file.
+  --replace-existing    Replace an existing env file.
   -h, --help            Show this help.
 
 The notary password is never accepted as an argument. If --skip-notary is not
@@ -79,7 +79,7 @@ while [[ $# -gt 0 ]]; do
             SKIP_NOTARY=1
             shift
             ;;
-        --force)
+        --replace-existing)
             FORCE=1
             shift
             ;;
@@ -174,7 +174,7 @@ else
 fi
 
 if [[ -e "${ENV_FILE}" && "${FORCE}" -ne 1 ]]; then
-    die "${ENV_FILE} already exists; pass --force to replace it"
+    die "${ENV_FILE} already exists; pass --replace-existing to replace it"
 fi
 
 env_dir="$(dirname "${ENV_FILE}")"
@@ -198,4 +198,4 @@ echo "Wrote ${ENV_FILE} with mode 600."
 echo
 echo "Next:"
 echo "  source ${ENV_FILE}"
-echo '  PATH="/usr/bin:$PATH" CC=/usr/bin/cc npm run tauri build'
+echo "  ./scripts/package-user-release.sh"

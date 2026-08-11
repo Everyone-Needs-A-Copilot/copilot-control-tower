@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "app_version": "0.6.8",
+  "cc": {
+    "minimum_version": "2.10.2",
+    "maximum_exclusive_version": "3.0.0",
+    "schema_version": {
+      "minimum": "1.0",
+      "maximum": "2.0"
+    }
+  },
+  "cli_reader": {
+    "legacy_commit": "094b923255657d0dd264167daaf9719f2e414f99",
+    "compatible_commit": "48cbcf5055e4b6200e5864ddecc666f96c27bf31",
+    "release_tag": "v0.3.1",
+    "minimum_package_version": "1.4.6"
+  },
+  "optional_hooks": {
+    "verified_commit": "b27d45cbe478d551d1d53fc270c1c5d472b4a343",
+    "release_tag": "v0.1.1",
+    "policy": "fail-open",
+    "maximum_internal_timeout_seconds": 25
+  }
+}

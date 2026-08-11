@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>18 · Self-service store provisioning — UX walkthrough</title>
+  <style>
+    :root{color-scheme:light dark;--page:#ececef;--paper:#fff;--panel:#f7f7f8;--rail:#f0f0f2;--ink:#202024;--muted:#66666d;--faint:#929299;--line:#d4d4d9;--accent:#1768ca;--ok:#2b8547;--warn:#9b671e;--danger:#b93936;--shadow:0 20px 60px rgb(20 20 26 / 15%)}
+    [data-theme="light"]{color-scheme:light}
+    [data-theme="dark"]{color-scheme:dark;--page:#111113;--paper:#1c1c1f;--panel:#252529;--rail:#19191c;--ink:#f1f1f3;--muted:#acacb3;--faint:#7f7f87;--line:#3b3b40;--accent:#6aa9ff;--ok:#65c77d;--warn:#e1b462;--danger:#ff7772;--shadow:0 24px 70px rgb(0 0 0 / 45%)}
+    @media(prefers-color-scheme:dark){html[data-theme="auto"]{--page:#111113;--paper:#1c1c1f;--panel:#252529;--rail:#19191c;--ink:#f1f1f3;--muted:#acacb3;--faint:#7f7f87;--line:#3b3b40;--accent:#6aa9ff;--ok:#65c77d;--warn:#e1b462;--danger:#ff7772;--shadow:0 24px 70px rgb(0 0 0 / 45%)}}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif}
+    header{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--page) 90%,transparent);backdrop-filter:blur(16px)}header strong{white-space:nowrap}.toc{display:flex;gap:5px;overflow:auto}.toc a,.theme{min-width:32px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);padding:6px 9px;text-decoration:none;font:inherit}.toc a{font:700 11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;text-align:center}.theme{margin-left:auto;white-space:nowrap}
+    main{width:min(1180px,calc(100% - 30px));margin:34px auto 80px}.intro{max-width:840px;margin-bottom:20px}.kicker{font-size:11px;font-weight:750;letter-spacing:.08em;color:var(--accent)}h1{font-size:42px;line-height:1.04;letter-spacing:-.035em;margin:7px 0 13px}.intro p{font-size:17px;color:var(--muted);margin:0 0 12px}.legend{max-width:840px;margin-bottom:44px;color:var(--faint);font-size:13px}
+    section{margin:0 0 64px;scroll-margin-top:80px}.part{margin:0 0 22px;padding-top:6px;border-top:1px solid var(--line);color:var(--accent);font-size:11px;font-weight:750;letter-spacing:.08em}.screen-title{display:flex;align-items:baseline;gap:11px;margin-bottom:13px}.number{color:var(--faint);font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace}.screen-title h2{font-size:21px;margin:0}.layout{display:grid;grid-template-columns:minmax(0,1fr) 275px;gap:20px;align-items:start}
+    .window{min-height:620px;overflow:hidden;border:1px solid var(--line);border-radius:17px;background:var(--paper);box-shadow:var(--shadow)}.titlebar{height:45px;display:flex;align-items:center;gap:7px;padding:0 15px;border-bottom:1px solid var(--line);font-weight:650}.dot{width:11px;height:11px;border:1px solid var(--line);border-radius:50%}.titlebar span{margin-left:10px}.app{display:grid;grid-template-columns:220px 1fr;min-height:575px}.rail{padding:17px 11px;background:var(--rail);border-right:1px solid var(--line)}.brand{margin:0 9px 16px;font-weight:700}.rail .group{margin:16px 9px 7px;color:var(--faint);font-size:11px;font-weight:750;letter-spacing:.06em}.stage{display:grid;grid-template-columns:18px 1fr;gap:7px;padding:7px 9px;border-radius:7px;color:var(--muted)}.stage.current{background:var(--panel);color:var(--ink);font-weight:650}.stage.done b{color:var(--ok)}.stage.current b{color:var(--accent)}
+    .content{display:flex;flex-direction:column;min-width:0;padding:29px 34px}.eyebrow{font-size:11px;font-weight:750;letter-spacing:.07em;color:var(--accent)}h3{font-size:27px;line-height:1.14;letter-spacing:-.025em;margin:6px 0 8px}.lead{max-width:670px;margin:0 0 20px;color:var(--muted)}.summary{color:var(--ink);font-weight:650}
+    .card{padding:15px;border:1px solid var(--line);border-radius:10px;background:var(--paper);margin-bottom:12px}.card.inset{background:var(--panel)}.card.next{border-left:3px solid var(--accent)}.card.flag{border-left:3px solid var(--danger)}.card-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:7px;color:var(--muted);font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.05em}.row{display:grid;grid-template-columns:25px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0}.row+.row{border-top:1px solid var(--line)}.row strong,.row small{display:block}.row strong{font-weight:650}.row small{margin-top:2px;color:var(--muted)}.status{font-size:12px;font-weight:700}.ok{color:var(--ok)}.warn{color:var(--warn)}.danger{color:var(--danger)}.info{color:var(--accent)}.muted{color:var(--muted)}.glyph{text-align:center;font-weight:800}
+    .chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:1px 8px;color:var(--muted);font:700 10px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:.06em;vertical-align:middle}.chip.new{border-color:var(--accent);color:var(--accent)}
+    .footer{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:auto;padding-top:18px}.actions{display:flex;gap:8px;flex-wrap:wrap}button{min-height:34px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);padding:7px 11px;font:inherit}.primary{border-color:var(--accent);background:var(--accent);color:white;font-weight:650}.plain{border-color:transparent;background:transparent;color:var(--muted)}button[disabled]{opacity:.45}
+    .progress{height:6px;overflow:hidden;border-radius:99px;background:var(--panel);margin:4px 0 14px}.progress span{display:block;height:100%;background:var(--accent)}.callout{display:grid;grid-template-columns:24px 1fr;gap:10px}.callout p{margin:3px 0 0;color:var(--muted)}.decision{display:grid;grid-template-columns:132px 1fr;gap:10px;padding:8px 0}.decision+.decision{border-top:1px solid var(--line)}.decision b{font-size:12px;color:var(--muted)}.actor{display:block;margin-top:10px;padding-top:8px;border-top:1px solid var(--line);color:var(--faint);font-size:12px}
+    .popover{width:min(430px,100%);margin:25px auto;border:1px solid var(--line);border-radius:18px;background:var(--paper);overflow:hidden;box-shadow:var(--shadow)}.popover-head,.popover-foot{padding:15px 18px}.popover-head{border-bottom:1px solid var(--line)}.popover-head strong,.popover-head small{display:block}.popover-head small{color:var(--muted)}.popover .body{padding:10px 18px}.popover .body p{color:var(--muted)}.popover-foot{display:flex;gap:10px;border-top:1px solid var(--line)}.popover-foot button{border:0;padding:4px;background:transparent}.aviators{display:inline-block;font-size:25px;letter-spacing:-6px;margin-right:8px}.state-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    code,.mono{font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}.command{margin:9px 0 0;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--muted)}.code{display:block;margin:6px 0 4px;font:750 27px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em}.field{font-size:12px;font-weight:700;color:var(--muted)}.rules{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}.rules div{display:grid;grid-template-columns:20px 1fr;gap:8px;padding:9px 0;border-top:1px solid var(--line)}.rules b{color:var(--faint);font:700 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}.rules span{color:var(--muted)}.rules strong{color:var(--ink)}
+    aside.note{border-left:2px solid var(--accent);padding:2px 0 2px 14px}.note h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.05em}.note p,.note li{color:var(--muted)}.note ul{padding-left:18px;margin:0}.note li{margin-bottom:6px}.pager{display:flex;justify-content:space-between;margin-top:11px}.pager a{color:var(--accent);text-decoration:none}
+    @media(max-width:880px){.layout{grid-template-columns:1fr}.note{max-width:760px}}@media(max-width:680px){.app{grid-template-columns:1fr}.rail{display:none}.content{padding:24px}.row{grid-template-columns:25px 1fr}.row>.status,.row>button{grid-column:2}.state-grid,.rules{grid-template-columns:1fr}.footer{align-items:flex-end;flex-direction:column}.toc{display:none}h1{font-size:34px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Self-service provisioning · UX</strong>
+    <nav class="toc" aria-label="Screens">
+      <a href="#s1">01</a><a href="#s2">02</a><a href="#s3">03</a><a href="#s4">04</a><a href="#s5">05</a><a href="#s6">06</a><a href="#s7">07</a><a href="#s8">08</a><a href="#s9">09</a><a href="#s10">10</a><a href="#s11">11</a><a href="#s12">12</a><a href="#s13">13</a><a href="#s14">14</a>
+    </nav>
+    <button class="theme" id="theme" aria-label="Change color theme">Theme: system</button>
+  </header>
+  <main>
+    <div class="intro">
+      <span class="kicker">UX WALKTHROUGH · DRAFT FOR ALIGNMENT</span>
+      <h1>Bob's half of this design is a blank page. The other half is the whole job.</h1>
+      <p>Walkthrough 17 drew a receipt: a step 6 where every shared row reads Ready and nothing carries a button. This walkthrough is what makes that receipt true. On Bob's side it adds nothing, not a screen, not a button, not a word he has to learn. Everything it adds lands on the administrator, once, and on a small service nobody in accounting will ever hear of. Both halves are drawn here, because a design that shows only the empty one has hidden its own price.</p>
+      <p>The job, stated as a job: <em>when my department's tools need a key I don't have and shouldn't have, I want the work to just run, so I can close the month without asking a colleague to DM me something I know I'm not supposed to have.</em></p>
+    </div>
+    <p class="legend"><span class="chip new">NEW</span> marks a capability today's product does not have. Nothing here is ratified: the design is at review after two security passes, screen 13 reconciles this design with the bridge that shipped today, and screen 14 is the list of things only the owner can settle. Bob's screens name no vendor, no protocol and no component; they describe effects, because that is all he can act on. The administrator's screens name things precisely, because precision is what she is owed. Every quoted string is CLI authored: the app renders the sentence, it never composes it (invariant #1).</p>
+
+    <p class="part">PART ONE · BOB'S SIDE, WHERE NOTHING IS ADDED</p>
+
+    <section id="s1">
+      <div class="screen-title"><span class="number">01</span><h2>Day one is the sign-in he was already doing</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage current"><b>●</b><span>Connect GitHub</span></div><div class="stage"><b>○</b><span>Detect</span></div><div class="stage"><b>○</b><span>What you're getting</span></div><div class="stage"><b>○</b><span>Departments</span></div><div class="stage"><b>○</b><span>What your team set up</span></div><div class="stage"><b>○</b><span>Your projects</span></div><div class="stage"><b>○</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">STEP 2 OF 9 · UNCHANGED BY THIS DESIGN</span><h3>Connect GitHub</h3><p class="lead">Open the page below and enter this code. This is the only sign-in setup will ask you for.</p>
+            <div class="card inset"><span class="field">Your code</span><span class="code">WDJB-MJHT</span><div class="actions"><button>Copy code</button><button class="primary">Open github.com/login/device</button></div></div>
+            <div class="card"><div class="row"><b class="glyph info">●</b><div><strong>Waiting for you to finish in your browser</strong><small>You can leave this window open.</small></div><span class="status info">Now</span></div></div>
+            <div class="card next"><div class="card-title"><span>Why this one sign-in is enough</span><span class="chip new">NEW</span></div><p style="margin:0;color:var(--muted)">What your team shares with you is decided by the teams you're on here. Nothing later in this setup will ask you to sign in to anything shared, and nobody will need to send you anything.</p></div>
+            <div class="card inset callout"><b>i</b><div><strong>Same screen, same code, same permissions as ships today.</strong><p>The delta of this entire design, on Bob's day one, is this one card of explanation. There is no new step, no new field, and no new permission prompt.</p></div></div>
+            <div class="footer"><button>Back</button><button class="primary" disabled>Continue</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>The only new work on day one is invisible</h4><ul><li>Behind this screen the CLI generates a keypair on this Mac and registers the public half on Bob's GitHub account, titled <em>Copilot Control Tower, Bob's MacBook Air</em>. The device flow already requests <code>write:public_key</code>, so no new prompt appears.</li><li>That title is the only trace he could ever find, and it is legible on purpose. It is not a key to anything shared; it proves this Mac is his.</li><li>Deleting it on GitHub ends repository access and shared access in one act. That is why a lost Mac has one lever rather than two.</li><li>The second security pass pinned its custody (E-24): an encrypted private-key file, its passphrase in the Keychain, loaded through the agent, the same mechanism authors already get for pushing code. It has to carry that from the first day, because it becomes the push key the day he is promoted.</li></ul></aside>
+      </div><div class="pager"><span></span><a href="#s2">Next →</a></div>
+    </section>
+
+    <section id="s2">
+      <div class="screen-title"><span class="number">02</span><h2>The receipt from walkthrough 17, now true for everyone entitled</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage current"><b>●</b><span>What your team set up</span></div><div class="stage"><b>○</b><span>Your projects</span></div><div class="stage"><b>○</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">STEP 6 OF 9</span><h3>What your team has set up for you <span class="chip new">NEW</span></h3><p class="lead">Some of these were set up by your team, so they are already working for you. The rest use your own accounts, so they need your sign-in.</p>
+            <div class="card"><div class="card-title"><span>Shared with your team</span><span class="muted" style="text-transform:none;font-weight:400">Ready for you. Nothing to sign into.</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>NetSuite</strong><small>Your team set this up.</small></div><span class="status ok">Ready</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>The department's research assistant</strong><small>Your team set this up.</small></div><span class="status ok">Ready</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>Company document search</strong><small>Everyone here has this one.</small></div><span class="status ok">Ready</span></div>
+            </div>
+            <div class="card"><div class="card-title"><span>Your accounts</span></div>
+              <div class="row"><b class="glyph muted">○</b><div><strong>Slack</strong><small>Uses your own account.</small></div><button>Sign in to Slack</button></div>
+            </div>
+            <div class="card next"><div class="card-title"><span>What produced those three rows</span><span class="chip new">NEW</span></div><p style="margin:0;color:var(--muted)">Bob is on the Accounting team, and he works here. Nothing was created for him, nothing was sent to him, and nobody approved anything. Two of these rows are his department's, one is everyone's, and he needs to know neither fact.</p></div>
+            <div class="card inset callout"><b class="warn">−</b><div><strong>One thing this design does not fix.</strong><p>This screen can only tell the truth after Step 8 has brought his organization's setup onto the Mac. Walkthrough 17, screen 03, named that ordering defect. It survives untouched here and still needs its own repair: move the question, or narrow it.</p></div></div>
+            <div class="footer"><button>Back</button><div class="actions"><button class="plain">Skip for now</button><button class="primary">Continue</button></div></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>The screen did not change. The truth underneath it did.</h4><ul><li>In walkthrough 17 this was the North Star and it could not be built, because membership and access were two separate facts. They are now one fact, checked in one place, at the moment of use.</li><li>Three Ready rows, three different reasons, none of them visible. Recognition is the target: he reads NetSuite, which he opened yesterday, not a key name he has never seen.</li><li>There is still no state in this model where a shared row carries a button, because the state a button would lead to cannot occur.</li><li>The honest caveat stays on the screen rather than in this margin. A walkthrough that quietly drops a known defect teaches the reader to check the others.</li></ul></aside>
+      </div><div class="pager"><a href="#s1">← Previous</a><a href="#s3">Next →</a></div>
+    </section>
+
+    <section id="s3">
+      <div class="screen-title"><span class="number">03</span><h2>A connection he never asked for is simply there</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Tuesday, three weeks later</span></div>
+          <div class="popover"><div class="popover-head"><strong><span class="aviators" aria-hidden="true">● ●</span>Everything is set up.</strong><small>Bob's MacBook Air</small></div>
+            <div class="body"><div class="card-title"><span>What changed</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>Salesforce is ready.</strong><small>Your team added it. Nothing for you to do.</small></div><span class="status muted">Today</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>Your copilots are current.</strong><small>Core, Organization, Accounting, This Mac</small></div><span class="status muted">Tuesday</span></div>
+            </div>
+            <div class="popover-foot"><button>Sync now</button><button>What changed</button><button>Settings...</button></div>
+          </div>
+          <div class="content" style="padding-top:0"><div class="card inset callout"><b>i</b><div><strong>What Bob actually did.</strong><p>On Thursday somebody in a meeting suggested checking Salesforce. He asked his copilot. It answered. He never opened this popover, and he does not know the row above exists.</p></div></div>
+            <div class="card inset callout"><b class="ok">✓</b><div><strong>One past tense line is the entire notification budget for this event.</strong><p>No badge, no banner, no "you now have access to" modal. He was not blocked before and he is not being unblocked now, so there is nothing to announce.</p></div></div>
+          </div>
+        </div>
+        <aside class="note"><h4>Two clocks, neither of them his</h4><ul><li>A new <em>person</em> on an entitled team is live at that person's next check. The membership lookup is live rather than cached, so there is nothing to wait for and nothing to sync.</li><li>A new <em>entry</em> in the organization's mapping, which is what happened here, arrives with his next scheduled pull of the organization's setup. Minutes to hours, not days.</li><li>Neither is actionable by him, so neither interrupts him. The strongest interaction in this walkthrough has no trigger, no feedback and no loop: it is a row that is already there.</li><li>The delight is real and it is retrospective. He will never say "nice notification." He may say "it just does."</li></ul></aside>
+      </div><div class="pager"><a href="#s2">← Previous</a><a href="#s4">Next →</a></div>
+    </section>
+
+    <section id="s4">
+      <div class="screen-title"><span class="number">04</span><h2>When the check cannot run, nothing is assumed</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Bob's lane, when the check is unavailable</span></div><div class="content">
+          <span class="eyebrow">HONEST DEGRADE · FAIL CLOSED</span><h3>Fail closed, and say which failure it is <span class="chip new">NEW</span></h3><p class="lead">Fail closed means no stale value is stretched, no cached answer is reused past its life, and no sentence implies a check happened that did not. It also means naming which of the two situations this is, in his words, with the next actor already decided.</p>
+          <div class="state-grid">
+            <div class="card"><div class="card-title"><span>First few minutes</span></div><div class="callout"><b class="muted">◌</b><div><strong>Your team's shared connections can't be reached right now.</strong><p>Nothing on this Mac changed, and I'll keep checking.</p><span class="actor">Next actor: Control Tower, and it says so. No button, because there is nothing for him to press.</span></div></div></div>
+            <div class="card"><div class="card-title"><span>Still unreachable</span></div><div class="callout"><b class="warn">−</b><div><strong>Your team's shared connections still aren't reachable, so this one belongs to whoever looks after your Mac.</strong><div class="actions" style="margin-top:10px"><button>Copy details for support</button></div><span class="actor">Next actor: a named human, once waiting has stopped being a plausible answer.</span></div></div></div>
+            <div class="card"><div class="card-title"><span>What keeps working</span><span class="status ok">Unaffected</span></div>
+              <div class="row" style="padding-top:0"><b class="glyph ok">✓</b><div><strong>Everything already on this Mac</strong><small>His four copilots, his projects, his own sign-ins.</small></div><span class="status ok">Ready</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>Work already under way</strong><small>Shared keys keep answering for up to fifteen minutes past the last successful check.</small></div><span class="status ok">Ready</span></div>
+            </div>
+            <div class="card flag"><div class="card-title"><span>What does not</span><span class="status danger">Named, not hidden</span></div><div class="callout"><b class="danger">!</b><div><strong>A first run started during the outage cannot be worked around.</strong><p>The screen says so instead of retrying quietly. This is the real price of the recommended shape: the check sits on the path of every shared read, so its availability is a runtime dependency rather than a one-off provisioning dependency.</p></div></div></div>
+          </div>
+          <div class="card inset callout"><b>i</b><div><strong>Copy details for support carries no value, at any verbosity. <span class="chip new">NEW</span></strong><p>Whatever this button puts on the clipboard is metadata about a decision, never anything that could be used as one. A support ticket must not become a live credential in transit, and that is enforced by a test in the service's own suite rather than by a code review convention.</p></div></div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s5'">See the other one →</button></div>
+        </div></div>
+        <aside class="note"><h4>The price of the recommended shape, on screen</h4><ul><li>This is the joint highest scoring finding in the security pass, at 7.4, tied with theft of the service's signing key. It is not a copy problem. It is an availability dependency the copy is obliged to disclose.</li><li>Fifteen minutes is the same number as the offboarding window on screen 05. One number, set once, at the store, by the administrator. It buys outage resilience and costs revocation speed in exactly equal measure.</li><li>What survives the outage is a short lived access token in the Keychain, scoped to one thing, expiring on its own and never renewable from this Mac. The second security pass corrected the design's own overstatement here: not "nothing at rest," but nothing long lived and nothing that identifies him to the store.</li><li>No retry button anywhere. A retry that re-fails is a slot machine.</li></ul></aside>
+      </div><div class="pager"><a href="#s3">← Previous</a><a href="#s5">Next →</a></div>
+    </section>
+
+    <section id="s5">
+      <div class="screen-title"><span class="number">05</span><h2>Removal: the rows are quietly gone, his own work is not</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Someone left, or someone moved teams</span></div><div class="content">
+          <span class="eyebrow">ONE REMOVAL, BOTH REVOKED</span><h3>The grant and the revoke are still the same act</h3><p class="lead">Because membership was never a second fact, removing it removes the access. There is no per person credential anywhere to find, so offboarding cannot be half done, and nobody has to remember a second system.</p>
+          <div class="state-grid">
+            <div class="card"><div class="card-title"><span>Yesterday</span></div>
+              <div class="row" style="padding-top:0"><b class="glyph ok">✓</b><div><strong>NetSuite</strong><small>Your team set this up.</small></div><span class="status ok">Ready</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>The department's research assistant</strong><small>Your team set this up.</small></div><span class="status ok">Ready</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>Company document search</strong><small>Everyone here has this one.</small></div><span class="status ok">Ready</span></div>
+            </div>
+            <div class="card"><div class="card-title"><span>Today, in the same card</span></div><div class="callout"><b class="warn">−</b><div><strong>Your access to your team's shared connections was turned off.</strong><p>Anything you saved on this Mac is still yours, and nothing was removed.</p><p>If that's a surprise, ask whoever looks after Accounting.</p><span class="actor">Next actor: whoever looks after Accounting. No button, because pressing one would imply he could argue with it.</span></div></div></div>
+          </div>
+          <div class="card"><div class="card-title"><span>Admin · what was actually done</span><span class="muted" style="text-transform:none;font-weight:400">One act, in the place it already happens</span></div>
+            <div class="row"><b class="glyph muted">›</b><div><strong>Accounting team</strong><small>Remove them here. That is the whole act.</small></div><button>Open on GitHub ›</button></div>
+            <span class="actor">No offboard button in this product. The screen triggers nothing, it instructs, exactly as the department screens already do.</span>
+          </div>
+          <div class="card inset">
+            <div class="decision"><b>What is revoked</b><span>Their access to the team's shared keys. Because it was never a separate grant, there is nothing else to hunt for on any machine they ever used.</span></div>
+            <div class="decision"><b>How fast</b><span>Fifteen minutes, worst case. The next check fails immediately; anything already in flight expires on its own. Bounded and disclosed, rather than remembered by one person.</span></div>
+            <div class="decision"><b>What is not</b><span>Content already on their disk. That is the accepted residual, and the copy never implies otherwise. Never destroy holds on the way out too.</span></div>
+            <div class="decision"><b>What this misses</b><span>A second GitHub account the same person also holds. Removal is one act per account, not per person, so the offboarding list has to enumerate accounts. A process control, not a code fix, and it is the one crack in the one-act claim.</span></div>
+          </div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s6'">Cross to the other actor →</button></div>
+        </div></div>
+        <aside class="note"><h4>Fifteen minutes is what "by construction" means, in a number</h4><ul><li>The shape the brief literally described would require finding and revoking every credential ever created for this person, on every Mac, in a second system. Here there is nothing standing to revoke, so there is nothing to forget.</li><li>Say the number whenever the claim is made. "Closes the gap by construction" is a sentence anyone can doubt. "Fifteen minutes, set by you, at the store" is one they can check.</li><li>The sentence on Bob's side is the same string as screen 09 of walkthrough 17. One situation, one string, wherever it surfaces.</li></ul></aside>
+      </div><div class="pager"><a href="#s4">← Previous</a><a href="#s6">Next →</a></div>
+    </section>
+
+    <p class="part">PART TWO · THE ADMINISTRATOR'S SIDE, WHERE ALL OF IT LANDS</p>
+
+    <section id="s6">
+      <div class="screen-title"><span class="number">06</span><h2>Day zero: a checklist she confirms, then a claim that is proved</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Copilot Control Tower Administration</span></div><div class="app">
+          <aside class="rail"><div class="brand">Administration</div><div class="group">ONBOARDING</div><div class="stage done"><b>✓</b><span>Orientation</span></div><div class="stage done"><b>✓</b><span>Prerequisites</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Describe your organization</span></div><div class="stage done"><b>✓</b><span>Integrations</span></div><div class="stage current"><b>●</b><span>Your shared secret store</span></div><div class="stage"><b>○</b><span>Review and hand off</span></div></aside>
+          <div class="content"><span class="eyebrow">ONBOARDING · ONE TIME</span><h3>Your shared secret store</h3><p class="lead">Three things exist once. Then this screen proves them rather than trusting them, and after that your next act is nothing.</p>
+            <div class="card"><div class="decision"><b>Store</b><span>Infisical, at <code>https://secrets.enac.example</code>. This is a web address, not a secret.</span></div><div class="decision"><b>Who decides access</b><span>GitHub team membership, read from your organization by the app already installed on it.</span></div></div>
+            <div class="card next"><div class="card-title"><span>The one-time setup, generated from your mapping</span><span class="chip new">NEW</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>The membership service is deployed and reachable</strong><small>TLS, on your own host, beside the store. <code>https://membership.enac.example</code></small></div><span class="status ok">Confirmed</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>The store trusts it as an issuer</strong><small>One machine identity per scope, <code>enac-shared-reader</code> and <code>enac-accounting-reader</code>, each bound to that issuer, to this store as its audience, and to its own scope claim.</small></div><span class="status ok">Confirmed</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>The GitHub App can read team membership</strong><small><code>Members: read</code>, installed on Everyone-Needs-A-Copilot.</small></div><span class="status ok">Confirmed</span></div>
+            </div>
+            <div class="card"><div class="card-title"><span>Proved, not assumed</span><span class="chip new">NEW</span></div>
+              <div class="row" style="padding-top:0"><b class="glyph ok">✓</b><div><strong>A scoped read succeeded</strong><small><code>accounting → prod:/departments/accounting</code></small></div><span class="status ok">Pass</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>An unentitled read was refused</strong><small><code>accounting → prod:/departments/sales</code> · denied</small></div><span class="status ok">Pass</span></div>
+              <p style="margin:10px 0 0;color:var(--muted)">Both halves are required. A test that only proves a read succeeds cannot tell correctly scoped from everything is readable.</p>
+            </div>
+            <div class="card inset callout"><b class="ok">✓</b><div><strong>Connected. Anyone on the teams you named gets these keys automatically.</strong><p>Your next act is nothing. From here, adding a person to a GitHub team is the entire provisioning event.</p></div></div>
+            <div class="card inset callout"><b class="warn">−</b><div><strong>I couldn't confirm this store hands out keys by team, so I won't say it's connected.</strong><p>The refusal variant. Never fake healthy applies to the administrator exactly as it applies to Bob.</p></div></div>
+            <div class="footer"><button>Back</button><button class="primary">Continue</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>A success state earned by a failure</h4><ul><li>The memorable moment on this side is a check mark beside a read that was refused. Every other product's connection test proves it can get in. This one also proves it cannot get in where it should not.</li><li>That negative half is not decoration. Trust configured to accept any claim is the catastrophic day-zero mistake, and it looks identical to a correct setup from the positive test alone.</li><li>The checklist is generated from the mapping on the next screen, one identity per entry, so she is never asked to invent the list. She is asked to confirm it.</li><li>Three other silent failures this screen exists to catch: an omitted audience, which makes an assertion reusable at another store; a mapping written but never published, so every machine inherits an empty one; and the App installed without <code>Members: read</code>, which makes every person in the company silently unentitled.</li></ul></aside>
+      </div><div class="pager"><a href="#s5">← Previous</a><a href="#s7">Next →</a></div>
+    </section>
+
+    <section id="s7">
+      <div class="screen-title"><span class="number">07</span><h2>One file decides who gets what, so one file gets a second reviewer</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Copilot Control Tower Administration</span></div><div class="app">
+          <aside class="rail"><div class="brand">Administration</div><div class="group">GOVERNANCE</div><div class="stage"><b>○</b><span>Add a department</span></div><div class="stage current"><b>●</b><span>Who gets what</span></div><div class="stage"><b>○</b><span>Someone left</span></div><div class="stage"><b>○</b><span>Audit and rotation</span></div><div class="stage"><b>○</b><span>Org setup</span></div></aside>
+          <div class="content"><span class="eyebrow">GOVERNANCE</span><h3>Who gets what <span class="chip new">NEW</span></h3><p class="lead">This is the only place access widens, so it is the only place a second person is required. It lives in your organization's repository, and Control Tower renders it rather than editing it.</p>
+            <div class="card"><div class="card-title"><span>Today's mapping</span><span class="muted" style="text-transform:none;font-weight:400">2 entries, 2 identities</span></div>
+              <div class="row" style="padding-top:0"><b class="glyph ok">✓</b><div><strong>Everyone at ENAC</strong><small>Reads <code>prod:/shared</code></small></div><span class="status ok">Live</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>Accounting</strong><small>Reads <code>prod:/departments/accounting</code></small></div><span class="status ok">Live</span></div>
+              <div class="command"><code style="white-space:pre">team_scopes:
+  - team: everyone
+    environment: prod
+    secret_path: "/shared"
+    access: read
+  - team: accounting
+    environment: prod
+    secret_path: "/departments/accounting"
+    access: read</code></div>
+            </div>
+            <div class="card next"><div class="card-title"><span>A proposed change</span><span class="status info">Waiting on a second administrator</span></div>
+              <div class="row" style="padding-top:0"><b class="glyph info">→</b><div><strong>Sales will be able to read <code>prod:/departments/sales</code>.</strong><small>Nobody's existing access changes. Nothing takes effect until this is reviewed.</small></div><button>Open the review on GitHub ›</button></div>
+            </div>
+            <div class="card flag"><div class="card-title"><span>The gap this closes</span><span class="chip new">NEW</span></div><div class="callout"><b class="danger">!</b><div><strong>Today, either of two accounts can push this file straight past the review rule.</strong><p>Branch protection on the organization's repository requires one approving review, but administrators are exempt from it, and the two people who can widen everyone's access are exactly the two the rule does not bind. Turn the exemption off, or require the other administrator on this path specifically. Either closes it, and it is the cheapest fix on the ruling list relative to its score.</p></div></div></div>
+            <div class="card"><div class="card-title"><span>What the file will not accept</span></div>
+              <div class="decision"><b>No wildcards</b><span><code>/departments/*</code> is refused. Name every path, so a typo grants nothing loudly rather than everything quietly.</span></div>
+              <div class="decision"><b>Unknown team</b><span>A team slug that does not exist grants nothing. Fail closed, and say which of the two it was.</span></div>
+              <div class="decision"><b>Read only</b><span>Write is never something a person can grant themselves by joining a team. It stays an administrator's deliberate act on a named identity.</span></div>
+              <div class="decision"><b>Two teams</b><span>Someone on both gets both. No deny rules and no ordering, because ordering invites the bug it claims to prevent.</span></div>
+            </div>
+            <div class="footer"><button>Back</button><span class="muted">Control Tower never edits this file.</span></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>The real privilege boundary, said out loud</h4><ul><li>The design's story is "GitHub team membership decides access." The truthful version is "whoever can push one file decides access, and today that is two people with the review rule switched off for them."</li><li>Verified live, twice, by two independent security passes: two accounts with push and admin, five collaborators read-only, one required review, administrators exempt.</li><li>Rendering the change as a sentence, rather than as a diff, is the difference between a review that catches a widening and a review that approves a patch. The reviewer should be reading English.</li><li>Refusing a wildcard before it can be proposed is error prevention by constraint, which is always cheaper than the confirmation dialog that would otherwise be needed.</li></ul></aside>
+      </div><div class="pager"><a href="#s6">← Previous</a><a href="#s8">Next →</a></div>
+    </section>
+
+    <section id="s8">
+      <div class="screen-title"><span class="number">08</span><h2>Who was told they could have what, and when</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Copilot Control Tower Administration</span></div><div class="app">
+          <aside class="rail"><div class="brand">Administration</div><div class="group">GOVERNANCE</div><div class="stage"><b>○</b><span>Add a department</span></div><div class="stage"><b>○</b><span>Who gets what</span></div><div class="stage"><b>○</b><span>Someone left</span></div><div class="stage current"><b>●</b><span>Audit and rotation</span></div><div class="stage"><b>○</b><span>Org setup</span></div></aside>
+          <div class="content"><span class="eyebrow">GOVERNANCE · AUDIT</span><h3>One event, across three logs <span class="chip new">NEW</span></h3><p class="lead">Three logs answer three different questions, joined by one key: the machine. One of the three cannot tell you a person's name, and this screen says which.</p>
+            <div class="card"><div class="card-title"><span>Bob, this morning</span><span class="muted" style="text-transform:none;font-weight:400">Joined on machine 7f3a91</span></div>
+              <div class="row" style="padding-top:0"><b class="glyph muted">›</b><div><strong>08:31 · GitHub</strong><small class="mono">bob-alvarez added to team accounting by amy-chen</small></div><span class="status muted">GitHub</span></div>
+              <div class="row"><b class="glyph info">›</b><div><strong>09:14:02 · Membership service</strong><small class="mono">bob-alvarez · machine 7f3a91 · teams reported: accounting · scope matched: accounting · asserted for 15 minutes</small></div><span class="status info">Org IT</span></div>
+              <div class="row"><b class="glyph ok">›</b><div><strong>09:14:03 · Secret store</strong><small class="mono">enac-accounting-reader authenticated · read prod:/departments/accounting</small></div><span class="status ok">Org IT</span></div>
+            </div>
+            <div class="card flag"><div class="card-title"><span>What the store's own log cannot tell you</span></div><div class="callout"><b class="warn">−</b><div><strong>The store records the scope, not the person.</strong><p>Per-person attribution lives only in the membership service's log, and joining the two takes the machine id and a time window. That is the one genuine advantage the rejected shape had, and it should be said out loud whenever the two are compared, rather than discovered during an incident.</p></div></div></div>
+            <div class="card next"><div class="card-title"><span>The one alarm worth wiring</span><span class="chip new">NEW</span></div><p style="margin:0;color:var(--muted)">An authentication at the store with no matching line in the membership service's log means something signed an assertion that was not the service. That is the only available signal for a stolen signing key, because a forged assertion never touches the service at all.</p></div>
+            <div class="card"><div class="card-title"><span>And every refusal, with its reason</span></div><p style="margin:0;color:var(--muted)">Denials are logged as carefully as grants. That is what lets the CLI say "your team hasn't made this available to you" and "I couldn't reach the check" as two different sentences to two different people, instead of one shrug to both.</p></div>
+            <div class="footer"><button>Back</button><span class="muted">Nothing here is a value. Only decisions.</span></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>Log hygiene is a design requirement, not an implementation detail</h4><ul><li>The second security pass found that the design never said secret-shaped values must be absent from these logs. Nothing here, and nothing in the support affordance on screen 04, may carry an assertion, an access token, or a GitHub token, at any verbosity. Cheap on day one, expensive after a log pipeline exists.</li><li>The same pass sharpened the detection story: a service whose <em>logic</em> was tampered with writes a log that looks perfect, because the tampered code is what writes it. The periodic check therefore has to compare the service's decisions against GitHub's own record, not only against the store's configuration.</li><li>If per-person attribution inside the store ever becomes a hard requirement, the mitigation is one identity per person rather than per scope. It is sketched in the design and deliberately not chosen, because it puts an object with a lifecycle back into a design whose whole thesis is that there is not one.</li></ul></aside>
+      </div><div class="pager"><a href="#s7">← Previous</a><a href="#s9">Next →</a></div>
+    </section>
+
+    <section id="s9">
+      <div class="screen-title"><span class="number">09</span><h2>The maintenance nobody has to remember</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Copilot Control Tower Administration</span></div><div class="app">
+          <aside class="rail"><div class="brand">Administration</div><div class="group">GOVERNANCE</div><div class="stage"><b>○</b><span>Add a department</span></div><div class="stage"><b>○</b><span>Who gets what</span></div><div class="stage"><b>○</b><span>Someone left</span></div><div class="stage current"><b>●</b><span>Audit and rotation</span></div><div class="stage"><b>○</b><span>Org setup</span></div></aside>
+          <div class="content"><span class="eyebrow">GOVERNANCE · AMBIENT</span><h3>Two clocks, both visible before they matter</h3><p class="lead">Scheduled key maintenance has exactly one correct emotional register, and it is boredom. A date, visible early, in a place she already looks, with no red until it is genuinely late.</p>
+            <div class="progress"><span style="width:34%"></span></div>
+            <div class="card"><div class="card-title"><span>Signing key</span><span class="muted" style="text-transform:none;font-weight:400">Day 31 of 90</span></div>
+              <div class="row" style="padding-top:0"><b class="glyph ok">✓</b><div><strong>Rotates every 90 days</strong><small>Next: 30 October 2026. The new key is published alongside the old one, and the old one keeps validating for a day and a quarter of an hour after it stops being used.</small></div><span class="status ok">On schedule</span></div>
+              <div class="row"><b class="glyph muted">○</b><div><strong>Immediately, if it is ever suspected</strong><small>There is no waiting period on an emergency rotation, and no approval to collect first.</small></div><span class="status muted">Not needed</span></div>
+              <div class="row"><b class="glyph ok">✓</b><div><strong>It has never left its host</strong><small>Generated where it runs, held by that host's own secret manager.</small></div><span class="status ok">Confirmed</span></div>
+            </div>
+            <div class="card"><div class="card-title"><span>What Bob sees during a rotation</span></div><div class="callout"><b class="ok">✓</b><div><strong>Nothing.</strong><p>The overlap is deliberately longer than any shared key is valid for, so no check can land in the gap between the two. If a person notices a rotation, the overlap was too short.</p></div></div></div>
+            <div class="card flag"><div class="card-title"><span>What this screen will never say</span></div><div class="callout"><b class="danger">!</b><div><strong>Control Tower does not hold this key and does not rotate it.</strong><p>It shows the date and names who does. A screen claiming to have rotated something it cannot touch would be the same lie as a Connect button that connects nothing, and this whole line of work started with one of those.</p></div></div></div>
+            <div class="footer"><button>Back</button><span class="muted">Two numbers. Everything else about this design is fixed.</span></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>Peripheral by design</h4><ul><li>This is the ambient half: information that exists passively, that she would only notice if it were missing, and that never asks for a decision until one is genuinely due.</li><li>The two clocks are ninety days for the key and fifteen minutes for a shared key. They are the entire tuning surface of the design, which is why both are on the ruling list and nothing else about timing is.</li><li>Rendering a due date the product cannot act on is not a weakness. It is the boundary of the parse-never-compute invariant, drawn where the user can see it.</li></ul></aside>
+      </div><div class="pager"><a href="#s8">← Previous</a><a href="#s10">Next →</a></div>
+    </section>
+
+    <section id="s10">
+      <div class="screen-title"><span class="number">10</span><h2>Retiring the organization-wide login: dogfood before demolition</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Retiring the old shared login</span></div><div class="content">
+          <span class="eyebrow">MIGRATION · ONE TIME</span><h3>A migration that leaves the old path alive has not migrated anything</h3><p class="lead">One username and password today can read every shared key in the organization. It does not stop being a way in because a better way exists beside it. Seven steps, in this order, each verified before the next is allowed to start.</p>
+          <div class="card">
+            <div class="row" style="padding-top:0"><b class="glyph ok">1</b><div><strong>Fill in the mapping and create one identity per entry</strong><small>Screens 06 and 07.</small></div><span class="status ok">Done</span></div>
+            <div class="row"><b class="glyph ok">2</b><div><strong>Stand up the membership service</strong><small>With its own key, on its own host.</small></div><span class="status ok">Done</span></div>
+            <div class="row"><b class="glyph info">3</b><div><strong>The owner's own Mac provisions through the same path as everyone else</strong><small>If it does not work for the person who designed it, it does not work.</small></div><span class="status info">Now</span></div>
+            <div class="row"><b class="glyph muted">4</b><div><strong>Thirty days of clean evidence that nothing still uses the old login</strong><small>Long enough to span a full monthly close, which is the work this design exists to protect.</small></div><span class="status muted">Next</span></div>
+            <div class="row"><b class="glyph muted">5</b><div><strong>Revoke its secret</strong></div><span class="status muted">Blocked by 4</span></div>
+            <div class="row"><b class="glyph muted">6</b><div><strong>Delete the identity</strong></div><span class="status muted">Blocked by 5</span></div>
+            <div class="row"><b class="glyph muted">7</b><div><strong>Remove the two names from the overlay, so the connections screen stops naming them</strong><small>This is what makes the permanent false alarm on today's step 6 disappear at the root instead of being patched.</small></div><span class="status muted">Blocked by 6</span></div>
+          </div>
+          <div class="state-grid">
+            <div class="card"><div class="card-title"><span>Starts on a date</span></div><div class="callout"><b class="muted">◌</b><div><strong>Retires on schedule, whether or not the new path is carrying real traffic.</strong><p>Simple to plan, and perfectly capable of retiring a path nobody has actually replaced.</p></div></div></div>
+            <div class="card next"><div class="card-title"><span>Starts on evidence</span><span class="status ok">Recommended</span></div><div class="callout"><b class="ok">✓</b><div><strong>First real sign-in through the new path, then thirty days.</strong><p>The clock starts when the replacement proves itself, not when someone hoped it would. This is ruling 8, and it is the only item on the list that changes when the others are done.</p></div></div></div>
+          </div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s11'">Where the trust starts →</button></div>
+        </div></div>
+        <aside class="note"><h4>The demolition is the deliverable</h4><ul><li>Step 3 is not ceremony. The person with the most context is the only one who can tell the difference between "it works" and "it works because my machine is special."</li><li>Step 7 is a copy fix hiding inside a security migration. Today's shipped step 6 names two keys to a non-technical person; after step 7 those two names do not exist to be named.</li><li>Every step here is reversible until step 5. That is why the irreversible ones are last and gated on evidence rather than on a calendar.</li></ul></aside>
+      </div><div class="pager"><a href="#s9">← Previous</a><a href="#s11">Next →</a></div>
+    </section>
+
+    <section id="s11">
+      <div class="screen-title"><span class="number">11</span><h2>The chain ends at a person at a console, and that is correct</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Where the trust starts</span></div><div class="content">
+          <span class="eyebrow">ROOT OF TRUST</span><h3>A bootstrap is not a gap</h3><p class="lead">Every trust chain terminates in a human act that nothing automated could have authorized. Naming that act, keeping it short, and proving its result is the job. Removing it is not on the menu, and the instinct to automate it is the instinct to move the trust somewhere else rather than to remove it.</p>
+          <div class="card"><div class="card-title"><span>The three things a person does by hand, once</span></div>
+            <div class="row" style="padding-top:0"><b class="glyph muted">1</b><div><strong>Signs in to the store as themselves</strong><small>Not as a service, not with a shared login, not through this product.</small></div></div>
+            <div class="row"><b class="glyph muted">2</b><div><strong>Creates one identity per scope, and registers the membership service as an issuer the store trusts</strong><small>This single act is what everything the design later asserts is standing on.</small></div></div>
+            <div class="row"><b class="glyph muted">3</b><div><strong>Generates the signing key on the service's own host</strong><small>Created where it will live, and it never transits anywhere afterwards.</small></div></div>
+          </div>
+          <div class="card next"><div class="card-title"><span>And then the product proves the result</span></div><p style="margin:0;color:var(--muted)">The human act is trusted. Its outcome is not. The positive and negative reads on screen 06 are how a hand-made configuration gets checked by something that did not make it.</p></div>
+          <div class="card flag"><div class="card-title"><span>The account that does this is the largest single point of failure in the design</span><span class="chip new">NEW</span></div><div class="callout"><b class="danger">!</b><div><strong>Whoever administers the store can create identities, widen bindings, or point the trust at somebody else's service.</strong><p>There is no code review anywhere in that loop, and the only detection is the store's own audit log. Hardware-key multi-factor on every console account, named individuals only, reviewed on the same cadence as the retirement on screen 10. It scores 7.0, the highest structural finding in either pass.</p></div></div></div>
+          <div class="card inset callout"><b class="warn">−</b><div><strong>The runbook for this does not exist yet.</strong><p>The design says what it has to contain. Somebody still has to write it, and its absence blocks a live run rather than blocking this design. Naming it here is the point: an unwritten runbook that nobody has named is how a bootstrap becomes folklore.</p></div></div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s12'">What this does not claim →</button></div>
+        </div></div>
+        <aside class="note"><h4>What a product can honestly do about a bootstrap</h4><ul><li>Make it short. Make it documented. Make it verifiable. Refuse to claim success until the verification passes. That is the complete list.</li><li>The gap here is not the ceremony, which is correct and permanent. The gap is that nobody has written it down, and a ceremony nobody wrote down is performed differently every time.</li><li>This is also the screen that keeps the design honest about its own claim. "No admin ceremony" was always the user-visible goal, never the operational one.</li></ul></aside>
+      </div><div class="pager"><a href="#s10">← Previous</a><a href="#s12">Next →</a></div>
+    </section>
+
+    <p class="part">PART THREE · WHAT THIS DESIGN DOES NOT CLAIM</p>
+
+    <section id="s12">
+      <div class="screen-title"><span class="number">12</span><h2>The structural claim, and the two duties it does not remove</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Transparency</span></div><div class="content">
+          <span class="eyebrow">STRUCTURAL, AND NARROW</span><h3>The service cannot read a key, and two things can still go wrong that it will never see</h3><p class="lead">The claim is worth making because it is structural rather than careful: the service holds nothing the store would accept as a credential, so it cannot create a scope, widen one, or read anything at all. Compromise it and an attacker impersonates entitled people for a window. They do not empty the store. That claim has edges, and stating it without them would turn it into marketing.</p>
+          <div class="rules">
+            <div><b>01</b><span><strong>Impossible by construction, not by care.</strong> The service can only assert claims that identities the administrator already created are already bound to. The shape the brief literally described, a service that creates credentials, can create a scope, widen one and read the store, because the power to create an identity is the power to grant it access.</span></div>
+            <div><b>02</b><span><strong>Nothing long lived, and nothing store identifying, is at rest on the Mac.</strong> The corrected version of an overclaim the design made and the second pass caught. What is cached is a short lived access token, one scope, expiring on its own, never renewable locally.</span></div>
+            <div><b>03</b><span><strong>Revocation needs no revocation.</strong> Every read requires a fresh assertion and every assertion requires a live membership check. There is no standing grant anywhere to find and remove.</span></div>
+            <div><b>04</b><span><strong>It holds two secrets, of unequal severity.</strong> Its own signing key, which can forge assertions the store will accept, and the GitHub App key, which can only read team rosters. The design originally claimed one. That was wrong, and it is corrected rather than quietly dropped.</span></div>
+            <div><b>05</b><span><strong>Edge one: the signing key. <span class="chip new">NEW</span></strong> Whoever holds it forges any scope for any person, offline, indefinitely, until it is rotated, and never touches the service, so the service's own log shows nothing. Highest score in either pass, at 7.4. Custody, the ninety day rotation, and the store-side alarm on screen 08 are the whole answer.</span></div>
+            <div><b>06</b><span><strong>Edge two: the name. <span class="chip new">NEW</span></strong> Whoever controls DNS for the service's address can stand up an impostor with a valid certificate, and the store itself will go and fetch the impostor's keys. This defeats rule 01 without ever touching the service. Registry lock, DNSSEC and multi-factor on the registrar account are prerequisites, not hygiene.</span></div>
+            <div><b>07</b><span><strong>One vendor question is still open.</strong> Whether the store caches those fetched keys, and for how long, decides how long an impostor's window stays open. Nobody has asked. Somebody must, before this ships.</span></div>
+            <div><b>08</b><span><strong>The console is the root.</strong> Whoever administers the store can repoint the trust with no review anywhere in the loop. 7.0, and the largest single point of failure in the architecture.</span></div>
+            <div><b>09</b><span><strong>The mapping is the boundary.</strong> Whoever can push one file widens access across the organization on the next pull. 6.6, verified live twice, and the cheapest fix on the ruling list.</span></div>
+            <div><b>10</b><span><strong>The sign-up endpoint is a membership oracle.</strong> Rate limits and identical answers for "not a member" and "no such person" reduce roster enumeration. They do not remove it, and that residual is stated rather than solved.</span></div>
+            <div><b>11</b><span><strong>Two GitHub accounts, one person, breaks the one act claim.</strong> Removal is one act per account. The offboarding list has to enumerate accounts, not people. Low score, real silent failure.</span></div>
+            <div><b>12</b><span><strong>Read the scores honestly, not mechanically.</strong> The two edges land in the middle band because compromising a registrar or a build pipeline is hard, not because the damage is smaller. Both max the damage column. High consequence, medium likelihood, and never a lower priority than a compromise of the service itself.</span></div>
+            <div><b>→</b><span><strong>None of this argues for the alternative.</strong> Every finding on this list is present and worse in the shape that creates credentials, which carries all of them plus one component whose compromise is the store's compromise.</span></div>
+          </div>
+          <div class="card inset" style="margin-top:14px"><div class="decision"><b>Two passes</b><span>Seventeen findings scored across an independent second review: none critical, three high, nine medium, five low. The second pass corrected two overclaims in the design's own headline and found one missing instruction, which is on screen 04.</span></div><div class="decision"><b>Not ratified</b><span>The verdict is "survives, with changes." The changes are screen 14.</span></div></div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s13'">The rulings →</button></div>
+        </div></div>
+        <aside class="note"><h4>Overselling is the failure mode here</h4><ul><li>Stated without its edges, the structural claim becomes a slogan, and the first person to find the DNS path would be right to distrust everything else in the document.</li><li>Two of these are operational duties with owners and cadences rather than code. They belong on the ruling list precisely because a designer cannot assign them to anyone.</li><li>One is an unanswered vendor question. Writing "unconfirmed" next to it is not a weakness in the design. Pretending otherwise would be.</li></ul></aside>
+      </div><div class="pager"><a href="#s11">← Previous</a><a href="#s13">Next →</a></div>
+    </section>
+
+    <section id="s13">
+      <div class="screen-title"><span class="number">13</span><h2>What shipped today instead, and why it is built to be deleted</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Set Up Copilot Control Tower</span></div><div class="app">
+          <aside class="rail"><div class="brand">Control Tower</div><div class="stage done"><b>✓</b><span>Welcome</span></div><div class="stage done"><b>✓</b><span>Connect GitHub</span></div><div class="stage done"><b>✓</b><span>Detect</span></div><div class="stage done"><b>✓</b><span>What you're getting</span></div><div class="stage done"><b>✓</b><span>Departments</span></div><div class="stage current"><b>●</b><span>Your connections</span></div><div class="stage"><b>○</b><span>Your projects</span></div><div class="stage"><b>○</b><span>Set up</span></div><div class="stage"><b>○</b><span>Verify</span></div></aside>
+          <div class="content"><span class="eyebrow">STEP 6 OF 9 · SHIPPED TODAY, NOT PART OF THIS DESIGN</span><h3>Connect Infisical</h3><p class="lead">Every other screen in this walkthrough is a design. This one is the product as of today, and it is here because a walkthrough that showed only the destination would let the thing actually on the owner's Mac go undescribed.</p>
+            <div class="card inset">
+              <p style="margin:0 0 9px;color:var(--muted)">Whoever set up your organization's shared store gives you these. Control Tower hands them straight to this Mac's keychain — they are never shown again, never written into a project, and never sent anywhere.</p>
+              <div style="margin-bottom:9px"><span class="field mono">INFISICAL_CLIENT_ID</span><div class="command mono">••••••••••••••••••••••••</div></div>
+              <div><span class="field mono">INFISICAL_CLIENT_SECRET</span><div class="command mono">••••••••••••••••••••••••</div></div>
+            </div>
+            <div class="footer"><button>Cancel</button><button class="primary">Connect</button></div>
+          </div>
+        </div></div>
+        <aside class="note"><h4>Both statements are true, at different times</h4><ul><li>Walkthrough 17 found a step 6 that promised a Connect button the product had never had. That promise is now kept.</li><li>The design in this walkthrough deletes the same button, because a value nobody has to carry is a value nobody can mishandle.</li><li>The bridge is not a smaller version of the destination. It is the thing the destination removes.</li></ul></aside>
+      </div>
+      <div class="layout" style="margin-top:16px">
+        <div class="window" style="min-height:0"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Why both exist</span></div><div class="content">
+          <span class="eyebrow">THE HONEST RECONCILIATION</span><h3>A promise kept this week, and a promise that outlives it</h3>
+          <div class="card"><div class="decision"><b>What shipped</b><span>A native secure-input sheet on the one row a person can actually resolve, and a CLI verb behind it. The value reaches the CLI on standard input and nothing else — never an argument, never an environment variable, never a file — and the CLI writes it to this Mac's keychain and re-checks. The suite fails loudly if a value ever appears anywhere else.</span></div><div class="decision"><b>Why</b><span>A member whose organization has not wired the store to GitHub teams is otherwise left exactly where walkthrough 17 found him: a heading that implies an action, over a row with no action.</span></div><div class="decision"><b>What replaces it</b><span>Everything screens 01 to 12 describe. Membership becomes the access, and the sheet has nothing left to ask for.</span></div><div class="decision"><b>What that costs</b><span>One screen, one verb, and one runbook to retire. The design was chosen partly because that retirement is cheap: nothing about the bridge is load-bearing for the destination.</span></div></div>
+          <div class="card inset callout"><b class="warn">−</b><div><strong>Do not read this screen as the plan.</strong><p>The bridge is shipped and real. Screens 01 to 12 are neither: they are at review, and screen 14 is what has to be settled before any of them is built.</p></div></div>
+          <div class="footer"><span></span><button class="primary" onclick="location.hash='s14'">The rulings →</button></div>
+        </div></div>
+        <aside class="note"><h4>Why this is in a design walkthrough at all</h4><p>Because the same repository now holds a document saying the target must never accept a pasted value and a product that just started accepting one. Left unreconciled, the next person to read both would have to guess which is current. This screen removes the guess.</p></aside>
+      </div><div class="pager"><a href="#s12">← Previous</a><a href="#s14">Next →</a></div>
+    </section>
+
+    <p class="part">PART FOUR · THE RULINGS</p>
+
+    <section id="s14">
+      <div class="screen-title"><span class="number">14</span><h2>Eight things only the owner can settle</h2></div>
+      <div class="layout">
+        <div class="window"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>Decisions</span></div><div class="content">
+          <span class="eyebrow">DECISION NEEDED · OWNER</span><h3>None of these are design questions, and none can be answered by building more</h3><p class="lead">Each carries a recommendation and a consequence that follows from choosing differently. Every one of them changes something a person feels, or something a person has to remember.</p>
+          <div class="card">
+            <div class="decision"><b>1 · Where it lives</b><span>Beside the store, on the organization's own host. Name who holds that host's secret manager, and who holds the deploy credential: whoever can ship a build to it decides what gets asserted, without ever touching the key.</span></div>
+            <div class="decision"><b>2 · Fifteen minutes</b><span>How long a shared key stays valid. Longer is more resilient to an outage and slower to revoke, by exactly the same amount. One number decides both, and it is the number on screens 04 and 05.</span></div>
+            <div class="decision"><b>3 · Ninety days</b><span>Rotation on a schedule, immediately on suspicion, with an overlap longer than any shared key's life so a rotation stays invisible.</span></div>
+            <div class="decision"><b>4 · Who can widen access</b><span>Require the second administrator, by turning off the exemption or by a rule on that path. Do not ship without one of them. It is the cheapest fix here relative to its score, and the only item on this list about a system that already exists.</span></div>
+            <div class="decision"><b>5 · Thirty days</b><span>Clean evidence before the organization-wide login is revoked. It spans a monthly close, which is the work this design exists to protect.</span></div>
+            <div class="decision"><b>6 · Console accounts</b><span>Hardware-key multi-factor, named individuals only, in place before the console is used to create the first identity rather than after.</span></div>
+            <div class="decision"><b>7 · The service's address</b><span>Registry lock, DNSSEC and multi-factor on the registrar, as prerequisites. And assign somebody to ask the vendor how long it caches those fetched keys, before this ships.</span></div>
+            <div class="decision"><b>8 · What starts the clock</b><span>The first real sign-in through the new path, not a calendar date. Evidence-gated, so the old way is never retired before its replacement has carried real traffic.</span></div>
+          </div>
+          <div class="card inset callout"><b>i</b><div><strong>The sharpener, before answering.</strong><p>Seven of these eight are custody and cadence questions about components that do not exist yet, and they can be answered on the day building starts. The eighth, ruling 4, is about a repository that exists today with the rule already switched off. That one is not a design decision waiting on a build. It is a live gap waiting on a click.</p></div></div>
+          <div class="card inset callout"><b class="ok">✓</b><div><strong>Bob's screens do not change under any answer on this list.</strong><p>That is the test of whether this design put the complexity in the right place. If an answer here changed screen 02, the complexity would have leaked to the person least able to carry it.</p></div></div>
+          <div class="footer"><button class="plain" onclick="location.hash='s12'">Back to what it does not claim</button><button class="primary" onclick="location.hash='s1'">Restart walkthrough</button></div>
+        </div></div>
+        <aside class="note"><h4>Alignment, not approval</h4><ul><li>This walkthrough is drawn so the owner can answer eight questions by looking at consequences rather than at architecture.</li><li>Walkthrough 17 ended on one fork about whether membership should be the access. This one assumes that answer and asks only how the promise is kept, which is why it reads after it.</li><li>The one thing not on this list, because it is not the owner's to decide, is the ordering defect on screen 02. It belongs to whoever owns the wizard, and it survives every ruling above.</li></ul></aside>
+      </div><div class="pager"><a href="#s13">← Previous</a><a href="#s1">Restart ↺</a></div>
+    </section>
+  </main>
+  <script>
+    const root=document.documentElement,button=document.querySelector("#theme");
+    const themes=["auto","light","dark"];
+    button.addEventListener("click",()=>{const next=themes[(themes.indexOf(root.dataset.theme)+1)%themes.length];root.dataset.theme=next;button.textContent="Theme: "+(next==="auto"?"system":next)});
+  </script>
+</body>
+</html>

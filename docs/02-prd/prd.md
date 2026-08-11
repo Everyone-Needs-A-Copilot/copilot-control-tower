@@ -1,173 +1,69 @@
-# Copilot Control Tower — PRD (parallel, multi-phase)
+# Copilot Control Tower — PRD (what was built, against the original plan)
+
+> **Status line — rebuilt from evidence, 2026-08-02.** Describes Copilot Control Tower v0.4.0. This document originally described a parallel, multi-phase Tauri v2 build plan (workstreams WS-A through WS-I) to be executed via `/orchestrate`. That plan was never fully executed as written: the app that actually shipped is native SwiftUI/AppKit, built directly rather than orchestrated workstream-by-workstream, and several workstreams (self-update, observability/IT dashboard, Windows) did not ship at all. This rewrite keeps the original workstream structure — because it is still a useful map of the problem space — and marks each one **SHIPPED**, **PARTIAL**, **NOT SHIPPED**, or **DEFERRED / OUT OF SCOPE** against the real code, per the ground-truth survey underlying this documentation rebuild. It does not invent a new plan.
 
 | | |
 |---|---|
-| **Status** | Proposed — ready for `/orchestrate` |
+| **Status** | DOGFOODING — running in production on one org (ENAC), 16/16 live apply. Remaining: the V-5 cold-laptop proof, the publicize step. |
 | **Product** | Copilot Control Tower — always-on menu-bar client + open-source IT setup/deploy tool |
-| **Repo** | `Everyone-Needs-A-Copilot/copilot-control-tower` (new, public) |
-| **Architecture** | [`architecture.md`](../01-architecture/architecture.md) (validated against 25 Critical/High red-team findings) |
-| **Branch** | `ecosystem-extensions` |
-
-> **How this runs in parallel.** One prerequisite workstream (**WS-A, the CLI `--json`/`flock` contract in `copilot`**) gates the rest; once its contract is *published* (schemas frozen), the eight app-side workstreams proceed **concurrently** against the frozen contract, each in its own worktree. Phases (P0–P4) are *maturity gates*, not sequential teams — a workstream advances through phases at its own pace. Acceptance criteria are per task; a workstream is "done for a phase" when its phase tasks pass and its red-team findings are closed.
+| **Repo** | `Everyone-Needs-A-Copilot/copilot-control-tower` |
+| **Architecture** | [`architecture.md`](../01-architecture/architecture.md) — rebuilt against the shipping native app |
 
 ---
 
 ## 1. Goal & non-goals
 
-**Goal.** Ship an open-source, Developer-ID-signed, notarized macOS menu-bar app that (a) delivers a non-technical user ("Bob") a working, focus-scoped Copilot partner via one double-click, (b) keeps every machine synced (per CSE component × entitled layer: Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot) and self-healed as a **face+supervisor over the `copilot`/`cc` CLI** (never a second brain), and (c) gives IT an open-source tool + docs to stand up and deploy the ecosystem org-wide via GitHub repo access.
+**Goal (unchanged from the original plan, and achieved for macOS).** Ship a Developer-ID-signed, notarized macOS menu-bar app that delivers a non-technical user ("Bob") a working, focus-scoped Copilot partner via one double-click, keeps every machine synced (per CSE component × entitled tier: Knowledge Copilot, CLI Copilot, Claude Copilot, Codex Copilot) and self-healed as a face+supervisor over the `copilot`/`cc` CLI, and gives an org an open-source tool plus docs to stand up and deploy the ecosystem via GitHub repo access.
 
-**Non-goals (v1).** Windows (P4 re-skin only); a second brain / any resolution logic in the app (the CLI owns it); replacing systems of record (CLI Copilot remains the runtime gateway); multi-org-per-machine (ecosystem-level, deferred); device management (entitlement + deployment is GitHub repo access, not MDM); product/project management (a product/project is self-contained in its own repo, not a Control Tower layer, D10).
+**Non-goals (updated).**
 
-**Definition of done (v1 / macOS).** An IT admin uses Admin mode to generate the seed and repo/team scaffolding, and a non-technical employee self-installs the signed, notarized app, is entitled by GitHub org/department repo access (discovering and joining a department if needed), stays healed, and reports fleet health — with all 25 Critical/High red-team findings closed and the CLI `--json` contract test green.
+- **Windows** — formally out of scope, not merely deferred. See the superseded banner on [`../01-architecture/windows-parity.md`](../01-architecture/windows-parity.md).
+- **A second brain / any resolution logic in the app** — the CLI owns it. Still true; verified against `native/*.swift` for this rewrite.
+- **Replacing systems of record** — CLI Copilot remains the runtime gateway.
+- **Multi-org-per-machine** — deferred, ecosystem-level.
+- **Device management (MDM)** — dropped completely, not merely descoped. Entitlement and deployment are GitHub repo access, full stop.
+- **Product/project management** — a product/project is self-contained in its own repo, not a Control Tower layer (CSE decision D10).
 
----
-
-## 2. Workstreams (parallel) & dependency spine
-
-```
-WS-A  CLI contract (--json + flock + COPILOT_MANAGED_BY)   [PREREQ — in claude-copilot/copilot]
-        └── freezes the schema ──┐
-                                 ▼   (all below run concurrently against the frozen contract)
-WS-B  App shell & supervisor (single process, state machine, host detect, timers)
-WS-C  Wizard & onboarding            depends: B (shell), A (bootstrap json)
-WS-D  Distribution & self-update     depends: B ; cross-repo signing contract with A's repo
-WS-E  Entitlement & security         depends: A (entitlement/discovery verb), B for runtime
-WS-F  Bob-agency & escalation        depends: B (state), A (findings schema)
-WS-G  Observability & IT dashboard   depends: F (escalation split), A (json)
-WS-H  Admin mode & docs (open source) depends: A (seed schema), partial E
-WS-I  Windows re-skin  [P4]          depends: B, D
-```
-
-**Critical path:** WS-A contract → WS-B shell → WS-D signing → the Bob self-install path (no zero-touch, D4). WS-E's department discovery/join flow (D7.1) gates a first meaningful sync, not the initial install. Everything else parallelizes off WS-B once the contract is frozen.
+**Definition of done — what "done" actually meant, and where it landed.** The original definition of done was: an org admin uses Admin mode to generate the seed and repo/team scaffolding, a non-technical employee self-installs the signed app and is entitled by GitHub repo access, stays healed, and fleet health is reported — with all Critical/High red-team findings closed and the CLI `--json` contract test green. **What actually landed:** the admin-provision and self-install path is real and dogfooded on one org with 16/16 live apply across every component × tier combination; the CLI `--json` contract is real, versioned, and documented in [`cli-contract.md`](../01-architecture/cli-contract.md). **What did not land as originally specified:** fleet health reporting (WS-G, no telemetry emitter exists), and the red-team findings were closed against a design that has since partially diverged from the shipping app — see `architecture.md` §10 for which findings still hold.
 
 ---
 
-## 3. WS-A — CLI contract *(prerequisite; lives in `copilot`/`cc`)*
+## 2. Workstream status (the real map)
 
-*The one hard dependency. Freeze the schema first; the app cannot supervise a CLI it can't read.*
-
-| Task | Detail | Acceptance |
-|---|---|---|
-| A1 | `copilot doctor --json` — 0–100 score, `checkers[]` with `pass|warn|fail`, `repair` token, `destructive` flag, `auth[]`; exit 0/1/2; `schema_version` | schema published; CI contract test asserts it |
-| A2 | `copilot update --json` — `changed[]` with `op:{added,updated,pruned,unchanged}`, `signed`, `severity_trailer`, `shadowed_by`; `held_for_approval[]`; `blocked[]` | prune + security-trailer events present in output |
-| A3 | `copilot resolve --explain --json` + `copilot deprovision <org> --json` (`secrets_touched==0`) + `copilot freshness --json` (single lock-SHA) | all emit versioned schema |
-| A4 | **`flock` on `copilot.lock`** across `update`/`repair`/`deprovision`; fail-fast if held | concurrent invocations serialize; no torn tree (fixes B-C1) |
-| A5 | `COPILOT_MANAGED_BY=controltower` disables `copilot self-update` (one CLI-updater owner) | self-update no-ops under the flag (fixes B-C4) |
-| A6 | **CI contract test** in `copilot` repo asserting every `--json` matches published schema each release; `min/max_schema` compat doc | green gate on release |
-
----
-
-## 4. WS-B — App shell & supervisor
-
-| Task | Detail | Acceptance |
-|---|---|---|
-| B1 | Tauri v2 **single-process** scaffold; tray icon (`LSUIElement`/Accessory); no headless daemon, no fallback loop (fixes B-C1) | app runs, tray present, no second process |
-| B2 | Status **state machine** (Setup-needed / IT-config-incomplete / Healthy / Syncing / Update-available / Needs-attention / Signed-out / Offline / Waiting-for-network / Updating-app); worst-wins per host; plain-language status line **naming the failing host** (fixes A-M14) | states transition only from fresh CLI JSON |
-| B3 | **Host detection** probe sweep (Claude/Codex/both/neither); re-run on freshness poll; column selection via `copilot derive` | correct host(s) reported; both-hosts = one app |
-| B4 | The `cli.rs` boundary — spawn `copilot`/`cc` by **absolute, translocation-safe** path (`Bundle.main.bundleURL`, fixes B-L3); parse `--json`; **bidirectional `schema_version` gate**, missing security fields **fail closed** (fixes B-H6) | unknown/old schema → safe degrade, not misparse |
-| B5 | Timer loops (sync ~6h, doctor ~1h, freshness ~15m) with **battery/metered backoff**, coalescing, one-in-flight | no hammering; respects Low Power Mode |
-| B6 | Dropdown menu + "What changed" panel + Preferences | actions spawn CLI verbs only |
+| Workstream | Original scope | Verdict | Evidence |
+|---|---|---|---|
+| **WS-A** — CLI contract | `--json` + `flock` + `COPILOT_MANAGED_BY` in `copilot`/`cc` | **SHIPPED** | Lives in the sibling `claude-copilot` repo; documented and versioned in [`cli-contract.md`](../01-architecture/cli-contract.md) and [`schemas/`](../01-architecture/schemas/). This is the most current, most actively maintained contract in the whole documentation set. |
+| **WS-B** — App shell & supervisor | Single-process scaffold, status state machine, host detection, timers | **SHIPPED**, with one named gap | Native tray (`native/control-tower-tray.swift`), 12-badge vocabulary, 300s poll, `CliLocator`'s absolute-path resolution, per-verb `SchemaGate`. Gap: the crash-only `launchd` watchdog (part of the original "supervisor" scope) is not implemented — G-2. |
+| **WS-C** — Wizard & onboarding | GUI wizard over CLI phases, asked-vs-derived question flow | **SHIPPED** | Nine-stage `WizardStage` enum (`native/wizard.swift`), device-flow sign-in, department discovery/join, project triage, holding-state copy family (H1–H7). |
+| **WS-D** — Distribution & self-update | Signing, notarization, launch-at-login, self-update, uninstaller | **PARTIAL** | Signing/notarization/stapling: **SHIPPED** (`scripts/package-user-release.sh`, 16 tags, 8 signed releases). Self-update, launch-at-login registration, and a signed uninstaller: **NOT SHIPPED** — that machinery exists only in the retired `src-tauri/src/updater/`. Today's update mechanism is "reinstall a newer signed DMG," documented per-release in `CHANGELOG.md`'s Rollback paragraphs. |
+| **WS-E** — Entitlement & security | Department discovery/join, security config from trust roots/signed config, offboarding, per-user everything | **PARTIAL** | Department discovery/join: **SHIPPED** (`copilot layers [join] --json`, rendered in the wizard's Departments stage). Security-sensitive config honored only from compiled-in trust roots plus signed inherited config: **SHIPPED** as a CLI-side + app-rendered design; MDM is not merely absent, it is a dropped mechanism (CSE D4). Offboarding: a CLI/Admin capability (GitHub access revocation, shared-secret-store token rotation), not something the app itself executes or renders a dedicated flow for beyond Admin's "Someone left" governance stage. Kiosk/shared-machine credential depth: <!-- TODO: not verified against native/*.swift for this rewrite; treat as open until confirmed. --> |
+| **WS-F** — Bob-agency & escalation | Escalation router by actor-competence × reversibility | **PARTIAL** | The routing principle is expressed in wizard/tray copy (holding states, fail-closed `IT-config-incomplete`-style states) but there is no dedicated escalation-router module and no channel that delivers a safety signal to an org's IT contact — that requires the telemetry pipeline in WS-G, which did not ship. Treat this as design intent embodied in copy, not a built subsystem. |
+| **WS-G** — Observability & IT dashboard | Opt-in org telemetry, fleet dashboard, two-of-N signing | **NOT SHIPPED** | No telemetry emitter exists anywhere in `native/*.swift`. The Admin app's "Analytics" governance stage has a toggle (`analyticsEnabled`, `native/admin.swift`) with nothing behind it — an honest, named gap, not a hidden one. Two-of-N release signing is undecided; today there is a single signing identity. |
+| **WS-H** — Admin mode & docs | Seed generator, repo/access scaffolding, capability-policy signing, preflight validation, docs | **SHIPPED** | The 16-surface Admin app (`native/admin.swift`/`admin-support.swift`) plus the deterministic `scripts/admin_bootstrap.sh` engine cover seed authoring, repo/team scaffolding, shared secret-store connection, department governance, and offboarding. Operator documentation exists under `docs/06-deployment/`. |
+| **WS-I** — Windows re-skin | Boundary shims over the shared Tauri core | **DEFERRED, now formally OUT OF SCOPE** | Windows was designed against a Tauri/Rust core that no longer ships; there is no core left to re-skin. All Windows code (`platform::`, `packaging/windows/`, `#[cfg(windows)]`) is retired-tree-only. See [`../01-architecture/windows-parity.md`](../01-architecture/windows-parity.md)'s superseded banner. |
 
 ---
 
-## 5. WS-C — Wizard & onboarding
+## 3. What "done" required and how it was actually reached
 
-| Task | Detail | Acceptance |
-|---|---|---|
-| C1 | GUI wizard over Ring-1 phases; **install login-item + crash-watchdog at the FIRST phase**, persist a checkpoint (fixes A-H6) | interrupted setup resumes headlessly |
-| C2 | Asked-vs-derived question flow (host if ambiguous, sign-in, company/team pick-list) | ≤3 questions unmanaged |
-| C3 | **Silent entitled path** — read signed, inherited org/foundation config (D4); **schema-validate before silent mode**; missing/malformed required key → fail-closed **IT-config-incomplete** (reworked from A-C1, B-H4 for D4); typed values; a user already GitHub-entitled to org/department needs no manual join | zero questions when entitlement resolves cleanly; never false-Healthy |
-| C4 | **Waiting-for-network** first-run (foundation-only) + **seed-not-yet-published vs solo** distinction (fixes A-H7, A-H12) | offline day-one never shows Healthy |
-| C5 | Wizard window focus fix (Accessory→Regular during setup, fixes B-L1); teach panel (cheat-sheet + add-a-skill + backup offer) | window foregrounds; teach shown |
+The original plan assumed a strict dependency spine (WS-A freezes the contract, then WS-B through WS-I run concurrently against it) executed via `/orchestrate`. What actually happened was closer to direct, iterative build-and-release: the native app was hand-built against the CLI contract as it matured, released early and often (16 tags, starting from v0.1.1), and hardened through a live incident (the schema-mismatch initiative, `docs/40-initiatives/03-schema-mismatch/`, now complete) and a full onboarding-transaction rework (the self-onboarding initiative, `docs/40-initiatives/02-enac-self-onboarding/`, now at 16/16 live apply). The dependency relationship the original plan predicted — the CLI contract gates everything else — held true in practice; the parallel-workstream execution model around it did not, and that's fine: the goal was the shipped, dogfooded app, not fidelity to the orchestration mechanism.
 
 ---
 
-## 6. WS-D — Distribution & self-update
+## 4. What remains
 
-| Task | Detail | Acceptance |
-|---|---|---|
-| D1 | Developer ID sign + hardened runtime + **notarize + staple** `.app` and `.dmg`; minimal userland entitlements; CI entitlement lint (no `get-task-allow`) | `spctl -a` passes offline |
-| D2 | **Cross-repo binary contract** — consume `copilot`/`cc` as already-signed/notarized/universal artifacts at a **pinned SHA+version** from `claude-copilot` CI; verify (`codesign`/`spctl`), never re-sign; **block release if vendored CLI < compat floor** (fixes A-C2, B-H1, B-M5); `.pkg` postinstall de-quarantine; `cli-spawnable` doctor check | notarization green; no Gatekeeper kill on cold machine |
-| D3 | `SMAppService` login item + **launchd crash-only watchdog** (`KeepAlive={SuccessfulExit:false}`, `RunAtLoad=false`) + ThrottleInterval + circuit breaker (fixes B-C2); never both `RunAtLoad` | clean Quit stays quit; bad build doesn't crash-loop |
-| D4 | Self-update: Tauri signed-manifest updater; **rollback owned by the stable watchdog via early liveness heartbeat** (fixes B-C3); staple-verify staged bundle offline (fixes B-M3) | a bundle that crashes on launch auto-reverts |
-| D5 | **Compat matrix, one canonical version**; newer CLI *pulls* newer app (no deadlock); `AllowSelfUpdate=false` → CLI+app as a version-locked pair (fixes B-C4) | no red-badge dead-end |
-| D6 | **Signed uninstaller** (`launchctl bootout` + `SMAppService.unregister` + Keychain clear); watchdog self-`bootout` if `Program` missing (fixes B-H2) | Trash-drag doesn't orphan a login item |
+1. **V-5 — the cold-laptop proof.** A two-machine onboarding run against an empty keychain, proving the experience holds for someone who isn't the owner running it on their own already-configured machine.
+2. **The publicize step.** Making the supporting `knowledge-copilot`/`cli-copilot` foundation repos public — deliberately last, gated on the credential rotation their prior private-repo history requires.
+3. **G-1 — port the fitness-test suite.** 40 tests exist and would enforce the six `CLAUDE.md` invariants (plus several stronger unstated rules) if ported from scanning `src-tauri/src/**` to `native/*.swift`, and if the disabled CI job that runs them were re-enabled.
+4. **G-2 — the `launchd` crash-only watchdog.** Packaging assets already exist (`packaging/launchd/`); porting the actual registration/management logic into the native app has not happened.
+5. **WS-G, if it is still wanted.** Opt-in org telemetry and a fleet/IT dashboard were designed but never built for the native app. Whether this remains a goal, given the product's current DOGFOODING-on-one-org scope, is an open product question, not a scheduling one.
+6. **Self-update, if it is still wanted.** The reinstall-a-DMG model has been the operating mechanism through every release to date and may be a deliberately acceptable steady state rather than a gap — this is a product decision, not documented anywhere as settled either way. <!-- TODO: confirm with the owner whether self-update remains a goal or has been superseded by the reinstall model as the intended UX. -->
 
 ---
 
-## 7. WS-E — Entitlement & security
+## 5. Risks (updated)
 
-*Entitlement + deployment is GitHub repo access (D3); there is no MDM (dropped completely, D4).*
-
-| Task | Detail | Acceptance |
-|---|---|---|
-| E1 | **Department discovery + join** (D7.1, elevated from a descoped side effect) — surface the departments a user is entitled to, validate by their GitHub repo access, sync the selected layer onto the machine | user discovers and joins an entitled department without hand-editing config |
-| E2 | **Security-sensitive config** honored only from compiled-in trust roots + signed, inherited org/foundation config (a signed capability policy); values present only in user-editable local config are ignored + logged as tamper (reworked from B-C5 for D4) | a locally-edited `UpdateFeedURL` has no effect |
-| E3 | **Entitled shared integrations** (D7.2) — show shared org/dept integrations provisioned by entitlement (secret-store endpoint via inherited org config, D6) as a register distinct from **personal sign-in** (device-flow, per-person) | shared vs personal integrations never conflated |
-| E4 | **Offboarding** — revoke the person's GitHub access + rotate shared-secret store tokens; accepted residual: content already synced to a departed person's disk is not remotely wiped, no MDM to reach the device (reworked from B-M1, A-C4, B-M2 for D4) | revoked leaver loses further sync and shared-secret access on reconnect |
-| E5 | **Personal-key multi-machine sync** (D7.3) — sync a user's own personal keys across their own machines, ending `.env` hand-copying | a personal key added on one machine is available on the user's other machines |
-| E6 | **Per-user** everything ($UID tree/keychain/login/watchdog); no writable `/Users/Shared`; kiosk **machine-credential** (`gh-app` in system keychain); stable keychain designated requirement (fixes B-H5, B-H7, B-M6) | two users = two ids; kiosk auth works |
-
----
-
-## 8. WS-F — Bob-agency & escalation
-
-| Task | Detail | Acceptance |
-|---|---|---|
-| F1 | Escalation router by **actor-competence × reversibility** (auto-act / escalate-IT / ask-Bob), replacing event-class routing (fixes the Bob-agency problem) | each event class routed by the matrix |
-| F2 | **Auto-suspend** a personal override that shadows a `security:`-trailer fix (reversible; Bob re-affirms) + escalate (fixes A-C3) | vulnerable override can't win silently |
-| F3 | **Split safety-escalation from analytics**; mandatory `AdminContact`; safety channel **on by default** for managed machines; content-free signals (fixes A-C5) | "IT notified" is never a no-op |
-| F4 | **Time-boxed escalation** for un-acted Bob-actionable items (backup-missing, re-auth); **session-active backoff** for non-security materialize (fixes A-H13, A-H8); **notify on prune of a recently-used item** (fixes A-H9); held-major → IT approves centrally (fixes A-H11); policy denials → IT log only (fixes A-M15) | no Bob-only silent-forever degradation |
-
----
-
-## 9. WS-G — Observability & IT dashboard
-
-| Task | Detail | Acceptance |
-|---|---|---|
-| G1 | **Opt-in, org-scoped** telemetry (endpoint in `ecosystem.yml`, never ENAC); content-free schema | off by default; org endpoint only |
-| G2 | `machine_id = hmac(hardware_uuid + posix_uid, per-install-random-salt)` — per-user, non-reversible; usage emits only CLI-verified {org,dept,foundation} items, never personal names (fixes B-H5) | personal name un-emittable by construction |
-| G3 | IT **fleet dashboard** (sync health, drift, auth-expiry, version skew, usage/adoption) — closes the ecosystem observability gap | admin sees healthy-vs-stuck at a glance |
-| G4 | Release integrity: **two-of-N signing** (or transparency-log witness), separate key custody, staged rollout + **anomaly-halt** (fixes B-M4); hash-chained action log anchored to org endpoint (fixes B-L2) | one popped key ≠ fleet RCE |
-
----
-
-## 10. WS-H — Admin mode & docs (open source enablement)
-
-| Task | Detail | Acceptance |
-|---|---|---|
-| H1 | **Seed generator** — guided `ecosystem.yml` authoring; opens PR to `<org>/copilot-ecosystem` | valid seed produced, no hand-YAML |
-| H2 | **Repo & access scaffolding** — create/verify org + separate dept repos; emit team/CODEOWNERS/branch-protection; declared-repo existence check | typo can't ship a 404 |
-| H3 | **Capability-policy** authoring + signing (security key distinct from push) | policy signed by authorized signer |
-| H4 | **Self-install + entitlement guide** — walks a user through installing the signed `.dmg` and discovering/joining an entitled department (replaces MDM profile/zero-touch, D4) | user can self-install and join without an IT push |
-| H5 | **Preflight validation** — seed parses, dept repos exist, policy signed, pin resolves, mirror reachable; red/green report | IT validates before rollout |
-| H6 | **Documentation set** — quickstart, self-install + department-entitlement guide, config reference, security-&-trust doc, ops/offboarding runbook; versioned in the public repo | an IT team can deploy from docs alone |
-
----
-
-## 11. WS-I — Windows re-skin *(P4)*
-
-Five boundary shims over the shared Tauri core: system tray, Task Scheduler (vs launchd), EV code-sign + SmartScreen, MSI/winget, Credential Manager (vs Keychain). Core, wizard, updater, compat guard, device-flow auth, escalation model, and GitHub-repo-access entitlement all unchanged.
-
----
-
-## 12. Phase gates (maturity, cross-cutting)
-
-| Phase | Gate |
-|---|---|
-| **P0** | WS-A contract frozen + `flock`; WS-B shell runs, reads `doctor --json`, correct host state |
-| **P1** | WS-C wizard (silent + fail-closed + waiting-for-network); WS-D signed/notarized + cross-repo binary contract + watchdog rollback |
-| **P2** | WS-E entitlement & security (department discovery/join, signed inherited config, GitHub-based offboarding); WS-F actor-competence escalation + safety-channel-on |
-| **P3** | WS-G opt-in telemetry + IT dashboard + two-of-N signing; WS-H Admin mode + docs |
-| **P4** | WS-I Windows re-skin |
-
-**Exit (v1):** all Critical/High red-team findings (§10 of `05-control-tower.md`) closed; a test Mac self-installs, is entitled by GitHub org/department repo access, and reports fleet health; IT can stand up + deploy the ecosystem from Admin mode + docs alone.
-
----
-
-## 13. Risks
-
-- **The `--json` contract is the whole safety boundary** (B-H6) — schema drift = silent security bypass. Mitigation: contract test in `copilot` CI, bidirectional gate, fail-closed missing fields. *Owner: WS-A.*
-- **Cross-repo signing lockstep** (B-H1) — two repos, one signature requirement. Mitigation: signed-artifact contract + pinned SHA. *Owner: WS-D + WS-A repo.*
-- **Always-on agent trust** — an auto-pulling token-holder is a supply-chain surface. Mitigation: open source + two-of-N signing + compiled-in trust roots and signed inherited config + full audit trail. *Owner: WS-E/WS-G/WS-H.*
-- **Bob is not a reliable actor** — the entire escalation model must assume this. *Owner: WS-F.*
+- **The `--json` contract is still the whole safety boundary.** Schema drift would be a silent security bypass. Mitigation in place: per-verb `SchemaGate`, fail-closed missing fields, versioned schemas in `schemas/`.
+- **Invariant enforcement has no automated backstop against the shipping app (G-1).** A regression in any of the six `CLAUDE.md` invariants would not be caught by CI today — only by code review. This is the single largest process risk this documentation rebuild surfaced.
+- **No crash recovery (G-2).** A user who force-quits or whose machine crashes the app gets no automatic relaunch; there is no supervisor above the app process today.
+- **Always-on agent trust, partially addressed.** Open source, compiled-in trust roots, and signed inherited config are real; two-of-N release signing and a fleet observability/anomaly-halt mechanism (both part of the original trust story) are not built.

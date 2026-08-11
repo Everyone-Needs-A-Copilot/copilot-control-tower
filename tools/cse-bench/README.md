@@ -79,7 +79,7 @@ version before assuming a field exists.
   completed-per-ISO-month trend since the earliest activity, and
   per-repo + overall activity date ranges. Symlinked product
   directories that resolve to the same physical store (e.g.
-  `shared-docs -> knowledge-copilot`) are de-duplicated and reported
+  `shared-docs -> knowledge-copilot-internal`) are de-duplicated and reported
   under `aliases_detected`, not double-counted. Full operational
   definitions (completion rate, the reopened-count proxy, etc.) are
   restated in the output's own `metrics.definitions` block so no

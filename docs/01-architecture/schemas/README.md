@@ -14,12 +14,21 @@ it implements no resolution/merge/sign/wipe logic of its own.
 | Schema | Verb | Notes |
 |---|---|---|
 | `_envelope.schema.json` | — | Shared `$defs` (`schema_version`, `git_sha`, `timestamp`, `severity`) `$ref`'d by every verb. There is **no** uniform status/error wrapper in the contract; the only universal field is `schema_version`. |
+| `auth.schema.json` | `copilot auth [login\|grant\|status] --json` | GitHub device-flow sign-in plus the identity-bound, least-privilege `write:public_key` upgrade. Five `kind`-discriminated payloads (`device-code`/`poll`/`grant-device-code`/`grant-poll`/`status`) plus the shared error envelope; NO-SECRET fitness recursively forbids credential-shaped keys at every depth. |
 | `doctor.schema.json` | `copilot doctor --json` | Health verdict. Encodes the "a false Healthy is impossible" invariant (healthy ⇒ not offline, no `fail` checker). |
-| `update.schema.json` | `copilot update --json` | Reconciling sync; `pruned` op + `severity_trailer`/`shadowed_by` banner drivers. |
+| `update.schema.json` | `copilot update --json` | Reconciling sync; `pruned` op + `severity_trailer`/`shadowed_by` banner drivers. Additive `path` property (Component Sync Stream-E) carries this same shape for a single project's `copilot materialize --project <path> --json` result. |
 | `resolve.schema.json` | `copilot resolve --explain --json` | Per-item layered resolution; `live_hash_matches:false` ⇒ MODIFIED. |
 | `deprovision.schema.json` | `copilot deprovision <org> --json` | `secrets_touched` pinned to `const: 0`; dirty trees retained. |
-| `freshness.schema.json` | `copilot freshness --json` | Cheap single-SHA poll target. |
+| `freshness.schema.json` | `copilot freshness --json` | Cheap single-SHA poll target; optional additive `layers[]` breakdown (opt-in `--per-layer`). |
 | `publish.schema.json` | `copilot publish --json` | Author-side push; `auto-merged` / `needs-choice` / `parked-escalated` conflict states; fail-closed `tier` + `leak_scan`. |
+| `layers.schema.json` | `copilot layers [join] --json` **(proposed, D7.1)** | Entitlement discovery (`list_report`) + join action (`join_result`), discriminated structurally (`layers[]` vs. `result`). `entitled: null` fails closed (never treated as `true`). |
+| `projects.schema.json` | `copilot projects freshness --all --json` / `copilot materialize --fanout --json` | Component Sync (`docs/80-initiatives/02-component-sync/`) machine-wide fan-out: all-projects freshness sweep + fan-out roll-up. A single project's own `copilot materialize --project <path> --json` result reuses `update.schema.json`'s shape (see its additive `path` property) rather than a third shape. |
+| `workspaces.schema.json` | `cc workspace --all\|--project --json` / `cc workspace finish\|verify\|plan\|hold ... --json` | Authoritative schema 1.1 project-integration inspection. Carries closed per-component classification, exact safe actions, generated guided prompts and owner handoffs, preservation rules, and independent verification. Control Tower renders these facts and round-trips opaque IDs; it does not inspect or classify project contents. |
+| `reconcile.schema.json` | `cc reconcile assess\|plan\|apply\|verify\|recover ... --json` | Authoritative schema 1.0 ecosystem reconciliation outcomes. Python owns complete assessment, project/component truth, plans, operations, verification, recovery, diagnostics, and all business-result states; Control Tower renders the strict phase branch or structured error and never infers readiness. |
+| `reconcile-request.schema.json` | `cc reconcile plan\|apply\|verify --request <private-json> --json` | Explicit user-intent envelope for approved roots plus project/component/recipe selections. The app writes the same deterministic bytes to an owner-only temporary request for each phase; Python validates and canonicalizes them before inspection or mutation. |
+| `workspace-root.schema.json` | `cc workspace approve-root\|forget-root --path <folder> [--apply] --json` / `cc workspace roots --json` / `cc workspace decline [--apply] --json` | Explicit, non-symlinked folder grant/revocation, the read-only listing of approved folders plus detected one-click candidates (conventional folders under the home directory that already contain a project), and the machine-wide opt-out. Folder identity round-trips via `path`; only `name`/`label` are ever rendered. |
+| `connections.schema.json` | `cc connections --json` **(stage B, task 221)** | Projects cli-copilot's `copilot --json layers` `services[]` (foundation ≥v0.3.2) plus a per-service shared-store secret presence check (`secret_state: ready\|needs-connect\|no-store`, names only, never values). Closes the WP-388/389 "Your connections" empty-state gap; Control Tower filters into its two card groups on `secret_state` alone. |
+| `connect.schema.json` | `cc connect <service-id> [--check] --json` **(WP-395 D-6, task 222)** | The in-app secret-input connect mechanism (never `.env`). `$ref`s `connections.schema.json#/$defs/connection` for its `service` row rather than duplicating it (same-repo cross-file `$ref`, matching `projects.schema.json`/`workspace-root.schema.json`'s existing precedent). Values travel stdin-only, in and out — the payload never carries a credential value, only NAMES and a closed `stored\|already-present\|failed` outcome per name. |
 
 ## Versioning
 
@@ -37,11 +46,11 @@ schemas mark them `required`.
 must update the other in the same change. Where the prose is ambiguous, the schema encodes the most
 defensible interpretation and carries a `"$comment"` flagging the assumption for the owner to tighten.
 
-**Freeze status (2026-07-07 reconciliation).** These schemas encode the *design*, not an implemented
-CLI — WS-A is unstarted (see `cli-contract.md` "Freeze status & source of truth"). The authoritative
-source is the upstream `claude-copilot` design docs (05-control-tower.md, 06-control-tower-prd.md,
-research/design-control-tower-integration.md). Previously-open ambiguities now resolved against that
-source:
+**Freeze status (refreshed 2026-08-04).** Shipping contracts are implemented in the upstream
+`claude-copilot/tools/cc` helper and exercised against the exact vendored executable during release.
+The schema files in this directory remain Control Tower's machine-readable consumer contract; proposed
+or deferred surfaces are labeled as such. Earlier design ambiguities resolved against the upstream
+source include:
 - `doctor.status` — corrected from a draft `healthy|degraded|failed` (which wrongly conflated it with
   per-checker `severity`) to the authoritative ~10-state machine: `setup-needed`, `it-config-incomplete`,
   `healthy`, `syncing`, `update-available`, `needs-attention`, `signed-out`, `offline`,

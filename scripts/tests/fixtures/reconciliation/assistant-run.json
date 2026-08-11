@@ -1,0 +1,26 @@
+{
+  "schema_version": "2.0",
+  "phase": "assistant-run",
+  "result": "ready",
+  "run_id": "run_44444444444444444444444444444444",
+  "generated_at": "2026-08-04T18:03:00Z",
+  "session_id": "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "selected_projects": [
+    "/Projects/Team; literal/One"
+  ],
+  "progress": {
+    "stage": "python-validating-plan",
+    "liveness": "active",
+    "detail": "Python is rebuilding and validating the exact project plan.",
+    "started_at": "2026-08-04T18:00:00Z",
+    "last_activity_at": "2026-08-04T18:03:00Z",
+    "elapsed_seconds": 180,
+    "selected_project_count": 1,
+    "candidate_group_count": 1,
+    "candidate_count": 2
+  },
+  "detail": "Claude Code returned bounded selections for Python validation.",
+  "next_actions": [
+    "Return to Control Tower while Python validates the proposal."
+  ]
+}

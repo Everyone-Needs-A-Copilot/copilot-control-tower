@@ -123,10 +123,12 @@ fn run_at_load_is_never_true_login_launch_is_smappservices_job() {
     }
 }
 
-/// FF-M4-2 — no bypass flags. `--force`/`--skip-verify` must never appear
-/// as literal, constructed arguments in the files THIS stream (Stream-D)
-/// actually authored: `updater::watchdog`/`updater::mod`, and the
-/// `packaging/`/`scripts/` distribution tree. Deliberately file-scoped
+/// FF-M4-2 — no updater bypass flags. `--force`/`--skip-verify` must never
+/// appear as literal, constructed arguments in the files THIS stream
+/// (Stream-D) actually authored: `updater::watchdog`/`updater::mod`, and the
+/// `packaging/`/`scripts/` distribution tree. The one contextual exception is
+/// `codesign --force`, which means "replace the existing signature"; it does
+/// not bypass signature or notarization verification. Deliberately file-scoped
 /// rather than directory-scoped for `src-tauri/src/updater` — that
 /// directory also holds `sec`'s concurrently-landed `trust.rs`/`verify.rs`/
 /// `heartbeat.rs` (this stream's constraint: consume their API, never edit
@@ -143,7 +145,7 @@ fn no_bypass_flags_anywhere_in_owned_distribution_source_fitness_ff_m4_2() {
     let scan_dirs = [root.join("packaging"), root.join("scripts")];
 
     let needles = ["--force", "--skip-verify"];
-    let mut offenders: Vec<(PathBuf, &str)> = Vec::new();
+    let mut offenders: Vec<(PathBuf, usize, &str)> = Vec::new();
 
     let mut files: Vec<PathBuf> = scan_files.into_iter().filter(|f| f.exists()).collect();
     for dir in &scan_dirs {
@@ -159,9 +161,14 @@ fn no_bypass_flags_anywhere_in_owned_distribution_source_fitness_ff_m4_2() {
             continue;
         }
         let content = fs::read_to_string(&file).unwrap_or_default();
-        for needle in needles {
-            if content.contains(needle) {
-                offenders.push((file.clone(), needle));
+        for (line_index, line) in content.lines().enumerate() {
+            for needle in needles {
+                if needle == "--force" && line.contains("codesign") {
+                    continue;
+                }
+                if line.contains(needle) {
+                    offenders.push((file.clone(), line_index + 1, needle));
+                }
             }
         }
     }

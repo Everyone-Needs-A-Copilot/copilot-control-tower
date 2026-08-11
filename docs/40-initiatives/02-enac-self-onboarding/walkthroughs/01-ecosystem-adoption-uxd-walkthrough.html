@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>01 · Ecosystem adoption — UX walkthrough</title>
+<style>
+:root{color-scheme:light dark;--bg:#f5f5f3;--panel:#fff;--ink:#20201e;--muted:#696965;--line:#deded8;--accent:#3767d6;--good:#26734d;--hold:#a23b32}
+@media(prefers-color-scheme:dark){:root{--bg:#171716;--panel:#242422;--ink:#f2f2ee;--muted:#aaa9a2;--line:#3c3c38;--accent:#7da2ff;--good:#69c391;--hold:#ff8e82}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{padding:32px max(24px,calc((100vw - 1080px)/2));border-bottom:1px solid var(--line)}h1{margin:0 0 6px;font-size:30px}h2{margin:0 0 14px}p{margin:0;color:var(--muted)}
+.layout{max-width:1080px;margin:auto;padding:28px 24px 60px;display:grid;grid-template-columns:220px 1fr;gap:28px}nav{position:sticky;top:20px;align-self:start}nav a{display:block;color:var(--muted);padding:7px 0;text-decoration:none}nav a:hover,nav a:focus{color:var(--accent)}
+section{margin-bottom:42px}.pair{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:18px}.screen,.note{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}.note h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;color:var(--muted)}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted)}.row{display:grid;grid-template-columns:24px 1fr auto;gap:10px;padding:13px 0;border-top:1px solid var(--line)}.row:first-of-type{margin-top:16px}.title{font-weight:650}.detail{font-size:13px;color:var(--muted)}.action{font-size:12px;font-weight:700;color:var(--accent)}.good{color:var(--good)}.hold{color:var(--hold)}
+.button{display:inline-block;margin-top:18px;background:var(--accent);color:white;border-radius:8px;padding:8px 14px;font-weight:650}.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}code{font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px}
+@media(max-width:760px){.layout{grid-template-columns:1fr}nav{position:static}.pair{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header><h1>Adopt what is already here</h1><p>UX walkthrough for Admin and User Setup. The service learns, explains, confirms, applies, and verifies.</p></header>
+<div class="layout">
+<nav aria-label="Walkthrough"><a href="#entry">1. Entry</a><a href="#inventory">2. Inventory</a><a href="#review">3. Review hold</a><a href="#apply">4. Apply</a><a href="#projects">5. Projects</a></nav>
+<main>
+<section id="entry"><h2>1. Entry: set the expectation</h2><div class="pair"><div class="screen"><div class="eyebrow">USER SETUP · STEP 3</div><h2>Checking what’s already here</h2><p>Control Tower keeps the parts that are already right, safely moves or repairs recognized earlier setup, and leaves anything unfamiliar untouched.</p><div class="button secondary">Checking…</div></div><aside class="note"><h3>Service intent</h3><p>No reset language. The first operation is read-only, and the screen states the preservation promise before results arrive.</p></aside></div></section>
+<section id="inventory"><h2>2. Inventory: explain decisions, not filesystem trivia</h2><div class="pair"><div class="screen"><div class="eyebrow">WHAT CONTROL TOWER FOUND</div>
+<div class="row"><span class="good">✓</span><span><span class="title">Claude personal space</span><br><span class="detail">Existing rank-10 package will be reused.</span></span><span class="action good">Keep</span></div>
+<div class="row"><span>＋</span><span><span class="title">Codex personal space</span><br><span class="detail">No private space exists yet.</span></span><span class="action">Add</span></div>
+<div class="row"><span>→</span><span><span class="title">Copilot layers</span><br><span class="detail">Earlier supported setup will be combined with missing layers. A rollback copy is kept.</span></span><span class="action">Move safely</span></div>
+<div class="button">Continue</div></div><aside class="note"><h3>Progressive disclosure</h3><p>People see the object, the plain action, and why. Paths stay out of the primary view. “Move safely” is always paired with rollback language.</p></aside></div></section>
+<section id="review"><h2>3. Ambiguity becomes a calm holding state</h2><div class="pair"><div class="screen"><div class="eyebrow hold">ONE THING TO DECIDE</div><h2>Something here is already yours</h2><p>An existing layer manifest is unfamiliar. Nothing existing was changed.</p><div class="row"><span class="hold">!</span><span><span class="title">Copilot layers</span><br><span class="detail">The existing file was kept untouched for review.</span></span><span class="action hold">Needs review</span></div><div class="button">Try again</div></div><aside class="note"><h3>Failure path</h3><p>A review item blocks the complete transaction before personal repositories, SSH, store identity, or manifests change. Retry starts with a new inventory.</p></aside></div></section>
+<section id="apply"><h2>4. Apply and verify</h2><div class="pair"><div class="screen"><div class="eyebrow">STEP 8 OF 9</div><h2>Making sure everything’s current</h2><p class="title">Everything checks out.</p><p>Your previous setup was preserved in a rollback copy.</p><div class="button">Continue</div></div><aside class="note"><h3>Evidence</h3><p>The app does not infer success. It renders the independent doctor verdict and only mentions rollback when the CLI returned a rollback path.</p></aside></div></section>
+<section id="projects"><h2>5. Existing projects remain additive</h2><div class="pair"><div class="screen"><div class="eyebrow">YOUR CODE PROJECTS</div><p>Choose the folder where you keep code. Control Tower checks every project there, keeps any existing Claude or Codex setup, and offers to add only what’s missing.</p><div class="button secondary">Choose projects folder</div></div><aside class="note"><h3>Non-developer path</h3><p>Choosing a folder is optional and uses ordinary language. A person with no projects can finish setup without learning repository vocabulary.</p></aside></div></section>
+</main></div>
+</body></html>

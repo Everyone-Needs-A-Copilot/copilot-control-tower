@@ -1,253 +1,208 @@
-> **Superseded framing.** This document predates the Copilot Solutioning Ecosystem (CSE) realignment. Its MDM/fleet framing and its use of "product" to mean a CSE tool are superseded. The corrected model is in `docs/reference/copilot-solutioning-ecosystem.md`; the decisions are in `docs/reference/cse-alignment-decisions.md`.
-
 # Jobs to Be Done
 
-> **Provenance.** Grounded synthesis from the Phase-1 Discovery set (`00-overview/00-vision.md`
-> Jobs-to-Be-Done + Forces Map + Inheritance & Propagation Model, `10-scope-and-non-goals.md`,
-> `20-success-metrics.md`), the **primary-evidence owner interview** (2026-07-06,
-> `01-research/10-interviews/01-interview-self.md`; `scratchpad/interview-ground-truth.md`), and the
-> engineering source (`architecture.md`, `redteam-use-cases.md`, `ecosystem-use-cases.md`). Jobs are
-> grouped by persona, not by feature. Every job traces to a source; genuine unknowns are marked
-> `<!-- TODO -->`. Prerequisites: `00-vision.md`, `01-interview-self.md`.
+<!--
+FACILITATION GUIDE — Service Designer
+======================================
+JTBD captures what the user is HIRING this product to do. Not features.
+Not tasks. The underlying motivation.
+
+Format: "When [situation], I want to [motivation], so I can [outcome]."
+
+PREREQUISITE: 00-vision.md and at least one interview must be completed.
+
+CONVERSATION FLOW:
+1. Identify the different contexts users are in when they need this
+2. For each context, articulate the job
+3. Group jobs by persona — each persona has distinct jobs
+4. Rank jobs by importance and frequency within each persona
+5. Identify competing solutions (what they hire today instead)
+6. Summarize priority across all personas (P0/P1/P2)
+
+QUESTIONS TO ASK:
+
+## Round 1: Contexts
+- "Think about the different moments when someone would reach for
+  this product. What's happening in their world at that moment?"
+- "Are there different personas with different contexts?"
+- "Are there time-pressure or urgency contexts?"
+
+## Round 2: Job Articulation
+For each context identified:
+- "When [this situation happens], what does the user want to do?"
+- "Why? What outcome are they trying to achieve?"
+- "What would 'success' look like for this specific job?"
+- Frame as: "When ___, I want to ___, so I can ___."
+
+## Round 3: Job Grouping by Persona
+For each persona identified in the journey maps:
+- "What are [persona]'s distinct jobs in this product?"
+- "How many jobs does this persona have? Rank them by importance."
+- "What is the job this persona would miss most if the product disappeared?"
+
+## Round 4: Job Ranking
+- "Which of these jobs is the MOST important? The one that, if we
+  nail it, everything else can be mediocre?"
+- "Which job happens most frequently?"
+- "Which job has the highest stakes if it goes wrong?"
+- "Of all the jobs across all personas, which are P0 — must-have
+  for the first version? Which are P1 — high value but not blocking?
+  Which are P2 — nice to have?"
+
+## Round 5: Competing Solutions
+For each job:
+- "What do people hire today to do this job?"
+- "What's good about that current solution?"
+- "What's bad about it?"
+- "Why haven't they switched to something better already?"
+
+## Round 6: Priority Warning
+- "How many total jobs have we articulated? Is that number realistic
+  for the first version?"
+- "A product that tries to serve all jobs equally will serve none well.
+  Which jobs define the minimum lovable product?
+  Everything else is earned through adoption."
+
+SYNTHESIS:
+Present jobs grouped by persona, not by feature area. Within each
+persona group, order by priority. Include a cross-persona priority
+summary at the end. Add a warning if the total job count is high —
+too many jobs means the product is trying to be too many things.
+-->
+
+> **Status — rebuilt from evidence 2026-08-02.** Rewritten against the shipping code (`native/wizard.swift`, `native/control-tower-tray.swift`, `native/user-settings.swift`, `native/admin.swift`), the accepted ADRs, the ENAC self-onboarding initiative's live-run evidence, and the schema-mismatch incident record — replacing a version written before most of it had happened. It describes **v0.4.0** (build 19, 2026-08-02, embedded helper `cc 2.2.0`). Product status is **DOGFOODING**: live on exactly one organization (ENAC), sixteen of sixteen layers applied live, not offered to outside organizations, not generally available.
 >
-> **The reframe (primary evidence, 2026-07-06).** The soul is **democratization: give a non-technical
-> person the AI superpowers of a deeply technical one, safely enough to run unattended.** Observability
-> and self-heal are the *mechanism that earns the right* to run in the background — not the point. Every
-> job below is therefore a *democratization / trust / legibility / continuity* job — Control Tower adds
-> zero intelligence of its own (invariant #1); it never becomes a "compute this for me" job.
->
-> **Two consumer psychographics — do not collapse them.** The earlier draft treated "the consumer" as
-> one person. The interview splits them:
-> - **(a) The change-averse consumer (Bob)** — *reads / consumes*; must feel **SAFE** above all.
-> - **(b) The trained early-adopter author (Ada)** — *writes* org/department content via a markdown
->   editor (Obsidian); more comfortable with the machinery; wants **POWER.** Access is *earned and
->   gated*, starting with a few innovators and growing as demand rises.
+> These jobs are **retrofitted from a shipped product**, not proposed for one. Where a job has been demonstrated, it says so. Where it is still a bet, it says so in the same sentence.
 
----
+## The brief, reframed
 
-## Personas (carried from Phase 1)
+The brief this product was originally given was *"build a face and supervisor over the CLI."* That is a description of a mechanism, and a mechanism is not a job. Taken literally it produces a status dashboard — and nobody hires a status dashboard, because nobody wakes up wanting to know the state of their layer manifest.
 
-> **Bob is a PSYCHOLOGY, not a role** (`interview-ground-truth.md` §8). "Bob the Accountant" is a
-> behavioral archetype found in every company and department — IT, HR, executives can all *be* Bob.
-> Accounting is the exemplar because accountants are archetypally *not* rule-breakers: they use the
-> software they're given, don't deviate, follow standards, and are **intensely detail-oriented.** Bob is
-> uncomfortable with change because change = **loss of control**; a new tool means he can make a mistake,
-> break something, or be *wrong* — and being wrong could **lose information, lose the company money, or
-> lose his job. The fear is professional consequence.** Target emotion: **comfortable AND excited** — the
-> tools give him *"superpowers he's wanted his entire career and is only now getting."* **Design
-> consequence:** Bob's detail-orientation means he *will catch* any drifted or dishonest status — so
-> **"the icon that cannot lie" is survival, not decoration.**
+**The assumption worth challenging is that the job is about the machine.** It is not, and every piece of real evidence in this repository points the other way. The origin pain recorded in the vision is *"that shit gets exhausting"* — a person, worn down by being the sync layer between two of his own machines. The primary user is defined by a psychology (change-averse, detail-oriented, professionally exposed if he is wrong), not by a technical situation. And the sharpest failure in the record is not a broken machine at all: it is a screen that said **"setup stopped before changing anything"** at a moment when two GitHub repositories had already been created.
 
-- **Bob — the change-averse non-technical consumer (PRIMARY).** No terminal, denies OS prompts,
-  ignores single nudges, may run Focus/DND. **"Bob is not a reliable actor" is load-bearing.** The
-  **primary** Operator-mode persona; must feel **safe**.
-  `> **Evidence: GROUNDED** (his psychology — real people across real companies) / **HYPOTHESIS** (the
-  *full* ecosystem reaching a non-technical person unaided — never run end-to-end).`
-- **Ada — the trained early-adopter author (NEW tier; writable-tier consumer).** Sits *between* Pablo
-  (foundation) and Bob (consumer): a trained innovator with **earned, gated** write access to org /
-  department content (new skills, agents, Knowledge Copilot content, CLI Copilot integrations). Authors
-  in a markdown editor (**Obsidian**) → save → push → the change syncs to every machine on cadence. More
-  comfortable than Bob; wants **power**, not just safety. Not a Git user.
-  `> **Evidence: MODEL-IN-HEAD** — the multi-writer authoring loop (Obsidian → save → push → sync) has
-  **never been run with more than one writer.**`
-- **Earl (IT / Admin operator)** — stands up the ecosystem for the org and deploys it via
-  Jamf/Kandji/Intune; owns the fleet. The **primary Admin-mode persona.**
-  `> **Evidence: HYPOTHESIS** — no real IT operator has touched Admin mode, a fleet dashboard, or a
-  deprovision. This whole persona's journey is an untested behavioral bet.`
-- **Pablo (ecosystem owner / ENAC maintainer)** — authors the foundation, keeps two machines in parity
-  *by hand today*, and needs the always-on agent to make the ecosystem *safer* to adopt, not riskier.
-  The **trust-basis** persona and the *original author* (the foundation-tier case of Ada's job).
-  `> **Evidence: OBSERVED** (his daily hand-sync pain).`
-- **Rosa / Dwayne (developer-contributor)** — *secondary context only.* They keep using the CLI directly
-  (`ecosystem-use-cases.md` UC1–UC12). Control Tower must **not break** their workflow, but the
-  end-user experience is not designed for them (`10-scope-and-non-goals.md`, explicit non-goal).
+So the reframe: **Control Tower is not hired to manage an ecosystem. It is hired to make an unverifiable system trustworthy enough to be left alone by someone who cannot check it.** Every distinctive thing the product does — the fail-closed schema gate, all deterministic preflight before any irreversible write, the completed-actions ledger, the refusal to render a percentage — is that job expressed as engineering rather than as reassurance.
 
----
+## The primary job
 
-## Bob — Change-Averse Non-Technical Consumer (Primary Persona) Jobs
+> **When** I have been handed an AI ecosystem that only a technical person could install, **I want to** get all of it working on my own Mac and have it stay working without my attention, **so I can** use a technical person's superpowers without becoming one — and without ever having to check whether it is really still working.
+
+The trailing clause carries the weight. "Get it working" is a setup job, and it would be finished the day it finished. "Stay working without my attention, and without my having to check" is a **trust job**, and it is renewed every single day the person does not open the popover. That is why the product's most important state is silence, and why a false green is not a bug class but a violation of the job itself.
+
+Three sub-outcomes decide whether this job is done, in the order the person experiences them:
+
+1. **Functional** — every component the person is entitled to is present and current on their Mac, and they never opened a terminal to get it there.
+2. **Emotional** — the person *believes* the icon. Not "finds it informative." Believes it, to the point of not checking.
+3. **Social** — the person can hand the one thing they cannot solve to the one person who can solve it, without being embarrassed by not understanding it.
+
+## Bob's jobs — the change-averse non-technical adopter (PRIMARY)
+
+Bob is a psychology, not a job title: the detail-oriented professional in accounting, HR, legal, operations, or the executive suite who uses what IT hands him, follows standards well, and is precise. He is change-averse because change costs him control over something he is currently competent at, and because being wrong could lose information, lose money, or lose him standing. **The fear is professional consequence.** `Evidence: GROUNDED — the archetype is drawn from real people across real companies; see 00-overview/00-vision.md.`
 
 | # | Phase | Job Statement | Priority |
 |---|-------|---------------|----------|
-| B0 | The soul | **When** I'm handed the ecosystem as a non-technical employee, **I want** a technical person's AI superpowers without understanding the layers underneath, **so I can** build, answer, and integrate what I need instead of being stuck with the software IT gave me — comfortable *and* excited, not just unblocked. | **P0** (the democratization job) |
-| B1 | Onboarding | **When** I'm handed a new work laptop, **I want** a working AI partner scoped to my team without being technical, **so I can** do my job without ever learning YAML or the terminal. | **P0** (the entry gate to B0) |
-| B2 | Steady-state | **When** my machine drifts, falls behind, or loses sync while I'm just working, **I want** it to stay synced and self-healed on its own without interrupting me, **so I can** trust it's current without babysitting it. | **P0** |
-| B3 | Any moment | **When** I glance at the menu bar, **I want** an honest, plain-language answer to "is my partner OK, and do I have to do anything?", **so I can** trust it's never quietly lying that it's fine (my detail-orientation *will* catch a false green — and one false green and I'm gone). | **P0** |
-| B4 | Interruption | **When** the system genuinely needs a human, **I want** to be asked *only* about my own data (a sign-in, my dirty work) and *never* about a decision I can't judge, **so I can** keep trusting the one alert that matters instead of learning to ignore it. | **P1** |
-| B5 | Recovery | **When** it breaks, **I want** the system to either fix it for me or walk me through it with dignity, **so I can** recover even though I'm not technical (Anxiety #1: failure with *no path back* is the real fear). | **P0** |
-| B6 | Habit-break | **When** I have any question — from "what email do I send this person" to "I'm not getting the report I need", **I want** to reach for this solution-oriented partner by reflex, **so I can** stop defaulting to a generic chat app (Claude app / ChatGPT / Gemini) that only ever answers instead of *building*. | **P1** (adoption-defining) |
-| B7 | Removal | **When** I no longer want it (or I leave), **I want** it to come off cleanly without orphaning a background agent or a ghost login item, **so I can** trust it isn't lingering. | **P2** |
+| B1 | Arrival | **When** someone at work sends me a link and says this will change how I work, **I want to** install it and find out what it actually is before I commit to anything, **so I can** decide whether to trust it without having already changed my machine. | **P0** |
+| B2 | Setup | **When** I am setting this up, **I want to** be shown exactly what it is about to create, download, or leave alone — in words about folders and accounts, not repositories and manifests — **so I can** authorize something I actually understand instead of clicking through. | **P0** |
+| B3 | Setup | **When** setup runs, **I want to** never be asked a question I have no basis to answer, **so I can** stop worrying that I will be the one who broke it. | **P0** |
+| B4 | Setup | **When** setup stops, **I want to** be told plainly whether it stopped because something is wrong or because it found something that is already mine, **so I can** tell a problem apart from a courtesy. | **P0** |
+| B5 | Completion | **When** setup says it is done, **I want** that claim to have been verified rather than assumed, **so I can** stop checking. | **P0** |
+| B6 | Steady state | **When** nothing is wrong, **I want** the app to say nothing at all, **so I can** forget it exists and get on with my actual job. | **P0** |
+| B7 | Steady state | **When** something *is* wrong, **I want** one sentence naming what is wrong and who fixes it, **so I can** either act or hand it on without diagnosing anything. | **P0** |
+| B8 | Steady state | **When** something new becomes available to me because of a change at work, **I want** it to just appear, **so I can** stop filing tickets to get tools I am already entitled to. | P1 |
+| B9 | Recovery | **When** something breaks after an update, **I want** a way back that does not require me to understand what broke, **so I can** recover with my dignity intact. | P1 |
+| B10 | Work | **When** I want to use one of my own projects with this, **I want** the safe part done for me and the unsafe part routed to whoever owns that project, **so I can** get value without becoming responsible for something I do not understand. | P1 |
+| B11 | Ongoing | **When** my work changes and I need something the ecosystem could give me, **I want to** reach it without a technical intermediary, **so I can** build the thing myself instead of asking someone to build it for me. | P1 |
 
-## Ada — Trained Early-Adopter Author (NEW writable-tier Persona) Jobs
+**The job Bob would miss most if the product vanished is B6.** Not the setup — the silence. Setup is a one-off he would grudgingly get help with. The silence is worth something every day, and no amount of help can substitute for it.
 
-> `> **Evidence: MODEL-IN-HEAD**` — this whole authoring loop has **never been run with more than one
-> writer.** It introduces *writable, collaborative tiers*, which strains the current "never-destroy /
-> read-only mirrors" safety assumption (see W3 + `10-service-blueprint.md` Failure Points). Write access
-> is **earned and gated**, starting with a few innovators and growing as demand rises.
+**B4 earns its own line because it was learned the hard way.** The Holding screen exists as **seven named variants** precisely because one generic "setup paused" screen conflates unrelated situations: something is broken (H2, H3), something is already yours and was left exactly as it was (H4), we are waiting (H5), your organization has something left to do (H6), and there is one permission only you can grant (H7). The variant is chosen by **who owns the fix**, never by what went wrong — and H4 is forbidden from being orange or using the words *paused*, *stopped*, *problem*, or *error*, because it is a success with a question attached. `Evidence: SHIPPED — walkthroughs/holding-copy-spec.md, implemented as HoldingVariant/HoldingInfo in native/wizard.swift.`
 
-| # | Phase | Job Statement | Priority |
-|---|-------|---------------|----------|
-| W1 | Publish | **When** I publish a change to org / department content once, **I want** to know it reached everyone on cadence *without breaking anyone's personal work*, **so I can** stop being the sync layer and never wonder whether it landed. | **P0** (the propagation / everyday-hero job) |
-| W2 | Author | **When** I want to contribute a skill, agent, or knowledge, **I want** to write it in a familiar markdown editor (Obsidian) — load files, edit, save, push — with no technical release process, **so I can** extend the ecosystem with the power I was trained for. | **P1** |
-| W3 | Collaborate | **When** a colleague and I edit the same department file and our syncs collide, **I want** the conflict resolved elegantly and invisibly with *no data loss and no Git knowledge required*, **so I can** collaborate without ever becoming a Git user. | **P0** (unsolved — trust make-or-break) |
+## Earl's jobs — the organization owner and admin operator
 
-## Cross-Cutting — Both Consumers (the Leakage Wall)
+Earl stands the ecosystem up for a company. In the shipped product he uses a separate Admin build with sixteen surfaces over a deterministic bash engine that makes every existence and idempotency decision by check-then-act, GET before POST/PATCH/PUT, with `gh` and `jq` vendored into the bundle so his Mac needs neither. `Evidence: RUN ONCE, BY THE AUTHOR — Admin mode has stood a real sixteen-layer organization up end to end (Phase 7, 16/16 live apply). No third-party IT operator has ever touched it. Every job below is a demonstrated capability and an untested behavioural bet at the same time.`
 
 | # | Phase | Job Statement | Priority |
 |---|-------|---------------|----------|
-| X1 | Any authoring / sync | **When** I author or consume across tiers, **I want** the system to make crossing the personal↔shared boundary **impossible by accident**, **so I can** never push private personal information into a shared/public place (Anxiety #2 — the nightmare scenario). | **P0** (new trust guarantee — Bob *and* Ada) |
+| E1 | Standup | **When** I am standing an organization up, **I want to** see exactly what will be created on GitHub before anything is created, **so I can** authorize a change I can defend to whoever asks me about it later. | **P0** |
+| E2 | Standup | **When** the standup runs, **I want** it to check before it acts at every single step, **so I can** re-run it after an interruption without creating anything twice. | **P0** |
+| E3 | Standup | **When** it stops, **I want** it to stop cleanly and tell me exactly what exists and what does not, **so I can** pick up from a known state instead of auditing GitHub by hand. | **P0** |
+| E4 | Handover | **When** I am about to hand the organization to its people, **I want** a read-only check that reports what is genuinely on GitHub, **so I can** find blockers before my colleagues do. | **P0** |
+| E5 | Governance | **When** a new department forms, **I want to** add it without hand-editing configuration, **so I can** grant access by structure rather than by favour. | P1 |
+| E6 | Governance | **When** someone leaves, **I want** a defined offboarding path, **so I can** revoke their reach without hunting through systems. | P1 |
+| E7 | Governance | **When** the organization has shared credentials to connect, **I want to** point at a store rather than distribute values, **so I can** never be the person who emailed a secret. | P1 |
+| E8 | Security | **When** my security team asks what this thing does on our machines, **I want** an answer that survives them reading the source, **so I can** get a yes instead of an exception request. | **P0** |
 
-<!-- TODO (open item, route to security/threat-model): CREDENTIALS — what carries secrets through a
-     pull-based inheritance model when a company has no cloud secret store? GitHub, somehow, safely?
-     Unsolved (`interview-ground-truth.md` §10). This gates W1/W3 in practice. -->
-<!-- TODO (open item): PERSONAL-LAYER CONTENT SCOPE — writing styles are plural and context-dependent
-     (email voice ≠ documentation voice ≠ thought-leadership voice); Knowledge Copilot is the natural
-     home. What ELSE belongs in the personal layer for Knowledge Copilot + the CLI Copilot integration
-     layer? Shapes X1's boundary definition. -->
+**E8 gates every other job in this table.** No standup happens if the review ends in a no. This is why the product is pure open source, one signed binary, zero bypass flags, compiled-in trust roots, a pinned and independently notarized helper, and a fail-closed contract gate — and why "add a paid tier to fund the work" is a regression trigger rather than a business idea.
 
-## Earl — IT / Admin Operator (Primary Admin-mode Persona) Jobs
+**E7 has a scar.** A phantom secret-store provisioner could report a store as configured when it was not; it is closed in `cc 2.2.0`, shipped in v0.4.0. Any report of readiness that is not backed by a verification the app can point at is the same defect wearing a different hat.
 
-> `> **Evidence: HYPOTHESIS**` — every job in this table is an untested behavioral bet; no real IT
-> operator has run any of it.
+## Pablo's jobs — the author who publishes upstream, and the ecosystem's trust basis
 
-| # | Phase | Job Statement | Priority |
-|---|-------|---------------|----------|
-| A1 | Setup | **When** I roll the Copilot ecosystem out to my org, **I want** to generate the seed and MDM profile from a guided tool and preflight it red/green *before* pushing, **so I can** deploy to a whole fleet without hand-editing config or crafting `.mobileconfig` by hand. | **P0** |
-| A2 | Operate | **When** an employee's machine drifts, falls behind, or loses auth, **I want** to see it on a dashboard while it self-heals, **so I can** trust the fleet without touching each machine or waiting for Bob to call. | **P0** |
-| A3 | Govern | **When** something needs *my* authority (a held-major upgrade, a capability-policy conflict), **I want** it to reach me centrally — never the employee — **so I can** decide with the competence and authority the employee lacks. | **P1** |
-| A4 | Offboard | **When** an employee leaves, **I want** company content and access revoked reliably even if they trash the app or stay offline, **so I can** guarantee "no secret ever materialized" rather than a fragile, app-contingent wipe. | **P0** |
-| A5 | Audit | **When** my security team reviews what the always-on agent did, **I want** a content-free, tamper-evident record on a live channel, **so I can** prove every auto-pull was visible, verified, and policy-bounded. | **P1** |
-
-## Pablo — Ecosystem Owner / ENAC Maintainer (Trust-basis Persona) Jobs
+Pablo authors the foundation, holds the signing identity, and is the person the product exists to release from being the sync layer. He is also the only person who has ever exercised the writable-tier authoring path. `Evidence: OBSERVED, continuously — this is the only genuinely longitudinal evidence the product has.`
 
 | # | Phase | Job Statement | Priority |
 |---|-------|---------------|----------|
-| O1 | Security propagation | **When** a security fix ships upstream but a personal override shadows it, **I want** the vulnerable version auto-suspended (reversibly) so the fix wins immediately, **so I can** close exposure without depending on a non-technical user noticing a notification. | **P0** |
-| O2 | Enterprise trust | **When** an enterprise security team audits the always-on, token-holding, auto-materializing agent, **I want** it to be open-source, reproducibly built, and provably *safer* than manual `copilot update`, **so I can** get the whole ecosystem adopted at all. | **P0** |
-| O3 | Integrity | **When** Control Tower renders any state, **I want** it to *parse* the CLI's verdict and never compute one, **so I can** guarantee there is never a second, wrong source of truth. | **P0** |
-| O4 | Privacy | **When** telemetry flows to an IT dashboard, **I want** a personal item name to be *un-emittable by construction*, **so I can** close the observability gap without creating a surveillance tool. | **P1** |
+| A1 | Authoring | **When** I make a change once to shared content, **I want** it to land on every entitled machine on cadence, **so I can** stop being the sync layer and stop wondering whether it landed. | **P0** |
+| A2 | Authoring | **When** that change propagates, **I want** it to be structurally impossible for it to clobber anyone's personal work, **so I can** publish without rehearsing the blast radius every time. | **P0** |
+| A3 | Authoring | **When** I write in my own editor and save, **I want** the publish path to be markdown-and-save rather than a Git ceremony, **so I can** author at the speed of thinking. | P1 |
+| A4 | Elevation | **When** something I built inside one project turns out to be useful to everyone, **I want** a safe route to raise it to a shared tier, **so I can** grow the shared layer without improvising. | P1 |
+| A5 | Release | **When** I cut a release, **I want** the gates to catch what I would have missed, **so I can** ship without being the last line of defence myself. | **P0** |
+| A6 | Release | **When** a release turns out to be defective, **I want** a rollback anyone can follow, **so I can** fix it without a support conversation per person. | **P0** |
+| A7 | Machines | **When** I pick up my second machine, **I want** it to already be at parity, **so I can** stop re-updating everything just to get back to where I was. | P1 |
 
-## Rosa / Dwayne — Developer-Contributor (Secondary Context) Jobs
+**A3 and A4 are the two jobs the product has not finished.** The multi-writer authoring loop has still never been run with more than one writer, and the `publish` verb is formally deferred (ADR-008, Accepted 2026-07-31). The interim answer for A4 is a documented manual copy-commit-push into the tier repository's own working directory, with symlinking explicitly forbidden — a rule written after one routine update reconcile-deleted **12,537 lines** of organization content in a single commit through a symlink, which a backup job then pushed to origin. `Evidence: INCIDENT — docs/01-architecture/inheritance-and-publish.md. The guard now in cc refuses to write or delete through any symlink that escapes the materialize root; in the live run it fired correctly as 4 held items, not as a failure.`
 
-| # | Phase | Job Statement | Priority |
-|---|-------|---------------|----------|
-| D1 | Coexistence | **When** Control Tower supervises the same pipeline I run by hand, **I want** my direct `copilot update` / `resolve --explain` workflow to keep working untouched, **so I can** keep my terminal habits without the GUI double-writing my tree. | **P1** (do-no-harm) |
-
----
+**A7 is the origin pain in its last unfixed form.** Personal-key sync across one person's own machines is accepted as a real need and remains unsolved; the V-5 cold-laptop proof is the first evidence that will inform it.
 
 ## Priority Summary
 
-**P0 Jobs (must-have for minimum lovable product):**
-- **B0** — a non-technical person gets a technical person's superpowers. *The soul; the reason to exist.*
-- **B1** — one-double-click working, team-scoped partner (zero terminal). *The entry gate to B0.*
-- **B2** — always-on self-heal that stays current without interrupting Bob.
-- **B3** — honest, glanceable, never-false-Healthy status that names the failing host.
-- **B5** — dignified recovery when it breaks (fix-it-for-him or walk-him-through).
-- **W1** — publish once → reaches everyone on cadence, breaking no one's personal work. *(author; MODEL-IN-HEAD)*
-- **W3** — invisible, no-data-loss, no-Git-required merge-conflict resolution. *(author; unsolved)*
-- **X1** — the leakage wall: personal↔shared crossing impossible by accident. *(both consumers)*
-- **A1** — guided seed + MDM-profile generator + preflight (no hand-YAML). *(HYPOTHESIS)*
-- **A2** — fleet dashboard: healthy / stuck / behind / needs-auth at a glance. *(HYPOTHESIS)*
-- **A4** — MDM-native, offline-resilient deprovision ("no secret ever materialized"). *(HYPOTHESIS)*
-- **O1** — auto-suspend a security-shadowing override (never notify-and-hope).
-- **O2** — auditable, open-source, safer-than-manual always-on agent (the enterprise-adoption gate).
-- **O3** — parse-never-compute integrity (no second source of truth).
+**P0 jobs (must-have for the minimum lovable product):** B1 arrival without commitment · B2 informed authorization · B3 never asked what you cannot answer · B4 a stop you can interpret · B5 verified completion · B6 silence when fine · B7 one sentence when not · E1 see before create · E2 check before act · E3 stop cleanly and truthfully · E4 read-only proof before handover · E8 survives a security review · A1 change made once lands everywhere · A2 never clobbers personal work · A5 gates catch it first · A6 a rollback anyone can follow.
 
-**P1 Jobs (high-value, next tier):**
-- **B4** — route by actor-competence so Bob is asked only about his own data.
-- **B6** — break the generic-chat habit; make the solution-oriented partner the reflex.
-- **W2** — author in Obsidian with no technical release process.
-- **A3** — held-majors / policy conflicts go to IT centrally.
-- **A5** — content-free, tamper-evident audit trail on a live channel.
-- **O4** — PII-minimizing telemetry (personal names un-emittable).
-- **D1** — do-no-harm coexistence with the developer's direct CLI use.
+**P1 jobs (high-value, next tier):** B8 entitlement appears on its own · B9 recovery with dignity · B10 project aftercare routed by ownership · B11 reach the ecosystem without an intermediary · E5 add a department · E6 offboard someone · E7 point at a store, never distribute values · A3 author in markdown, not in Git · A4 a safe elevation route · A7 machine-to-machine parity.
 
-**P2 Jobs (nice to have, post-MLP):**
-- **B7** — clean, non-orphaning removal / uninstall.
+**P2 jobs (nice to have, post-MLP):** none are claimed. Every job in this document traces to something already built, already demanded by an incident, or already named as an open gap. A P2 list here would be speculation, and speculation is exactly what this rebuild exists to remove.
 
-**Total: 22 jobs across 5 user types (Bob 8, Ada 3, cross-cutting 1, Earl 5, Pablo 4, Rosa/Dwayne 1).**
+**Total: 26 jobs across 3 user types.**
 
-> **Warning:** 22 jobs is a lot, and the temptation is to weight every persona equally. Don't — and
-> keep **Bob-first primacy** even now that the author tier exists. The P0 jobs cluster into two spines
-> that share one boundary: **(1) the consumer spine** — *give Bob superpowers (B0) by provisioning him
-> silently (B1), keeping him healed and honestly-statused (B2/B3), and giving him a dignified recovery
-> (B5)*; and **(2) the author/propagation spine** — *let Ada publish once and have it land everywhere on
-> cadence without clobbering personal work (W1), resolve collisions invisibly (W3)*. Both spines are
-> policed by the **same leakage wall (X1)** and the escalation router (invariant #5). B1 + B3 + W1 are
-> the "if we could only ship three things" set; everything else is earned through adoption. Note the
-> asymmetry of evidence: the consumer spine is **GROUNDED**, the author spine is **MODEL-IN-HEAD**, and
-> the entire Admin tier is **HYPOTHESIS** — do not let downstream design over-trust the untested tiers.
-
----
+> **Warning: 26 jobs is a lot, and the product knows it.** The count is only defensible because sixteen of them are already shipped and evidenced rather than proposed. The **six** jobs that actually define the minimum lovable product are **B2, B4, B5, B6, B7, and A1** — informed authorization, an interpretable stop, verified completion, silence, one honest sentence, and a change that lands. If those six hold, everything else in this document is either a convenience or a consequence of them. If any one of them fails, the rest stop mattering, because they all sit on top of a person's willingness to leave the thing running.
 
 ## Job Ranking
 
-| Job | Importance | Frequency | Stakes if it goes wrong |
-|-----|------------|-----------|--------------------------|
-| **B0** (superpowers / democratization) | **Highest** — the soul | Every working moment | The whole product is pointless; Bob stays stuck in IT-approved software |
-| **B1** (onboard silently) | **Highest** — the entry gate to B0 | Once per employee (but every employee) | Adoption fails; the ecosystem stays CLI-shaped and unadoptable by non-technical staff |
-| **B3** (honest status) | Highest | Continuous (every glance) | **Worst outcome in the whole product:** Bob's detail-orientation catches a false green; the icon becomes a liar and a change-averse Bob is *gone for good* (`20-success-metrics.md`; A-C1/H7/H12) |
-| **X1** (leakage wall) | Highest | Every author/sync | Private personal info lands in a shared/public repo — Anxiety #2, the nightmare scenario; irreversible trust loss |
-| **W1** (publish → lands everywhere, breaks no one) | Highest (author) — the everyday hero | Whenever anyone authors | Author becomes the sync layer again; a publish clobbers a colleague's personal work (**MODEL-IN-HEAD**) |
-| **O1** (auto-suspend security shadow) | Highest | Rare but decisive | A shipped security fix silently defeated by a personal override + an unseen notification (the C3 class) |
-| **B5** (dignified recovery) | High | On any failure | A non-technical Bob hits a dead end with no path back — Anxiety #1; he abandons |
-| **W3** (invisible merge-conflict resolution) | High — trust make-or-break | Whenever two authors collide | A raw Git error a non-technical person can't act on; two colleagues' edits lost or stuck (**unsolved**) |
-| **B2** (self-heal) | High | Continuous (poll ~6h/1h/15m) | Machine drifts/falls behind silently; the "stays working on its own" promise dies |
-| **B6** (break the chat habit) | High | Every conversation | Bob defaults back to generic chat; the ecosystem is installed but unused |
-| **A2** (fleet observability) | High | Continuous (IT) | The named gap stays open — IT can't tell healthy from bricked (**HYPOTHESIS**) |
-| **A1** (Admin generator + preflight) | High | Once per org (gates the fleet) | Hand-craft error ships a broken fleet; a missing key mis-provisions every machine silently (**HYPOTHESIS**) |
-| **A4** (deprovision) | High | Rare, high-severity | A leaver's company content persists; "no secret materialized" guarantee breaks (**HYPOTHESIS**) |
-| **O2 / O3** (auditable, never-compute) | High (the moat) | Design-continuous | The always-on agent fails an enterprise security review; a second source of truth appears |
-| **B4 / A3** (route by competence) | Medium-High | Ongoing | Bob-notification fatigue burns the one alert that matters |
-
----
+| Job | Importance | Frequency | Stakes |
+|-----|-----------|-----------|--------|
+| **B6 — silence when nothing is wrong** | Highest. After day one it *is* the value proposition | Every day, invisibly | Existential. A false green ends the relationship permanently, and Bob is precisely the person who will catch it |
+| **B5 — verified completion** | Highest | Once per machine, and again after every repair | Existential, and proven: through v0.2.3 a GitHub repository or a hidden mirror counted as an installed layer, so a person could see a green Personal result with no visible folder anywhere on their disk (fixed in 0.2.4 under ADR-005) |
+| **A2 — never clobbers personal work** | Highest | Every propagation | Existential, and proven: 12,537 lines of organization content deleted in one commit, then pushed by a backup job |
+| **E8 — survives a security review** | Highest. It gates every other job | Once per organization | Existential for adoption. A no here means zero of the other jobs are ever exercised |
+| **B2 — informed authorization** | Highest | Once per machine, plus every subsequent structural change | Very high. This is the moment a person consents to an irreversible act on their own accounts |
+| **B4 — a stop you can interpret** | Highest | Every non-trivial setup. In the real live run **9 of 16 rows** landed on `review` on the first plan pass | Very high. Misread as failure, it turns never-destroy working correctly into "this tool is broken" |
+| **A1 — change made once lands everywhere** | Highest | Continuous, on cadence | High. This is the origin job; without it the product is a one-time installer |
+| **B7 — one sentence naming what and who** | High | Rare by design, and the rarity is the point | High. Every alert a person cannot act on burns down the credibility of the one that matters |
+| **E1 / E2 / E3 — see, check, stop cleanly** | High | Once per organization, plus every governance change | High. A half-created organization is worse than none, because it hides its own history |
+| **A6 — a rollback anyone can follow** | High | Rare, and catastrophic when needed | High. Every release since 0.2.1 ships an explicit rollback paragraph naming the prior signed DMG, under an immutable-tag rule |
+| **B10 — project aftercare** | Medium | Recurring, whenever a person picks a project back up | Medium. Handled badly it becomes a support queue; handled well it is the second reason to open the app |
+| **B8 — entitlement appears on its own** | Medium | Occasional | Low individually, high culturally — it makes access feel structural rather than political |
 
 ## Competing Solutions
 
-| Job | Current Solution (what they hire today) | What's Good | What's Bad | Why they haven't switched |
-|-----|------------------------------------------|-------------|------------|----------------------------|
-| **B0** (superpowers) | Generic chat apps (Claude app / ChatGPT / Gemini) | Familiar; zero setup; answers anything | *Only answers* — doesn't build, integrate, or persist; no company context; the HABIT to break | It's what everyone already reaches for; no solution-oriented alternative is on their machine |
-| **B1** (onboard) | A `./onboard.sh` shell script + a department prompt + reading `copilot update` output (`ecosystem-use-cases.md` UC1) | Works perfectly *for a developer* | Requires a terminal and judgment Bob doesn't have; **no non-technical path exists** | There is no alternative — the barrier *is* the CLI shape; nothing to switch *to* |
-| **W1** (publish → lands everywhere) | Pablo hand-carries every change between two machines; nothing propagates unless he remembers (`interview-self.md` Current Process) | Total control | "That shit gets exhausting"; doesn't scale past one diligent person; no cadence pull | The tool does not exist — Pablo *is* the sync layer (**MODEL-IN-HEAD** for >1 writer) |
-| **W3** (merge-conflict) | **Nothing non-technical** — raw `git merge`, which neither Bob nor Ada can do | Correct for a Git user | A Git conflict message a non-technical person cannot act on; edits lost or stuck | No invisible-resolution path exists; Pablo is *genuinely unsure what's possible* (open design problem) |
-| **X1** (leakage wall) | Human discipline — "just don't push personal stuff to the shared repo" | Costs nothing to *say* | One fat-finger and private personal info is in a public place, irreversibly; discipline is not a control | No boundary enforcement exists; the wall is entirely in the user's head today |
-| **B2 / B3** (stay current, know status) | Manual/cron `copilot update` + `copilot doctor` in a terminal | Deterministic, hardened, correct | Prunes + `security:` trailers swallowed by cron; output unreadable to Bob; no glanceable state (`architecture.md` §8.3; A-H9) | Same — the intelligence is CLI-shaped; Bob can't run it |
-| **A1** (org standup) | Hand-written `ecosystem.yml` + hand-created per-dept repos + hand-crafted `.mobileconfig` per MDM vendor (`architecture.md` §8.1) | Total control; nothing hidden | Error-prone, doesn't scale, a typo ships a 404; per-vendor rework | It's the only known way; the toil is accepted as the cost of adoption |
-| **A2** (fleet health) | **Nothing** — wait for the employee to call (`architecture.md` §9) | — | Can't tell a healthy Mac from a bricked one; false-Healthy hides drift | The tool does not exist |
-| **A4** (offboard) | `copilot deprovision <org>` run by hand, if the machine is online (`ecosystem-use-cases.md` C4/leaver) | Wipes materialized content when it runs | Contingent on a user-deletable app + an online machine; a motivated leaver defeats it (A-C4) | No MDM-native enforcement path exists yet |
-| **O1** (security propagation) | A `security:` trailer materializes the fix + a notification | The fix *materializes* | Bob's override still wins; the notification is never seen — "notifies but does not act" (A-C3) | The design *had* this gap; Control Tower's auto-suspend is the fix |
-| **O2** (enterprise trust) | "Trust us, it's automatic" — a closed always-on updater | Convenient | An un-auditable token-holding agent fails security review; the anxiety is unresolved (`00-vision.md` Forces / Anxiety) | Enterprises simply *won't* adopt an un-auditable always-on agent — the block is the whole problem |
+What people actually hire today instead of this. Each row is a real alternative, and each is genuinely *good at something* — which is exactly why it persists.
+
+| Job | Current Solution | What's Good | What's Bad |
+|-----|-----------------|-------------|-----------|
+| **A1 — get a change onto every machine** | **Manual per-project fan-out.** The author walks each project and each machine by hand, running the update, remembering which ones he has done | Total control. Nothing happens that the author did not personally do, so nothing can surprise him | It does not scale past one person, and it fails silently: a change made once does not land everywhere, because the human *is* the sync layer. Named as the owner's number-one pain. Nothing propagates unless someone remembers, and remembering is not a mechanism |
+| **A1 / A4 — share something useful** | **Copy-paste between repositories.** Copy the skill, agent, or command into the next project and move on | Immediate, zero setup, works with any tool | Every copy is a fork. The copies drift, nobody can say which is canonical, and a fix to one never reaches the others. It converts one shared asset into N diverging private ones |
+| **B1–B5 — get it working at all** | **A technical person does it for me.** A colleague sits at the machine, or screen-shares, and installs the ecosystem by hand | It genuinely works, and it needs no product at all | It does not scale, it makes the recipient permanently dependent, and mostly it never happens because nobody has the time. The resulting machine is also undocumented, so nobody can later say what state it is in. Before this product, Knowledge Copilot and CLI Copilot were effectively single-user inside the organization for exactly this reason |
+| **B11 — get an answer, or build a thing** | **A generic chat window** — the Claude app, ChatGPT, Gemini | One click away, always works, never needs setup, never breaks | It holds none of the organization's own knowledge, method, or integrations, and it cannot act on the person's real systems. This is the **Habit** force, and it is not laziness: the generic tool is one click away while the powerful one used to require a terminal. Control Tower's whole job on this axis is to make the powerful path the one that is already set up |
+| **B2 / B5 — know whether the machine is right** | **Ask the one person who could tell**, or find out when something breaks | Authoritative, when that person is available | It routes every question through a single human bottleneck, and it means the honest answer to "is my machine correct?" is usually "nobody has looked" |
+| **E1–E4 — stand an organization up** | **Hand-created repositories and hand-set access**, guided by a runbook | Fully understood by whoever does it, and adaptable mid-flight | Non-idempotent, unauditable afterwards, and impossible to resume safely from an interruption. The state of the organization lives in one person's memory of what they did |
+| **B8 — get a tool you are entitled to** | **File an IT ticket** | Legible, has an owner, leaves a record | The latency kills the impulse. By the time it lands, the reason for wanting it has passed — which is how organizations end up with people who stop asking |
+| **B9 — recover from a bad update** | **Improvise**, or wait for the person who knows | Sometimes fast | Undignified and unrepeatable. A non-technical person has no recovery path at all, which is Anxiety #1 and the direct reason every release names a rollback artifact |
+| **All of it** | **Do without.** Stay inside the software IT handed you | Zero risk, zero effort, zero blame | This is the real incumbent, and it wins by default. It is also the entire cost this product exists to remove: the superpowers are real, and almost nobody can reach them |
+
+### Why they have not switched already
+
+Read against those alternatives, the Moments forces explain the inertia precisely. **Push** is real but unevenly felt: the author feels it acutely and daily, while Bob feels only a vague sense of missing out, because you cannot miss what you have never been able to reach. **Pull** is strong but abstract until the person has actually seen the roster of what they get — which is why the "what you're getting" and "your connections" steps are load-bearing rather than decorative. **Anxiety** is the binding constraint, and it is specific rather than general: *what if it breaks and I cannot get back*, *what if my private material ends up somewhere public*, *what if it quietly destroys work I own* — the third of which is no longer hypothetical. **Habit** is the quiet killer: the generic chat window is one click away and always works.
+
+The practical consequence for design is that **anxiety must be answered structurally before pull is worth increasing.** Marketing the superpowers harder to a person who is afraid of losing control produces nothing at all. That is why the product spends so much of its surface on preflight, on named honest states, on rollback, and on refusing to say "nothing changed" without an empty ledger to back it — and why it spends none of that surface on celebration.
 
 ---
 
-## The One Primary Job (for downstream design)
-
-> **B0 — "When I'm handed the ecosystem as a non-technical employee, I want a technical person's AI
-> superpowers without understanding the layers underneath, so I can build, answer, and integrate what I
-> need — comfortable *and* excited."**
->
-> This is the reframe made concrete: the soul is **democratization**, and B0 is its job statement.
-> **B1** (silent provision) is the *entry gate* that first delivers it, and **B3** (honest status —
-> never lie that it's fine) is its *inseparable twin*, because a change-averse, detail-oriented Bob who
-> catches one false green never comes back. If we nail B0 through B1+B3, the rest can be merely good and
-> Control Tower still succeeds. Every other consumer job keeps B0's promise true *over time* (B2),
-> *dignified when it breaks* (B5), and *reflexive* (B6, breaking the generic-chat habit).
->
-> **Bob-first primacy holds** even with the new author tier. The author/propagation job **W1**
-> ("publish once → lands everywhere on cadence, breaking no one") is the *everyday-hero mechanism* and
-> ranks at the **top of the author spine** — but it exists to *feed* Bob's B0, not to displace it. Both
-> spines are policed by the same leakage wall **X1**. The Magic Moment (`00-vision.md`) is the delivery
-> of B0: one double-click → superpowers, no terminal, no config — and an authorized change made once
-> upstream simply *appears* on Bob's machine on the next cadence, without touching his personal work.
-
-<!-- TODO: confirm with Pablo — is Admin-mode standup (A1) co-primary with Bob's B0/B1, or strictly the
-     enabler of it? The docs frame Bob as *the* primary persona, but "two faces, one binary" puts A1 on
-     the critical path. This affects whether the first release leads with the Operator or Admin experience.
-     Note A1 is HYPOTHESIS — no real IT operator has touched it. -->
-<!-- TODO: confirm with Pablo — does the author spine (W1/W2/W3, Ada) belong in the *first* release, or
-     is v1 consumer-only (Bob reads a foundation Pablo still hand-authors) with the multi-writer tiers
-     deferred until the merge-conflict + credentials problems are solved? MODEL-IN-HEAD status argues
-     for deferral; the everyday-hero framing argues for inclusion. -->
-
----
-
-**Related:** [Journey Maps](20-journey-maps.md) | [Moments That Matter](40-moments-that-matter.md) | [Self-Interview](../01-research/10-interviews/01-interview-self.md)
+**Related:** [Journey Maps](20-journey-maps.md) | [Moments That Matter](40-moments-that-matter.md)

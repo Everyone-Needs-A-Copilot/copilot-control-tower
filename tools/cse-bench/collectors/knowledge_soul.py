@@ -1,7 +1,7 @@
 """collectors/knowledge_soul.py — Knowledge-SOUL collector (S-3 / TASK-109).
 
 Measures Knowledge Copilot against its OWN SOUL promise
-(``/Volumes/Dev/Sites/COPILOT/knowledge-copilot/SOUL.md``): never become a
+(``/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal/SOUL.md``): never become a
 stale content dump, a marketing-only narrative, or a place where
 contradictory product facts quietly coexist; quality bar "cross-linked
 where decisions depend"; anti-patterns "updating a product description

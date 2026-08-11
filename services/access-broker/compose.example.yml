@@ -1,0 +1,29 @@
+services:
+  access-broker:
+    build: .
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    volumes:
+      - broker-state:/var/lib/control-tower-access-broker
+      # These host files must be owned by uid/gid 10001 and mode 0400.
+      - ./secrets/broker-signing-key.pem:/run/secrets/broker-signing-key:ro
+      - ./secrets/broker-github-app-key.pem:/run/secrets/broker-github-app-key:ro
+    environment:
+      BROKER_SIGNING_KEY_FILE: /run/secrets/broker-signing-key
+      BROKER_GITHUB_PRIVATE_KEY_FILE: /run/secrets/broker-github-app-key
+      BROKER_DATABASE_PATH: /var/lib/control-tower-access-broker/events.sqlite3
+      BROKER_NONCE_TTL_SECONDS: "60"
+      BROKER_ASSERTION_TTL_SECONDS: "60"
+      BROKER_LOGIN_RATE_PER_MINUTE: "10"
+      BROKER_IP_RATE_PER_MINUTE: "30"
+    ports:
+      - 127.0.0.1:8080:8080
+
+volumes:
+  broker-state: {}

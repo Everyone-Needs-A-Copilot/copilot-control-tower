@@ -17,7 +17,7 @@
 #                      tauri.conf.json.
 #   CT_ENTITLEMENTS    Optional. Defaults to
 #                      packaging/entitlements/controltower.entitlements.plist
-#                      (this repo's locked-down, exception-free entitlements
+#                      (this repo's reviewed, least-privilege entitlements
 #                      — see that file's own comment).
 #
 # ## Inside-out signing order
@@ -30,17 +30,16 @@
 # frameworks/dylibs before the final top-level `codesign` call on the .app
 # itself.
 #
-# ## Re-signing in place with --force
+# ## Re-signing the release bundle
 #
 # `tauri build` (tauri.conf sets the signing identity) already signs the app
 # during bundling, so this script receives an already-signed bundle. It
-# re-signs with `--force` to apply the hardened runtime and this repo's
-# locked-down entitlements as the signature that actually ships. Signing is
+# replaces the build-time signature to apply the hardened runtime and this repo's
+# reviewed least-privilege entitlements as the signature that actually ships. Signing is
 # deliberately centralized here so the entitlements and runtime options are
-# the reviewed ones; `--force` here means "replace the build-time signature
-# with the release signature," not "skip verification" (the two banned flags,
-# --skip-verify and the trust-weakening --force-in-place variants, remain
-# absent; codesign --force only overwrites the existing signature).
+# the reviewed ones. The short `-f` codesign option means only "replace the
+# build-time signature with the release signature"; verification still runs
+# immediately afterward and has no escape hatch.
 #
 # Usage: sign.sh "/path/to/Copilot Control Tower.app"
 
@@ -68,9 +67,9 @@ fi
 
 echo "signing (inside-out) with identity: ${CT_SIGN_IDENTITY}"
 
-# Deepest first: nested frameworks, dylibs, and any embedded executables
-# (including the vendored `cc` — see S8/verify-vendored-cc.sh for why `cc`
-# itself is verified, never re-signed by us; this loop's globs intentionally
+# Deepest first: nested frameworks and dylibs. The vendored `cc` executable is
+# excluded — see S8/verify-vendored-cc.sh for why it is verified, never
+# re-signed by us; this loop's globs intentionally
 # exclude it. If `cc`'s own path ever needs touching that is a signing-
 # authority change, not a glob tweak).
 #
@@ -98,7 +97,7 @@ codesign --sign "${CT_SIGN_IDENTITY}" \
     --options runtime \
     --timestamp \
     --entitlements "${ENTITLEMENTS}" \
-    --force \
+    -f \
     "${APP_PATH}"
 
 codesign --verify --strict --deep --verbose=2 "${APP_PATH}"
