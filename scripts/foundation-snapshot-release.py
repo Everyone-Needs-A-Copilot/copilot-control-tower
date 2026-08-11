@@ -43,6 +43,13 @@ PRODUCT_LAYOUTS = {
         ("agents", "skills", "commands", "protocol", "cli-integrations"),
     ),
     "codex": (".", ("plugins",)),
+    # RC-3 remediation (2026-08-11): added so `cli-copilot`'s foundation
+    # release can be re-cut through this same fixed, ancestry-guarded path
+    # instead of whatever separate, unidentified process previously produced
+    # its own orphan tag (see rc-3-orphan-tag-remediation-plan.md). Mirrors
+    # `codex`'s shape: one top-level product directory holding the real
+    # shipped package, not a `.claude`-style multi-dimension split.
+    "cli": (".", ("copilot_cli",)),
 }
 
 
