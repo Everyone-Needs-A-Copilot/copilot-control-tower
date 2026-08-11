@@ -17,6 +17,11 @@
           "checksum": "sha256:3aae8768680faa7c235bcc6d026add6b0cde3ba6b178b06fd080505bd31a673d",
           "ownership": "framework",
           "path": ".claude/hooks/copilot-hook.sh"
+        },
+        {
+          "checksum": "sha256:b08f352fa5899fd296ea55366923d3f5a8ebf5f2b24429610dfe61048a2efd6b",
+          "ownership": "framework",
+          "path": ".claude/commands/protocol.md"
         }
       ],
       "managed_outputs": [
