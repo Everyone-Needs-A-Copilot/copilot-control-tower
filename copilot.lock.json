@@ -12,6 +12,11 @@
           "checksum": "sha256:ceb06af54f5a832acb74d3adde1b3f2bc2e51d9529255c9ee4d69481f981189f",
           "ownership": "framework",
           "path": ".claude/fitness-check.sh"
+        },
+        {
+          "checksum": "sha256:3aae8768680faa7c235bcc6d026add6b0cde3ba6b178b06fd080505bd31a673d",
+          "ownership": "framework",
+          "path": ".claude/hooks/copilot-hook.sh"
         }
       ],
       "managed_outputs": [
@@ -358,6 +363,49 @@
       ],
       "release_tag": "v0.6.1",
       "version": "0.6.1"
+    }
+  ],
+  "mutations": [
+    {
+      "applied_at": "2026-08-11T12:48:21Z",
+      "applied_by": "cc 2.12.7",
+      "component": "claude",
+      "entries": [
+        {
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/copilot-hook.sh\" session-start",
+          "event": "SessionStart",
+          "matcher": "startup|resume|clear|compact",
+          "spec_fingerprint": "sha256:c687c9337b4bbc2cb9c3798572651eb9e42424ae09331753c299551bb386c939"
+        },
+        {
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/copilot-hook.sh\" pretool-check",
+          "event": "PreToolUse",
+          "matcher": "Bash|Read|Edit|Write|Agent",
+          "spec_fingerprint": "sha256:05c9853fdbd38b7854193ec7f99e4b40acb45ff74f6f6cdcb9aa98ec18f7bf2b"
+        },
+        {
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/copilot-hook.sh\" subagent-stop",
+          "event": "SubagentStop",
+          "matcher": "me|qa",
+          "spec_fingerprint": "sha256:6a7fa12f6f4c4d1240f6ffc11b743b081d91fe5e0fd1fae76deb18d166fd55ea"
+        },
+        {
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/copilot-hook.sh\" user-prompt-submit",
+          "event": "UserPromptSubmit",
+          "matcher": "",
+          "spec_fingerprint": "sha256:61519132878bd33c06677b08f9430f6bdb9037c8932535d6b831388b950da27d"
+        }
+      ],
+      "id": "mut_55b1fc69",
+      "kind": "settings-hook",
+      "snapshot": {
+        "fingerprint_after": "sha256:2ecef1b66bbf73b70906bbc0383a180111957f68ad32e13163f4463130e02f47",
+        "fingerprint_before": "sha256:2ecef1b66bbf73b70906bbc0383a180111957f68ad32e13163f4463130e02f47",
+        "vault_ref": null
+      },
+      "source": "claude-copilot",
+      "target": ".claude/settings.json",
+      "target_existed_before": true
     }
   ],
   "schema_version": "1.0"
