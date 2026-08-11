@@ -1,10 +1,29 @@
 #!/usr/bin/env python3
-"""Create and verify a signed, orphan foundation release snapshot.
+"""Create and verify a signed foundation release tag.
+
+RC-3 root cause (fixed here): every prior release cut by this tool created a
+brand-new PARENTLESS commit via ``git commit-tree`` (no ``-p``) and tagged
+that instead of the branch tip. A commit with no parent can never satisfy
+``git merge-base --is-ancestor <tag> <branch>`` -- it is not reachable by
+walking backward from the branch at all, regardless of how "current" its
+content is. That produced 61+ real, published tags (`claude-copilot`,
+`codex-copilot`, `cli-copilot`'s release-cut path all shared this defect)
+whose pin-ancestry can never be proven, only their raw git-object validity.
+
+The fix: sign the release AT the real branch commit (``--source``, e.g.
+``HEAD`` while checked out on ``main``) with an annotated, signed tag. No new
+commit is fabricated, so there is nothing to be parentless -- the tag target
+is, by construction, whatever real commit ``--source`` already resolved to on
+the branch. An unconditional ancestry guard (``verify_ancestry``, RC-3) still
+re-proves this with ``git merge-base --is-ancestor`` before every tag is
+created, dry run or not, with no flag or environment variable able to skip
+it -- this ecosystem's CI gate is opt-in and has skipped every tagged release
+to date, so this tool refuses to depend on that gate firing.
 
 The default is a dry run in a temporary clone. ``--publish`` is the only
-operation that changes a remote: it pushes exactly one new signed tag and the
-orphan commit reachable from it. The source repository and working tree are
-never modified.
+operation that changes a remote: it pushes exactly one new signed tag
+pointing at the real, already-ancestor commit it was cut from. The source
+repository and working tree are never modified.
 """
 
 from __future__ import annotations
@@ -153,26 +172,82 @@ def configure_verification(
         ("gpg.format", "ssh"),
         ("user.signingkey", str(public_key)),
         ("gpg.ssh.allowedSignersFile", str(allowed_signers)),
-        ("commit.gpgsign", "true"),
     ):
         git(checkout, "config", key, value)
 
 
-def create_snapshot(
+def verify_ancestry(
+    source_repo: Path,
+    *,
+    commit: str,
+    branch: str,
+) -> str:
+    """Unconditional RC-3 guard: refuse to cut a release whose target commit
+    is not a real, provable ancestor of ``branch``. Runs on EVERY invocation
+    -- dry run or ``--publish`` -- with no flag or env var able to skip it,
+    BEFORE anything is cloned, checked out, or signed. This ecosystem's
+    other release gate (Control Tower's CI check) is ``if:
+    vars.RELEASE_CI_ENABLED == 'true'`` and has skipped every tagged release
+    to date, so the only gate this tool trusts to actually fire is one baked
+    directly into its own control flow.
+
+    Runs against ``source_repo`` directly, never a freshly cloned copy: a
+    `git clone` only transfers objects reachable from a ref, so a bad cut
+    (a `commit-tree` result with no parent and no ref pointing at it, e.g.
+    the exact shape `--source` would be pointed at by mistake) would simply
+    be ABSENT from a fresh clone rather than failing this check cleanly --
+    `rev-parse`/`merge-base` resolve any object already in the local object
+    database by SHA regardless of ref reachability, so this must run before
+    any clone is attempted.
+
+    Prefers ``origin/<branch>`` (what the remote actually has) and falls
+    back to a local ``<branch>`` (mirrors `stack.py`'s own
+    `_CANDIDATE_DEFAULT_BRANCH_REFS` convention) -- returns whichever
+    resolved, for evidence/logging.
+    """
+    for candidate in (f"origin/{branch}", branch):
+        resolved = git(
+            source_repo, "rev-parse", "--verify", f"{candidate}^{{commit}}", check=False
+        )
+        if resolved.returncode == 0:
+            branch_ref = candidate
+            break
+    else:
+        raise ReleaseError(
+            f"cannot verify ancestry: neither 'origin/{branch}' nor {branch!r} "
+            f"resolves in {source_repo} -- pass --branch with a real branch name "
+            "(default: main)"
+        )
+    ancestry = git(
+        source_repo, "merge-base", "--is-ancestor", commit, branch_ref, check=False
+    )
+    if ancestry.returncode != 0:
+        raise ReleaseError(
+            f"refusing to cut a release: {commit} is not an ancestor of "
+            f"{branch_ref} (git merge-base --is-ancestor {commit} "
+            f"{branch_ref} exited {ancestry.returncode}). This is RC-3's "
+            "exact defect -- a release-cut step that is not a real descendant "
+            "of the branch it claims -- refused before any tag was written."
+        )
+    return branch_ref
+
+
+def create_release_tag(
     checkout: Path,
     *,
     source_commit: str,
     tag: str,
 ) -> str:
-    tree = git(checkout, "rev-parse", f"{source_commit}^{{tree}}").stdout.strip()
-    snapshot = git(
-        checkout,
-        "commit-tree",
-        "-S",
-        "-m",
-        f"foundation snapshot {tag}",
-        tree,
-    ).stdout.strip()
+    """Sign ``source_commit`` -- a real commit already on the branch,
+    verified by ``verify_ancestry`` before this ever runs -- with an
+    annotated, signed tag. No new commit is created: the release tag's
+    target IS the branch commit it was cut from, so ``git rev-list --count
+    <tag>`` reflects the branch's real history and ``git merge-base
+    --is-ancestor <tag> <branch>`` succeeds by construction, not by
+    coincidence. (The prior implementation fabricated a brand-new parentless
+    commit with ``git commit-tree`` here -- that is RC-3's root cause; see
+    the module docstring.)
+    """
     git(
         checkout,
         "tag",
@@ -180,32 +255,41 @@ def create_snapshot(
         "-m",
         f"Foundation release {tag}",
         tag,
-        snapshot,
+        source_commit,
     )
-    git(checkout, "verify-commit", snapshot)
     git(checkout, "verify-tag", tag)
-    return snapshot
+    return source_commit
 
 
 def verify_item_provenance(
     checkout: Path,
     *,
-    snapshot: str,
+    release_commit: str,
     items: list[str],
 ) -> None:
+    """Confirm every declared executable item genuinely exists in the tree
+    the release tag points at.
+
+    Deliberately NOT a ``git log -1 -- item`` walk (the prior
+    implementation's technique): that relies on git's default pathspec
+    history simplification, which silently skips any commit whose diff for
+    a path is empty relative to its parent -- true of every path here,
+    always, since the release commit IS the source commit, not a
+    reconstructed copy of it. Walking history for "who last touched this"
+    is the right question for an ordinary, unsigned dev commit; it is the
+    wrong question for a release tag, where the only fact that matters is
+    "does the exact commit this signed tag points at contain this item" --
+    answered directly via the tree, with no dependency on git log's commit
+    simplification rules.
+    """
     for item in items:
-        last_commit = git(
-            checkout,
-            "log",
-            "-1",
-            "--format=%H",
-            snapshot,
-            "--",
-            item,
-        ).stdout.strip()
-        if last_commit != snapshot:
+        exists = git(
+            checkout, "cat-file", "-e", f"{release_commit}:{item}", check=False
+        )
+        if exists.returncode != 0:
             raise ReleaseError(
-                f"{item} resolves to {last_commit or 'no commit'}, not the signed snapshot"
+                f"{item} does not exist in {release_commit}'s tree -- the tag "
+                "target is missing declared executable content"
             )
 
 
@@ -214,7 +298,7 @@ def publish_tag(
     *,
     remote: str,
     tag: str,
-    snapshot: str,
+    release_commit: str,
 ) -> None:
     existing = run(
         ["git", "ls-remote", "--tags", remote, f"refs/tags/{tag}"],
@@ -229,19 +313,30 @@ def publish_tag(
     peeled = run(
         ["git", "ls-remote", "--tags", remote, f"refs/tags/{tag}^{{}}"],
     ).stdout.split()
-    if not peeled or peeled[0] != snapshot:
-        raise ReleaseError("remote tag did not peel to the verified snapshot commit")
+    if not peeled or peeled[0] != release_commit:
+        raise ReleaseError("remote tag did not peel to the verified release commit")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Create a signed orphan snapshot so every executable item is "
-            "last-touched by one verified foundation release commit."
+            "Sign an existing branch commit as a foundation release tag -- "
+            "never a reconstructed, parentless commit -- and refuse to cut "
+            "it at all unless it is a provable ancestor of the branch "
+            "(RC-3)."
         )
     )
     parser.add_argument("--repo", type=Path, required=True)
     parser.add_argument("--source", default="HEAD")
+    parser.add_argument(
+        "--branch",
+        default="main",
+        help=(
+            "The branch this release must be a real, provable ancestor of "
+            "(RC-3 guard; checked as origin/<branch> in a fresh clone). "
+            "Default: main."
+        ),
+    )
     parser.add_argument("--tag", required=True)
     parser.add_argument("--product", choices=sorted(PRODUCT_LAYOUTS), required=True)
     parser.add_argument(
@@ -271,6 +366,13 @@ def main() -> int:
         if not remote:
             raise ReleaseError("source repository has no origin remote")
 
+        # RC-3 guard: unconditional, runs before anything is cloned, checked
+        # out, or signed -- on every invocation, dry run or not. Nothing in
+        # this tool can bypass it.
+        resolved_branch = verify_ancestry(
+            source_repo, commit=source_commit, branch=args.branch
+        )
+
         with tempfile.TemporaryDirectory(prefix="foundation-snapshot-") as raw_temp:
             temp_root = Path(raw_temp)
             checkout = temp_root / "checkout"
@@ -293,14 +395,14 @@ def main() -> int:
                 source_repo=source_repo,
             )
             items = executable_items(checkout, args.product)
-            snapshot = create_snapshot(
+            release_commit = create_release_tag(
                 checkout,
                 source_commit=source_commit,
                 tag=args.tag,
             )
             verify_item_provenance(
                 checkout,
-                snapshot=snapshot,
+                release_commit=release_commit,
                 items=items,
             )
             if args.publish:
@@ -308,18 +410,20 @@ def main() -> int:
                     checkout,
                     remote=remote,
                     tag=args.tag,
-                    snapshot=snapshot,
+                    release_commit=release_commit,
                 )
 
         result = {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "product": args.product,
             "tag": args.tag,
+            "branch": args.branch,
+            "ancestry_branch_ref": resolved_branch,
             "source_commit": source_commit,
-            "snapshot_commit": snapshot,
+            "release_commit": release_commit,
             "signer_fingerprint": fingerprint,
             "executable_items_verified": len(items),
-            "commit_signature": "verified",
+            "ancestry_verified": True,
             "tag_signature": "verified",
             "published": bool(args.publish),
             "remote": remote,
@@ -330,7 +434,7 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "schema_version": "1.0",
+                    "schema_version": "1.1",
                     "error": {
                         "code": "foundation-release-refused",
                         "message": str(exc),
