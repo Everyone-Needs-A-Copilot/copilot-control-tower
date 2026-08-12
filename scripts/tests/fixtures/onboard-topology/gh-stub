@@ -1,0 +1,76 @@
+#!/bin/bash
+# Deterministic `gh` stub for scripts/tests/test_packaged_cc_topology_contract.sh
+# (task 209). Implements ONLY the exact `gh api` endpoints the real cc
+# helper's `onboard --org ... --json` ecosystem transaction calls on its way
+# to computing the topology report in read-only plan mode:
+#   gh api user --jq .login
+#   gh api repos/<org>/<product>-copilot-internal/contents/ecosystem.yml
+#   gh api orgs/<org>/teams/<unit>/memberships/<owner>
+#   gh api repos/<owner>/<name>                       (repo existence probe)
+# Every repo-existence probe always answers "missing" (HTTP 404) -- this
+# fixture's topology rows are proven entirely by the LOCAL Git history
+# classifier (see fake-ssh, alongside this script), never by GitHub-reported
+# remote_state/visibility, so a uniform 404 keeps the stub minimal without
+# weakening any assertion this gate makes. Any call outside this closed set
+# fails loudly (exit 9) so a future onboard.py change that adds a new GitHub
+# call is caught immediately instead of silently returning stale/blank data.
+set -uo pipefail
+
+: "${STUB_GH_OWNER:?STUB_GH_OWNER must be set}"
+: "${STUB_GH_ORG:?STUB_GH_ORG must be set}"
+: "${STUB_GH_HANDOFF_B64_FILE:?STUB_GH_HANDOFF_B64_FILE must be set}"
+: "${STUB_GH_DEPARTMENT_UNIT:?STUB_GH_DEPARTMENT_UNIT must be set}"
+
+if [[ "${1:-}" != "api" ]]; then
+    echo "stub gh: unsupported subcommand '${1:-}'" >&2
+    exit 2
+fi
+shift
+
+endpoint=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --jq|-q) shift 2 ;;
+        --paginate) shift ;;
+        -X) shift 2 ;;
+        -f|-F) shift 2 ;;
+        -*) shift ;;
+        *) endpoint="$1"; shift ;;
+    esac
+done
+
+if [[ "${endpoint}" == "user" ]]; then
+    printf '%s\n' "${STUB_GH_OWNER}"
+    exit 0
+fi
+
+if [[ "${endpoint}" =~ ^repos/([^/]+)/([^/]+)/contents/ecosystem\.yml$ ]]; then
+    repo="${BASH_REMATCH[2]}"
+    if [[ "${repo}" == *-copilot-internal ]]; then
+        printf '{"content": "%s"}\n' "$(cat "${STUB_GH_HANDOFF_B64_FILE}")"
+        exit 0
+    fi
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+fi
+
+if [[ "${endpoint}" =~ ^orgs/([^/]+)/teams/([^/]+)/memberships/([^/]+)$ ]]; then
+    org="${BASH_REMATCH[1]}"; unit="${BASH_REMATCH[2]}"; user="${BASH_REMATCH[3]}"
+    if [[ "${org}" == "${STUB_GH_ORG}" && "${unit}" == "${STUB_GH_DEPARTMENT_UNIT}" && "${user}" == "${STUB_GH_OWNER}" ]]; then
+        echo '{"state":"active"}'
+        exit 0
+    fi
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+fi
+
+# repos/<owner>/<name> -- exactly two path segments. Covers both the
+# personal-package existence probe and the topology remote-state probe.
+# Always "missing"; see module docstring above for why that is sufficient.
+if [[ "${endpoint}" =~ ^repos/[^/]+/[^/]+$ ]]; then
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+fi
+
+echo "stub gh: unhandled endpoint '${endpoint}'" >&2
+exit 9

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Mock `cc` for admin_bootstrap.sh tests.
+#
+# The only thing admin_bootstrap.sh calls on `cc` is
+# `cc config set github_app.org <name>` (_ensure_local_org_pointer, the local
+# sign-in pointer step). This mock records every invocation to CC_MOCK_LOG
+# (when set) and always succeeds, so no test run through this harness ever
+# touches the real `cc` binary or its real, per-machine config file — the
+# same discipline `fixtures/bin/gh` already applies to every `gh` call, and
+# for the same reason: this machine's real `cc` is a genuinely installed
+# tool with real, persistent config, not something a test may ever mutate.
+
+set -uo pipefail
+
+if [[ -n "${CC_MOCK_LOG:-}" ]]; then
+  printf '%s\n' "$*" >> "$CC_MOCK_LOG"
+fi
+
+# Optional, file-backed statefulness (reuses the same GH_MOCK_STATE_DIR the
+# gh mock already uses, so one test state dir covers both) so a test can
+# exercise `_ensure_local_org_pointer`'s get-before-set idempotency. Falls
+# back to fully stateless — every `get` reports unset, every `set` just
+# succeeds — when no state dir is given, which is fine for any test that
+# doesn't care about repeat-run behavior.
+state_file=""
+if [[ -n "${GH_MOCK_STATE_DIR:-}" ]]; then
+  state_file="$GH_MOCK_STATE_DIR/cc_config_github_app_org"
+fi
+
+if [[ "${1:-}" == "config" && "${2:-}" == "get" && "${3:-}" == "github_app.org" ]]; then
+  if [[ -n "$state_file" && -f "$state_file" ]]; then
+    cat "$state_file"
+    exit 0
+  fi
+  exit 1
+fi
+
+if [[ "${1:-}" == "config" && "${2:-}" == "set" && "${3:-}" == "github_app.org" ]]; then
+  [[ -n "$state_file" ]] && printf '%s' "${4:-}" > "$state_file"
+  exit 0
+fi
+
+echo "mock cc: unsupported invocation '$*'" >&2
+exit 1

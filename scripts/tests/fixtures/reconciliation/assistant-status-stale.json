@@ -1,0 +1,27 @@
+{
+  "schema_version": "2.0",
+  "phase": "assistant-status",
+  "result": "running",
+  "run_id": "run_55555555555555555555555555555555",
+  "generated_at": "2026-08-04T18:04:00Z",
+  "session_id": "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "proposal_id": null,
+  "selected_projects": [
+    "/Projects/Team; literal/One"
+  ],
+  "progress": {
+    "stage": "claude-code-running",
+    "liveness": "stale",
+    "detail": "Claude Code is still marked as running, but Python has not recorded a recent heartbeat.",
+    "started_at": "2026-08-04T18:00:00Z",
+    "last_activity_at": "2026-08-04T18:03:30Z",
+    "elapsed_seconds": 240,
+    "selected_project_count": 1,
+    "candidate_group_count": 1,
+    "candidate_count": 2
+  },
+  "detail": "Claude Code activity has not been confirmed recently.",
+  "next_actions": [
+    "Keep checking or stop safely and start again."
+  ]
+}

@@ -1,0 +1,423 @@
+# Publisher release runbook
+
+This is the release-owner path for producing a macOS artifact that Gatekeeper
+can trust. It is intentionally separate from the Admin/IT standup path in
+`../06-deployment/standup-runbook.md`:
+the publisher signs and notarizes the app; an administrator deploys an
+already-built artifact plus org policy.
+
+## Repo boundary
+
+Admin mode is part of this repository because it is part of the Control Tower
+product: the same open-source app that supervises `cc` also gives IT a guided
+standup, seed generation, repo/team-grant scaffolding, and preflight surface.
+
+Publisher setup also lives in this repository, but only as release-owner
+tooling under `scripts/` and `docs/07-contributing/`. It is not a customer
+feature, not an Admin-mode window, and not part of the normal app surface.
+Keeping it here lets the publisher UI stay close to the signing scripts and CI
+workflow without creating a separate product or giving fleet administrators
+release-signing authority.
+
+For the full role split and handoff, see
+`../10-reference/publisher-admin-experience.md`.
+
+## Publisher vs. administrator
+
+The **publisher** controls release-signing authority:
+
+- Apple Developer ID Application certificate.
+- Apple notarization credential.
+- Release workflow secrets.
+- Update-manifest signing keys, once production two-of-N custody is assigned.
+
+The **administrator** controls fleet configuration:
+
+- `ecosystem.yml` seed and repo/access scaffolding.
+- GitHub team grants that gate repo access (the entitlement spine).
+- `AdminContact`, update feed, telemetry collector, and rollout scope.
+
+The same person may wear both hats while dogfooding, but the credentials must
+not blur. An admin may need to know the publisher's Team ID to reference in the
+org's signed inherited config; the admin should never need the publisher's
+Developer ID private key or notarization credential.
+
+## 1. Create the Developer ID Application certificate
+
+Use Apple's official Developer ID certificate flow:
+
+- Apple account help: <https://developer.apple.com/help/account/certificates/create-developer-id-certificates/>
+- CSR help: <https://developer.apple.com/help/account/certificates/create-a-certificate-signing-request/>
+
+In Keychain Access:
+
+1. Open **Keychain Access** from `/Applications/Utilities`.
+2. Choose **Keychain Access > Certificate Assistant > Request a Certificate
+   From a Certificate Authority**.
+3. Enter the Apple Developer account email.
+4. Use a clear common name, for example `the owner Developer ID Application`.
+5. Leave the CA Email Address field empty.
+6. Choose **Saved to disk**.
+7. Save the `.certSigningRequest` file.
+
+In Apple Developer:
+
+1. Go to **Certificates, Identifiers & Profiles > Certificates**.
+2. Create a new **Developer ID** certificate.
+3. Choose **Developer ID Application** for this app.
+4. When asked for the Developer ID certificate intermediary, choose
+   **G2 Sub-CA (Xcode 11.4.1 or later)**.
+5. Upload the `.certSigningRequest` file.
+6. Download the generated `.cer`.
+7. Double-click the `.cer` to install it into the login keychain.
+
+Do not choose **Previous Sub-CA** for a new Control Tower release path. Apple's
+PKI page lists Developer ID G1 as the older intermediate and Developer ID G2 as
+the current longer-lived intermediate:
+<https://www.apple.com/certificateauthority/>.
+
+## 2. Install the G2 intermediate if needed
+
+If the new certificate appears as untrusted in Keychain Access, install Apple's
+**Developer ID - G2** intermediate from:
+
+<https://www.apple.com/certificateauthority/>
+
+After installing the intermediate, leave certificate trust settings at **Use
+System Defaults**. Do not fix trust by setting the app certificate to **Always
+Trust**; that masks a chain problem instead of proving the local signing path
+is correct.
+
+In **Keychain Access > login > My Certificates**, the Developer ID Application
+certificate must show a disclosure arrow with a private key underneath it. If
+there is no private key, the certificate cannot sign releases on this Mac; the
+CSR was generated from a different keychain/private key than the installed
+certificate.
+
+Verify macOS sees a usable signing identity:
+
+```bash
+security find-identity -v -p codesigning | grep "Developer ID Application"
+```
+
+Save the quoted identity string. It should look like:
+
+```text
+Developer ID Application: Your Name (TEAMID)
+```
+
+## 3. Publisher setup checklist
+
+Complete this checklist before opening **Publisher Setup.app**. The app is
+intentionally small: it configures this repo once the Apple-side material
+already exists; it does not create Apple account credentials for you.
+
+- **Apple Developer membership is active.** The Team ID is visible in Apple
+  Developer account membership details.
+- **Developer ID Application certificate is installed and trusted.** Use the
+  G2 Sub-CA certificate, install Apple's **Developer ID - G2** intermediate if
+  Keychain shows the cert as untrusted, and confirm the certificate has a
+  private key under it in **Keychain Access > login > My Certificates**.
+- **The signing identity is visible to macOS.**
+
+  ```bash
+  security find-identity -v -p codesigning | grep "Developer ID Application"
+  ```
+
+- **You know which Apple ID owns notarization for this Team ID.** This is the
+  Apple Developer account email, not something stored in the Developer ID cert.
+  The certificate exposes the Team ID and name; it does not expose the Apple ID
+  email.
+- **You have generated an Apple app-specific password from Apple.** Do not use
+  your normal Apple ID password. Do not use a new password invented by a
+  password manager. `notarytool` needs a password that Apple generated and
+  registered for your account.
+
+  Create it at <https://account.apple.com>:
+
+  1. Sign in with the Apple Developer Apple ID for this Team ID.
+  2. Open **Sign-In and Security**.
+  3. Open **App-Specific Passwords**.
+  4. Generate a password named something like `Control Tower Notary`.
+  5. Keep the generated value available only long enough to paste it into
+     **Publisher Setup.app**.
+
+  Apple documents app-specific passwords here:
+  <https://support.apple.com/en-us/102654>
+
+After this checklist, continue to the setup app.
+
+## 4. Bootstrap this repo's publisher environment
+
+Once the certificate is installed and trusted, use the publisher setup UI
+instead of hand-writing local env. From Finder, double-click the repo-local app
+bundle:
+
+```text
+Publisher Setup.app
+```
+
+Or launch the same UI from Terminal without Terminal owning the form input:
+
+```bash
+open "Publisher Setup.app"
+```
+
+The UI:
+
+- opens with a prerequisite checklist
+- provides **Learn More** detail screens for Apple Developer membership,
+  Developer ID certificates, the Developer ID - G2 intermediate, and
+  app-specific passwords
+- detects the installed `Developer ID Application` identity
+- extracts the Team ID from the identity
+- stores a `ct-notary` Keychain profile through `xcrun notarytool`
+- writes `.env.release.local` with mode `600`
+- avoids accepting the app-specific password as a shell argument
+- clears the app-specific password from the form after setup
+- replaces the form with a success screen that can run build/sign/notarize
+  directly
+- shows publishing progress and keeps a copyable log
+- ends on an Admin handoff screen once the signed/notarized artifact exists
+- replaces the form with a failure screen that provides copyable details and
+  recovery actions
+
+The app wrapper compiles the SwiftUI utility into `.copilot/publisher-setup/`
+and runs that local binary. `.copilot/` is ignored by git. The older
+`scripts/publisher-setup.command` fallback remains available, but double-clicking
+`.command` files opens Terminal on macOS; prefer the `.app` bundle for normal
+publisher setup.
+
+The shell bootstrap remains as a fallback for headless or CI-like local use:
+
+```bash
+./scripts/setup-publisher.sh --apple-id "you@example.com"
+```
+
+The fallback script:
+
+- detects the installed `Developer ID Application` identity
+- extracts the Team ID from the identity
+- stores a `ct-notary` Keychain profile through `xcrun notarytool`
+- writes `.env.release.local` with mode `600`
+- avoids accepting the app-specific password as a command-line argument
+
+If multiple Developer ID Application identities exist, the script asks which
+one to use. If the notary profile already exists and only the env file needs
+to be refreshed, run:
+
+```bash
+./scripts/setup-publisher.sh --skip-notary --force
+```
+
+Leave the generated file on disk; do not source it. The verified inner release
+launcher reads it after authenticating immutable source.
+
+The manual steps below are here as a fallback and to document what the script
+does.
+
+## 5. Store the notarization credential manually
+
+For a local publisher machine, prefer a Keychain profile so no Apple password
+or API private key is written into this repo:
+
+```bash
+xcrun notarytool store-credentials "ct-notary" \
+  --apple-id "you@example.com" \
+  --team-id "TEAMID" \
+  --password "app-specific-password"
+```
+
+The `--password` value above must be the Apple-generated app-specific password
+from the checklist, not the normal Apple ID password and not a password-manager
+generated random string.
+
+For CI, use App Store Connect API-key secrets instead of a local keychain
+profile. The existing release workflow expects:
+
+- `APPLE_NOTARY_KEY_ID`
+- `APPLE_NOTARY_KEY_ISSUER`
+- `APPLE_NOTARY_KEY` (the `.p8` contents; the workflow materializes an
+  owner-only temporary file)
+
+Apple's current notarization tooling is `notarytool`; see:
+<https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool>
+
+### Credential troubleshooting
+
+If a probe reports the `ct-notary` profile missing, that is not by itself
+evidence the profile is gone. Unless `store-credentials` was given an explicit
+`--keychain`, Apple stores the profile in the macOS **Data Protection
+Keychain**. It is not necessarily visible to `security find-generic-password`
+queries against `login.keychain-db`; Apple documents this boundary in
+[TN3147](https://developer.apple.com/documentation/technotes/tn3147-migrating-to-the-latest-notarization-tool).
+
+A stored profile is not consumed by notarization. Diagnose it with
+`notarytool`, not by searching the file-based login keychain:
+
+1. Run `xcrun notarytool history --keychain-profile ct-notary --output-format json`.
+2. If it reports `No Keychain password item found`, retry it three times. Treat
+   those failures as **profile unavailable to this process**, not deletion.
+3. If all retries fail, run the same command from a fresh Terminal session as
+   the logged-in release owner. A Terminal opened programmatically by the
+   failing automation is supporting evidence, not an independent user-context
+   check.
+4. If any later probe succeeds, the profile exists and is usable. Continue the
+   release; do not ask the owner for credentials or rerun Publisher Setup.
+5. Only repeated failures from the logged-in user context, with no subsequent
+   successful `notarytool` probe, justify treating the profile as unavailable.
+   A remote authentication rejection such as HTTP 401 is a separate condition:
+   report that Apple rejected the credential, not that the Keychain item is
+   missing.
+
+Never ask the owner to generate a new Apple app-specific password, re-run
+Publisher Setup, or re-store `ct-notary` on the strength of a local lookup
+failure. Release scripts must preflight before expensive work and retry only
+transient Keychain lookup failures; they must never bypass notarization or
+verification. See `AGENTS.md` and `CLAUDE.md` for the same standing rule.
+
+## 6. Create a local-only release environment file manually
+
+This repo intentionally does not commit release credentials. `.gitignore`
+excludes `.env` and `.env.*`, so a local release file may exist without being
+tracked.
+
+Create `.env.release.local`:
+
+```bash
+export CT_SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)'
+export APPLE_SIGNING_IDENTITY="$CT_SIGN_IDENTITY"
+export CT_NOTARY_KEYCHAIN_PROFILE='ct-notary'
+export CT_VENDORED_CC_PATH='/absolute/path/to/the/verified/cc'
+```
+
+Protect it:
+
+```bash
+chmod 600 .env.release.local
+```
+
+Do not source this file into the public packaging command. The verified inner
+launcher reads it only after immutable-source authentication.
+
+Do not commit `.env.release.local`, `.p12` files, `.p8` files, app-specific
+passwords, or certificate export passwords.
+
+## 7. Build, sign, notarize, and staple locally
+
+After Publisher Setup creates the local env file and notary profile, use the
+app's **Build, Sign, and Notarize** button. The app runs the same release
+commands below, shows progress, and keeps a copyable log for failures or
+release notes.
+
+Use the terminal commands only as a fallback for debugging or headless
+publisher machines.
+
+The release command packages the native Swift User app and builds an exact
+pushed branch or tag from a config-null bare Git store materialized without a
+`.git` directory. Before any signing work, it verifies that the helper named by
+`CT_VENDORED_CC_PATH` matches its pinned
+checksum, is a signed universal Mach-O with matching upstream Apple
+notarization evidence, satisfies `controltower.compat.json`, and is not a
+development placeholder:
+
+```bash
+./scripts/package-user-release --source-ref main
+```
+
+The public command is a credential-free bootstrap. Do not `source` the local
+release file into its environment. It accepts only a source ref and output
+intent, resolves that ref through config-free Git, fetches only that ref into a
+private bare object store, materializes regular source files without repository
+metadata, and recompiles the launcher as an identity check. Only
+the verified inner launcher reads `.env.release.local` from the original
+publisher checkout and exposes those values to the immutable release program.
+Pass a branch or tag explicitly when needed:
+
+```bash
+./scripts/package-user-release --source-ref app-build
+```
+
+It invokes the repo's signing and notarization scripts, which read the
+environment and never hardcode credentials:
+
+- [`../../scripts/sign.sh`](../../scripts/sign.sh)
+- [`../../scripts/notarize.sh`](../../scripts/notarize.sh)
+
+The pipeline embeds that independently signed helper at
+`Contents/Resources/cc` without re-signing it, builds with ad-hoc signing
+disabled, applies the Developer ID signature to the outer app, creates the
+drag-install DMG, notarizes and staples the app and DMG, validates both tickets,
+runs Gatekeeper assessment, and emits a SHA-256 sidecar plus
+`release-metadata.json` (including the exact approved source ref, commit, tree,
+and the helper version and SHA-256), the
+compatibility matrix, and the upstream helper notarization record under
+`dist/user-release/`.
+
+Before notarization, the same command runs the final app binary's production
+Detect seam without displaying the menu bar item or wizard:
+
+```bash
+./scripts/headless-detect.sh \
+  --app "build/Copilot Control Tower.app"
+
+./scripts/headless-setup-transaction.sh \
+  --app "build/Copilot Control Tower.app"
+```
+
+The runner preserves the signed-in user session, substitutes Finder's `PATH`,
+calls `--headless-detect`, and requires successful typed responses from every
+production call made by Detect: `auth status`, `doctor`, and the read-only
+two-product onboarding plan, including an actual `layer-manifest` inspection.
+A blocked user-state result remains honest JSON; an unreadable response or a
+broken app/helper contract blocks the release.
+
+The setup-transaction runner uses the inert fixture helper, not the bundled
+real helper. It exercises the production `WizardModel`'s Set up -> Verify
+tail, requires the exact two-product `--apply` argv, and requires the separate
+verify-time doctor call. This proves app orchestration and decoding without
+changing the publisher's or user's setup.
+
+The result is a publisher-produced artifact suitable for admin/fleet testing.
+It is not, by itself, a complete `stable` self-update promotion until the
+update-manifest signing custody decision is resolved.
+
+The pipeline's last gate mounts the final DMG only long enough to copy its app
+to a private temporary install directory, then detaches the image before it
+executes the embedded helper or inspects the copied app. Never execute the app
+or `Contents/Resources/cc` directly from a mounted DMG: macOS treats the image
+as a removable volume and may repeatedly ask for Files and Folders access. Run
+the same safe verification independently with:
+
+```bash
+./scripts/verify-user-install-artifact.sh \
+  --release-dir dist/user-release
+```
+
+Native smoke SELFTESTs likewise run before any status item or window is
+created. Visual-test builds remain the explicit path for screenshots; routine
+QA must not steal focus by flashing the User or Admin window for each scenario.
+
+## 8. CI and publication boundary
+
+This public source repository intentionally has no secret-bearing release
+workflow. CI runs source and invariant checks only. Candidate creation uses the
+compiled credential-free local bootstrap: the outer process resolves and
+materializes an anonymously readable immutable ref without release authority;
+only verified inner code may read the publisher's local signing identity and
+Keychain-backed notarization profile. Publishing a GitHub release is a later,
+explicit owner action and is never implied by a successful candidate build.
+
+## 9. Stable-promotion caveat
+
+Developer ID signing and Apple notarization prove that this Team ID built the
+app and that Apple accepted the submitted artifact. Control Tower's self-update
+path adds a second release-trust gate: the update manifest must be signed by
+the compiled-in update-signing roots.
+
+Production two-of-N custody is documented separately in
+`../06-deployment/two-of-n-custody-runbook.md`
+and [`../05-security/signing-custody.md`](../05-security/signing-custody.md).
+Until real production keys and custodians are assigned, treat local
+signing/notarization as "artifact is ready for admin validation," not "stable
+self-update promotion is fully operational."

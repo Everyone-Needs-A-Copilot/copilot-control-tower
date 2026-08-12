@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  M4 Stream-D / S6 — crash-only watchdog LaunchAgent (ADR-M4-001, Case Law
+  SOUL.md line 147/408, CLAUDE.md invariant #2).
+
+  This is a TEMPLATE checked into the repo, not the installed plist. The two
+  `__HOME__` placeholders and `__APP_PATH__` are substituted by
+  `install-watchdog.sh` at install time (never hand-edited in place) — see
+  that script for why (`~` is not expanded by launchd inside a plist value).
+
+  THE INVARIANT THIS FILE ENCODES (FF-M4-1, CI-enforced by
+  `src-tauri/tests/fitness_watchdog_plist.rs`):
+
+    KeepAlive MUST be a dict containing exactly `SuccessfulExit=false`.
+    A bare `<true/>` here is BANNED — it restarts the app unconditionally,
+    including after an intentional Quit, and crash-loops a bad build
+    (`architecture.md` §3, `redteam-platform.md` C2). This LaunchAgent is
+    the watchdog itself (launchd) — CLAUDE.md invariant #2 forbids a SECOND
+    resident process/daemon; nothing here spawns one. RunAtLoad is
+    deliberately `false`: login-launch is `SMAppService`'s job
+    (design-distribution.md §2), so this plist governs crash-relaunch only.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.everyoneneedsacopilot.controltower</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__APP_PATH__/Contents/MacOS/Copilot Control Tower</string>
+    </array>
+
+    <!-- Lets the native process distinguish a launchd-owned instance from a
+         manual Finder launch. The marker grants no authority and carries no
+         user-controlled path or configuration. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>CT_WATCHDOG_MANAGED</key>
+        <string>1</string>
+    </dict>
+
+    <!-- Crash-only: relaunch on a non-zero exit, never on a clean (zero)
+         exit. See the file-level comment and FF-M4-1. -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Login-launch persistence is owned by SMAppService, not this
+         LaunchAgent (single mechanism per job — architecture.md §3). -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- OS-level backoff floor against a crash storm (10s is launchd's
+         practical minimum). The app-level launch-failure circuit breaker
+         (N non-zero exits in a window -> stop relaunching, surface
+         "reinstall") is the second, smarter layer above this one and lives
+         in app code, not here — this plist cannot express a counting
+         circuit breaker, only a fixed interval. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <!-- Per-user only (invariant: "per-user, not per-machine" —
+         architecture.md §8.3). Installed under gui/$UID via
+         `launchctl bootstrap`, never a system/root LaunchDaemon. -->
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/CopilotControlTower/watchdog.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/CopilotControlTower/watchdog.err.log</string>
+</dict>
+</plist>

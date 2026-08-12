@@ -1,0 +1,512 @@
+#!/usr/bin/env bash
+# Mock `gh` for admin_bootstrap.sh tests.
+#
+# Records every invocation (verbatim, one line, unit-separator joined) to
+# GH_MOCK_LOG, and serves canned/stateful JSON from GH_MOCK_STATE_DIR so the
+# test harness can simulate a standing (or fresh) GitHub org without any
+# network access. Only the `gh api` subcommand is implemented, because that
+# is the only one admin_bootstrap.sh calls.
+
+set -uo pipefail
+
+: "${GH_MOCK_LOG:?GH_MOCK_LOG must be set}"
+: "${GH_MOCK_STATE_DIR:?GH_MOCK_STATE_DIR must be set}"
+
+ST="$GH_MOCK_STATE_DIR"
+mkdir -p "$ST"
+
+# --- parse args --------------------------------------------------------------
+if [[ "${1:-}" != "api" ]]; then
+  echo "mock gh: unsupported subcommand '${1:-}'" >&2
+  exit 1
+fi
+shift
+
+method=""
+endpoint=""
+fields=()
+jq_expr=""
+include_headers=false
+has_input=false
+input_body=""
+paginate=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -X|--method) method="$2"; shift 2 ;;
+    -f|--raw-field|-F|--field) fields+=("$2"); shift 2 ;;
+    -q|--jq) jq_expr="$2"; shift 2 ;;
+    --input) has_input=true; shift 2 ;;
+    --paginate) paginate=true; shift ;;
+    -i|--include) include_headers=true; shift ;;
+    --silent) shift ;;
+    -*) shift ;;
+    *) endpoint="$1"; shift ;;
+  esac
+done
+
+if $has_input; then
+  # Capture the JSON body so stateful endpoint fixtures can reproduce settings
+  # whose exact value matters to later idempotency and migration checks.
+  input_body="$(cat)"
+fi
+
+# gh's real default: GET normally, POST if any fields were added and no
+# explicit method was given. This inference uses only the real `-f`/`-F`
+# fields, never the synthetic `paginate=true` marker recorded below — that
+# marker exists purely so a test can prove `--paginate` was requested; it
+# must never itself flip a plain GET into a POST.
+if [[ -z "$method" ]]; then
+  if [[ "${#fields[@]}" -gt 0 ]]; then method="POST"; else method="GET"; fi
+fi
+
+# --- record the call (normalized: METHOD<TAB>ENDPOINT<TAB>sorted,fields) ----
+{
+  record_fields=("${fields[@]:-}")
+  $paginate && record_fields+=("paginate=true")
+  fields_csv=""
+  if [[ "${#record_fields[@]}" -gt 0 ]]; then
+    fields_csv="$(printf '%s\n' "${record_fields[@]}" | sort | paste -sd, -)"
+  fi
+  printf '%s\t%s\t%s\n' "$method" "$endpoint" "$fields_csv"
+} >> "$GH_MOCK_LOG"
+
+field_value() {
+  local key="$1" f
+  for f in "${fields[@]:-}"; do
+    if [[ "$f" == "$key="* ]]; then
+      printf '%s' "${f#"$key"=}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+emit() {
+  # emit BODY_JSON — applies --jq filtering (mimicking gh's raw-output
+  # behavior) and, if -i was passed, prepends fake headers.
+  local body="$1"
+  if $include_headers; then
+    local scopes
+    scopes="$(cat "$ST/user_scopes" 2>/dev/null || echo "repo, admin:org, read:org")"
+    printf 'HTTP/2.0 200 OK\r\n'
+    printf 'x-oauth-scopes: %s\r\n' "$scopes"
+    printf '\r\n'
+  fi
+  if [[ -n "$jq_expr" ]]; then
+    printf '%s' "$body" | jq -r "$jq_expr"
+  else
+    printf '%s\n' "$body"
+  fi
+}
+
+not_found() {
+  # Mirrors real gh's stderr shape on a 404 so admin_bootstrap.sh's _gh_read
+  # can tell a confirmed "not found" apart from any other failure.
+  echo '{"message":"Not Found","documentation_url":"","status":"404"}'
+  echo 'gh: Not Found (HTTP 404)' >&2
+  exit 1
+}
+
+slug() {
+  # filesystem-safe key for an endpoint path. tr can't do a one-to-two
+  # character substitution, so this uses sed.
+  printf '%s' "$1" | sed 's/\//__/g'
+}
+
+# --- error injection (for regression tests) ---------------------------------
+# A test can force ANY call against a given endpoint to fail with a genuine
+# (non-404) error by touching $ST/inject-error/<slug(endpoint)>. This is how
+# tests prove a real gh/network failure surfaces honestly (failed/unknown)
+# instead of being silently treated as "not set" or "doesn't exist yet". A
+# plain touch (empty file) yields a generic HTTP 500; writing the literal
+# text "403" into the marker file yields a faithful HTTP 403 instead (e.g.
+# to simulate GitHub's free-plan branch-protection-on-private-repos limit).
+#
+# A method-specific marker, $ST/inject-error/<METHOD>__<slug(endpoint)>, is
+# checked first and wins over the method-agnostic marker above — needed for
+# endpoints hit with two different methods for two different purposes (e.g.
+# branch protection: GET to check for existing protection, PUT to set it),
+# where only one of the two calls should be made to fail.
+inject_file="$ST/inject-error/${method}__$(slug "$endpoint")"
+if [[ ! -f "$inject_file" ]]; then
+  inject_file="$ST/inject-error/$(slug "$endpoint")"
+fi
+if [[ -f "$inject_file" ]]; then
+  inject_status="$(cat "$inject_file" 2>/dev/null || true)"
+  if [[ "$inject_status" == "403" ]]; then
+    echo '{"message":"Upgrade to GitHub Pro or make this repository public to enable this feature."}'
+    echo 'gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)' >&2
+    exit 1
+  fi
+  echo '{"message":"Internal Server Error"}'
+  echo 'gh: Internal Server Error (HTTP 500)' >&2
+  exit 1
+fi
+
+# A test can also force the Nth gh invocation in a run (across every
+# endpoint, in call order) to fail, by writing N to
+# $ST/inject-error-at-call. This mirrors an injected call-N failure
+# (a real error landing mid-sequence, not tied to one endpoint).
+count_file="$ST/_call_count"
+call_num=0
+[[ -f "$count_file" ]] && call_num="$(cat "$count_file")"
+call_num=$((call_num + 1))
+echo "$call_num" > "$count_file"
+if [[ -f "$ST/inject-error-at-call" ]]; then
+  inject_at="$(cat "$ST/inject-error-at-call")"
+  if [[ "$call_num" == "$inject_at" ]]; then
+    echo '{"message":"Internal Server Error"}'
+    echo 'gh: Internal Server Error (HTTP 500)' >&2
+    exit 1
+  fi
+fi
+
+# --- endpoint handling -------------------------------------------------------
+
+# GET /user
+if [[ "$endpoint" == "user" ]]; then
+  login="$(cat "$ST/user_login" 2>/dev/null || echo "earladmin")"
+  emit "{\"login\": \"$login\"}"
+  exit 0
+fi
+
+# GET/PATCH /orgs/{org}
+if [[ "$endpoint" =~ ^orgs/([^/]+)$ ]]; then
+  org="${BASH_REMATCH[1]}"
+  org_dir="$ST/orgs/$org"
+  if [[ "$method" == "PATCH" ]]; then
+    if [[ ! -d "$org_dir" ]]; then not_found; fi
+    if perm="$(field_value default_repository_permission)"; then
+      mkdir -p "$org_dir"
+      echo "$perm" > "$org_dir/default_permission"
+    fi
+    emit "{\"login\": \"$org\"}"
+    exit 0
+  fi
+  if [[ ! -d "$org_dir" ]]; then not_found; fi
+  perm="$(cat "$org_dir/default_permission" 2>/dev/null || echo "admin")"
+  emit "{\"login\": \"$org\", \"default_repository_permission\": \"$perm\"}"
+  exit 0
+fi
+
+# GET /orgs/{org}/memberships/{user}
+if [[ "$endpoint" =~ ^orgs/([^/]+)/memberships/([^/]+)$ ]]; then
+  org="${BASH_REMATCH[1]}"; user="${BASH_REMATCH[2]}"
+  role_file="$ST/orgs/$org/membership_${user}"
+  if [[ ! -f "$role_file" ]]; then not_found; fi
+  role="$(cat "$role_file")"
+  emit "{\"role\": \"$role\", \"state\": \"active\"}"
+  exit 0
+fi
+
+# GET (list, --paginate) / POST (create) /orgs/{org}/repos
+if [[ "$endpoint" =~ ^orgs/([^/]+)/repos$ ]]; then
+  org="${BASH_REMATCH[1]}"
+  if [[ "$method" == "POST" ]]; then
+    name="$(field_value name || echo "")"
+    if [[ -z "$name" ]]; then echo '{"message":"name required"}' >&2; exit 1; fi
+    repo_dir="$ST/repos/$org/$name"
+    if [[ -d "$repo_dir" ]]; then
+      echo '{"message":"Repository already exists"}' >&2
+      exit 1
+    fi
+    priv="$(field_value private || echo "true")"
+    mkdir -p "$repo_dir"
+    echo "$priv" > "$repo_dir/private"
+    echo "main" > "$repo_dir/default_branch"
+    emit "{\"name\": \"$name\", \"private\": $priv, \"default_branch\": \"main\"}"
+    exit 0
+  fi
+  # list
+  repos_dir="$ST/repos/$org"
+  names=()
+  if [[ -d "$repos_dir" ]]; then
+    while IFS= read -r n; do names+=("$(basename "$n")"); done < <(find "$repos_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+  fi
+  arr="$(printf '%s\n' "${names[@]:-}" | jq -R -s 'split("\n") | map(select(length > 0)) | map({name: .})')"
+  emit "$arr"
+  exit 0
+fi
+
+# GET /repos/Everyone-Needs-A-Copilot/{repo} (foundation reachability). Must
+# be checked before the generic /repos/{org}/{repo} handler below, since that
+# pattern would otherwise shadow this more specific one.
+if [[ "$endpoint" =~ ^repos/Everyone-Needs-A-Copilot/([^/]+)$ ]]; then
+  repo="${BASH_REMATCH[1]}"
+  marker="$ST/foundation/$repo/missing"
+  if [[ -f "$marker" ]]; then not_found; fi
+  emit "{\"name\": \"$repo\"}"
+  exit 0
+fi
+
+# GET /repos/{org}/{repo}
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  if [[ ! -d "$repo_dir" ]]; then not_found; fi
+  priv="$(cat "$repo_dir/private" 2>/dev/null || echo "true")"
+  branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo "main")"
+  emit "{\"name\": \"$repo\", \"private\": $priv, \"default_branch\": \"$branch\"}"
+  exit 0
+fi
+
+# GET /repos/{org}/{repo}/branches/{branch} — exists for the default branch
+# once it has commits (has_commits marker); exists for any other named branch
+# once it's been explicitly created via POST git/refs below (a work branch,
+# e.g. copilot-standup). The sha is a deterministic pseudo-value (a hash of
+# org/repo/branch) — this mock never models real git objects, only existence
+# and content, which is all admin_bootstrap.sh's callers ever inspect.
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/branches/([^/]+)$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"; branch="${BASH_REMATCH[3]}"
+  repo_dir="$ST/repos/$org/$repo"
+  default_branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo main)"
+  exists=false
+  if [[ "$branch" == "$default_branch" ]]; then
+    [[ -f "$repo_dir/has_commits" ]] && exists=true
+  else
+    [[ -d "$repo_dir/refs/$branch" ]] && exists=true
+  fi
+  if ! $exists; then not_found; fi
+  sha="$(printf '%s' "$org/$repo/$branch" | shasum -a 1 | awk '{print $1}')"
+  emit "{\"name\": \"$branch\", \"commit\": {\"sha\": \"$sha\"}}"
+  exit 0
+fi
+
+# POST /repos/{org}/{repo}/git/refs — create a branch ref (the work-branch
+# creation step of the PR path, admin-standup-contract.md §6 step 5).
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/git/refs$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  ref_field="$(field_value ref || echo "")"
+  branch="${ref_field#refs/heads/}"
+  repo_dir="$ST/repos/$org/$repo"
+  ref_dir="$repo_dir/refs/$branch"
+  if [[ -d "$ref_dir" ]]; then
+    echo '{"message":"Reference already exists"}' >&2
+    exit 1
+  fi
+  mkdir -p "$ref_dir"
+  sha="$(printf '%s' "$org/$repo/$branch" | shasum -a 1 | awk '{print $1}')"
+  emit "{\"ref\": \"refs/heads/$branch\", \"object\": {\"sha\": \"$sha\"}}"
+  exit 0
+fi
+
+# GET (list, filtered by head/base/state)/POST (create) /repos/{org}/{repo}/pulls
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/pulls$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  prs_dir="$repo_dir/prs"
+  if [[ "$method" == "POST" ]]; then
+    head_field="$(field_value head || echo "")"
+    base_field="$(field_value base || echo "")"
+    # Real GitHub stores/lists a PR's head as "org:branch"; creation only
+    # takes the bare branch name for a same-repo PR, so normalize here to
+    # keep the create/list shapes consistent (mirrors the real API).
+    head_branch="${head_field#*:}"
+    mkdir -p "$prs_dir"
+    seq_file="$repo_dir/_pr_seq"
+    n=0
+    [[ -f "$seq_file" ]] && n="$(cat "$seq_file")"
+    n=$((n + 1))
+    echo "$n" > "$seq_file"
+    mkdir -p "$prs_dir/$n"
+    echo "$org:$head_branch" > "$prs_dir/$n/head"
+    echo "$base_field" > "$prs_dir/$n/base"
+    echo "open" > "$prs_dir/$n/state"
+    emit "{\"number\": $n, \"html_url\": \"https://github.com/$org/$repo/pull/$n\", \"state\": \"open\"}"
+    exit 0
+  fi
+  # GET — gh passes GET-time filters as querystring fields; the mock receives
+  # them the same way it receives POST fields (via -f), since both are
+  # collected into the same `fields` array during arg parsing.
+  head_val="$(field_value head || echo "")"
+  base_val="$(field_value base || echo "")"
+  state_val="$(field_value state || echo "open")"
+  results="[]"
+  if [[ -d "$prs_dir" ]]; then
+    for pr_dir in "$prs_dir"/*/; do
+      [[ -d "$pr_dir" ]] || continue
+      num="$(basename "$pr_dir")"
+      pr_head="$(cat "$pr_dir/head" 2>/dev/null || echo "")"
+      pr_base="$(cat "$pr_dir/base" 2>/dev/null || echo "")"
+      pr_state="$(cat "$pr_dir/state" 2>/dev/null || echo "open")"
+      if [[ "$pr_head" == "$head_val" && "$pr_base" == "$base_val" && "$pr_state" == "$state_val" ]]; then
+        results="$(echo "$results" | jq --argjson n "$num" '. + [{number: $n}]')"
+      fi
+    done
+  fi
+  emit "$results"
+  exit 0
+fi
+
+# GET /repos/{org}/{repo}/tags — the foundation-pin's semver source of truth
+# (admin-standup-contract.md §3). Real GitHub paginates this at 30/page; the
+# mock returns the whole fixture list in one shot (exactly what a `--paginate`
+# caller sees after gh transparently walks every page), and separately
+# records that `--paginate` was requested (see the fields_csv recording
+# above) so a test can prove the caller asked for the complete tag set.
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/tags$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  if [[ -f "$ST/foundation/$org/$repo/missing" ]]; then not_found; fi
+  tags_file="$ST/tags/$org/$repo"
+  if [[ ! -f "$tags_file" ]]; then
+    emit '[]'
+    exit 0
+  fi
+  arr="$(jq -R -s 'split("\n") | map(select(length > 0)) | map({name: .})' < "$tags_file")"
+  emit "$arr"
+  exit 0
+fi
+
+# DELETE /repos/{org}/{repo}/branches/{branch}/protection/enforce_admins
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/branches/([^/]+)/protection/enforce_admins$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  if [[ "$method" != "DELETE" || ! -f "$repo_dir/protected" ]]; then not_found; fi
+  echo false > "$repo_dir/enforce_admins"
+  exit 0
+fi
+
+# GET/PUT /repos/{org}/{repo}/branches/{branch}/protection
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/branches/([^/]+)/protection$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  marker="$repo_dir/protected"
+  if [[ "$method" == "PUT" ]]; then
+    mkdir -p "$repo_dir"
+    touch "$marker"
+    echo "$(printf '%s' "$input_body" | jq -r '.enforce_admins // false')" > "$repo_dir/enforce_admins"
+    emit '{"required_pull_request_reviews":{"required_approving_review_count":1},"enforce_admins":{"enabled":false}}'
+    exit 0
+  fi
+  if [[ ! -f "$marker" ]]; then not_found; fi
+  enforce_admins="$(cat "$repo_dir/enforce_admins" 2>/dev/null || echo false)"
+  emit "{\"required_pull_request_reviews\":{\"required_approving_review_count\":1},\"enforce_admins\":{\"enabled\":$enforce_admins}}"
+  exit 0
+fi
+
+# GET (list unused) / POST (create) /orgs/{org}/teams
+if [[ "$endpoint" =~ ^orgs/([^/]+)/teams$ ]]; then
+  org="${BASH_REMATCH[1]}"
+  if [[ "$method" == "POST" ]]; then
+    name="$(field_value name || echo "")"
+    team_dir="$ST/teams/$org/$name"
+    if [[ -d "$team_dir" ]]; then
+      echo '{"message":"Team already exists"}' >&2
+      exit 1
+    fi
+    mkdir -p "$team_dir"
+    emit "{\"slug\": \"$name\"}"
+    exit 0
+  fi
+  emit '[]'
+  exit 0
+fi
+
+# GET /orgs/{org}/teams/{unit}
+if [[ "$endpoint" =~ ^orgs/([^/]+)/teams/([^/]+)$ ]]; then
+  org="${BASH_REMATCH[1]}"; unit="${BASH_REMATCH[2]}"
+  team_dir="$ST/teams/$org/$unit"
+  if [[ ! -d "$team_dir" ]]; then not_found; fi
+  emit "{\"slug\": \"$unit\"}"
+  exit 0
+fi
+
+# GET/PUT /orgs/{org}/teams/{unit}/repos/{org}/{repo}
+if [[ "$endpoint" =~ ^orgs/([^/]+)/teams/([^/]+)/repos/([^/]+)/([^/]+)$ ]]; then
+  org="${BASH_REMATCH[1]}"; unit="${BASH_REMATCH[2]}"; repo="${BASH_REMATCH[4]}"
+  grant_dir="$ST/grants/$org/$unit"
+  marker="$grant_dir/$repo"
+  if [[ "$method" == "PUT" ]]; then
+    mkdir -p "$grant_dir"
+    touch "$marker"
+    # GitHub returns HTTP 204 No Content for a successful team grant.
+    exit 0
+  fi
+  if [[ ! -f "$marker" ]]; then
+    not_found
+  fi
+  # GitHub's "check team permissions for a repository" endpoint also returns
+  # HTTP 204 No Content when the team has permission.
+  exit 0
+fi
+
+# GET/PUT /repos/{org}/{repo}/contents/ecosystem.yml — GET honors an optional
+# `ref` field (read a specific branch's copy, e.g. the copilot-standup work
+# branch); PUT honors an optional `branch` field (write to a specific branch
+# instead of the default). Content is stored per-branch so the default
+# branch and the work branch never collide. Writing to the *default* branch
+# specifically is what flips has_commits — that's the empty-repo initial
+# commit; a write to any other branch (the PR path) never touches it.
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/contents/ecosystem\.yml$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  default_branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo main)"
+  if [[ "$method" == "PUT" ]]; then
+    target_ref="$(field_value branch || echo "$default_branch")"
+  else
+    target_ref="$(field_value ref || echo "$default_branch")"
+  fi
+  file="$repo_dir/refs/$target_ref/ecosystem.yml"
+  if [[ "$method" == "PUT" ]]; then
+    content_b64="$(field_value content || echo "")"
+    mkdir -p "$(dirname "$file")"
+    printf '%s' "$content_b64" | tr -d '\n' | base64 --decode > "$file" 2>/dev/null \
+      || printf '%s' "$content_b64" | tr -d '\n' | base64 -d > "$file" 2>/dev/null
+    if [[ "$target_ref" == "$default_branch" ]]; then
+      mkdir -p "$repo_dir"
+      touch "$repo_dir/has_commits"
+    fi
+    sha="$(shasum -a 1 "$file" 2>/dev/null | awk '{print $1}')"
+    emit "{\"content\": {\"sha\": \"$sha\"}}"
+    exit 0
+  fi
+  if [[ ! -f "$file" ]]; then not_found; fi
+  b64="$(base64 < "$file" | tr -d '\n')"
+  sha="$(shasum -a 1 "$file" 2>/dev/null | awk '{print $1}')"
+  emit "{\"sha\": \"$sha\", \"content\": \"$b64\"}"
+  exit 0
+fi
+
+# GET /repos/{org}/{repo}/contents — list default-branch root files.
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/contents$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+  repo_dir="$ST/repos/$org/$repo"
+  default_branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo main)"
+  root_dir="$repo_dir/refs/$default_branch"
+  [[ -d "$root_dir" ]] || not_found
+  names_json="$(find "$root_dir" -mindepth 1 -maxdepth 1 -type f -print | sed 's#^.*/##' | jq -R -s 'split("\n") | map(select(length > 0)) | map({name:.})')"
+  emit "$names_json"
+  exit 0
+fi
+
+# GET/PUT any other root content file (layer package fixtures).
+if [[ "$endpoint" =~ ^repos/([^/]+)/([^/]+)/contents/(.+)$ ]]; then
+  org="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"; content_path="${BASH_REMATCH[3]}"
+  repo_dir="$ST/repos/$org/$repo"
+  default_branch="$(cat "$repo_dir/default_branch" 2>/dev/null || echo main)"
+  if [[ "$method" == "PUT" ]]; then
+    target_ref="$(field_value branch || echo "$default_branch")"
+  else
+    target_ref="$(field_value ref || echo "$default_branch")"
+  fi
+  file="$repo_dir/refs/$target_ref/$content_path"
+  if [[ "$method" == "PUT" ]]; then
+    content_b64="$(field_value content || echo "")"
+    mkdir -p "$(dirname "$file")"
+    printf '%s' "$content_b64" | tr -d '\n' | base64 --decode > "$file" 2>/dev/null \
+      || printf '%s' "$content_b64" | tr -d '\n' | base64 -d > "$file" 2>/dev/null
+    [[ "$target_ref" == "$default_branch" ]] && touch "$repo_dir/has_commits"
+    sha="$(shasum -a 1 "$file" | awk '{print $1}')"
+    emit "{\"content\": {\"sha\": \"$sha\"}}"
+    exit 0
+  fi
+  if [[ ! -f "$file" ]]; then not_found; fi
+  b64="$(base64 < "$file" | tr -d '\n')"
+  sha="$(shasum -a 1 "$file" | awk '{print $1}')"
+  emit "{\"sha\": \"$sha\", \"content\": \"$b64\"}"
+  exit 0
+fi
+
+echo "mock gh: unhandled endpoint '$method $endpoint'" >&2
+exit 1

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/workspace-root.schema.json",
+  "title": "Workspace discovery root management",
+  "description": "One explicit folder grant/revocation for bounded project discovery (`approve-root` / `forget-root`), the read-only listing of approved folders plus detected one-click candidates (`roots`), and the machine-wide opt-out (`decline`). Shapes are distinguished structurally by which of `root` / `roots`+`candidates` / `discovery` is present -- same precedent as projects.schema.json's oneOf, no explicit discriminant field. A candidate is only ever proposed, never approved automatically -- see claude-copilot's core/ecosystem/workspaces.py module docstring.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "result"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "mode": { "enum": ["status", "plan", "apply"] },
+    "result": { "enum": ["ready", "action-required", "applied", "blocked"] },
+    "root": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path", "state", "detail"],
+      "description": "`approve-root` / `forget-root` single-folder result.",
+      "properties": {
+        "name": { "type": "string", "description": "What the app renders." },
+        "path": {
+          "type": ["string", "null"],
+          "description": "Only ever passed back to the CLI (e.g. as the next `forget-root --path`); never rendered. Null when the folder could not be resolved (`state: blocked`)."
+        },
+        "state": { "enum": ["available", "approved", "removed", "blocked"] },
+        "detail": { "type": "string" }
+      }
+    },
+    "roots": {
+      "type": "array",
+      "description": "`cc workspace roots --json`: every folder currently approved for project discovery.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "path", "project_count"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string", "description": "Only ever passed back to the CLI; never rendered." },
+          "project_count": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "description": "`cc workspace roots --json`: conventional folders under the home directory (e.g. ~/Developer, ~/Sites, ~/Projects, ~/code) that already contain at least one project and are not yet approved. Offered for one-click approval; never scanned or approved without the person's explicit choice.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "label", "project_count"],
+        "properties": {
+          "path": { "type": "string", "description": "Only ever passed back to the CLI as the next `approve-root --path`." },
+          "label": { "type": "string", "description": "What the app renders, e.g. \"Developer\"." },
+          "project_count": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "discovery": {
+      "$ref": "workspaces.schema.json#/$defs/discovery",
+      "description": "`cc workspace decline --json`: the machine-wide grant/decline state, same shape as the `workspaces --all` report's `discovery`."
+    }
+  }
+}

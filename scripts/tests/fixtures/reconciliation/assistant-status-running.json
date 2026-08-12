@@ -1,0 +1,27 @@
+{
+  "schema_version": "2.0",
+  "phase": "assistant-status",
+  "result": "running",
+  "run_id": "run_22222222222222222222222222222222",
+  "generated_at": "2026-08-04T18:02:00Z",
+  "session_id": "session_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "proposal_id": null,
+  "selected_projects": [
+    "/Projects/Team; literal/One"
+  ],
+  "progress": {
+    "stage": "claude-code-running",
+    "liveness": "active",
+    "detail": "Claude Code is choosing only among the bounded Python candidates.",
+    "started_at": "2026-08-04T18:00:00Z",
+    "last_activity_at": "2026-08-04T18:02:00Z",
+    "elapsed_seconds": 120,
+    "selected_project_count": 1,
+    "candidate_group_count": 1,
+    "candidate_count": 2
+  },
+  "detail": "Claude Code is preparing bounded proposals.",
+  "next_actions": [
+    "Wait for Python validation."
+  ]
+}

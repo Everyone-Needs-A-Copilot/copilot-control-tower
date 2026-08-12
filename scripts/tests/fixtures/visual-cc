@@ -1,0 +1,28 @@
+#!/bin/bash
+# Routes each visual-test verb to its own deterministic mock fixture.
+#
+# The ordinary mock uses one CT_FIXTURE for every verb. The real wizard asks
+# `doctor` and `onboard` together during Detect, so a fixture valid for one
+# schema makes the other fail before the intended screen can render. This
+# wrapper preserves the production call sequence while selecting a valid
+# fixture independently for each read.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+MOCK_CC="${REPO_ROOT}/src-tauri/fixtures/mock-cc"
+
+case "${1:-}" in
+    doctor)
+        export CT_FIXTURE="${CT_VISUAL_DOCTOR_FIXTURE:-healthy-clean-fleet}"
+        ;;
+    onboard)
+        export CT_FIXTURE="${CT_VISUAL_ONBOARD_FIXTURE:-device-ssh-adoptable}"
+        ;;
+    *)
+        export CT_FIXTURE="${CT_VISUAL_OTHER_FIXTURE:-available}"
+        ;;
+esac
+
+exec "${MOCK_CC}" "$@"

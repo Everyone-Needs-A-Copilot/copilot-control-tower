@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/copilot-control-tower/repair.schema.json",
+  "title": "copilot repair --json (SPECULATIVE -- control-tower's assumed shape, pending upstream definition)",
+  "description": "Result of a layer-role-split repair: org/dept/foundation mirrors get fetch+reset --hard/reclone; the personal layer gets stash-and-flag (never discard). SPECULATIVE: `repair` is NOT one of the upstream WS-A verb tasks (06-control-tower-prd.md §3 lists only A1 doctor, A2 update, A3 resolve/deprovision/freshness -- there is no A-task defining a `repair --json` payload). `repair` IS invoked as a CLI command by Control Tower, but it is driven by the `repair` TOKEN returned per-checker on `doctor --json` (each checker's `repair` field, e.g. `git pull --ff-only`, echoed back so the app can call `copilot repair --only <checker.id>` -- see doctor.schema.json / design-control-tower-integration.md §1.1). This file is control-tower's own assumed shape for that invocation's response, reconstructed from architecture.md's repair semantics, NOT an authoritative WS-A contract. Do not treat it as frozen; it must be reconciled with (or superseded by) whatever payload the CLI actually emits once WS-A defines `repair --json`, if it ever does.",
+  "$comment": "IMPORTANT: cli-contract.md does NOT specify a --json shape for `repair` (the verb is consumed and participates in flock serialization, but no payload is enumerated), and neither does the upstream design (05-control-tower.md, 06-control-tower-prd.md, design-control-tower-integration.md) -- none of the three upstream documents define a `repair --json` schema; repair is described only as the per-checker `repair` token on `doctor`. This schema is a defensible reconstruction from architecture.md/ecosystem-architecture.md §5.2 repair semantics (A-H11: mirrors reset/reclone, personal stash-and-flag-never-discard). additionalProperties is left true and this file MUST be tightened/frozen -- or dropped in favor of the CLI's real payload -- once/if the CLI publishes it.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "result", "repaired", "retained_dirty"],
+  "properties": {
+    "schema_version": { "$ref": "_envelope.schema.json#/$defs/schema_version" },
+    "result": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Overall repair outcome.",
+      "$comment": "Value set unspecified in the contract; left as a non-empty string."
+    },
+    "repaired": {
+      "type": "array",
+      "description": "Per-layer repair actions taken.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["layer", "op"],
+        "properties": {
+          "layer": { "type": "string" },
+          "role": {
+            "type": "string",
+            "enum": ["mirror", "personal", "foundation"],
+            "$comment": "Reconstructed role split (mirror vs personal vs foundation) from the split-by-layer-role repair design; not an enumerated field in cli-contract.md."
+          },
+          "op": {
+            "type": "string",
+            "enum": ["reset", "reclone", "stash-flag", "unchanged"],
+            "$comment": "Reconstructed op set: mirrors reset/reclone, personal stash-flag (never discard), else unchanged. Not enumerated in cli-contract.md."
+          }
+        }
+      }
+    },
+    "retained_dirty": {
+      "type": "array",
+      "description": "Human-owned/dirty trees that were preserved (never-destroy invariant #3). Mirrors deprovision.retained_dirty.",
+      "items": { "type": "string" }
+    }
+  }
+}

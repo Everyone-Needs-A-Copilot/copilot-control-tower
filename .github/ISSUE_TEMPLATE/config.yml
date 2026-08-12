@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Read SOUL.md before proposing a feature
+    url: https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/blob/main/SOUL.md
+    about: Section 5 (Feature Filter) explains why many "obvious" features are rejected — read it before opening a feature request.
+  - name: Security concern
+    url: https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/blob/main/docs/05-security/security-and-trust.md
+    about: For a live vulnerability, do not open a public issue — see the security doc for a private reporting path.
+  - name: Questions & discussion
+    url: https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower/discussions
+    about: General questions that aren't a bug or a concrete feature proposal.

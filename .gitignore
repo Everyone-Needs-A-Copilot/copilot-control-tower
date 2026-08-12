@@ -1,0 +1,23 @@
+# macOS and editor state
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Local build and release output
+build/
+dist/
+*.log
+
+# Publisher authority is local and must never enter Git.
+.env
+.env.*
+!.env.example
+
+# The signed cc helper is a separately verified release input, not source.
+packaging/cc/cc
+
+# Test/runtime caches
+__pycache__/
+*.pyc
+scratchpad/

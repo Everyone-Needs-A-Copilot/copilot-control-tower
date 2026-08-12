@@ -1,0 +1,23 @@
+name: native-invariants
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  shipping-swift-fitness:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce native witness and plain-language boundaries
+        run: ./scripts/tests/test_native_invariants.sh
+      - name: Build shipping native User app
+        run: ./scripts/build-user.command --build-only
+      - name: Exercise crash-only launchd lifecycle
+        run: ./scripts/tests/test_native_watchdog.sh
+      - name: Enforce immutable release-source provenance
+        run: |
+          ./scripts/verify-release-launcher.sh
+          ./scripts/tests/test_release_source_integrity.sh
