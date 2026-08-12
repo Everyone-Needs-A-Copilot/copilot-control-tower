@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "initiative": "06-copilot-solution-ecosystem-outcome",
+  "streams": [
+    {
+      "streamId": "Stream-A",
+      "streamName": "Canonical Transaction",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/src/cc/core/ecosystem/**",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/.claude/commands/setup-project.md",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/.claude/commands/update-project.md",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/tests/test_workspace*.py",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/tests/test_project_integration*.py"
+      ],
+      "streamDependencies": [],
+      "streamPaths": [],
+      "specialistRoute": "ta -> me -> qa -> sec"
+    },
+    {
+      "streamId": "Stream-B",
+      "streamName": "Conformance Truth",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/src/cc/core/conformance/**",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/src/cc/commands/conformance.py",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/tests/conformance/**",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/docs/conformance-harness.md"
+      ],
+      "streamDependencies": [],
+      "streamPaths": [],
+      "specialistRoute": "me -> qa"
+    },
+    {
+      "streamId": "Stream-C",
+      "streamName": "Layered Content",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot-internal/agents/**",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot-internal/commands/**",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot-accounting/agents/**",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot-accounting/commands/**",
+        "/Volumes/Dev/Sites/COPILOT/codex-copilot-internal/skills/**",
+        "/Volumes/Dev/Sites/COPILOT/codex-copilot-accounting/skills/**",
+        "/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal/.claude/extensions/**",
+        "/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal/01-company/**",
+        "/Volumes/Dev/Sites/COPILOT/knowledge-copilot-accounting/03-ai-enabling/**"
+      ],
+      "streamDependencies": [],
+      "streamPaths": [],
+      "specialistRoute": "doc -> qa -> sec"
+    },
+    {
+      "streamId": "Stream-D",
+      "streamName": "Outcome Evaluation",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/src/cc/core/evaluation/**",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/src/cc/commands/evaluation.py",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/tests/evaluation/**",
+        "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/docs/effectiveness-evaluation.md"
+      ],
+      "streamDependencies": ["Stream-A", "Stream-B", "Stream-C"],
+      "streamPaths": [],
+      "specialistRoute": "ta -> me -> qa"
+    },
+    {
+      "streamId": "Stream-E",
+      "streamName": "Control Tower Trust",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/native/**",
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/scripts/tests/**",
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/scripts/package-user-release.sh",
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/packaging/**",
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/.github/workflows/**"
+      ],
+      "streamDependencies": ["Stream-A", "Stream-B"],
+      "streamPaths": [],
+      "specialistRoute": "ta -> me -> uid -> qa -> sec -> do"
+    },
+    {
+      "streamId": "Stream-F",
+      "streamName": "Fleet Closure",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/{admin-server,BM,convoco,convoco-google-verification,convoco-policy-build,convoco-site,copilot-control-tower,copilot-news,crm-automation-copilot,drip-copilot,flow,force-readiness-assessment,ineedacopilot-site,insights-copilot,lars-website,method-copilot,n8n-copilot,nocodb-crm-setup,pipeline-copilot,preflight-copilot,project-copilot,research-copilot,rfp-copilot,saas-financial-model,small-business-copilot,the-collective,thought-leadership,transformation,voice-copilot,workflow-copilot}/.claude/**",
+        "/Volumes/Dev/Sites/COPILOT/{admin-server,BM,convoco,convoco-google-verification,convoco-policy-build,convoco-site,copilot-control-tower,copilot-news,crm-automation-copilot,drip-copilot,flow,force-readiness-assessment,ineedacopilot-site,insights-copilot,lars-website,method-copilot,n8n-copilot,nocodb-crm-setup,pipeline-copilot,preflight-copilot,project-copilot,research-copilot,rfp-copilot,saas-financial-model,small-business-copilot,the-collective,thought-leadership,transformation,voice-copilot,workflow-copilot}/.codex/**",
+        "/Volumes/Dev/Sites/COPILOT/{admin-server,BM,convoco,convoco-google-verification,convoco-policy-build,convoco-site,copilot-control-tower,copilot-news,crm-automation-copilot,drip-copilot,flow,force-readiness-assessment,ineedacopilot-site,insights-copilot,lars-website,method-copilot,n8n-copilot,nocodb-crm-setup,pipeline-copilot,preflight-copilot,project-copilot,research-copilot,rfp-copilot,saas-financial-model,small-business-copilot,the-collective,thought-leadership,transformation,voice-copilot,workflow-copilot}/copilot.lock.json",
+        "/Volumes/Dev/Sites/PERSONAL/*/.claude/**",
+        "/Volumes/Dev/Sites/PERSONAL/*/.codex/**",
+        "/Volumes/Dev/Sites/PERSONAL/*/copilot.lock.json",
+        "/Volumes/Dev/Sites/TSM/*/.claude/**",
+        "/Volumes/Dev/Sites/TSM/*/.codex/**",
+        "/Volumes/Dev/Sites/TSM/*/copilot.lock.json"
+      ],
+      "streamDependencies": ["Stream-A", "Stream-B", "Stream-C", "Stream-D"],
+      "streamPaths": [],
+      "specialistRoute": "do -> me -> qa"
+    },
+    {
+      "streamId": "Stream-G",
+      "streamName": "External Validation",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/06-copilot-solution-ecosystem-outcome/validation/**"
+      ],
+      "streamDependencies": ["Stream-D", "Stream-E", "Stream-F"],
+      "streamPaths": [],
+      "specialistRoute": "sd -> uxd -> qa -> doc"
+    },
+    {
+      "streamId": "Stream-Z",
+      "streamName": "Integration and Release",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/06-copilot-solution-ecosystem-outcome/retrospectives/**",
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/06-copilot-solution-ecosystem-outcome/decisions/**"
+      ],
+      "streamDependencies": ["Stream-A", "Stream-B", "Stream-C", "Stream-D", "Stream-E", "Stream-F", "Stream-G"],
+      "streamPaths": [],
+      "specialistRoute": "qa -> sec -> do -> doc"
+    }
+  ]
+}

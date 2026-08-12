@@ -6,7 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-python3 - "${REPO_ROOT}/scripts/package-user-release.sh" \
+python3 - "${REPO_ROOT}/scripts/package-user-release.program" \
     "${REPO_ROOT}/scripts/notarize.sh" <<'PY'
 from pathlib import Path
 import sys

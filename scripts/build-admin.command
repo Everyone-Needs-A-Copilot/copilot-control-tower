@@ -102,7 +102,7 @@ cp "${BIN}" "${APP_BIN}"
 cp scripts/admin_bootstrap.sh "${APP_RESOURCES}/scripts/admin_bootstrap.sh"
 cp "${GH_SOURCE}" "${APP_RESOURCES}/bin/gh"
 cp "${JQ_SOURCE}" "${APP_RESOURCES}/bin/jq"
-cp src-tauri/icons/icon.icns "${APP_RESOURCES}/ControlTower.icns"
+cp packaging/macos/ControlTower.icns "${APP_RESOURCES}/ControlTower.icns"
 cp assets/brand/aviator-glyph.svg "${APP_RESOURCES}/aviator-glyph.svg"
 chmod 755 "${APP_BIN}" "${APP_RESOURCES}/scripts/admin_bootstrap.sh" "${APP_RESOURCES}/bin/gh" "${APP_RESOURCES}/bin/jq"
 

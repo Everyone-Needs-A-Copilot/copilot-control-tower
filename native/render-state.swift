@@ -11,11 +11,11 @@
 // results into `TrayModel`; this file owns none of that wiring (kept out of
 // scope for this phase — see the compat rule in `models.swift`'s header).
 //
-// PARSE, NEVER COMPUTE (CLAUDE.md invariant #1): every glyph/sentence/severity
-// decision below is a closed, total mapping FROM a CLI-computed field, never
-// a re-derivation of health from raw facts. In particular, `ComponentView.worstSeverity`
-// is the MAX of already-CLI-assigned `Checker.severity` values within a
-// product — that is aggregation of an existing verdict, not a new verdict.
+// PARSE, NEVER COMPUTE (SOUL Principle 2): every glyph and sentence below is
+// a closed translation FROM a CLI-computed field. The current doctor schema
+// does not carry per-component or per-layer display verdicts, so this file
+// deliberately leaves `components` empty instead of aggregating checker
+// severities into a second app-owned verdict.
 
 import Foundation
 
@@ -89,7 +89,7 @@ extension RenderState {
             status: CliStatus(rawValue: doctor.status.rawValue),
             offline: doctor.offline,
             header: header,
-            components: components(from: doctor.checkers)
+            components: []
         )
     }
 
@@ -187,73 +187,6 @@ extension RenderState {
         return (name, plainLayer(checker.layerRole ?? checker.layer))
     }
 
-    // MARK: Component tree (group checkers by product x layer)
-
-    /// Groups `doctor.checkers` by `product`, then by `layer` within each
-    /// product, into the existing `ComponentView`/`LayerView` render structs.
-    /// A checker with no `product` (e.g. a startup-only network probe) has no
-    /// component to belong to and is excluded — it still drove the top-level
-    /// `status`/glyph above, it just has no row in Region 2's component tree.
-    /// `worstSeverity`/`badgeState` are always the MAX of already-CLI-assigned
-    /// `Checker.severity` values, never recomputed from any other field.
-    private static func components(from checkers: [Checker]) -> [ComponentView] {
-        var order: [String] = []
-        var byProduct: [String: [Checker]] = [:]
-        for checker in checkers {
-            guard let product = checker.product else { continue }
-            if byProduct[product] == nil {
-                byProduct[product] = []
-                order.append(product)
-            }
-            byProduct[product]?.append(checker)
-        }
-
-        return order.map { product in
-            let productCheckers = byProduct[product] ?? []
-            let layerViews = Layer.allCases.compactMap { layer -> LayerView? in
-                let layerCheckers = productCheckers.filter {
-                    $0.layerRole == canonicalRole(layer)
-                }
-                guard !layerCheckers.isEmpty else { return nil }
-                let worst = worstSeverity(of: layerCheckers)
-                let detail = layerCheckers.first(where: { $0.severity == worst })?.detail
-                return LayerView(
-                    layer: layer,
-                    severity: LayerSeverity(rawValue: worst.rawValue) ?? .none,
-                    badgeState: displayBadge(worst),
-                    detail: detail
-                )
-            }
-            return ComponentView(
-                component: displayName(forProduct: product),
-                worstSeverity: Severity(rawValue: worstSeverity(of: productCheckers).rawValue) ?? .pass,
-                layers: layerViews
-            )
-        }
-    }
-
-    private static func worstSeverity(of checkers: [Checker]) -> CliSeverity {
-        if checkers.contains(where: { $0.severity == .fail }) { return .fail }
-        if checkers.contains(where: { $0.severity == .warn }) { return .warn }
-        return .pass
-    }
-
-    private static func canonicalRole(_ layer: Layer) -> String {
-        switch layer {
-        case .foundation: return "foundation"
-        case .org: return "organization"
-        case .dept: return "department"
-        case .personal: return "personal"
-        }
-    }
-
-    private static func displayBadge(_ severity: CliSeverity) -> BadgeState {
-        switch severity {
-        case .pass: return .pass
-        case .warn: return .hollow
-        case .fail: return .triangle
-        }
-    }
 }
 
 // MARK: - "Recently" / What-changed lines from a fan-out report

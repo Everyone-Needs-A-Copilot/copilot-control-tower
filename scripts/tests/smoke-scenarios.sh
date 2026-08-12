@@ -1156,7 +1156,7 @@ scenario_S51() {
     rm -rf "${home}"
     assert_exit_zero "${id} verify support report"
     assert_contains "${id} verify support report" \
-        "verifySupport=saved privacySafe=true savedInitially=true fileMode=600 directoryMode=700 retained=20"
+        "verifySupport=saved privacySafe=true savedInitially=true fileMode=600 directoryMode=700 retained=20 scopeSafe=true"
     assert_contains "${id} verify support report" "Initial check|Result: update available"
     assert_contains "${id} verify support report" "Update attempt|Result: applied"
     assert_contains "${id} verify support report" "Changed: 1 · Held: 1 · Blocked: 1"
@@ -1164,6 +1164,12 @@ scenario_S51() {
     assert_contains "${id} verify support report" "Report format: not reported"
     assert_contains "${id} verify support report" \
         "Needs attention: Claude Copilot · Core setup · needs review"
+    assert_contains "${id} future role stays neutral" \
+        "Needs attention: Codex Copilot · Setup scope not recognized · needs review"
+    assert_contains "${id} missing role stays neutral" \
+        "Needs attention: CLI Copilot · Setup scope not recognized · needs attention"
+    assert_not_contains "${id} future role is never personal" "Codex Copilot · This Mac"
+    assert_not_contains "${id} missing role is never personal" "CLI Copilot · This Mac"
     assert_not_contains "${id} verify support report" "sentinel-private"
     assert_not_contains "${id} verify support report" "sentinel-secret-value"
     assert_not_contains "${id} verify support report" "/Users/"
@@ -1186,7 +1192,7 @@ scenario_S52() {
         CT_SELFTEST_STEP=verify-support
     assert_exit_zero "${id} symlink refusal"
     assert_contains "${id} symlink refusal" \
-        "verifySupport=copy-only privacySafe=true savedInitially=false fileMode=none directoryMode=none retained=0"
+        "verifySupport=copy-only privacySafe=true savedInitially=false fileMode=none directoryMode=none retained=0 scopeSafe=true"
     if find "${outside}" -mindepth 1 -print -quit | grep -q .; then
         fail "${id} symlink target stays empty" "unexpected file below ${outside}"
     else
@@ -1211,7 +1217,7 @@ scenario_S53() {
         CT_SELFTEST_STEP=verify-support
     assert_exit_zero "${id} writable-boundary refusal"
     assert_contains "${id} writable-boundary refusal" \
-        "verifySupport=copy-only privacySafe=true savedInitially=false fileMode=none directoryMode=none retained=0"
+        "verifySupport=copy-only privacySafe=true savedInitially=false fileMode=none directoryMode=none retained=0 scopeSafe=true"
     if find "${directory}" -mindepth 1 -print -quit | grep -q .; then
         fail "${id} writable boundary stays empty" "unexpected file below ${directory}"
     else

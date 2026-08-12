@@ -88,10 +88,32 @@ enum Severity: String {
         case .fail: return .triangle
         }
     }
+
+    /// Human copy for the component verdict already carried by the render
+    /// contract. This maps vocabulary; it does not calculate a verdict.
+    var plainLanguageStatus: String {
+        switch self {
+        case .pass: return "Ready"
+        case .warn: return "Needs review"
+        case .fail: return "Needs attention"
+        }
+    }
 }
 
 enum LayerSeverity: String {
     case pass, warn, fail, none
+
+    /// Human copy for an already CLI-issued layer verdict. This is a lexical
+    /// translation only: it never derives health from repository or checker
+    /// facts. Visible strings and VoiceOver share this boundary.
+    var plainLanguageStatus: String {
+        switch self {
+        case .pass: return "Ready"
+        case .warn: return "Needs review"
+        case .fail: return "Needs attention"
+        case .none: return "Not reported"
+        }
+    }
 }
 
 /// The four inheritance layers (`src/types.ts` `Layer`), in the fixed
@@ -109,6 +131,18 @@ enum Layer: String, CaseIterable, Identifiable {
         case .org: return "org"
         case .dept: return "department"
         case .personal: return "personal"
+        }
+    }
+
+    /// Person-facing name for a layer identifier. Internal identifiers stay
+    /// available for strict DTO decoding and identity, but never cross the
+    /// visible or accessibility boundary.
+    var plainLanguageName: String {
+        switch self {
+        case .foundation: return "Core setup"
+        case .org: return "Your organization"
+        case .dept: return "Your department"
+        case .personal: return "This Mac"
         }
     }
 }
@@ -131,6 +165,21 @@ struct ComponentView: Identifiable {
     let component: String
     let worstSeverity: Severity
     let layers: [LayerView]
+
+    /// One shared visible/a11y rendering of CLI-provided layer verdicts.
+    var plainLanguageLayerSummary: String {
+        layers.map {
+            "\($0.layer.plainLanguageName): \($0.severity.plainLanguageStatus)"
+        }.joined(separator: " · ")
+    }
+
+    var plainLanguageAccessibilityLabel: String {
+        let status = worstSeverity.plainLanguageStatus
+        guard !plainLanguageLayerSummary.isEmpty else {
+            return "\(component), \(status)"
+        }
+        return "\(component), \(status). \(plainLanguageLayerSummary)"
+    }
 }
 
 /// Mirrors `src/types.ts` `HeaderView`.

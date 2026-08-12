@@ -58,7 +58,7 @@ check_rg 05-06 "safe review shows preservation boundaries" 'wizardProjectContrac
 check_rg 05-07 "safe, guided, and owner routes stay distinct" 'case .ownerDecision: return "Review decision"' native/wizard.swift critical
 check_rg 05-08 "safe write requires returned Ready classification" 'updated.classification == .ready' native/wizard.swift critical
 check_rg 05-09 "final screen reports authoritative project outcomes" 'wizardVerifiedProjectSummary' native/wizard.swift
-check_rg 05-10 "popover uses readable component status and layers" 'component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }' native/control-tower-tray.swift
+check_rg 05-10 "popover holds per-component verdict UI until cc reports it" 'components: []' native/render-state.swift critical
 check_rg 05-11 "unresolved states retain reason and actor routes" 'case .couldNotVerify: return "Couldn'\''t confirm"' native/wizard.swift critical
 check_rg 06-V "high-fidelity wizard uses native cards, hierarchy, and status labels" 'sectionCard("Your Copilot setup")' native/wizard.swift
 
@@ -84,9 +84,9 @@ check_rg 07-18 "menu-bar aftercare repeats the durable return path" 'Project set
 check_rg 07-19 "could-not-confirm exposes exact diagnostic evidence" 'ProjectTriageRender.diagnosticReport(workspace)' native/control-tower-tray.swift critical
 check_rg 07-20 "guided setup opens a visible Terminal at the projects root" 'do script \(Self.appleScriptLiteral(commandLine))' native/cli-client.swift critical
 check_absent 07-21 "project details cannot auto-launch a per-project assistant" 'Button("Run in Claude Code")' native/wizard.swift critical
-check_rg 07-22 "signed User app can request Terminal automation" 'scripts/verify-user-automation.sh "${app_path}"' scripts/package-user-release.sh critical
+check_rg 07-22 "signed User app can request Terminal automation" 'scripts/verify-user-automation.sh "${app_path}"' scripts/package-user-release.program critical
 check_rg 07-23 "Terminal receives only the quoted projects-root change-directory command" '"cd \(Self.shellQuote(workspaceRoot))"' native/cli-client.swift critical
-check_rg 08-V "high-fidelity popover has readable status hierarchy" 'case .warn: return "Needs review"' native/control-tower-tray.swift
+check_rg 08-V "shared plain-language boundary has readable status hierarchy" 'case .warn: return "Needs review"' native/models.swift
 
 # Exact embedded-helper boundary. These are critical and intentionally fail
 # against the stale packaged helper until a new upstream artifact is pinned.

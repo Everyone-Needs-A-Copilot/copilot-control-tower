@@ -20,17 +20,17 @@ assert_source() {
 assert_source "four fixed Copilot components" \
     'case knowledge|case cli|case claude|case codex' \
     native/user-settings.swift
-assert_source "all four tiers are rendered" \
-    'let tiers = \[foundation, organization, department, personalTier\]' \
+assert_source "only CLI-reported setup parts are rendered" \
+    'let tiers = rows\.map' \
     native/user-settings.swift
 assert_source "Personal checks request all components" \
     'components: UserSettingsComponent\.allCases\.map' \
     native/user-settings.swift
 assert_source "readiness remains truthful when Personal is incomplete" \
-    'Your Copilot setup is incomplete' \
+    'Your Copilot setup needs finishing' \
     native/user-settings.swift
-assert_source "Personal and private are distinguished" \
-    'Personal is yours; its repository is private' \
+assert_source "this Mac and private storage are distinguished" \
+    'What belongs to this Mac is yours. Its private folder stays visible' \
     native/user-settings.swift
 assert_source "completed project categories route to Step 7" \
     'reopenForProjects\(category: category\)' \

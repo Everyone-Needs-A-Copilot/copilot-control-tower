@@ -29,6 +29,8 @@ for required in \
   fi
 done
 
+cmp packaging/macos/ControlTower.icns "${RESOURCES}/ControlTower.icns"
+
 cmp assets/brand/aviator-glyph.svg "${RESOURCES}/aviator-glyph.svg"
 
 if ! rg -Fq '/usr/bin/curl' "${RESOURCES}/scripts/admin_bootstrap.sh"; then

@@ -30,22 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install frontend deps
-        run: npm ci
-
-      - name: cargo test (fitness functions + unit tests, ~247+ tests)
-        working-directory: src-tauri
+      - name: Enforce shipping native invariants
         run: |
-          cargo test --all-targets
-          cargo clippy --all-targets -- -D warnings
-          cargo fmt --check
+          ./scripts/tests/test_native_invariants.sh
+          ./scripts/verify-release-launcher.sh
+          ./scripts/tests/test_release_source_integrity.sh
 
       - name: Verify vendored cc (checksum + verify-not-resign, ADR-M4-005)
         run: ./scripts/verify-vendored-cc.sh --release packaging/cc/cc
@@ -85,22 +74,29 @@ jobs:
             -s -k "${keychain_password}" "${keychain_path}"
           security list-keychains -d user -s "${keychain_path}"
 
-      - name: Materialize notarization API key
+      - name: Materialize inner-only release authority
         env:
           APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_KEY_ISSUER: ${{ secrets.APPLE_NOTARY_KEY_ISSUER }}
         run: |
           notary_key_path="${RUNNER_TEMP}/AuthKey_${{ secrets.APPLE_NOTARY_KEY_ID }}.p8"
+          umask 077
           printf '%s' "${APPLE_NOTARY_KEY}" > "${notary_key_path}"
-          chmod 600 "${notary_key_path}"
-          echo "CT_NOTARY_KEY_PATH=${notary_key_path}" >> "${GITHUB_ENV}"
+          printf 'export CT_SIGN_IDENTITY=%q\n' \
+            "${APPLE_SIGNING_IDENTITY}" > .env.release.local
+          printf 'export CT_NOTARY_KEY_ID=%q\n' \
+            "${APPLE_NOTARY_KEY_ID}" >> .env.release.local
+          printf 'export CT_NOTARY_KEY_ISSUER=%q\n' \
+            "${APPLE_NOTARY_KEY_ISSUER}" >> .env.release.local
+          printf 'export CT_NOTARY_KEY_PATH=%q\n' \
+            "${notary_key_path}" >> .env.release.local
 
       - name: Package native User release from pushed tag
-        env:
-          CT_RELEASE_CHECKOUT: "1"
-          CT_SIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          CT_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
-          CT_NOTARY_KEY_ISSUER: ${{ secrets.APPLE_NOTARY_KEY_ISSUER }}
-        run: ./scripts/package-user-release.sh
+        # No release secret is in this process environment. The verified inner
+        # launcher reads the mode-0600 file after immutable-source proof.
+        run: ./scripts/package-user-release --source-ref "${GITHUB_REF_NAME}"
 
       - name: Sign the update manifest (minisign, custody separate from Developer ID cert)
         env:

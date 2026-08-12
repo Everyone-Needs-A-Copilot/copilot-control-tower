@@ -113,8 +113,15 @@ fi
 mkdir -p "${APP_MACOS}" "${APP_RESOURCES}"
 cp packaging/macos/User-Info.plist "${APP_CONTENTS}/Info.plist"
 cp "${BIN}" "${APP_BIN}"
-cp src-tauri/icons/icon.icns "${APP_RESOURCES}/ControlTower.icns"
+cp packaging/macos/ControlTower.icns "${APP_RESOURCES}/ControlTower.icns"
 cp assets/brand/aviator-glyph.svg "${APP_RESOURCES}/aviator-glyph.svg"
+mkdir -p "${APP_RESOURCES}/watchdog"
+cp packaging/launchd/com.everyoneneedsacopilot.controltower.plist \
+    "${APP_RESOURCES}/watchdog/com.everyoneneedsacopilot.controltower.plist"
+cp packaging/launchd/install-watchdog.sh packaging/launchd/uninstall-watchdog.sh \
+    "${APP_RESOURCES}/watchdog/"
+chmod 755 "${APP_RESOURCES}/watchdog/install-watchdog.sh" \
+    "${APP_RESOURCES}/watchdog/uninstall-watchdog.sh"
 chmod 755 "${APP_BIN}"
 if [[ -n "${CT_VENDORED_CC_PATH:-}" ]]; then
     cp -p "${CT_VENDORED_CC_PATH}" "${APP_RESOURCES}/cc"

@@ -1,0 +1,392 @@
+# Build the native User app from an exact pushed ref, Developer-ID sign it,
+# create a DMG, notarize/staple both artifacts, Gatekeeper-assess them, and
+# emit checksum/provenance metadata.
+
+set -euo pipefail
+unset BASH_ENV ENV
+
+[[ "${CT_RELEASE_STREAM:-}" == "1" && -p /dev/stdin ]] || {
+    echo "error: release implementation requires the startup-safe launcher stream" >&2
+    exit 1
+}
+[[ -n "${CT_RELEASE_EXPECTED_CHALLENGE:-}" &&
+   "${CT_RELEASE_STREAM_CHALLENGE:-}" == "${CT_RELEASE_EXPECTED_CHALLENGE}" ]] || {
+    echo "error: release stream capability is invalid" >&2
+    exit 1
+}
+[[ -n "${CT_RELEASE_LAUNCHER_PATH:-}" &&
+   -n "${CT_RELEASE_IMPLEMENTATION_PATH:-}" ]] || {
+    echo "error: release launcher paths are unavailable" >&2
+    exit 1
+}
+SCRIPT_DIR="$(cd "$(dirname "${CT_RELEASE_IMPLEMENTATION_PATH}")" && pwd -P)"
+[[ "${CT_RELEASE_LAUNCHER_PATH}" == "${SCRIPT_DIR}/package-user-release" &&
+   "${CT_RELEASE_IMPLEMENTATION_PATH}" == "${SCRIPT_DIR}/package-user-release.program" ]] || {
+    echo "error: release launcher paths are inconsistent" >&2
+    exit 1
+}
+parent_path="$(/bin/ps -p "${PPID}" -o comm= | /usr/bin/xargs)"
+[[ "$(cd "$(dirname "${parent_path}")" 2>/dev/null && pwd -P)/$(basename "${parent_path}")" == \
+   "${CT_RELEASE_LAUNCHER_PATH}" ]] || {
+    echo "error: release implementation has an untrusted parent" >&2
+    exit 1
+}
+[[ -f "${parent_path}" && ! -L "${parent_path}" &&
+   $((8#$(/usr/bin/stat -f '%Lp' "${parent_path}") & 8#022)) == 0 ]] || {
+    echo "error: release launcher path or mode is unsafe" >&2
+    exit 1
+}
+/usr/bin/codesign --verify --strict "${parent_path}" >/dev/null 2>&1 || {
+    echo "error: release launcher code identity is invalid" >&2
+    exit 1
+}
+launcher_manifest="${SCRIPT_DIR}/package-user-release.sha256"
+[[ -f "${launcher_manifest}" && ! -L "${launcher_manifest}" ]] || {
+    echo "error: release launcher identity manifest is missing" >&2
+    exit 1
+}
+while read -r expected_hash relative_path; do
+    case "${relative_path}" in
+        package-user-release|package-user-release.swift|package-user-release.program) ;;
+        *) echo "error: release launcher identity manifest is invalid" >&2; exit 1 ;;
+    esac
+    actual_hash="$(/usr/bin/shasum -a 256 "${SCRIPT_DIR}/${relative_path}" | /usr/bin/awk '{print $1}')"
+    [[ "${actual_hash}" == "${expected_hash}" ]] || {
+        echo "error: release launcher identity hash mismatch: ${relative_path}" >&2
+        exit 1
+    }
+done < "${launcher_manifest}"
+[[ "$(/usr/bin/wc -l < "${launcher_manifest}" | /usr/bin/tr -d ' ')" == "3" ]] || {
+    echo "error: release launcher identity manifest is incomplete" >&2
+    exit 1
+}
+unset CT_RELEASE_STREAM CT_RELEASE_STREAM_CHALLENGE CT_RELEASE_EXPECTED_CHALLENGE \
+    CT_RELEASE_LAUNCHER_PATH CT_RELEASE_IMPLEMENTATION_PATH
+
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+[[ "$(/usr/bin/git -C "${REPO_ROOT}" rev-parse --show-toplevel 2>/dev/null)" == "${REPO_ROOT}" &&
+   "$(/usr/bin/git -C "${REPO_ROOT}" remote get-url origin 2>/dev/null)" == \
+       "https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower.git" ]] || {
+    echo "error: release launcher is not inside the canonical repository checkout" >&2
+    exit 1
+}
+SOURCE_REF=""
+OUTPUT_DIR=""
+VERIFY_SOURCE_ONLY=0
+VERIFIED_SOURCE_REF=""
+VERIFIED_SOURCE_COMMIT=""
+VERIFIED_SOURCE_TREE=""
+CANONICAL_REMOTE=""
+
+source "${SCRIPT_DIR}/release-source-integrity.sh"
+CANONICAL_REMOTE="${RELEASE_CANONICAL_REMOTE}"
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/package-user-release [options]
+
+Options:
+  --source-ref REF   Remote branch or tag to clone. Defaults to the current branch.
+  --output-dir PATH  Final artifact directory. Defaults to dist/user-release.
+  --verify-source-only  Verify immutable source and stop before credentials/build.
+  -h, --help            Show this help.
+
+The default entrypoint requires local HEAD to equal origin/REF, then builds
+from a clean detached temporary clone of that pushed ref. Internal checkout
+arguments grant no authority: the inner build independently re-verifies the
+approved remote ref, exact commit, committed tree, detached state, and clean
+worktree before and after build verification.
+EOF
+}
+
+die() {
+    echo "error: $*" >&2
+    exit 1
+}
+
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || die "$1 is required but was not found"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --source-ref)
+            [[ $# -ge 2 ]] || die "--source-ref requires a value"
+            SOURCE_REF="$2"
+            shift 2
+            ;;
+        --output-dir)
+            [[ $# -ge 2 ]] || die "--output-dir requires a value"
+            OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        --verify-source-only)
+            VERIFY_SOURCE_ONLY=1
+            shift
+            ;;
+        --verified-source-ref)
+            [[ $# -ge 2 ]] || die "--verified-source-ref requires a value"
+            VERIFIED_SOURCE_REF="$2"
+            shift 2
+            ;;
+        --verified-source-commit)
+            [[ $# -ge 2 ]] || die "--verified-source-commit requires a value"
+            VERIFIED_SOURCE_COMMIT="$2"
+            shift 2
+            ;;
+        --verified-source-tree)
+            [[ $# -ge 2 ]] || die "--verified-source-tree requires a value"
+            VERIFIED_SOURCE_TREE="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            die "unknown option: $1"
+            ;;
+    esac
+done
+
+release_reject_git_authority_environment || exit 1
+[[ -z "${CT_RELEASE_CHECKOUT:-}" ]] ||
+    die "CT_RELEASE_CHECKOUT is not a supported release authority"
+
+inner_values=0
+[[ -n "${VERIFIED_SOURCE_REF}" ]] && inner_values=$((inner_values + 1))
+[[ -n "${VERIFIED_SOURCE_COMMIT}" ]] && inner_values=$((inner_values + 1))
+[[ -n "${VERIFIED_SOURCE_TREE}" ]] && inner_values=$((inner_values + 1))
+[[ "${inner_values}" == "0" || "${inner_values}" == "3" ]] ||
+    die "verified source arguments must be supplied together"
+
+require_cmd codesign
+require_cmd ditto
+require_cmd git
+require_cmd hdiutil
+require_cmd plutil
+require_cmd shasum
+require_cmd spctl
+require_cmd xcrun
+
+if [[ "${VERIFY_SOURCE_ONLY}" != "1" && -z "${CT_SIGN_IDENTITY:-}" ]]; then
+    die "CT_SIGN_IDENTITY is not available from the verified publisher authority file"
+fi
+if [[ "${VERIFY_SOURCE_ONLY}" != "1" && -z "${CT_NOTARY_KEYCHAIN_PROFILE:-}" &&
+      ( -z "${CT_NOTARY_KEY_ID:-}" ||
+        -z "${CT_NOTARY_KEY_ISSUER:-}" ||
+        -z "${CT_NOTARY_KEY_PATH:-}" ) ]]; then
+    die "notarization credentials are not configured"
+fi
+
+if [[ "${inner_values}" == "0" ]]; then
+    cd "${REPO_ROOT}"
+    [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]] ||
+        die "working tree is not clean; commit and push the exact release source first"
+    [[ -n "${SOURCE_REF}" ]] || SOURCE_REF="$(git branch --show-current)"
+    [[ -n "${SOURCE_REF}" ]] || die "--source-ref is required from a detached HEAD"
+
+    local_commit="$(git rev-parse HEAD)"
+    remote_url="$(git remote get-url origin)"
+    [[ "${remote_url}" == "${CANONICAL_REMOTE}" ]] ||
+        die "origin is not the approved release remote"
+    resolved="$(release_resolve_remote_ref "${CANONICAL_REMOTE}" "${SOURCE_REF}")" || exit 1
+    IFS=$'\t' read -r approved_ref remote_commit <<< "${resolved}"
+    [[ "${local_commit}" == "${remote_commit}" ]] ||
+        die "local HEAD ${local_commit} is not the pushed ${approved_ref} commit ${remote_commit}"
+    source_tree="$(git rev-parse 'HEAD^{tree}')"
+
+    [[ -n "${OUTPUT_DIR}" ]] || OUTPUT_DIR="${REPO_ROOT}/dist/user-release"
+    case "${OUTPUT_DIR}" in
+        /*) ;;
+        *) OUTPUT_DIR="${REPO_ROOT}/${OUTPUT_DIR}" ;;
+    esac
+    [[ ! -e "${OUTPUT_DIR}" ]] ||
+        die "output directory already exists: ${OUTPUT_DIR}"
+
+    scratch="$(mktemp -d "${TMPDIR:-/tmp}/control-tower-release.XXXXXX")"
+    cleanup() {
+        rm -rf "${scratch}"
+    }
+    trap cleanup EXIT
+
+    checkout="${scratch}/checkout"
+    release_trusted_git clone --quiet --no-checkout "${CANONICAL_REMOTE}" "${checkout}"
+    git -C "${checkout}" checkout --quiet --detach "${local_commit}"
+    release_verify_checkout "${checkout}" "${CANONICAL_REMOTE}" "${approved_ref}" \
+        "${local_commit}" "${source_tree}" || exit 1
+
+    inner_args=(
+        --output-dir "${OUTPUT_DIR}"
+        --verified-source-ref "${approved_ref}"
+        --verified-source-commit "${local_commit}"
+        --verified-source-tree "${source_tree}"
+    )
+    [[ "${VERIFY_SOURCE_ONLY}" == "1" ]] && inner_args+=(--verify-source-only)
+    "${checkout}/scripts/package-user-release" "${inner_args[@]}"
+    exit 0
+fi
+
+cd "${REPO_ROOT}"
+verified_source_ref="${VERIFIED_SOURCE_REF}"
+source_commit="${VERIFIED_SOURCE_COMMIT}"
+source_tree="${VERIFIED_SOURCE_TREE}"
+release_verify_checkout "${REPO_ROOT}" "${CANONICAL_REMOTE}" "${verified_source_ref}" \
+    "${source_commit}" "${source_tree}" || exit 1
+if [[ "${VERIFY_SOURCE_ONLY}" == "1" ]]; then
+    echo "release source verified: ${verified_source_ref} ${source_commit} ${source_tree}"
+    exit 0
+fi
+[[ -n "${OUTPUT_DIR}" ]] || OUTPUT_DIR="${REPO_ROOT}/dist/user-release"
+case "${OUTPUT_DIR}" in
+    /*) ;;
+    *) OUTPUT_DIR="${REPO_ROOT}/${OUTPUT_DIR}" ;;
+esac
+[[ ! -e "${OUTPUT_DIR}" ]] || die "output directory already exists: ${OUTPUT_DIR}"
+
+if [[ -n "${CT_NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
+    scripts/check-notary-profile.sh \
+        --profile "${CT_NOTARY_KEYCHAIN_PROFILE}" \
+        --evidence "${REPO_ROOT}/packaging/cc/NOTARIZATION.json"
+else
+    [[ -f "${CT_NOTARY_KEY_PATH}" && -r "${CT_NOTARY_KEY_PATH}" ]] ||
+        die "CT_NOTARY_KEY_PATH is not a readable file"
+fi
+
+app_path="${REPO_ROOT}/build/Copilot Control Tower.app"
+plist_path="${app_path}/Contents/Info.plist"
+stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/control-tower-dmg.XXXXXX")"
+payload_dir="${stage_dir}/payload"
+cleanup_stage() {
+    rm -rf "${stage_dir}"
+}
+trap cleanup_stage EXIT
+
+echo "release: building native User app from ${source_commit}"
+vendored_cc="${REPO_ROOT}/packaging/cc/cc"
+vendored_cc_version="$(<"${REPO_ROOT}/packaging/cc/VERSION")"
+vendored_cc_sha="$(shasum -a 256 "${vendored_cc}" | awk '{print $1}')"
+CT_FORCE_REBUILD=1 CT_SKIP_ADHOC_SIGN=1 CT_VENDORED_CC_PATH="${vendored_cc}" \
+    bash scripts/build-user.command --build-only >/dev/null
+
+# These two headless proofs run BEFORE Developer ID signing, deliberately.
+# `CliLocator.locate()` (native/cli-client.swift, Finding A / `tc wp get 525`)
+# only honors CT_CLI_PATH's mock-cc override for a process that is not
+# itself running as the compiled-in-trusted, Developer-ID-signed article —
+# that is what makes the override safe against a local attacker in the
+# SHIPPED app. At this point in the pipeline `${app_path}` is still only
+# ad-hoc/linker-signed (CT_SKIP_ADHOC_SIGN=1 above skips the bundle-level
+# ad-hoc pass, but swiftc's own linker still ad-hoc-signs the raw binary),
+# so it correctly satisfies neither `ProductionTrustAnchor` nor these
+# proofs' need for the override — exactly like every dev/test build. Moving
+# either call below `scripts/sign.sh` would make CliLocator refuse mock-cc
+# and silently fall back to the REAL vendored cc, turning this inert proof
+# into a live `onboard --apply` against whatever this build machine's HOME
+# happens to be. Never move these below the signing step.
+echo "release: exercising the exact app Detect seam without UI"
+headless_detect_report="${stage_dir}/headless-detect.json"
+scripts/headless-detect.sh --app "${app_path}" > "${headless_detect_report}"
+
+echo "release: exercising the exact app Set up -> Verify orchestration without live writes"
+headless_setup_report="${stage_dir}/headless-setup-transaction.txt"
+scripts/headless-setup-transaction.sh --app "${app_path}" > "${headless_setup_report}"
+
+echo "release: proving crash-only launchd install, restart, clean-exit, and uninstall"
+scripts/tests/test_native_watchdog.sh
+
+# Re-check after every pre-sign build/test step. A build from bytes that no
+# longer match the reviewed commit must never reach Developer ID credentials.
+release_verify_checkout "${REPO_ROOT}" "${CANONICAL_REMOTE}" "${verified_source_ref}" \
+    "${source_commit}" "${source_tree}" || exit 1
+
+echo "release: applying Developer ID signature"
+scripts/sign.sh "${app_path}"
+scripts/verify-user-automation.sh "${app_path}"
+embedded_cc="${app_path}/Contents/Resources/cc"
+embedded_cc_sha="$(shasum -a 256 "${embedded_cc}" | awk '{print $1}')"
+[[ "${embedded_cc_sha}" == "${vendored_cc_sha}" ]] ||
+    die "embedded cc changed while building the app"
+echo "release: verifying helper provenance and disposable reconciliation contract"
+scripts/verify-vendored-cc.sh --release "${embedded_cc}"
+
+echo "release: notarizing and stapling the app before assembling the DMG"
+scripts/notarize.sh app "${app_path}"
+
+version="$(plutil -extract CFBundleShortVersionString raw "${plist_path}")"
+build_number="$(plutil -extract CFBundleVersion raw "${plist_path}")"
+architecture="$(uname -m)"
+artifact_base="Copilot-Control-Tower_${version}_${architecture}"
+unsigned_dmg="${stage_dir}/${artifact_base}.dmg"
+
+mkdir -p "${payload_dir}"
+ditto "${app_path}" "${payload_dir}/Copilot Control Tower.app"
+ln -s /Applications "${payload_dir}/Applications"
+
+echo "release: creating drag-install DMG"
+hdiutil create \
+    -quiet \
+    -fs HFS+ \
+    -format UDZO \
+    -imagekey zlib-level=9 \
+    -srcfolder "${payload_dir}" \
+    -volname "Copilot Control Tower" \
+    "${unsigned_dmg}"
+
+codesign --sign "${CT_SIGN_IDENTITY}" --timestamp --force "${unsigned_dmg}"
+
+echo "release: notarizing and stapling the DMG"
+scripts/notarize.sh dmg "${unsigned_dmg}"
+
+xcrun stapler validate "${app_path}"
+xcrun stapler validate "${unsigned_dmg}"
+codesign --verify --strict --deep --verbose=2 "${app_path}"
+spctl --assess --type execute --verbose=4 "${app_path}"
+spctl --assess --type open --context context:primary-signature --verbose=4 \
+    "${unsigned_dmg}"
+
+mkdir -p "${OUTPUT_DIR}"
+final_app="${OUTPUT_DIR}/Copilot Control Tower.app"
+final_dmg="${OUTPUT_DIR}/${artifact_base}.dmg"
+ditto "${app_path}" "${final_app}"
+ditto "${unsigned_dmg}" "${final_dmg}"
+ditto "${REPO_ROOT}/controltower.compat.json" \
+    "${OUTPUT_DIR}/controltower.compat.json"
+ditto "${REPO_ROOT}/packaging/cc/NOTARIZATION.json" \
+    "${OUTPUT_DIR}/cc-notarization.json"
+
+checksum="$(shasum -a 256 "${final_dmg}" | awk '{print $1}')"
+printf '%s  %s\n' "${checksum}" "$(basename "${final_dmg}")" \
+    > "${final_dmg}.sha256"
+
+release_verify_checkout "${REPO_ROOT}" "${CANONICAL_REMOTE}" "${verified_source_ref}" \
+    "${source_commit}" "${source_tree}" || exit 1
+
+cat > "${OUTPUT_DIR}/release-metadata.json" <<EOF
+{
+  "schema_version": "1.0",
+  "source_ref": "${verified_source_ref}",
+  "source_commit": "${source_commit}",
+  "source_tree": "${source_tree}",
+  "bundle_identifier": "com.everyoneneedsacopilot.controltower",
+  "version": "${version}",
+  "build_number": "${build_number}",
+  "architecture": "${architecture}",
+  "vendored_cc_version": "${vendored_cc_version}",
+  "vendored_cc_sha256": "${vendored_cc_sha}",
+  "headless_detect": "passed",
+  "developer_id_identity": "${CT_SIGN_IDENTITY}",
+  "notarized": true,
+  "stapled": true,
+  "gatekeeper_verified": true,
+  "dmg_sha256": "${checksum}",
+  "dmg": "$(basename "${final_dmg}")"
+}
+EOF
+
+echo "release: verifying the drag-installed artifact without executing from the mounted DMG"
+scripts/verify-user-install-artifact.sh --release-dir "${OUTPUT_DIR}"
+
+echo "release: ready"
+echo "  app: ${final_app}"
+echo "  dmg: ${final_dmg}"
+echo "  sha256: ${checksum}"

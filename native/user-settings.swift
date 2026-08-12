@@ -38,6 +38,7 @@ enum UserSettingsComponent: String, CaseIterable, Identifiable {
 }
 
 enum UserSettingsTierKind {
+    case reported
     case ready
     case needsSetup
     case needsAttention
@@ -46,6 +47,7 @@ enum UserSettingsTierKind {
 
     var symbol: String {
         switch self {
+        case .reported: return "circle"
         case .ready: return "checkmark.circle.fill"
         case .needsSetup: return "wrench.adjustable"
         case .needsAttention: return "exclamationmark.triangle.fill"
@@ -58,6 +60,7 @@ enum UserSettingsTierKind {
     /// state, colour there is redundant decoration; WCAG 1.4.11).
     var color: NSColor {
         switch self {
+        case .reported: return .secondaryLabelColor
         case .ready: return .systemGreen
         case .needsSetup: return .systemBlue
         case .needsAttention: return .systemOrange
@@ -71,6 +74,7 @@ enum UserSettingsTierKind {
     /// light page, under this product's own 4.5:1 floor.
     var ctState: CTState {
         switch self {
+        case .reported: return .neutral
         case .ready: return .ready
         case .needsSetup: return .actionable
         case .needsAttention: return .attention
@@ -80,7 +84,7 @@ enum UserSettingsTierKind {
 }
 
 struct UserSettingsTierStatus: Identifiable {
-    let id: Layer
+    let id: String
     let label: String
     let state: String
     let detail: String
@@ -90,130 +94,113 @@ struct UserSettingsTierStatus: Identifiable {
 struct UserSettingsComponentStatus: Identifiable {
     let id: UserSettingsComponent
     let overall: String
-    let overallKind: UserSettingsTierKind
+    let overallPresentation: UserSettingsTierKind
     let tiers: [UserSettingsTierStatus]
 }
 
 enum UserSettingsRender {
-    static func projectCategories(_ report: WorkspacesReport) -> [ProjectTriageCategory] {
-        ProjectTriageRender.nonEmptyCategories(report.workspaces)
+    struct RolePresentation {
+        let label: String
+        let isKnown: Bool
     }
 
-    static func componentStatuses(
-        doctor: DoctorReport?,
-        personal: OnboardReport?,
-        layers: LayersReport?
-    ) -> [UserSettingsComponentStatus] {
-        UserSettingsComponent.allCases.map { component in
-            let foundation = checkerTier(
-                component: component,
-                layer: .foundation,
-                doctor: doctor
+    /// Closed role vocabulary. Unknown future roles stay neutral and are
+    /// never folded into Personal/This Mac or another known inheritance tier.
+    static func rolePresentation(role: String, unit: String?) -> RolePresentation {
+        switch role {
+        case "foundation": return RolePresentation(label: Layer.foundation.plainLanguageName, isKnown: true)
+        case "organization": return RolePresentation(label: Layer.org.plainLanguageName, isKnown: true)
+        case "department":
+            return RolePresentation(
+                label: unit.map { "Your \($0.capitalized) team" } ?? Layer.dept.plainLanguageName,
+                isKnown: true
             )
-            let organization = checkerTier(
-                component: component,
-                layer: .org,
-                doctor: doctor
+        case "personal": return RolePresentation(label: Layer.personal.plainLanguageName, isKnown: true)
+        default: return RolePresentation(label: "Setup not recognized", isKnown: false)
+        }
+    }
+
+    struct SetupSummary {
+        let title: String
+        let detail: String
+        let offersSetup: Bool
+    }
+
+    /// Closed translation of the CLI's top-level onboard result. No layer,
+    /// checker, count, or repository fact participates in this wording.
+    static func setupSummary(_ result: OnboardResult) -> SetupSummary {
+        switch result {
+        case .ready:
+            return SetupSummary(
+                title: "The setup helper reports Ready",
+                detail: "Knowledge, CLI, Claude, and Codex were reported through the complete setup check.",
+                offersSetup: false
             )
-            let department = checkerTier(
-                component: component,
-                layer: .dept,
-                doctor: doctor,
-                absentKind: layers == nil ? .couldNotCheck : .notJoined,
-                absentState: layers == nil ? "Could not check" : "Not joined",
-                absentDetail: layers == nil
-                    ? "The department catalog could not be checked."
-                    : "No active Department evidence was reported for this component."
+        case .changesRequired:
+            return SetupSummary(
+                title: "Your Copilot setup needs finishing",
+                detail: "The setup helper reported changes that still need to be made.",
+                offersSetup: true
             )
-            let personalTier = personalStatus(component: component, report: personal)
-            let tiers = [foundation, organization, department, personalTier]
-            let overallKind: UserSettingsTierKind
-            let overall: String
-            if personalTier.kind == .needsSetup {
-                overallKind = .needsSetup
-                overall = "Needs Personal setup"
-            } else if tiers.contains(where: { $0.kind == .needsAttention }) {
-                overallKind = .needsAttention
-                overall = "Needs attention"
-            } else if tiers.contains(where: { $0.kind == .couldNotCheck }) {
-                overallKind = .couldNotCheck
-                overall = "Could not fully check"
-            } else if foundation.kind == .ready,
-                      organization.kind == .ready,
-                      personalTier.kind == .ready {
-                overallKind = .ready
-                overall = "Ready"
-            } else {
-                overallKind = .needsAttention
-                overall = "Setup incomplete"
-            }
-            return UserSettingsComponentStatus(
-                id: component,
-                overall: overall,
-                overallKind: overallKind,
-                tiers: tiers
+        case .applied:
+            return SetupSummary(
+                title: "Setup changes were applied",
+                detail: "Run the setup check again before calling this Mac Ready.",
+                offersSetup: true
+            )
+        case .blocked:
+            return SetupSummary(
+                title: "Setup needs another look",
+                detail: "The setup helper could not finish. Nothing here is being called Ready.",
+                offersSetup: true
             )
         }
     }
 
-    static func topologyStatuses(
-        _ report: EcosystemOnboardReport,
-        doctor: DoctorReport? = nil
-    ) -> [UserSettingsComponentStatus] {
+    static func projectCategories(_ report: WorkspacesReport) -> [ProjectTriageCategory] {
+        ProjectTriageRender.nonEmptyCategories(report.workspaces)
+    }
+
+    static func topologyStatuses(_ report: EcosystemOnboardReport) -> [UserSettingsComponentStatus] {
         UserSettingsComponent.allCases.map { component in
             let rows = report.layers
                 .filter { $0.product == component.rawValue }
                 .sorted { $0.rank > $1.rank }
             let tiers = rows.map { row -> UserSettingsTierStatus in
-                let layer: Layer
-                switch row.role {
-                case "foundation": layer = .foundation
-                case "organization": layer = .org
-                case "department": layer = .dept
-                default: layer = .personal
-                }
-                let label = row.role == "department"
-                    ? (row.unit?.capitalized ?? "Department")
-                    : tierLabel(layer)
+                let role = rolePresentation(role: row.role, unit: row.unit)
                 let action = row.action ?? "review"
                 let kind: UserSettingsTierKind
                 let state: String
-                switch action {
-                case "reuse":
-                    let verified = doctor?.checkers.contains {
-                        $0.product == component.rawValue
-                            && $0.layerRole == row.role
-                            && $0.severity == .pass
-                    } == true
+                switch (role.isKnown, action) {
+                case (false, _):
+                    kind = .couldNotCheck
+                    state = "Not reported by this version"
+                case (true, "reuse"):
                     if row.syncState == "local-changes" {
-                        kind = .needsAttention
+                        kind = .reported
                         state = "Local work preserved"
-                    } else if verified {
-                        kind = .ready
-                        state = "Ready"
                     } else {
-                        kind = .needsAttention
-                        state = "Found, not verified"
+                        kind = .reported
+                        state = "Found"
                     }
-                case "create": kind = .needsSetup; state = "Needs creation"
-                case "download": kind = .needsSetup; state = "Needs download"
-                case "initialize": kind = .needsSetup; state = "Needs initialization"
-                case "repair": kind = .needsAttention; state = "Needs update"
+                case (true, "create"): kind = .needsSetup; state = "Needs creation"
+                case (true, "download"): kind = .needsSetup; state = "Needs download"
+                case (true, "initialize"): kind = .needsSetup; state = "Needs initialization"
+                case (true, "repair"): kind = .needsAttention; state = "Needs update"
                 default: kind = .needsAttention; state = "Needs review"
                 }
                 return UserSettingsTierStatus(
-                    id: layer,
-                    label: label,
+                    id: row.id,
+                    label: role.label,
                     state: state,
-                    detail: row.detail ?? "Control Tower could not explain this layer.",
+                    detail: row.detail ?? "The setup helper did not provide more detail.",
                     kind: kind
                 )
             }
-            let ready = !tiers.isEmpty && tiers.allSatisfy { $0.kind == .ready }
             return UserSettingsComponentStatus(
                 id: component,
-                overall: ready ? "Ready" : "Needs setup",
-                overallKind: ready ? .ready : .needsSetup,
+                overall: tiers.isEmpty ? "Not reported" : "Reported by setup helper",
+                overallPresentation: tiers.isEmpty ? .couldNotCheck : .reported,
                 tiers: tiers
             )
         }
@@ -229,79 +216,6 @@ enum UserSettingsRender {
         report.result != .ready && report.result != .applied
     }
 
-    private static func checkerTier(
-        component: UserSettingsComponent,
-        layer: Layer,
-        doctor: DoctorReport?,
-        absentKind: UserSettingsTierKind = .needsAttention,
-        absentState: String = "Not connected",
-        absentDetail: String? = nil
-    ) -> UserSettingsTierStatus {
-        guard let doctor else {
-            return UserSettingsTierStatus(
-                id: layer,
-                label: tierLabel(layer),
-                state: "Could not check",
-                detail: "The active setup report could not be read.",
-                kind: .couldNotCheck
-            )
-        }
-        let matching = doctor.checkers.filter {
-            $0.product == component.rawValue
-                && $0.layerRole == canonicalRole(layer)
-        }
-        guard !matching.isEmpty else {
-            return UserSettingsTierStatus(
-                id: layer,
-                label: tierLabel(layer),
-                state: absentState,
-                detail: absentDetail
-                    ?? "The setup helper did not report an active \(tierLabel(layer)) layer.",
-                kind: absentKind
-            )
-        }
-        let worst: CliSeverity = matching.contains(where: { $0.severity == .fail })
-            ? .fail
-            : matching.contains(where: { $0.severity == .warn }) ? .warn : .pass
-        let detail = matching.first(where: { $0.severity == worst })?.detail
-            ?? "The setup helper verified this layer."
-        switch worst {
-        case .pass:
-            return UserSettingsTierStatus(
-                id: layer,
-                label: tierLabel(layer),
-                state: "Ready",
-                detail: detail,
-                kind: .ready
-            )
-        case .warn:
-            return UserSettingsTierStatus(
-                id: layer,
-                label: tierLabel(layer),
-                state: "Needs review",
-                detail: detail,
-                kind: .needsAttention
-            )
-        case .fail:
-            return UserSettingsTierStatus(
-                id: layer,
-                label: tierLabel(layer),
-                state: "Needs attention",
-                detail: detail,
-                kind: .needsAttention
-            )
-        }
-    }
-
-    private static func canonicalRole(_ layer: Layer) -> String {
-        switch layer {
-        case .foundation: return "foundation"
-        case .org: return "organization"
-        case .dept: return "department"
-        case .personal: return "personal"
-        }
-    }
-
     private static func personalStatus(
         component: UserSettingsComponent,
         report: OnboardReport?
@@ -309,10 +223,10 @@ enum UserSettingsRender {
         guard let report,
               let row = report.repositories.first(where: { $0.component == component.rawValue }) else {
             return UserSettingsTierStatus(
-                id: .personal,
-                label: "Personal",
+                id: Layer.personal.rawValue,
+                label: tierLabel(.personal),
                 state: "Could not check",
-                detail: "The Personal setup report could not be read.",
+                detail: "This Mac's setup report could not be read.",
                 kind: .couldNotCheck
             )
         }
@@ -320,16 +234,16 @@ enum UserSettingsRender {
         switch row.state {
         case .missing:
             return UserSettingsTierStatus(
-                id: .personal,
-                label: "Personal",
+                id: Layer.personal.rawValue,
+                label: tierLabel(.personal),
                 state: "Needs setup",
                 detail: row.packageDetail,
                 kind: .needsSetup
             )
         case .created:
             return UserSettingsTierStatus(
-                id: .personal,
-                label: "Personal",
+                id: Layer.personal.rawValue,
+                label: tierLabel(.personal),
                 state: "Ready",
                 detail: technical,
                 kind: .ready
@@ -337,8 +251,8 @@ enum UserSettingsRender {
         case .existingPrivate:
             if ["ready", "seeded", "adopted"].contains(row.packageState) {
                 return UserSettingsTierStatus(
-                    id: .personal,
-                    label: "Personal",
+                    id: Layer.personal.rawValue,
+                    label: tierLabel(.personal),
                     state: "Ready",
                     detail: technical,
                     kind: .ready
@@ -346,24 +260,24 @@ enum UserSettingsRender {
             }
             if row.packageState == "empty" || row.packageState == "adoptable" {
                 return UserSettingsTierStatus(
-                    id: .personal,
-                    label: "Personal",
+                    id: Layer.personal.rawValue,
+                    label: tierLabel(.personal),
                     state: "Needs setup",
                     detail: row.packageDetail,
                     kind: .needsSetup
                 )
             }
             return UserSettingsTierStatus(
-                id: .personal,
-                label: "Personal",
+                id: Layer.personal.rawValue,
+                label: tierLabel(.personal),
                 state: "Needs attention",
                 detail: row.packageDetail,
                 kind: .needsAttention
             )
         case .conflictPublic, .unknown:
             return UserSettingsTierStatus(
-                id: .personal,
-                label: "Personal",
+                id: Layer.personal.rawValue,
+                label: tierLabel(.personal),
                 state: "Needs attention",
                 detail: row.detail,
                 kind: .needsAttention
@@ -372,12 +286,7 @@ enum UserSettingsRender {
     }
 
     private static func tierLabel(_ layer: Layer) -> String {
-        switch layer {
-        case .foundation: return "Foundation"
-        case .org: return "Organization"
-        case .dept: return "Department"
-        case .personal: return "Personal"
-        }
+        layer.plainLanguageName
     }
 }
 
@@ -519,24 +428,17 @@ struct UserSettingsView: View {
                     .buttonStyle(.bordered)
             }
         case .loaded(let topology):
-            let doctor = loaded(model.doctorState)
-            let statuses = UserSettingsRender.topologyStatuses(topology, doctor: doctor)
-            let ready = statuses.flatMap(\.tiers).filter { $0.kind == .ready }.count
-            let needsAction = ready != topology.layers.count
+            let summary = UserSettingsRender.setupSummary(topology.result)
             VStack(alignment: .leading, spacing: CTSpace.md) {
                 Text("Your setup")
                     .ctText(CTType.hero)
-                Text(needsAction
-                    ? "Your Copilot setup is incomplete"
-                    : "Your ecosystem is ready")
+                Text(summary.title)
                     .ctText(CTType.sectionTitle)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(needsAction
-                    ? "\(ready) of \(topology.layers.count) expected layers are already in place. Finish the others now or return here later."
-                    : "Knowledge, CLI, Claude, and Codex have verified Foundation, Organization, Department, and Personal layers.")
+                Text(summary.detail)
                     .ctText(CTType.lead)
                     .fixedSize(horizontal: false, vertical: true)
-                if needsAction {
+                if summary.offersSetup {
                     Button("Finish Copilot Setup", action: onFinishPersonalSetup)
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
@@ -554,7 +456,7 @@ struct UserSettingsView: View {
         } else {
             let topology = loaded(model.topologyState)
             let statuses = topology.map {
-                UserSettingsRender.topologyStatuses($0, doctor: loaded(model.doctorState))
+                UserSettingsRender.topologyStatuses($0)
             } ?? []
             VStack(alignment: .leading, spacing: 10) {
                 if let root = topology?.stages.first(where: { $0.stage == "repository-location" })?.path {
@@ -569,10 +471,10 @@ struct UserSettingsView: View {
                     }
                     .ctCard(.well)
                 }
-                Text("Each Copilot shows Foundation, Organization, your joined Department, and Personal as separate evidence-backed layers.")
+                Text("Each Copilot shows its core setup, what your organization shares, what your department shares, and what belongs to this Mac separately.")
                     .ctText(CTType.rowDetail)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Personal is yours; its repository is private, but its checkout stays visible in your Copilot repository folder.")
+                Text("What belongs to this Mac is yours. Its private folder stays visible in your Copilot repository folder.")
                     .ctText(CTType.caption)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(statuses) { component in
@@ -605,14 +507,14 @@ struct UserSettingsView: View {
             .padding(.top, CTSpace.sm)
         } label: {
             HStack(spacing: CTSpace.sm) {
-                Image(systemName: component.overallKind.symbol)
-                    .foregroundColor(Color(nsColor: component.overallKind.color))
+                Image(systemName: component.overallPresentation.symbol)
+                    .foregroundColor(Color(nsColor: component.overallPresentation.color))
                     .accessibilityHidden(true)
                 Text(component.id.label)
                     .ctText(CTType.rowTitle)
                 Spacer()
                 Text(component.overall)
-                    .ctText(CTType.status, color: CTColor.state(component.overallKind.ctState))
+                    .ctText(CTType.status, color: CTColor.state(component.overallPresentation.ctState))
             }
             .contentShape(Rectangle())
         }

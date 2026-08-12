@@ -699,7 +699,7 @@ struct VerificationSupportAttempt {
 
         lines.append("")
         lines.append("Privacy")
-        lines.append("Omits host, account, organization and project names; paths; repository addresses; layer IDs; file content; process output; environment values; commit IDs; and secrets.")
+        lines.append("Omits host, account, organization and project names; paths; repository addresses; internal setup identifiers; file content; process output; environment values; commit IDs; and secrets.")
         return lines.joined(separator: "\n")
     }
 
@@ -747,7 +747,7 @@ struct VerificationSupportAttempt {
         case "org", "organization": return "Your organization"
         case "department": return "Your department"
         case "personal": return "This Mac"
-        default: return "This Mac"
+        default: return "Setup scope not recognized"
         }
     }
 
@@ -2398,7 +2398,7 @@ final class WizardModel: ObservableObject {
                 } else if stage.stage == "device-ssh" {
                     lines.append("This Mac needs its own secure GitHub connection.")
                 } else if stage.stage == "layer-manifest" {
-                    lines.append("Your organization, personal, and foundation layers are ready to be connected.")
+                    lines.append("The core setup, what your organization shares, and what belongs to this Mac are ready to be connected.")
                 }
             }
             self.detectLines = lines
@@ -4942,7 +4942,7 @@ struct WizardRootView: View {
                             }
                         }
                     }
-                    Text("Review what Control Tower will keep, create, download, or update. Existing local work is preserved. Nothing is called Ready until every expected layer is visible, connected, synchronized, and verified.")
+                    Text("Review what Control Tower will keep, create, download, or update. Existing local work is preserved. Nothing is called Ready until every expected part is visible, connected, synchronized, and verified.")
                         .font(.caption)
                         .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .fixedSize(horizontal: false, vertical: true)
@@ -4979,7 +4979,7 @@ struct WizardRootView: View {
         let visible = model.ecosystemLayers.filter { $0.localState == "visible" }.count
         let changes = model.ecosystemLayers.filter { ($0.action ?? "reuse") != "reuse" }.count
         guard total > 0 else { return "Control Tower is waiting for a complete repository inventory." }
-        return "\(total) expected layers across four copilots. \(visible) are visible now; \(changes) need a setup action."
+        return "\(total) expected parts across four copilots. \(visible) are visible now; \(changes) need a setup action."
     }
 
     private var copilotRepositoryLocationCard: some View {
@@ -5063,11 +5063,11 @@ struct WizardRootView: View {
 
     private func topologyRoleLabel(_ layer: EcosystemOnboardLayer) -> String {
         switch layer.role {
-        case "foundation": return "Foundation"
-        case "organization": return "Organization"
-        case "department": return layer.unit?.capitalized ?? "Department"
-        case "personal": return "Personal"
-        default: return layer.role.capitalized
+        case "foundation": return Layer.foundation.plainLanguageName
+        case "organization": return Layer.org.plainLanguageName
+        case "department": return layer.unit.map { "Your \($0.capitalized) team" } ?? Layer.dept.plainLanguageName
+        case "personal": return Layer.personal.plainLanguageName
+        default: return "Setup"
         }
     }
 
@@ -8116,26 +8116,18 @@ struct WizardRootView: View {
     }
 
     private func wizardCopilotRoster(_ state: RenderState?, checking: Bool = false) -> some View {
+        _ = state // doctor 1.x carries no per-Copilot display verdict
         let names = ["Knowledge Copilot", "CLI Copilot", "Claude Copilot", "Codex Copilot"]
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(names.enumerated()), id: \.element) { index, name in
-                let component = state?.components.first(where: {
-                    $0.component.lowercased().contains(name.replacingOccurrences(of: " Copilot", with: "").lowercased())
-                })
                 HStack(alignment: .top, spacing: 9) {
-                    Image(systemName: checking ? "circle.dotted" : component?.worstSeverity == .pass ? "checkmark.circle.fill" : "exclamationmark.circle")
-                        .foregroundColor(
-                            checking
-                                ? Color(nsColor: .secondaryLabelColor)
-                                : component?.worstSeverity == .pass
-                                    ? Color(nsColor: .systemGreen)
-                                    : Color(nsColor: .secondaryLabelColor)
-                        )
+                    Image(systemName: checking ? "circle.dotted" : "circle")
+                        .foregroundColor(Color(nsColor: .secondaryLabelColor))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(name)
                             .font(.callout.weight(.semibold))
-                        Text(wizardCopilotStatus(name: name, component: component, checking: checking))
+                        Text(wizardCopilotStatus(name: name, checking: checking))
                             .font(.caption)
                             .foregroundColor(Color(nsColor: .secondaryLabelColor))
                             .fixedSize(horizontal: false, vertical: true)
@@ -8150,17 +8142,11 @@ struct WizardRootView: View {
 
     private func wizardCopilotStatus(
         name: String,
-        component: ComponentView?,
         checking: Bool
     ) -> String {
-        if checking { return "Checking this Mac and its inherited layers…" }
+        if checking { return "Checking this Mac and everything shared with it…" }
         if name == "Codex Copilot", !model.includeCodex { return "Not included by your choice." }
-        guard let component else { return "Not reported by the setup check." }
-        let verdict = component.worstSeverity == .pass
-            ? "Ready"
-            : component.worstSeverity == .warn ? "Needs review" : "Needs attention"
-        let layers = component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }.joined(separator: " · ")
-        return layers.isEmpty ? verdict : "\(verdict) · \(layers)"
+        return "No separate status was reported for this Copilot."
     }
 
     private func wizardVerifiedProjectSummary(_ report: WorkspacesReport) -> String {
@@ -9951,6 +9937,22 @@ enum WizardSelftest {
               "severity":"pass",
               "destructive":false,
               "detail":"sentinel-private-pass-detail"
+            },
+            {
+              "id":"future-shared-scope-checker",
+              "severity":"warn",
+              "destructive":false,
+              "detail":"future role stays neutral",
+              "layer_role":"future-shared-scope",
+              "product":"codex"
+            },
+            {
+              "id":"missing-scope-checker",
+              "severity":"fail",
+              "destructive":false,
+              "detail":"missing role stays neutral",
+              "layer_role":null,
+              "product":"cli"
             }
           ],
           "auth":[]
@@ -10002,6 +10004,14 @@ enum WizardSelftest {
             "authorization=", "Bearer ",
         ]
         let privacySafe = forbidden.allSatisfy { !report.contains($0) }
+        let scopeSafe = report.contains(
+            "Needs attention: Codex Copilot · Setup scope not recognized · needs review"
+        )
+            && report.contains(
+                "Needs attention: CLI Copilot · Setup scope not recognized · needs attention"
+            )
+            && !report.contains("Codex Copilot · This Mac")
+            && !report.contains("CLI Copilot · This Mac")
         let artifact = await SupportReportStore.save(report)
 
         var fileMode = "none"
@@ -10034,7 +10044,7 @@ enum WizardSelftest {
             "SELFTEST verifySupport=\(artifact.filePath == nil ? "copy-only" : "saved")"
                 + " privacySafe=\(privacySafe) savedInitially=\(savedInitially)"
                 + " fileMode=\(fileMode) directoryMode=\(directoryMode)"
-                + " retained=\(reportCount)"
+                + " retained=\(reportCount) scopeSafe=\(scopeSafe)"
         )
         print("SELFTEST verifySupportReport=\(report.replacingOccurrences(of: "\n", with: "|"))")
     }

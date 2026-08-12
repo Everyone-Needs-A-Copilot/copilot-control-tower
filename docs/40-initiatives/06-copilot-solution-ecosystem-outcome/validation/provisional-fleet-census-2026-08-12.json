@@ -1,0 +1,2754 @@
+{
+  "approval": {
+    "approved_census_id": null,
+    "requested_at": null,
+    "responsible_actor": "product-owner",
+    "status": "pending"
+  },
+  "census_id": "sha256:7b31b81a709ef879c17db52082e538336381ddac0dc2cef4a866f34debadf48c",
+  "configured_roots": [
+    "/Volumes/Dev/Sites"
+  ],
+  "dependencies": [
+    {
+      "required_for_approval": true,
+      "status": "completed",
+      "task": "TASK-281"
+    },
+    {
+      "required_for_approval": true,
+      "status": "completed",
+      "task": "TASK-295"
+    },
+    {
+      "required_for_approval": true,
+      "status": "in_progress",
+      "task": "TASK-297"
+    }
+  ],
+  "mode": "read-only",
+  "observed_at": "2026-08-12T18:15:00Z",
+  "privacy": {
+    "content_captured": false,
+    "git_paths_captured": false,
+    "machine_identity_captured": false,
+    "note": "Exact repository roots are required; file names, Git remotes, branches, status paths, identities, tokens, and project content are not recorded.",
+    "secret_values_captured": false
+  },
+  "repositories": [
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification DOCS-KNOWLEDGE is outside solution-project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification DOCS-KNOWLEDGE is outside solution-project fan-out.",
+      "repo_class": "DOCS-KNOWLEDGE",
+      "repo_identity": "sha256:d4e5f129ba6e172add16b780a8015190d625b72379798a979c19272f30728545",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/BM",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:25f5c906a56d33f4df73c8c8bd0c909a1cdb1daee52ce260b1caa6f7224f07b6",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/MBS",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:ef216ab6ceb9da90cca47b26b1af2e72de47be4ba9afa45cd8830cddf20e8712",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/_archive",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:584a2b828e94e55fa143f0607a35a6b3a6e491e78b93c68419ee57e2e952db7b",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/admin-server",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "dirty-working-tree",
+          "reason": "Active work is held and must never be changed by fan-out.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [
+        "claude"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.; Active work is held and must never be changed by fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:df1628e6e7ff16b5f1e599f9afa5191c623fadfe50329f6da193c17755f453a5",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/claude-copilot",
+      "responsible_actor": "none",
+      "tier_role": "foundation",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 46,
+        "git": "dirty",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "claude"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:dfa765f21720061e8b6ea81c6fe7754c2309b9ea00659bf222f5c9da724a7390",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/claude-copilot-accounting",
+      "responsible_actor": "none",
+      "tier_role": "department",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "claude"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:47f682166e29bb9fd02a21af33b878f74542565a261c2d642c9190c768288f63",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/claude-copilot-internal",
+      "responsible_actor": "none",
+      "tier_role": "organization",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "claude"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:edc2d23d8f1a257841262586facb43ea81b3cc67136accd6b5333ee3ae67cda7",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/claude-copilot-private",
+      "responsible_actor": "none",
+      "tier_role": "personal",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "cli"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:35927b3bc8fdfaac2b6a75db3ce5569fd89bd278aa6457e18ac4fa3bd30973db",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/cli-copilot",
+      "responsible_actor": "none",
+      "tier_role": "foundation",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "cli"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:6de054483930f5e80071aa9282de7dfb80e55d32271a823009f025f6606dc519",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/cli-copilot-accounting",
+      "responsible_actor": "none",
+      "tier_role": "department",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "cli"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:35a54d6f2e7d3647578482d019411f53d6b6f20ec979a5404220f8012f977a09",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/cli-copilot-internal",
+      "responsible_actor": "none",
+      "tier_role": "organization",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "cli"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:52c2725aed96fc990b5387663799d7cccdd368268c009eecb348a3f34be0de26",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/cli-copilot-private",
+      "responsible_actor": "none",
+      "tier_role": "personal",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:106aa24d0ea0297ae44db373c02afb9d4c68b6a639fefd5c00d22a02e25fbd9a",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/codex-copilot",
+      "responsible_actor": "none",
+      "tier_role": "foundation",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "unknown",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:6630b9738fb464534916fa25d091a4da5648d7fe102563896c0d08246697a1fd",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/codex-copilot-accounting",
+      "responsible_actor": "none",
+      "tier_role": "department",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:b7b8c5a6b21fb94935fdcfc6bff5c2ae9d9a987e75da3d0b9aea313ed9db49b1",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/codex-copilot-internal",
+      "responsible_actor": "none",
+      "tier_role": "organization",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:540b58f02a0916af3c4c92addc20a21f7394c48b78b72775bb5a41811a29ba02",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/codex-copilot-private",
+      "responsible_actor": "none",
+      "tier_role": "personal",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:b861db31c5f796aae5019f17752f7c4e1458ba1bc494eb182551d16ea81d34b4",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/conversations-copilot",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:a408f785f15dbb09219ddb859b663272d76c9168c6e5effc198447b6c178e8c7",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/convoco",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:91aae8171d00205d0384b0240348d52ab60c711d5d5da501de9ad285e1b8d4f0",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/convoco-policy-build",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "SITE-CONTENT",
+      "repo_identity": "sha256:212a63bf0a99a9dcb5389a62914a3cff954b9a81aeffd81eb804c070ad5aa1ad",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/convoco-site",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [
+        {
+          "code": "dirty-working-tree",
+          "reason": "Active work is held and must never be changed by fan-out.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "hold",
+        "plan": null
+      },
+      "reason": "Active work is held and must never be changed by fan-out.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:affff0c02a77690c66eb96d2282a9242e0f94bcdf6f2a7907af6050f0ea87e88",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/copilot-control-tower",
+      "responsible_actor": "person",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 48,
+        "git": "dirty",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:cc5a384e1eeb44652f355d0f0dbf0251eb08ae13782f1fe98278c1ea7ef3efc5",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/copilot-news",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:dd80a1f02c368b33eee5dd3f9ebb7918013ef293da80bfc8600821d95e230754",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/crm-automation-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:923dec2901aa5156b329a6a665e8c6a1f91249d84e9a3f5969037c8b474955b8",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/docs",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "SITE-CONTENT",
+      "repo_identity": "sha256:1022fb556d8a62cecc6f6d416e0adc5ed8d62cd3e6b113c7af4979fed594602a",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/drip-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:dd325b4d18ee80b0d7dea5cc7693d9121e92476aac6a5b65bb58a4e8e2e54d7b",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/flow",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:a93163ae8c55eebb0070b4517b01820131018a102e98909b7b508319c4d947fc",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/force-readiness-assessment",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "SITE-CONTENT",
+      "repo_identity": "sha256:5dab97e7b03274c2f2e29f1b875cbd44971007a3e469adf37a07af257013fed7",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/ineedacopilot-site",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:dca8a28c125db2f2eb0197ec3b401a14f24f65f43d089b6a742fc1df8fe10de1",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/insights-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "knowledge"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:d48362e455ce413e63b81de9f6f607d20e0a7943f73e2725af927bdd9cb1a82f",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/knowledge-copilot",
+      "responsible_actor": "none",
+      "tier_role": "foundation",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "dirty-working-tree",
+          "reason": "Active work is held and must never be changed by fan-out.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [
+        "knowledge"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.; Active work is held and must never be changed by fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:90c5dfef6384ccaeeecf73e9f2b2de7b13b46b61a2ea1cecbba23aba676496c1",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/knowledge-copilot-accounting",
+      "responsible_actor": "none",
+      "tier_role": "department",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 8,
+        "git": "dirty",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "dirty-working-tree",
+          "reason": "Active work is held and must never be changed by fan-out.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [
+        "knowledge"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.; Active work is held and must never be changed by fan-out.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:aa2b5919e2924b16f97a71ed21edb6dd3caf49c95db4876976b374842d31a870",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal",
+      "responsible_actor": "none",
+      "tier_role": "organization",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "managed-file-symlinked-or-special"
+        ],
+        "customization": "unknown",
+        "dirty_entry_count": 3,
+        "git": "dirty",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "knowledge"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:3e835033d31f4e51746649c330a6b6a96fc85d186c5a2563c842470167866bc5",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/knowledge-copilot-private",
+      "responsible_actor": "none",
+      "tier_role": "personal",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "SITE-CONTENT",
+      "repo_identity": "sha256:adcd5bd008e7398478e7530f10a83789cdaa99743f84c378e4a920fe9be7bc64",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/lars-website",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:cdf08275b34a7c6994010c9bc6f77b92d4fa39652c1475e0219e7462196de828",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/method-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:cf418250d1559818aed31f69dbdd723081c4abff000a9a4d0b682e4fe05ff1f3",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/n8n-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:68854d2ce494560e0a2383ff21bfb812af5d9675cdd9640930f6dc579165cefa",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/nocodb-crm-setup",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:0554a3a02fb8148e23d752b448ceb1691e65a91a8c3d002e016dae0e9cdfea99",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/pipeline-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:0e603aacb6e25a139980f0f7216d58514e973ebcf33e3c70902606659e973171",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/playground",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:95280fe361fde84e07908b16f100bd316ba07dc11a022e87c440f377be4b9824",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/preflight-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "component-authoring-tree",
+          "reason": "Tier/component authoring trees are outside project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Tier/component authoring trees are outside project fan-out.",
+      "repo_class": "COMPONENT",
+      "repo_identity": "sha256:ee683465ce3afdf93a7fda7a7fcf04ccbeaf2e32e0847e4d88b48cdbb5b09c33",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/product-creation-copilot",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:a9d019fd736c794c140713d260fd2c47951a762e3247422fd50569b831916e56",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/project-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:6430902d68b4697d00c0d0332a1f09746bf3522a39606c8010805b96eb5154cb",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/research-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:ca1b0676e9e30b4dba25a80a5af1e9b378e3b2ff97a9fd0f77d8ca258ed4d709",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/rfp-copilot",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:71fed81118935dcd33f12684c54ca9ebe3e356e367c0c3c31c39ee935dd43d01",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/saas-financial-model",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "SITE-CONTENT",
+      "repo_identity": "sha256:6a1bac10dd298872fc2d340b170994791afd74612002339c5d9f0c69712f76de",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/small-business-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:4c9b62b0c6881580a6ae3df2cc413c4d68dff8c7f1701d735c677940035d1d53",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/taguette_data",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [
+        "claude"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:aa0533d3dd6c4353f084ee3986bda6d1ee9517948748521bbdce0530d92b0623",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/test",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "unknown",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        }
+      ],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:7de96cb4931df50193442fccef260ed009d67ed0210509873048f6850b2ad753",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/test-pilot",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "SITE-CONTENT",
+      "repo_identity": "sha256:d234387077637bcc9d02b72900ce5690bcfabfcbb5bd079f13de6ece135eed1c",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/the-collective",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "SITE-CONTENT",
+      "repo_identity": "sha256:5a4a6d1af7cbcb6e48ec5ad841ba4533c8be0d9da483e42603e5bf0924dfa271",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/thought-leadership",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:0d14e04ec8c67396abbc581a5c400eff677df84c09ca93c34e2eaf6be06b7559",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/transformation",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:0c05e5bbd428b8848625bb7ddadf4b706d63e74c33e9058e5e948ef7fc191f21",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/voice-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:1db01a0c1d0b78163c49ce9e476eccbfeb1482191af070d35eb845b93ac883c3",
+      "repo_path": "/Volumes/Dev/Sites/COPILOT/workflow-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:dc76ea71fd28d59f16a36662b184924e3edbdd815c293106b0a9360fed2138e3",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/audible-goodreads-main",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:33107dee601ec2080bd366b95f17f8ce9226b0ce4723209637ad4abb11fba955",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/financial-tracker",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:5956dd92c76862532f4de515316e1bf2c1dcd0ae66ada79a29bb642e52956030",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/investr-api",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:c92e081c02fee514d7eb6d64a8f5fe43098b0486c2e5aca8acf824cd02cd45c6",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/investr-app",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:bbaf60c2c21d870b83afc6fc4a8fd74a3def604b73e906b746cbe5b4f9e21056",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/job-finder",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:7f45a86a1076748f70e126633eaf1341d2c73c813231be595884c50ebe41de4f",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/movies",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:e2e0b5f1c62c88ba5fd578d63571f34d0b30419fdc5a54b5dcbcf15e1b417d86",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/revenue-projections",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:6e848dc061ff11a02ba3d73d623703e836150691f4bbbb6e399f90411b9de64c",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/runway",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:5e37ddffefa909bdc1acd5aa55b4be7e01e60925f8b9b0c038e99c9b4698fbfb",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/spanish-copilot",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:a82124483e58eeafbfaf0a60359fee713fed6c847884b4fe3dfce618229c56e1",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/sproutworks",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:a56cb67ff4cbcbeb1bf3b58ea3db905e4e409ebcc5bb5dbba6855bd71f40e741",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/stocks",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "SITE-CONTENT",
+      "repo_identity": "sha256:c7180d50b75a15910116ed48735a78125710f6c15986d112b61e9815c00e569c",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/thoughts",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:4fc650fef6356e647b92b57c897a89f4ea18808ce8f8bff32b6f41dc382c8ace",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/tigers-toads-fl-weekend",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:2905b5d7210088fabcdf70dd3e8ed7c524a4eba90eaa0c3de3e205e2e563045d",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/tigers-toads-weekend-2026",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:5fa3898ef10341876afd50965cdb6d0c05f568676f7c3283e3b8316dc8e4e77a",
+      "repo_path": "/Volumes/Dev/Sites/PERSONAL/tracker",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:e7c32f6ce45dbecea30a066ec271a16b0f8f42ecff7b3a76cb47efc408a93e41",
+      "repo_path": "/Volumes/Dev/Sites/TSM/Delphi",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "not-required"
+      },
+      "exclusions": [
+        {
+          "code": "non-solution-class",
+          "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.",
+          "source": "classification"
+        },
+        {
+          "code": "git-root-unavailable",
+          "reason": "The exact path is not a safe readable Git repository root.",
+          "source": "census-safety"
+        },
+        {
+          "code": "ambiguous-state",
+          "reason": "The collector could not prove a safe deterministic project state.",
+          "source": "census-safety"
+        }
+      ],
+      "product_families": [],
+      "proposed_operation": {
+        "kind": "none",
+        "plan": null
+      },
+      "reason": "Classification SCRATCH-ARCHIVE is outside solution-project fan-out.; The exact path is not a safe readable Git repository root.; The collector could not prove a safe deterministic project state.",
+      "repo_class": "SCRATCH-ARCHIVE",
+      "repo_identity": "sha256:273fd761a86b0d81d5944a32e510a29f72f3dae076aa2c7320733a65f3f60c40",
+      "repo_path": "/Volumes/Dev/Sites/TSM/_archive",
+      "responsible_actor": "none",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": true,
+        "ambiguity_reasons": [
+          "not-a-git-repository"
+        ],
+        "customization": "not-applicable",
+        "dirty_entry_count": 0,
+        "git": "unavailable",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:d73af5b642ed0a6a1103522782d58635795dd48c482bac2f53bbe3a67fd3e258",
+      "repo_path": "/Volumes/Dev/Sites/TSM/clio",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:00fa1b9edc70ebeb87ff65db76038439cc59120607447ac71c9e00e506ce0e75",
+      "repo_path": "/Volumes/Dev/Sites/TSM/h2",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:f2c3b2a365023b22f3194a86168266834f84dfc50c1bc967d38b7dc33eef22c2",
+      "repo_path": "/Volumes/Dev/Sites/TSM/h3",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    },
+    {
+      "approval_status": "pending",
+      "eligible": false,
+      "entitlement": {
+        "evidence": [],
+        "state": "dependency-pending"
+      },
+      "exclusions": [],
+      "product_families": [
+        "claude",
+        "codex"
+      ],
+      "proposed_operation": {
+        "kind": "refresh-after-dependencies",
+        "plan": null
+      },
+      "reason": "Refresh after TASK-295 and TASK-297 complete; no mutation plan or approval exists.",
+      "repo_class": "PRODUCT",
+      "repo_identity": "sha256:ad900008fca4b4883bd21da1b2a6fb48aac6fa0030d19776c4f3553955fc7358",
+      "repo_path": "/Volumes/Dev/Sites/TSM/hermes",
+      "responsible_actor": "delivery-owner",
+      "tier_role": "none",
+      "workspace_state": {
+        "ambiguity": false,
+        "ambiguity_reasons": [],
+        "customization": "not-detected",
+        "dirty_entry_count": 0,
+        "git": "clean",
+        "mismatched_managed_count": 0,
+        "missing_managed_count": 0
+      }
+    }
+  ],
+  "schema_version": "1.1",
+  "sources": {
+    "classification": "/Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/classification.toml",
+    "entitlement": {
+      "kind": "machine-local-entitlement-ledger",
+      "receipt": null,
+      "state": "unavailable"
+    }
+  },
+  "status": "provisional",
+  "summary": {
+    "ambiguous": 11,
+    "approved": 0,
+    "authorized_mutations": 0,
+    "candidate": 42,
+    "customized": 0,
+    "dirty": 4,
+    "excluded": 32,
+    "held": 1,
+    "total": 75
+  }
+}

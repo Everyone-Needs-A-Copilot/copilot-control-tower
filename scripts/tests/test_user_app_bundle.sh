@@ -18,7 +18,10 @@ for required in \
   "${PLIST}" \
   "${APP_BIN}" \
   "${CONTENTS}/Resources/ControlTower.icns" \
-  "${CONTENTS}/Resources/aviator-glyph.svg"; do
+  "${CONTENTS}/Resources/aviator-glyph.svg" \
+  "${CONTENTS}/Resources/watchdog/com.everyoneneedsacopilot.controltower.plist" \
+  "${CONTENTS}/Resources/watchdog/install-watchdog.sh" \
+  "${CONTENTS}/Resources/watchdog/uninstall-watchdog.sh"; do
   if [[ ! -e "${required}" ]]; then
     echo "missing User bundle artifact: ${required}" >&2
     exit 1
@@ -26,6 +29,19 @@ for required in \
 done
 
 cmp assets/brand/aviator-glyph.svg "${CONTENTS}/Resources/aviator-glyph.svg"
+cmp packaging/macos/ControlTower.icns "${CONTENTS}/Resources/ControlTower.icns"
+cmp packaging/launchd/com.everyoneneedsacopilot.controltower.plist \
+  "${CONTENTS}/Resources/watchdog/com.everyoneneedsacopilot.controltower.plist"
+[[ -x "${CONTENTS}/Resources/watchdog/install-watchdog.sh" ]]
+[[ -x "${CONTENTS}/Resources/watchdog/uninstall-watchdog.sh" ]]
+[[ "$(plutil -extract KeepAlive.SuccessfulExit raw \
+  "${CONTENTS}/Resources/watchdog/com.everyoneneedsacopilot.controltower.plist")" == "false" ]]
+[[ "$(plutil -extract RunAtLoad raw \
+  "${CONTENTS}/Resources/watchdog/com.everyoneneedsacopilot.controltower.plist")" == "false" ]]
+if rg -n 'src-tauri/icons/icon\.icns' scripts/build-user.command scripts/build-admin.command; then
+  echo "shipping builds still depend on the retired Tauri icon" >&2
+  exit 1
+fi
 if rg -Fq 'systemSymbolName: "eyeglasses"' native/models.swift; then
   echo "the menu-bar aviators loader regained a substitute icon" >&2
   exit 1

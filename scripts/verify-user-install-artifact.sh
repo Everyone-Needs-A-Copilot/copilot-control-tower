@@ -115,6 +115,8 @@ attached=0
 plist="${installed_app}/Contents/Info.plist"
 helper="${installed_app}/Contents/Resources/cc"
 helper_version_resource="${installed_app}/Contents/Resources/cc-version.txt"
+watchdog_root="${installed_app}/Contents/Resources/watchdog"
+watchdog_plist="${watchdog_root}/com.everyoneneedsacopilot.controltower.plist"
 [[ "$(plutil -extract CFBundleShortVersionString raw "${plist}")" == "${expected_version}" ]] ||
     die "installed app version does not match release metadata"
 [[ "$(plutil -extract CFBundleVersion raw "${plist}")" == "${expected_build}" ]] ||
@@ -125,6 +127,17 @@ helper_version_resource="${installed_app}/Contents/Resources/cc-version.txt"
     die "installed helper checksum does not match release metadata"
 [[ "$("${helper}" --version)" == "cc version ${expected_cc_version}" ]] ||
     die "installed helper reports an unexpected version"
+[[ -x "${watchdog_root}/install-watchdog.sh" &&
+   -x "${watchdog_root}/uninstall-watchdog.sh" &&
+   -f "${watchdog_plist}" ]] ||
+    die "installed app is missing its crash-only supervision lifecycle"
+[[ "$(plutil -extract KeepAlive.SuccessfulExit raw "${watchdog_plist}")" == "false" ]] ||
+    die "installed watchdog does not fail closed on SuccessfulExit"
+[[ "$(plutil -extract RunAtLoad raw "${watchdog_plist}")" == "false" ]] ||
+    die "installed watchdog unexpectedly owns login launch"
+[[ "$(plutil -extract ProgramArguments.0 raw "${watchdog_plist}")" ==
+   "__APP_PATH__/Contents/MacOS/Copilot Control Tower" ]] ||
+    die "installed watchdog template names the wrong native executable"
 
 codesign --verify --deep --strict --verbose=2 "${installed_app}"
 xcrun stapler validate "${installed_app}"

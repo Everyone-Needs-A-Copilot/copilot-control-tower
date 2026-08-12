@@ -210,11 +210,8 @@ to be refreshed, run:
 ./scripts/setup-publisher.sh --skip-notary --force
 ```
 
-Then load the generated file:
-
-```bash
-source .env.release.local
-```
+Leave the generated file on disk; do not source it. The verified inner release
+launcher reads it after authenticating immutable source.
 
 The manual steps below are here as a fallback and to document what the script
 does.
@@ -293,12 +290,14 @@ export APPLE_SIGNING_IDENTITY="$CT_SIGN_IDENTITY"
 export CT_NOTARY_KEYCHAIN_PROFILE='ct-notary'
 ```
 
-Protect and load it:
+Protect it:
 
 ```bash
 chmod 600 .env.release.local
-source .env.release.local
 ```
+
+Do not source this file into the public packaging command. The verified inner
+launcher reads it only after immutable-source authentication.
 
 Do not commit `.env.release.local`, `.p12` files, `.p8` files, app-specific
 passwords, or certificate export passwords.
@@ -321,14 +320,20 @@ notarization evidence, satisfies `controltower.compat.json`, and is not a
 development placeholder:
 
 ```bash
-./scripts/package-user-release.sh
+./scripts/package-user-release
 ```
 
-The command refuses to proceed when local `HEAD` does not equal the selected
-remote ref. Pass a branch or tag explicitly when needed:
+The public command is a credential-free bootstrap. Do not `source` the local
+release file into its environment. It accepts only a source ref and output
+intent, resolves that ref through config-free Git, clones a clean detached
+checkout, proves the launcher/source/program bytes are the objects committed in
+that advertised tree, and recompiles the launcher as an identity check. Only
+the verified inner launcher reads `.env.release.local` from the original
+publisher checkout and exposes those values to the immutable release program.
+Pass a branch or tag explicitly when needed:
 
 ```bash
-./scripts/package-user-release.sh --source-ref app-build
+./scripts/package-user-release --source-ref app-build
 ```
 
 It invokes the repo's signing and notarization scripts, which read the
@@ -342,7 +347,8 @@ The pipeline embeds that independently signed helper at
 disabled, applies the Developer ID signature to the outer app, creates the
 drag-install DMG, notarizes and staples the app and DMG, validates both tickets,
 runs Gatekeeper assessment, and emits a SHA-256 sidecar plus
-`release-metadata.json` (including the helper version and SHA-256), the
+`release-metadata.json` (including the exact approved source ref, commit, tree,
+and the helper version and SHA-256), the
 compatibility matrix, and the upstream helper notarization record under
 `dist/user-release/`.
 

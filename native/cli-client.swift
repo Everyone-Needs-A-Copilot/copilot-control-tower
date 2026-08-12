@@ -346,6 +346,88 @@ enum CliLocator {
     }
 }
 
+// MARK: - Crash-only launchd lifecycle
+
+/// The native User app's only non-cc process boundary. It executes the
+/// signed bundle's reviewed, argument-only watchdog scripts through an
+/// absolute `/bin/bash` path. No command string, user preference, PATH
+/// lookup, or elevated domain participates.
+enum LaunchdSupervisor {
+    static let managedEnvironmentKey = "CT_WATCHDOG_MANAGED"
+    private static let canonicalBundlePath = "/Applications/Copilot Control Tower.app"
+
+    static func isTrustedInstalledApp(
+        bundlePath: String = Bundle.main.bundlePath,
+        executablePath: String? = Bundle.main.executablePath
+    ) -> Bool {
+        URL(fileURLWithPath: bundlePath).standardizedFileURL.path == canonicalBundlePath
+            && executablePath.map(ProductionTrustAnchor.isSatisfied(byFileAt:)) == true
+    }
+
+    /// A manually opened production article hands itself to launchd before
+    /// constructing UI. Development, translocated, copied-candidate,
+    /// headless, and already-managed launches never mutate LaunchAgents.
+    static func shouldActivateCurrentApp(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        arguments: [String] = CommandLine.arguments,
+        bundlePath: String = Bundle.main.bundlePath,
+        executablePath: String? = Bundle.main.executablePath
+    ) -> Bool {
+        guard arguments.count == 1,
+              environment[managedEnvironmentKey] != "1",
+              environment["CT_SELFTEST"] != "1",
+              environment["CT_OPEN_WIZARD"] != "1",
+              environment["CT_OPEN_SETTINGS"] != "1",
+              isTrustedInstalledApp(bundlePath: bundlePath, executablePath: executablePath)
+        else {
+            return false
+        }
+        return true
+    }
+
+    static func installCurrentApp(activate: Bool) -> Bool {
+        guard isTrustedInstalledApp() else { return false }
+        return runBundledScript(
+            named: "install-watchdog",
+            arguments: (activate ? ["--activate"] : []) + [Bundle.main.bundlePath]
+        )
+    }
+
+    static func uninstallCurrentApp() -> Bool {
+        runBundledScript(named: "uninstall-watchdog", arguments: [])
+    }
+
+    private static func runBundledScript(named name: String, arguments: [String]) -> Bool {
+        guard let script = Bundle.main.resourceURL?
+            .appendingPathComponent("watchdog", isDirectory: true)
+            .appendingPathComponent("\(name).sh"),
+              FileManager.default.isExecutableFile(atPath: script.path)
+        else {
+            return false
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [script.path] + arguments
+        var environment = ProcessInfo.processInfo.environment
+        environment.removeValue(forKey: "BASH_ENV")
+        environment.removeValue(forKey: "ENV")
+        environment.keys
+            .filter { $0.hasPrefix("BASH_FUNC_") }
+            .forEach { environment.removeValue(forKey: $0) }
+        process.environment = environment
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationReason == .exit && process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+}
+
 /// The only command handed to Terminal for a fleet-level project handoff.
 /// It changes to Python's approved root and stops. Control Tower never starts
 /// an assistant, pastes a prompt, or owns the resulting conversation.

@@ -529,7 +529,7 @@ final class PublisherSetupModel: ObservableObject {
             do {
                 let result = try Self.runReleaseStep(
                     title: "Build, sign, notarize, and verify native User app",
-                    command: "./scripts/package-user-release.sh",
+                    command: "./scripts/package-user-release",
                     envFile: setup.envFile,
                     log: log
                 ) { step, output in
@@ -807,7 +807,9 @@ final class PublisherSetupModel: ObservableObject {
         log: String,
         update: @escaping (String, String) -> Void
     ) throws -> (log: String, status: Int32) {
-        let shell = "source \(shellQuote(envFile)) && \(command)"
+        // Release authority stays in the mode-0600 file. The credential-free
+        // bootstrap must not inherit it before immutable-source verification.
+        let shell = command
         let lock = NSLock()
         var combinedLog = log + "\n$ \(command)\n"
         update(title, combinedLog)
@@ -2118,8 +2120,7 @@ struct PublisherSetupView: View {
 
     private func publisherCommands(envFile: String) -> String {
         """
-        source \(envFile)
-        ./scripts/package-user-release.sh
+        ./scripts/package-user-release
         """
     }
 }

@@ -119,6 +119,86 @@ check(
     "got \(String(describing: noOverride))"
 )
 
+// Crash-only supervision is allowed to mutate LaunchAgents only for an
+// ordinary manual launch of the trusted production article at its canonical
+// installed path. Every harness/copy/managed-child shape stays inert.
+let canonicalApp = "/Applications/Copilot Control Tower.app"
+check(
+    "trusted canonical manual launch is eligible for watchdog handoff",
+    LaunchdSupervisor.shouldActivateCurrentApp(
+        environment: [:],
+        arguments: [canonicalApp + "/Contents/MacOS/Copilot Control Tower"],
+        bundlePath: canonicalApp,
+        executablePath: productionSignedSelf
+    )
+)
+check(
+    "trusted canonical app is accepted for explicit watchdog install",
+    LaunchdSupervisor.isTrustedInstalledApp(
+        bundlePath: canonicalApp,
+        executablePath: productionSignedSelf
+    )
+)
+check(
+    "ad-hoc canonical app is rejected for explicit watchdog install",
+    !LaunchdSupervisor.isTrustedInstalledApp(
+        bundlePath: canonicalApp,
+        executablePath: adhocSignedSelf
+    )
+)
+check(
+    "trusted noncanonical app is rejected for explicit watchdog install",
+    !LaunchdSupervisor.isTrustedInstalledApp(
+        bundlePath: "/tmp/Copilot Control Tower.app",
+        executablePath: productionSignedSelf
+    )
+)
+check(
+    "launchd-managed child cannot recursively activate watchdog",
+    !LaunchdSupervisor.shouldActivateCurrentApp(
+        environment: [LaunchdSupervisor.managedEnvironmentKey: "1"],
+        arguments: [canonicalApp + "/Contents/MacOS/Copilot Control Tower"],
+        bundlePath: canonicalApp,
+        executablePath: productionSignedSelf
+    )
+)
+check(
+    "selftest launch cannot activate watchdog",
+    !LaunchdSupervisor.shouldActivateCurrentApp(
+        environment: ["CT_SELFTEST": "1"],
+        arguments: [canonicalApp + "/Contents/MacOS/Copilot Control Tower"],
+        bundlePath: canonicalApp,
+        executablePath: productionSignedSelf
+    )
+)
+check(
+    "copied candidate cannot activate watchdog",
+    !LaunchdSupervisor.shouldActivateCurrentApp(
+        environment: [:],
+        arguments: ["/tmp/Copilot Control Tower.app/Contents/MacOS/Copilot Control Tower"],
+        bundlePath: "/tmp/Copilot Control Tower.app",
+        executablePath: productionSignedSelf
+    )
+)
+check(
+    "ad-hoc app cannot activate watchdog",
+    !LaunchdSupervisor.shouldActivateCurrentApp(
+        environment: [:],
+        arguments: [canonicalApp + "/Contents/MacOS/Copilot Control Tower"],
+        bundlePath: canonicalApp,
+        executablePath: adhocSignedSelf
+    )
+)
+check(
+    "headless argument cannot activate watchdog",
+    !LaunchdSupervisor.shouldActivateCurrentApp(
+        environment: [:],
+        arguments: [canonicalApp + "/Contents/MacOS/Copilot Control Tower", "--headless-detect"],
+        bundlePath: canonicalApp,
+        executablePath: productionSignedSelf
+    )
+)
+
 if failureCount == 0 {
     print("cli-locator trust boundary: ALL ASSERTIONS PASSED")
     exit(0)

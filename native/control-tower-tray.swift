@@ -1069,92 +1069,6 @@ struct GlyphView: View {
     }
 }
 
-// MARK: - Region 2: "YOUR COPILOTS" component tree
-
-/// One layer cell (`control-tower-copy-deck.md` §1.4): a quiet dot when
-/// passing (never the colorful `.pass` reward mark — that would be exactly
-/// the "green checkmark reward" the copy deck's hard rule 6 forbids), the
-/// closed badge-shape vocabulary for warn/fail, and an honest hollow "You're
-/// not in this one" mark for a layer the CLI reported no checker for at all
-/// (a fixed four-column grid, so a genuinely absent layer still gets its own
-/// slot rather than silently collapsing the row).
-private struct LayerDot: View {
-    let layer: Layer
-    let layerView: LayerView?
-
-    private static let plainLabels: [Layer: String] = [
-        .foundation: "Core setup",
-        .org: "Your organization",
-        .dept: "Your department",
-        .personal: "This Mac",
-    ]
-
-    private var label: String { Self.plainLabels[layer] ?? layer.label }
-
-    var body: some View {
-        Group {
-            if let layerView, layerView.severity != .pass, let mark = layerView.badgeState.symbolAndColor {
-                Image(systemName: mark.symbol)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(Color(nsColor: mark.color))
-            } else if layerView != nil {
-                Circle()
-                    .fill(Color(nsColor: .tertiaryLabelColor))
-                    .frame(width: 6, height: 6)
-            } else {
-                Image(systemName: "circle")
-                    .font(.system(size: 9, weight: .regular))
-                    .foregroundColor(Color(nsColor: .quaternaryLabelColor))
-            }
-        }
-        .frame(width: 16, height: 16)
-        .help(tooltip)
-        .accessibilityLabel("\(label), \(accessibilityDetail)")
-    }
-
-    private var tooltip: String {
-        guard let layerView else { return "\(label): You're not in this one" }
-        if let detail = layerView.detail, !detail.isEmpty { return "\(label): \(detail)" }
-        return label
-    }
-
-    private var accessibilityDetail: String {
-        guard let layerView else { return "You're not in this one" }
-        return layerView.detail ?? layerView.severity.rawValue
-    }
-}
-
-private struct ComponentTreeRow: View {
-    let component: ComponentView
-
-    private var state: CTState {
-        switch component.worstSeverity {
-        case .pass: return .ready
-        case .warn: return .attention
-        case .fail: return .blocked
-        }
-    }
-
-    private var statusWord: String {
-        switch component.worstSeverity {
-        case .pass: return "Ready"
-        case .warn: return "Needs review"
-        case .fail: return "Needs attention"
-        }
-    }
-
-    var body: some View {
-        CTStatusRow(
-            glyph: .filledDot(state),
-            title: component.component,
-            detail: component.layers.map { "\($0.layer.label): \($0.severity.rawValue)" }.joined(separator: " · "),
-            footnote: component.layers.first(where: { $0.severity != .pass })?.detail,
-            trailing: .status(statusWord, state),
-            accessibilityLabelOverride: "\(component.component), \(component.worstSeverity.rawValue)"
-        )
-    }
-}
-
 // MARK: - Region 3: "AVAILABLE TO JOIN"
 
 private struct JoinRow: View {
@@ -1240,10 +1154,6 @@ struct PopoverContentView: View {
                 // Per `control-tower-copy-deck.md` §1.2, the bang state shows
                 // "no tree, no join row" — only the header sentence plus the
                 // Region 5 retry action.
-                if !model.state.components.isEmpty {
-                    Divider()
-                    componentTreeRegion
-                }
                 if !model.joinable.isEmpty {
                     Divider()
                     joinRegion
@@ -1303,22 +1213,6 @@ struct PopoverContentView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
-    }
-
-    // MARK: Region 2 — "YOUR COPILOTS": one row per CSE component, four
-    // fixed layer cells each (`control-tower-copy-deck.md` §1.3/§1.4).
-
-    private var componentTreeRegion: some View {
-        VStack(alignment: .leading, spacing: CTSpace.xs) {
-            CTCardTitle("Your copilots")
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(model.state.components.enumerated()), id: \.element.id) { index, component in
-                    ComponentTreeRow(component: component)
-                    if index < model.state.components.count - 1 { Divider() }
-                }
-            }
-        }
-        .padding(.horizontal, CTSpace.md)
     }
 
     // MARK: Region 3 — "AVAILABLE TO JOIN": present only when a joinable
@@ -2423,6 +2317,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let env = ProcessInfo.processInfo.environment
+        let arguments = Array(CommandLine.arguments.dropFirst())
+
+        #if !CT_ADMIN_BUILD
+        // Explicit, headless lifecycle hooks for installer/uninstaller use.
+        // They run the same signed-bundle scripts as automatic activation and
+        // return before any status item, wizard, or CLI request exists.
+        if arguments == ["--install-watchdog"] {
+            exit(LaunchdSupervisor.installCurrentApp(activate: true) ? 0 : 1)
+        }
+        if arguments == ["--uninstall-watchdog"] {
+            exit(LaunchdSupervisor.uninstallCurrentApp() ? 0 : 1)
+        }
+        #endif
 
         // Production headless seam for exercising the exact Detect boundary
         // without creating a status item or showing the wizard. This is not
@@ -2431,7 +2338,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // turn launch the same bundle-relative cc helper through the same
         // Process and schema gate. The mode is deliberately plan-only and
         // has no apply counterpart.
-        if Array(CommandLine.arguments.dropFirst()) == ["--headless-detect"] {
+        if arguments == ["--headless-detect"] {
             Self.runHeadlessDetect()
             return
         }
@@ -2877,6 +2784,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             AdminWindowController.shared.show()
+            return
+        }
+        #endif
+
+        #if !CT_ADMIN_BUILD
+        // A trusted app opened manually from its canonical installed path is
+        // not yet launchd-owned. Atomically install/bootstrap the reviewed
+        // per-user job, kickstart its managed child, then let this original
+        // process exit cleanly. The child carries CT_WATCHDOG_MANAGED=1 and
+        // cannot recurse through this handoff. If activation fails, keep the
+        // manually opened app available rather than creating a restart loop.
+        if LaunchdSupervisor.shouldActivateCurrentApp(),
+           LaunchdSupervisor.installCurrentApp(activate: true) {
+            NSApp.terminate(nil)
             return
         }
         #endif
@@ -3402,33 +3323,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let layersReport = layersJSON.data(using: .utf8).flatMap {
             try? selftestDecoder().decode(LayersReport.self, from: $0)
         }
-        let settingsComponents = UserSettingsRender.componentStatuses(
-            doctor: doctorReport,
-            personal: personalReport,
-            layers: layersReport
-        )
-        let settingsTopologyPass = settingsComponents.map(\.id)
-            == [.knowledge, .cli, .claude, .codex]
-            && settingsComponents.allSatisfy {
-                $0.tiers.map(\.label)
-                    == ["Foundation", "Organization", "Department", "Personal"]
-            }
-            && settingsComponents.first(where: { $0.id == .knowledge })?
-                .tiers.last?.kind == .needsSetup
-            && settingsComponents.first(where: { $0.id == .knowledge })?
-                .tiers.first?.kind == .ready
-            && settingsComponents.first(where: { $0.id == .knowledge })?
-                .tiers.dropFirst().first?.kind == .ready
-            && settingsComponents.first(where: { $0.id == .cli })?
-                .tiers.last?.kind == .needsSetup
-            && settingsComponents.first(where: { $0.id == .cli })?
-                .tiers.first?.kind == .ready
-            && settingsComponents.first(where: { $0.id == .cli })?
-                .tiers.dropFirst().first?.kind == .ready
-            && settingsComponents.first(where: { $0.id == .claude })?
-                .tiers.last?.kind == .ready
-            && settingsComponents.first(where: { $0.id == .codex })?
-                .tiers.last?.kind == .ready
+        let settingsTopologyPass = doctorReport.map {
+            // doctor 1.x has no component display-verdict contract. The app
+            // must not manufacture one from checker severities.
+            RenderState.from($0, joinable: layersReport).components.isEmpty
+        } == true
+            && {
+                let unknown = UserSettingsRender.rolePresentation(
+                    role: "future-shared-scope",
+                    unit: nil
+                )
+                return !unknown.isKnown
+                    && unknown.label == "Setup not recognized"
+                    && unknown.label != Layer.personal.plainLanguageName
+            }()
             && personalReport.map(UserSettingsRender.personalReadyCount) == 2
             && personalReport.map(UserSettingsRender.personalNeedsAction) == true
 

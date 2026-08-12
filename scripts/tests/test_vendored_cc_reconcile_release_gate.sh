@@ -65,7 +65,7 @@ done
 
 python3 - \
     "${REPO_ROOT}/scripts/verify-vendored-cc.sh" \
-    "${REPO_ROOT}/scripts/package-user-release.sh" \
+    "${REPO_ROOT}/scripts/package-user-release.program" \
     "${PROBE_ASSERT}" \
     "${GATE}" <<'PY'
 import pathlib

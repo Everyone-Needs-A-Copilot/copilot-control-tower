@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://everyoneneedsacopilot.com/schemas/fleet-census.schema.json",
+  "title": "Eligible fleet census",
+  "description": "Read-only, exact-path owner-review evidence. Semantic validation is also required; schema validity alone is never mutation authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "status", "census_id", "observed_at", "configured_roots", "sources", "dependencies", "approval", "privacy", "summary", "repositories"],
+  "properties": {
+    "schema_version": { "const": "1.1" },
+    "mode": { "const": "read-only" },
+    "status": { "enum": ["provisional", "approval-ready", "superseded"] },
+    "census_id": { "$ref": "#/$defs/digest" },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "configured_roots": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/exactPath" } },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "entitlement"],
+      "properties": {
+        "classification": { "$ref": "#/$defs/exactPath" },
+        "entitlement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "state", "receipt"],
+          "properties": {
+            "kind": { "const": "machine-local-entitlement-ledger" },
+            "state": { "enum": ["available", "unavailable", "invalid"] },
+            "receipt": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] }
+          }
+        }
+      }
+    },
+    "dependencies": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/dependency" } },
+    "approval": { "$ref": "#/$defs/approval" },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_captured", "secret_values_captured", "git_paths_captured", "machine_identity_captured", "note"],
+      "properties": {
+        "content_captured": { "const": false },
+        "secret_values_captured": { "const": false },
+        "git_paths_captured": { "const": false },
+        "machine_identity_captured": { "const": false },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "repositories": { "type": "array", "items": { "$ref": "#/$defs/repository" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "provisional" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "approval": { "properties": { "status": { "const": "pending" }, "requested_at": { "type": "null" }, "approved_census_id": { "type": "null" } } },
+          "summary": { "properties": { "approved": { "const": 0 }, "authorized_mutations": { "const": 0 } } },
+          "repositories": {
+            "items": {
+              "properties": {
+                "eligible": { "const": false },
+                "approval_status": { "const": "pending" },
+                "proposed_operation": {
+                  "properties": { "plan": { "type": "null" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "exactPath": { "type": "string", "minLength": 2, "pattern": "^/(?!.*[\\*?\\[\\]{}]).+$" },
+    "approvalStatus": { "enum": ["pending", "approved", "rejected"] },
+    "dependency": {
+      "type": "object", "additionalProperties": false, "required": ["task", "status", "required_for_approval"],
+      "properties": { "task": { "type": "string", "pattern": "^TASK-[0-9]+$" }, "status": { "enum": ["pending", "in_progress", "completed", "blocked"] }, "required_for_approval": { "const": true } }
+    },
+    "approval": {
+      "type": "object", "additionalProperties": false, "required": ["status", "responsible_actor", "requested_at", "approved_census_id"],
+      "properties": { "status": { "$ref": "#/$defs/approvalStatus" }, "responsible_actor": { "const": "product-owner" }, "requested_at": { "type": ["string", "null"], "format": "date-time" }, "approved_census_id": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] } }
+    },
+    "summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["total", "candidate", "excluded", "held", "dirty", "customized", "ambiguous", "approved", "authorized_mutations"],
+      "properties": { "total": { "type": "integer", "minimum": 0 }, "candidate": { "type": "integer", "minimum": 0 }, "excluded": { "type": "integer", "minimum": 0 }, "held": { "type": "integer", "minimum": 0 }, "dirty": { "type": "integer", "minimum": 0 }, "customized": { "type": "integer", "minimum": 0 }, "ambiguous": { "type": "integer", "minimum": 0 }, "approved": { "type": "integer", "minimum": 0 }, "authorized_mutations": { "type": "integer", "minimum": 0 } }
+    },
+    "exclusion": {
+      "type": "object", "additionalProperties": false, "required": ["code", "source", "reason"],
+      "properties": { "code": { "type": "string", "pattern": "^[a-z0-9-]+$" }, "source": { "enum": ["classification", "census-safety"] }, "reason": { "type": "string", "minLength": 1 } }
+    },
+    "workspaceState": {
+      "type": "object", "additionalProperties": false,
+      "required": ["git", "dirty_entry_count", "customization", "mismatched_managed_count", "missing_managed_count", "ambiguity", "ambiguity_reasons"],
+      "properties": { "git": { "enum": ["clean", "dirty", "unavailable"] }, "dirty_entry_count": { "type": "integer", "minimum": 0 }, "customization": { "enum": ["not-detected", "detected", "unknown", "not-applicable"] }, "mismatched_managed_count": { "type": "integer", "minimum": 0 }, "missing_managed_count": { "type": "integer", "minimum": 0 }, "ambiguity": { "type": "boolean" }, "ambiguity_reasons": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9-]+$" } } }
+    },
+    "entitlementEvidence": {
+      "type": "object", "additionalProperties": false, "required": ["product_family", "layer_id", "tier_role", "state", "revision", "binding_receipt"],
+      "properties": { "product_family": { "enum": ["claude", "codex", "cli", "knowledge"] }, "layer_id": { "type": "string", "minLength": 1 }, "tier_role": { "enum": ["organization", "department"] }, "state": { "enum": ["entitled", "offline", "unentitled", "revoked", "signed-out", "invalid-source", "unknown"] }, "revision": { "type": ["integer", "null"], "minimum": 0 }, "binding_receipt": { "$ref": "#/$defs/digest" } }
+    },
+    "entitlement": {
+      "type": "object", "additionalProperties": false, "required": ["state", "evidence"],
+      "properties": { "state": { "enum": ["not-required", "entitled", "offline-cached", "unentitled", "revoked", "signed-out", "offline-unverified", "stale-entitlement", "invalid-source", "dependency-pending", "unknown"] }, "evidence": { "type": "array", "items": { "$ref": "#/$defs/entitlementEvidence" } } }
+    },
+    "plan": {
+      "type": "object", "additionalProperties": false, "required": ["plan_id", "plan_fingerprint", "target_paths", "binding_id"],
+      "properties": { "plan_id": { "type": "string", "pattern": "^plan_[0-9a-f]{32}$" }, "plan_fingerprint": { "$ref": "#/$defs/digest" }, "target_paths": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/exactPath" } }, "binding_id": { "$ref": "#/$defs/digest" } }
+    },
+    "operation": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "plan"],
+      "properties": { "kind": { "enum": ["none", "hold", "refresh-after-dependencies", "canonical-reconcile"] }, "plan": { "oneOf": [{ "$ref": "#/$defs/plan" }, { "type": "null" }] } }
+    },
+    "repository": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repo_identity", "repo_path", "repo_class", "tier_role", "product_families", "entitlement", "workspace_state", "exclusions", "eligible", "responsible_actor", "proposed_operation", "reason", "approval_status"],
+      "properties": {
+        "repo_identity": { "$ref": "#/$defs/digest" }, "repo_path": { "$ref": "#/$defs/exactPath" },
+        "repo_class": { "enum": ["COMPONENT", "PRODUCT", "SITE-CONTENT", "DOCS-KNOWLEDGE", "SCRATCH-ARCHIVE"] }, "tier_role": { "enum": ["foundation", "organization", "department", "personal", "none"] },
+        "product_families": { "type": "array", "uniqueItems": true, "items": { "enum": ["claude", "codex", "cli", "knowledge"] } },
+        "entitlement": { "$ref": "#/$defs/entitlement" }, "workspace_state": { "$ref": "#/$defs/workspaceState" }, "exclusions": { "type": "array", "items": { "$ref": "#/$defs/exclusion" } },
+        "eligible": { "type": "boolean" }, "responsible_actor": { "enum": ["none", "person", "repository-owner", "organization-access-owner", "ecosystem-owner", "delivery-owner", "product-owner"] },
+        "proposed_operation": { "$ref": "#/$defs/operation" }, "reason": { "type": "string", "minLength": 1 }, "approval_status": { "$ref": "#/$defs/approvalStatus" }
+      }
+    }
+  }
+}

@@ -28,8 +28,17 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>__APP_PATH__/Contents/MacOS/copilot-control-tower</string>
+        <string>__APP_PATH__/Contents/MacOS/Copilot Control Tower</string>
     </array>
+
+    <!-- Lets the native process distinguish a launchd-owned instance from a
+         manual Finder launch. The marker grants no authority and carries no
+         user-controlled path or configuration. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>CT_WATCHDOG_MANAGED</key>
+        <string>1</string>
+    </dict>
 
     <!-- Crash-only: relaunch on a non-zero exit, never on a clean (zero)
          exit. See the file-level comment and FF-M4-1. -->

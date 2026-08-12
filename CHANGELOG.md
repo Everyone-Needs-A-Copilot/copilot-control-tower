@@ -2,6 +2,43 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.9] - 2026-08-12
+
+### Added
+
+- The native User app now carries and activates one per-user crash-only
+  LaunchAgent. Unsuccessful termination is restarted; an intentional Quit
+  exits successfully and remains stopped until the person opens the app again.
+- The signed bundle includes explicit install and uninstall lifecycle commands.
+  Both operate only in the current user's `gui/$UID` launchd domain and never
+  require administrator access.
+
+### Safety
+
+- `KeepAlive` is a dictionary containing only `SuccessfulExit=false`;
+  `RunAtLoad=false` remains separate from login-item registration. A real
+  launchd regression test covers clean exit, repeated crash restart, and
+  complete uninstall.
+- Automatic registration is limited to the trusted production-signed User app
+  at `/Applications/Copilot Control Tower.app`. Development, Admin, headless,
+  visual, copied-candidate, and selftest launches do not change LaunchAgents.
+- The canonical macOS icon now lives in the active native packaging tree.
+  Shipping build scripts no longer read the retired Tauri source tree.
+
+### Changed
+
+- The app and Admin bundle are version `0.6.9` build `36`. The release
+  candidate continues to require and bundle exactly `cc 2.10.2`;
+  `controltower.compat.json` declares `cc >=2.10.2,<3.0.0`.
+
+### Rollback
+
+- Uninstall crash recovery with the signed app's bundled
+  `uninstall-watchdog.sh`, then reinstall the signed `0.6.8` DMG,
+  `Copilot-Control-Tower_0.6.8_arm64.dmg`. Reinstalling changes only the
+  app/helper and supervision registration; it does not alter project work,
+  Copilot repositories, or saved diagnostic reports.
+
 ## [0.6.8] - 2026-08-06
 
 ### Fixed

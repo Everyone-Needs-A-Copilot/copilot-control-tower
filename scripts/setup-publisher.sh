@@ -197,5 +197,4 @@ chmod 600 "${ENV_FILE}"
 echo "Wrote ${ENV_FILE} with mode 600."
 echo
 echo "Next:"
-echo "  source ${ENV_FILE}"
-echo "  ./scripts/package-user-release.sh"
+echo "  ./scripts/package-user-release"
