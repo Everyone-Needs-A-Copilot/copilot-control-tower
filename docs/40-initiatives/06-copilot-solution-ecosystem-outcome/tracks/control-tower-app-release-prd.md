@@ -51,6 +51,77 @@ or discarded by the split.
 | APP-AC-03 | The exact approved app is published with signature, notarization, staple, provenance, and rollback proof. | TASK-298 |
 | APP-AC-04 | The published app installs, supervises, and rolls back correctly in clean-home and cold-second-Mac cells. | TASK-289 |
 
+## Security boundaries and abuse cases
+
+The app track owns the assets and boundaries removed from PRD-23: Control
+Tower's compiled trust roots and signed update channel, the versioned `cc` fact
+boundary rendered by Swift, and the immutable release-source-to-installed-app
+chain. TASK-302 reviews the exact candidate independently; it cannot borrow a
+framework verdict from TASK-291.
+
+### APP-AB-01 — Control Tower becomes a second resolver
+
+Exploit path: Swift groups raw evidence into new health logic, verifies
+signatures locally, blends status, or uses last-known-good when the CLI is
+unreadable.
+
+Controls and proof:
+
+- exact-major schema gate per verb;
+- render typed CLI verdicts only;
+- unknown values and unreadable responses fail closed;
+- native source/behavior fitness checks;
+- no raw internal token in visible or accessibility strings; and
+- malformed, missing-field, unknown-enum, exit-error, and offline fixtures
+  never render healthy, while the native scan finds no resolver, signature,
+  merge, or wipe logic.
+
+### APP-AB-02 — Crash supervision becomes an unstoppable restart loop
+
+Exploit path: launchd uses `KeepAlive=true`, cannot distinguish clean Quit from
+a crash, or repeatedly resurrects a defective binary.
+
+Controls and proof:
+
+- `KeepAlive={SuccessfulExit:false}` only;
+- one signed process with no daemon or fallback loop;
+- clean Quit exits successfully;
+- repeated-crash behavior and uninstall are tested; and
+- plist inspection, crash restart, clean-Quit persistence, uninstall, and
+  rollback installation/launch evidence all pass against the installed app.
+
+### APP-AB-03 — A valid but unapproved package wins first trust
+
+Exploit path: mutable checkout code, user-writable staging, same-team package
+substitution, or downgrade causes Installer to consume bytes other than the
+owner-approved immutable source/package tuple.
+
+Controls and proof:
+
+- independent approval binds source ref, commit/tree, monotonic version,
+  application identity/digests, and final signed-package SHA-256;
+- Installer consumes the exact package from root-owned non-writable staging;
+- installed receipt, version, identities, notarization, staple, and package
+  digest are verified before the protected anti-downgrade ledger advances; and
+- substitution, downgrade, writable-ancestry, symlink, ownership, race, and
+  rollback fixtures fail closed against the exact candidate.
+
+### TASK-302 independent verdict contract
+
+TASK-302 may approve only when APP-AB-01 through APP-AB-03 have concrete,
+implemented, failable evidence against one exact immutable app candidate. It
+must reject if compiled app trust, typed rendering, publisher first trust,
+package/source identity, clean Quit, crash restart, signature, notarization,
+staple, receipt, anti-downgrade, or rollback safety is asserted only by prose.
+TASK-302 approval is required before TASK-298 publication. Installed clean-home
+and cold-second-Mac execution remains a separate mandatory TASK-289/APP-AC-04
+gate after publication; its absence cannot block PRD-23.
+
+Residual app risks remain explicit: a real second Mac is an external resource,
+and open source alone cannot prove that a deployed binary matches reviewed
+source. Missing second-Mac evidence keeps APP-AC-04 pending, while exact signed
+provenance and packaged-candidate gates remain required for APP-AC-02/03.
+
 ## Dependency graph
 
 ```text

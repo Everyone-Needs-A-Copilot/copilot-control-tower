@@ -175,7 +175,7 @@ violation rejects the session.
 | Privacy and boundaries | No unrelated/private data appears or moves into shared evidence | Yes |
 | Completion | Participant produces a shareable synthetic decision brief and independently says they are finished | Yes |
 
-AC-19 is supported only if every hard row is demonstrated, no prohibited
+AC-19F is supported only if every hard row is demonstrated, no prohibited
 intervention occurred, the participant completed the representative task, and
 independent QA accepts the redacted evidence. Partial comprehension is not a
 pass. A successful internal expert session is not participant evidence.
@@ -200,5 +200,5 @@ A passing session supports only the bounded claim that this participant
 completed this recorded task with these immutable framework/content inputs under this protocol.
 It does not prove general usability, accessibility for every person,
 organization-wide readiness, model quality, or the complete initiative
-outcome. If no suitable participant is available, AC-19 remains pending; no
+outcome. If no suitable participant is available, AC-19F remains pending; no
 agent, author, colleague rehearsal, or simulated persona may replace the run.

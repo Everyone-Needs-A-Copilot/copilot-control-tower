@@ -6,7 +6,10 @@ Execution record: PRD-23, parent TASK-278
 Scope note, 2026-08-13: PRD-23 retains every framework/content/entitlement/
 evaluation/fleet boundary in this plan. Control Tower signing, publisher first
 trust, watchdog, packaging, and app-install boundaries moved without waiver to
-PRD-24/TASK-301 and its independent app-security TASK-302.
+PRD-24/TASK-301 and its independent app-security TASK-302. The transferred
+boundaries and abuse cases are authoritative in the
+[app release PRD](../tracks/control-tower-app-release-prd.md), not in the
+TASK-291 verdict contract below.
 Security review task: TASK-291
 
 ## Security objective
@@ -22,7 +25,6 @@ The ecosystem must be safer than a person manually copying and updating executab
 - signed manifests, release tags, source commits, and lock provenance;
 - project-owned tracked, untracked, and staged work;
 - executable-adjacent agents, skills, commands, hooks, and MCP configuration;
-- Control Tower's compiled-in trust roots and signed update channel;
 - evaluation prompts, outputs, source identities, and human-participant records;
 - the credibility of every healthy, held, changed, or unchanged claim.
 
@@ -33,10 +35,8 @@ The ecosystem must be safer than a person manually copying and updating executab
 | Foundation → organization → department → personal | Pull-only inherited capability and knowledge according to entitlement and pins | Upward write authority or reverse synchronization on the unattended path |
 | Personal device → shared repository | Separate, intentional, human-invoked authoring path with per-user credentials and review | Scheduled/background push, personal memory/content promotion, shared push credential |
 | Git repository → materialized project | Signed/ref-verified, manifest-authorized content with lock and postcondition | Secret values, untrusted refs, symlink-escaped writes, content without source proof |
-| `cc` → Control Tower | Versioned JSON facts and typed absence | Raw human CLI text as state, local recomputation, optimistic fallback |
 | `copilot` operational services → solution workflow | Bounded service capability using credential references and least privilege | Ecosystem resolution, credential embedding in prompts or inherited files |
 | Task/evaluation evidence → durable record | Sanitized plans, result metadata, hashes, bounded outputs approved for retention | Secrets, unrelated personal data, confidential content without explicit scope |
-| Release source → installed app | Immutable pushed source, signed/notarized/stapled artifact, compiled-in roots | User-configurable feed/trust root, moved tag, unsigned replacement, bypass flag |
 
 ## Abuse cases and required controls
 
@@ -105,7 +105,7 @@ Exploit path: mutable branch, unsigned/mis-signed tag, wrong signer, tree missin
 Impact: supply-chain compromise.
 Controls:
 
-- compiled-in trust roots and signed inherited policy only;
+- version-controlled framework trust roots and signed inherited policy only;
 - signed tag verification plus exact tree-path existence;
 - immutable pins and ancestry/identity checks;
 - no preference or flag can repoint trust;
@@ -127,33 +127,10 @@ Controls:
 
 Required proof: unentitled/revoked/offline fixtures produce distinct evidence-backed states; no false ready.
 
-### AB-07 — Control Tower becomes a second resolver
-
-Exploit path: Swift groups raw evidence into new health logic, verifies signatures locally, blends status, or uses last-known-good when the CLI is unreadable.
-Impact: two sources of truth and false green.
-Controls:
-
-- exact-major schema gate per verb;
-- render typed CLI verdicts only;
-- unknown value and unreadable response fail closed;
-- native source/behavior fitness checks;
-- no raw internal token in visible or accessibility strings.
-
-Required proof: malformed, missing-field, unknown-enum, exit-error, and offline fixtures never render healthy; native scan finds no resolver/signature/merge/wipe logic.
-
-### AB-08 — Crash supervision becomes an unstoppable restart loop
-
-Exploit path: launchd uses `KeepAlive=true`, cannot distinguish clean Quit from crash, or repeatedly resurrects a defective binary.
-Impact: denial of service and inability for the user to stop the app.
-Controls:
-
-- `KeepAlive={SuccessfulExit:false}` only;
-- one signed process, no daemon/fallback loop;
-- clean Quit exits successfully;
-- repeated-crash behavior and uninstall are tested;
-- previous signed DMG is the rollback artifact.
-
-Required proof: plist check, crash restart, clean Quit remains quit, uninstall removes supervision, rollback installs and launches.
+Former AB-07 (Control Tower as a second resolver) and AB-08 (crash
+supervision) moved intact to PRD-24 as APP-AB-01 and APP-AB-02. They are not
+TASK-291 framework gates. Their removal here does not waive them; TASK-302 owns
+their exact-candidate security verdict and TASK-289 owns installed behavior.
 
 ### AB-09 — Optional integration failure rejects all solution work
 
@@ -203,7 +180,7 @@ Required proof: stream validator pass, task file metadata, clean conflict check 
 | A — truthful installation | AB-03 through AB-06; no fleet mutation before transaction and lock review pass |
 | B — real content | AB-01, AB-02, AB-10; no shared release before content security review |
 | C — effectiveness | AB-02 and AB-10; no outcome claim without preserved controls and rubric |
-| D — unattended delivery | AB-07 through AB-09; no application release before packaged-artifact security proof |
+| D — trustworthy framework delivery | AB-03, AB-05, AB-06, AB-09, and AB-11; no fleet mutation before exact signed inputs, entitlement behavior, lock truth, approved census, and failable framework-security proof |
 | E — fleet/human proof | AB-06, AB-10, AB-11; no completion claim before clean external evidence |
 
 ## Residual risks that must remain explicit
@@ -211,9 +188,17 @@ Required proof: stream validator pass, task file metadata, clean conflict check 
 - Revoking repository access cannot remotely erase content already downloaded to a departed person's disk.
 - Model-output evaluation is probabilistic; deterministic safety and materialization gates carry the hard release authority.
 - Signing custody is not yet a staffed two-of-N model.
-- A real human participant and second Mac are external resources; absence blocks the corresponding outcome claims rather than changing the criteria.
-- Pure open source permits inspection but does not by itself prove a deployed binary matches reviewed source; signed provenance and packaged gates remain required.
+- A real human participant is an external resource; absence blocks AC-19F rather than changing its criteria.
 
 ## Independent review verdict contract
 
-TASK-291 may approve only when every high-impact abuse case has a concrete implemented control and failable artifact. It must reject completion if personal/shared separation, source/lock truth, never-destroy behavior, compiled-in trust, or clean-Quit supervision is asserted only by prose.
+TASK-291 may approve only when every high-impact PRD-23 framework abuse case
+has a concrete implemented control and failable artifact against the exact
+content, signer policy, pins, entitlement behavior, evaluation artifacts,
+locks, and approved census. It must reject completion if personal/shared
+separation, trusted-ref and source/lock truth, never-destroy behavior,
+fail-closed entitlement, evaluation privacy, or fleet mutation safety is
+asserted only by prose. Control Tower rendering, compiled app trust,
+publisher-first-trust, packaging, clean-Quit, crash restart, app installation,
+and second-Mac proof are excluded from TASK-291 and remain mandatory under
+PRD-24/TASK-302/TASK-289.
