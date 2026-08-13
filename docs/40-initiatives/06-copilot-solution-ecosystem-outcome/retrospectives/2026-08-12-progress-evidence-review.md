@@ -4,7 +4,7 @@ Updated: 2026-08-13
 
 Execution record: PRD-23, parent TASK-278
 
-Evidence window: current task graph and work products through WP-815
+Evidence window: current task graph and work products through WP-817
 
 Disposition: **Active; outcome not yet achieved**
 
@@ -19,7 +19,7 @@ What changed materially:
 - Control Tower now has a clean public source repository with one new history root. The former repository is preserved as a private archived repository; old releases, issues, Actions artifacts, and Git history were not migrated.
 - The repository-contained Control Tower launcher was rejected as a circular trust anchor. A separately signed, notarized, stapled publisher anchor was installed and passed QA, but security rejected `/Applications` as writable by the logged-in administrator. Architecture WP-808 selects a script-free signed installer package. WP-812 implements the local package/receipt/verifier contract and source QA WP-813 approves it, but security WP-814 rejects the first-trust handoff because mutable checkout code still gains signing authority and the Installer input is not bound to the exact approved package and source. Architecture WP-815 confirms that a fully automated first install is impossible under this threat model without an existing independent trust anchor; the first secure install must therefore be owner-attended and bind one exact package and source tuple out of band. No app candidate exists.
 - GitHub Actions are temporarily disabled on all 55 organization repositories to stop repeated runs while defects are fixed locally. Branch protections, review rules, signer rules, and tag protections remain enabled. Actions must be restored from the WP-785 ledger with full-SHA pinning and clean hosted verification before merge or release.
-- The formerly red `claude-copilot` workflows are green locally on signed PR #63. The protected Knowledge runtime on signed PR #65 has independent QA and security approval through WP-782. Complete Action-SHA pinning corrections remain local and unpushed during the owner-directed GitHub pause.
+- The formerly red `claude-copilot` workflow failures have local fixes, but the current PR heads are not yet fully covered by the earlier bounded verdicts. PR #63 is at `c61ff0c`; PR #65 is at remote head `617cef6` with additional local follow-up. The WP-780/WP-782 Knowledge runtime approvals bind only to `a7cc08d`. Branch convergence, exact-head QA/security, full-SHA pinning, and hosted verification therefore remain required after the owner-directed GitHub pause ends.
 
 ## Program snapshot
 
@@ -66,10 +66,10 @@ What changed materially:
 
 ### `claude-copilot` release trust — PR #63
 
-- PR #63 head `f8a0717` is signed by the approved foundation key.
-- Local verification passes: root tests, fitness, smoke, agent evaluation, TypeScript, launcher, `cc`, `tc`, CodeQL-related configuration, conformance, and portability scopes.
+- PR #63 is open, review-required, and blocked at current head `c61ff0c`. Its hosted failures are stale results from the short-lived workflow restore window, not current local proof.
+- The local release-trust fixes and the overlapping PR #65 Knowledge-runtime work still require one dependency-ordered branch convergence, complete local framework suites, and exact-head QA/security before either PR may advance.
 - The content defects that generated repeated workflow emails were fixed at their source: Knowledge iteration, three context-budget overruns, and dead skill references.
-- Hosted checks are intentionally absent while Actions maintenance is active. The PR remains `REVIEW_REQUIRED` and unmerged.
+- Hosted checks are intentionally paused while Actions maintenance is active. The PR remains `REVIEW_REQUIRED` and unmerged; stale hosted failures must not be used as either approval or rejection of the converged head.
 
 ### GitHub Actions maintenance
 
@@ -112,6 +112,27 @@ What changed materially:
 | AC-23 | Active gate | Owner approval, signed accounting root/tag, protections, signed organization candidate, runtime QA/security approval | Provider GC, organization review/tag/pin, exact entitled proof, access confirmation |
 
 The full criterion wording remains in the [PRD acceptance matrix](../phases/phase-1-outcome-prd.md#8-acceptance-criteria-and-current-evidence).
+
+## What each remaining task will do
+
+| Task and plain-language purpose | Current prerequisite or constraint | Concrete evidence required for completion |
+| --- | --- | --- |
+| **TASK-278: This task is to deliver the complete Copilot Solution Ecosystem outcome program.** | Every child task must finish, and TASK-292 must independently approve the integrated result. | All 23 acceptance criteria accepted; final QA metadata approved; initiative, PRD, tasks, work products, commits, reviews, releases, fleet records, and validation evidence linked in the final retrospective. |
+| **TASK-284: This task is to build the behavioral-effectiveness evaluation contract and its realistic test fixtures.** | Waits for TASK-296's accepted journey adapter and TASK-297's immutable content identities. Architecture WP-718 is a design contract, not an implementation result. | Versioned cases, foundation-only and layered controls, observable rubrics, runtime and content identity capture, hard safety gates, negative fixtures, and independent QA/security approval. |
+| **TASK-285: This task is to run the controlled Claude and Codex effectiveness evaluations and preserve what happened.** | Waits for TASK-284 and TASK-296. It may not turn model judgments into an unsupported aggregate claim. | Every attempt and resolved identity preserved; criterion-level foundation/layered comparisons for supported runtimes; hard safety-gate results; parity-gap dispositions; and evidence that the foundation control did not regress. |
+| **TASK-287: This task is to finish crash-only supervision and produce a verified Control Tower release candidate without publishing it.** | Requires an independently controlled Developer ID Installer identity, owner approval of one exact source/package tuple through a trusted outside channel, root-owned staging, a monotonic anti-downgrade ledger, and an attended first-install ceremony. WP-814's security rejection remains open. | Immutable pushed source; exact package/source binding; valid same-team substitution, downgrade, and race tests; clean-Quit and crash-restart proof; signed, notarized, stapled candidate; installed receipt and identity verification; fresh QA and security approval. |
+| **TASK-288: This task is to remediate or formally disposition each eligible repository in the approved fleet.** | Waits for behavioral evidence, integrated security, the published Control Tower release, and owner approval of TASK-300's exact census. Only the approved rows may be changed. | A per-repository execution ledger showing the intended normal-cadence or Sync Now operation, preserved active work, and explicit skips for every dirty, unentitled, excluded, or ambiguous repository. |
+| **TASK-289: This task is to prove the signed ecosystem journey in a fresh user home and on a cold second Mac.** | Waits for the final signed release, fleet operation, and post-fan-out security verification. Access to the actual second machine is real external evidence an agent cannot manufacture. | Signed-artifact identity, fresh-home and second-machine transcripts, preserved rollback artifact, and proof that the journey needed no terminal repair or manual repository wiring. |
+| **TASK-290: This task is to validate the complete journey with a consenting non-technical person.** | Waits for TASK-289 and the post-fan-out security result. A simulated agent session cannot substitute for a real participant's understanding. | An observed journey record against the task rubric, comprehension and actor-appropriate prompt findings, privacy-safe notes, and proof that the participant needed neither terminal work nor Pablo's intervention. |
+| **TASK-291: This task is to perform the independent integrated security review before publication or fleet mutation.** | Waits for the exact TASK-287 candidate, TASK-297 immutable content and pins, TASK-285/TASK-296 evidence, and the approved TASK-300 census. Findings return to the stream that owns the affected files. | Independent review bound to the exact candidate, content releases, signer policy, entitlement behavior, locks, watchdog, evaluation artifacts, and census; no unresolved secrets, symlink, cross-tier, downgrade, or project-ownership finding. |
+| **TASK-292: This task is to run the final integrated QA, provenance, release, and outcome audit.** | Runs last, after publication, fleet work, post-fan-out security, second-machine proof, and the non-technical-person journey. | A 23-for-23 acceptance audit with exact work-product, commit, QA/security, signed-release, rollback, fleet, and human-validation links; final retrospective; approved parent QA status. |
+| **TASK-296: This task is to prove that one real problem moves through protocol routing, the right specialists, operational capabilities, and Task Copilot continuity.** | Waits for TASK-297's immutable content releases. Architecture WP-706 defines the adapter and evidence shape but does not prove the journey. | QA/security-approved JourneyAdapter and JourneyEvidence artifacts showing attributable organization/department context, optional transports failing open, mandatory security failing closed, and task state surviving a resumed session. |
+| **TASK-297: This task is to approve and publish the organization and accounting content as signed, immutable inputs.** | Requires dependency-ordered PR #63/#65 convergence, exact-head QA/security, independent content PR reviews, GitHub Support purge/GC confirmation, final need-to-have roster confirmation, and narrowly restored hosted checks. Existing WP-780/WP-782 approval is bounded to `a7cc08d`, not the current PR #65 head. | Reviewed merges; new nonmoving signed tags; exact manifest pins and signer-policy proof; provider confirmation that the legacy object no longer resolves; approved least-privilege roster; and exact entitlement-qualified consumer identities. |
+| **TASK-298: This task is to publish only the security-approved Control Tower candidate.** | Waits for TASK-287, TASK-291, and TASK-297. Source completion or a same-team signature alone is not publication authority. | Public release points to the exact approved candidate and immutable source; Developer ID signature, notarization, staple, installer, provenance, rollback, and release-link verification all pass. |
+| **TASK-299: This task is to independently check entitlement and ownership boundaries after fleet fan-out.** | Runs immediately after TASK-288 and must stop final closure on any unexplained deviation. | Real per-repository checks showing no cross-entitlement, personal-to-shared, secret, symlink, lock, or project-ownership breach, with every deviation explained and resolved. |
+| **TASK-300: This task is to create and obtain owner approval for the exact fleet census that TASK-288 may act on.** | Waits for TASK-297, then must regenerate the provisional 75-row snapshot. WP-728 grants zero mutation authority, and blanket permission cannot approve a future unknown row set. | Deterministic current census with entitlement, dirty state, exclusion, actor, exact intended operation and target for every repository; independent QA; immutable census identity; explicit owner approval of that exact set. |
+
+The completion evidence above is a gate, not a forecast. A task remains unfinished until its named artifacts and independent decisions exist.
 
 ## Dependency-safe path forward
 
