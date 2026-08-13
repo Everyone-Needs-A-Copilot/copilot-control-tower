@@ -521,7 +521,7 @@ tr { break-inside: avoid; }
             <a href="#claim-boundary">Claim boundary</a>
           </nav>
         </div>
-        <p class="nav-foot">Evidence window: WP-826<br>Generated from the paired Markdown source.</p>
+        <p class="nav-foot">Evidence window: WP-831<br>Generated from the paired Markdown source.</p>
       </div>
     </aside>
 
@@ -530,8 +530,8 @@ tr { break-inside: avoid; }
 progress and acceptance-evidence review</h1>
 <p>Updated: 2026-08-13</p>
 <p>Execution record: PRD-23, parent TASK-278</p>
-<p>Evidence window: current task graph and work products through
-WP-826</p>
+<p>Evidence window: current task graph and work products through WP-831,
+plus read-only GitHub checks on 2026-08-13</p>
 <p>Disposition: <strong>Active; outcome not yet achieved</strong></p>
 <h2 id="plain-language-answer">Plain-language answer</h2>
 <p>The ecosystem foundation is substantially stronger and several
@@ -558,12 +558,15 @@ were not migrated.</li>
 <li>The repository-contained Control Tower launcher and later
 self-authorizing variants were rejected. Architecture WP-815 confirms
 that a fully automated first install is impossible under this threat
-model without an existing independent trust anchor. Local source WP-822
-now confines the checkout to deterministic unsigned preparation and
-exact external tuple verification; QA WP-824 and security WP-826 approve
-that exact source-only boundary. The first secure install must still be
-owner-attended, independently signed, root-staged, and bound to one
-exact package/source tuple out of band. No app candidate exists.</li>
+model without an existing independent trust anchor. Source WP-822
+confines the checkout to deterministic unsigned preparation and exact
+external tuple verification; QA WP-824 and security WP-826 approve that
+exact source-only boundary. WP-828 confirms that exact source is now
+pushed and twice produced the same unsigned package input. It also
+confirms a real signing mismatch: the machine&#39;s Developer ID Application
+identity cannot sign an Installer package. An independent
+Installer-identity forensic audit remains pending. No app candidate
+exists.</li>
 <li>GitHub Actions are temporarily disabled on all 55 organization
 repositories to stop repeated runs while defects are fixed locally.
 Branch protections, review rules, signer rules, and tag protections
@@ -571,15 +574,15 @@ remain enabled. Actions must be restored from the WP-785 ledger with
 full-SHA pinning and clean hosted verification before merge or
 release.</li>
 <li>The formerly red <code>claude-copilot</code> workflow failures have
-local fixes. WP-825 combines the PR #63 release-trust work and reviewed
-PR #65 Knowledge-runtime work at signed local commit
-<code>f3a3bc9</code>; QA WP-820 and security WP-823 approve that exact
-local integration, including 31 of 31 external Actions pinned to full
-SHAs. It is not pushed, reviewed, merged, or hosted-verified while the
-owner-directed GitHub pause remains active.</li>
-<li>The reviewed worktrees are clean and committed. GitHub Actions
-remain disabled on all 55 organization repositories; no queued or
-running jobs exist.</li>
+reviewed fixes. WP-831 advances the exact WP-820/WP-823-approved
+integration, signed commit <code>f3a3bc9</code>, to PR #66 and closes
+PRs #63 and #65 as superseded. PR #66 is still blocked: it has no human
+approval and its required CodeQL check cannot run while Actions are
+disabled.</li>
+<li>WP-829 refreshes the fleet preparation record: 75 exact
+repositories, every row pending and ineligible, and
+<code>authorized_mutations=0</code>. GitHub Actions remain disabled on
+all 55 organization repositories.</li>
 </ul>
 <h2 id="program-snapshot">Program snapshot</h2>
 <table>
@@ -601,9 +604,10 @@ complete.</td>
 <tr>
 <td>Active</td>
 <td>TASK-287, 297</td>
-<td>Local source convergence is approved; candidate production and
-signed shared-content release remain blocked by external first-trust,
-provider, hosted, or human-review gates.</td>
+<td>Approved source has reached its intended remote review/input
+branches; candidate production and signed shared-content release remain
+blocked by external first-trust, provider, hosted, CodeQL, roster, or
+human-review gates.</td>
 </tr>
 <tr>
 <td>Pending downstream</td>
@@ -710,14 +714,14 @@ and only then advance a separate non-overwritable root
 policy/version-floor ledger. Signatures, notarization, package receipts,
 a disk image, or the admin prompt do not by themselves prove owner
 intent or freshness.</li>
-<li>WP-822 supersedes the rejected source boundary at local public
-commit <code>6d21161</code>, tree <code>7625c7a</code>. The mutable
-checkout can now prepare only deterministic unsigned inputs and an
-intentionally incomplete approval template. Exact integer schema
-enforcement rejects boolean, string, floating, null, array, and object
-confusion; an independently supplied manifest binds the immutable
-source, monotonic package version, application identity and digests, and
-final signed-package SHA-256. Same-team package substitution, downgrade,
+<li>WP-822 supersedes the rejected source boundary at public commit
+<code>6d21161</code>, tree <code>7625c7a</code>. The mutable checkout
+can prepare only deterministic unsigned inputs and an intentionally
+incomplete approval template. Exact integer schema enforcement rejects
+boolean, string, floating, null, array, and object confusion; an
+independently supplied manifest binds the immutable source, monotonic
+package version, application identity and digests, and final
+signed-package SHA-256. Same-team package substitution, downgrade,
 source drift, hostile startup/Git state, unsafe trees, writable
 ancestry, symlinks, ACLs, and ownership failures reject locally.</li>
 <li>QA WP-824 approves WP-822&#39;s exact source and schema-type matrix.
@@ -725,19 +729,29 @@ Security WP-826 independently approves the source-only first-trust
 boundary with no open finding in that scope. Neither verdict authorizes
 a candidate, signing, notarization, installation, administrator action,
 or publication.</li>
-<li>The machine has a Developer ID Application identity but no
-independently provisioned Developer ID Installer identity. The owner has
-not yet approved an exact out-of-band package/source tuple. These are
-now explicit first-install prerequisites, not implementation details
-that repository automation can safely manufacture.</li>
-<li>WP-822 remains local, clean, and unpushed under the
-organization-wide GitHub pause. The older <code>/Applications</code>
-anchor remains rejected.</li>
-<li><strong>Current result:</strong> the exact local source-only
-boundary has fresh QA and security approval, but no independently
-authorized package ceremony has occurred, no protected publisher anchor
-is installed, no Control Tower candidate has been built, and nothing has
-been published.</li>
+<li>WP-828 verifies that remote branch
+<code>fix/live-public-bootstrap-paths</code> advertises exact commit
+<code>6d21161</code> and tree <code>7625c7a</code>; Actions stayed
+disabled. Two independent preparations produced the same unsigned
+package SHA-256,
+<code>d11612a609128608c80d6a78996c9e0b6afdc1bd8c9cb174b2279baeb8b064c1</code>.
+The approval template remains deliberately incomplete because the final
+signed-package and application digests and owner approval must come from
+independent authority.</li>
+<li>WP-828 also separates two Apple capabilities that are easy to
+confuse. The <code>ct-notary</code> profile passes its authoritative
+probe, and one usable Developer ID Application private-key identity
+exists. A real <code>productsign</code> test rejects that Application
+identity because a flat package requires a Developer ID Installer
+identity. No Installer identity or authenticated local issuance route
+was found in the bounded check. Independent forensic review must confirm
+the Installer-identity situation before the project treats it as
+settled.</li>
+<li><strong>Current result:</strong> the deterministic unsigned input is
+source-bound, reproducible, and pushed. The next step still requires an
+independently controlled Installer signing identity, an owner-approved
+exact tuple, root-owned staging, and an attended ceremony. No protected
+publisher anchor, candidate, or publication exists.</li>
 </ul>
 <h3 id="shared-organization-and-accounting-content--task-297">Shared
 organization and accounting content — TASK-297</h3>
@@ -750,62 +764,78 @@ tree <code>1c27ea0</code>, with signed immutable tag
 active. The current scanner, source checkout, authorized mirror,
 manifest pin, and current consumer bytes pass bounded checks.</li>
 <li>GitHub still resolves the legacy sensitive commit by direct SHA even
-though no branch, tag, PR, or fork references it. WP-753 contains the
-value-suppressed GitHub Support request for cached-view removal and
-server-side garbage collection. Until GitHub confirms removal,
-<code>historyPurged=false</code> and external copies remain
-uncontained.</li>
+though no branch, tag, PR, or fork references it. WP-830 records the
+exact provider blocker: GitHub requires an authenticated Support-portal
+request for cached-view removal and server-side garbage collection, but
+this execution context has authenticated CLI/API access and no connected
+browser, and GitHub exposes no ticket-submission API. No ticket exists
+and no purge is claimed.</li>
 <li>Organization content is a signed exact-tree candidate in protected
-PR #1. It remains <code>REVIEW_REQUIRED</code>; organization
-<code>main</code>, tag, and pin are unchanged.</li>
+PR #1. It remains <code>REVIEW_REQUIRED</code> with no submitted review;
+organization <code>main</code>, tag, and pin are unchanged.</li>
 <li>Accounting scanner enforcement and tag immutability were implemented
 after security WP-755. The current Accounting PR check was green before
 maintenance mode; the earlier failure email came from a deliberately
 failing synthetic PR that was closed and removed from the active
 workflow.</li>
 <li>Protected per-read Knowledge provenance was independently approved
-at its earlier exact revision by WP-780/WP-782. WP-825 now integrates
-that reviewed runtime with PR #63 on signed local commit
+at its earlier exact revision by WP-780/WP-782. WP-825 integrates that
+reviewed runtime with the release-trust work at signed commit
 <code>f3a3bc9</code>, tree <code>7b74d4e</code>. QA WP-820 approves
 2,664 portable tests with 11 skipped and 46 machine-marked tests
 deliberately excluded; security WP-823 approves the signer, provenance,
 mutable-tamper, entitlement-race, path, cleanup, secret, and
 supply-chain boundaries. The integrated workflow tree has 31 of 31
 external Actions pinned to full SHAs with no conflicting refs.</li>
-<li>The integrated branch and related reviewed worktrees are clean. It
-has not been pushed, reviewed, merged, tagged, or exercised in hosted CI
-while Actions remain disabled.</li>
-<li><strong>Current result:</strong> the accounting current release
-slice and combined framework source are locally QA/security approved,
-but TASK-297 cannot complete until protected hosted review/merge,
-organization review/tag/pin, GitHub Support garbage collection, the
-named need-to-have access review, exact entitlement-qualified live
-proof, and narrowly restored hosted checks.</li>
+<li>WP-831 pushed that exact approved commit to PR #66. Current
+read-only GitHub checks show PR #66, Organization PR #1, and Accounting
+PR #1 are all open, blocked, <code>REVIEW_REQUIRED</code>, and have no
+submitted review. <code>james-lukensow</code> is requested on all three.
+PR #66 has no check run; its required CodeQL check cannot appear while
+Actions remain disabled. Accounting PR #1 retains its earlier successful
+sensitive-content check.</li>
+<li>Both protected content repositories are private. Each currently
+exposes the same inherited roster: <code>james-lukensow</code> and
+<code>pablitoalejo</code> as admins, plus <code>michaelmanfredo</code>,
+<code>Evan-TSMAI</code>, <code>condor31</code>, <code>mapletask</code>,
+and <code>co-noahalejo</code> as readers. Accounting also retains its
+closed owner team. This is an exact access inventory, not a business
+need-to-have decision: each inherited reader still needs affirmation or
+removal.</li>
+<li><strong>Current result:</strong> the exact framework input is now
+hosted for review, but TASK-297 still has four hard blockers: human
+approval of all three PRs; required CodeQL on PR #66 while Actions are
+disabled; GitHub Support submission and provider GC confirmation; and
+business-owner confirmation of the inherited reader roster. Protected
+merges, new tags/pins, and live signed-consumer proof wait behind those
+gates.</li>
 </ul>
-<h3 id="claude-copilot-release-trust--pr-63"><code>claude-copilot</code>
-release trust — PR #63</h3>
+<h3 id="claude-copilot-integrated-release-input--pr-66"><code>claude-copilot</code>
+integrated release input — PR #66</h3>
 <ul>
-<li>PR #63 remains open, review-required, and blocked at its hosted
-head. Its hosted failures are stale results from the short-lived
-workflow restore window, not current local proof.</li>
-<li>The dependency-ordered local convergence is complete in WP-825 at
-signed commit <code>f3a3bc9</code>. QA WP-820 and security WP-823
-approve that exact clean local integration; machine-marked and hosted
-checks remain outside those verdicts.</li>
+<li>PR #66 is open at exact approved commit <code>f3a3bc9</code>,
+<code>BLOCKED</code>, and <code>REVIEW_REQUIRED</code>. PR #63 and PR
+#65 are closed as superseded; their branches and histories remain
+available.</li>
+<li>QA WP-820 and security WP-823 approve that exact integration
+locally; machine-marked and hosted checks remain outside those
+verdicts.</li>
 <li>The content defects that generated repeated workflow emails were
 fixed at their source: Knowledge iteration, three context-budget
 overruns, and dead skill references.</li>
 <li>Hosted checks are intentionally paused while Actions maintenance is
-active. The local integration is unpushed and the PR remains
-<code>REVIEW_REQUIRED</code> and unmerged; stale hosted failures must
-not be used as either approval or rejection of the converged head.</li>
+active. PR #66 is unreviewed and unmerged, with no checks. The
+default-branch rule still requires independent approval, last-push
+approval, resolved conversations, and CodeQL; none may be inferred from
+local QA/security.</li>
 </ul>
 <h3 id="github-actions-maintenance">GitHub Actions maintenance</h3>
 <ul>
 <li>WP-785 supersedes the smaller maintenance boundary: Actions are
 disabled on all 55 <code>Everyone-Needs-A-Copilot</code> repositories,
-with zero queued or running jobs and an exact repository-by-repository
-restore ledger.</li>
+with zero queued or running jobs at that checkpoint and an exact
+repository-by-repository restore ledger. A fresh read-only permission
+check still reports all 55 disabled.</li>
 <li>WP-760 records the restore order: enable Actions only after owner
 authorization, restore full-SHA pinning, reverify required check/app
 bindings and protections, then trigger only explicitly authorized
@@ -815,9 +845,18 @@ claim is forbidden while Actions remain disabled.</li>
 </ul>
 <h3 id="fleet-census-and-evaluation">Fleet census and evaluation</h3>
 <ul>
-<li>WP-728 approves only the bounded preparation contract: a
-deterministic 75-row census with zero mutation authority. It must be
-refreshed and independently re-reviewed after TASK-297.</li>
+<li>WP-829 replaces the older snapshot with a fresh deterministic 75-row
+census observed at <code>2026-08-13T14:10:44Z</code>: 42
+dependency-pending candidates, 32 classification exclusions, and 1
+safety hold; 64 repositories were clean, 1 dirty, and 10 unavailable; 11
+were ambiguous. Every row is pending, ineligible, and plan-free, with
+<code>authorized_mutations=0</code>.</li>
+<li>TASK-281 and TASK-295 are complete, but TASK-297 remains active. The
+entitlement ledger was unavailable in the read-only collection context.
+WP-829 therefore approves bounded preparation only. After TASK-297, the
+census must be regenerated against current repositories and the
+installed entitlement ledger, independently checked, and explicitly
+approved by the owner before it can authorize anything.</li>
 <li>WP-706 and WP-718 are architecture-only contracts for TASK-296 and
 TASK-284. No protocol-integration or behavioral-effectiveness result is
 claimed.</li>
@@ -912,8 +951,9 @@ EVAL-05</td>
 <tr>
 <td>AC-13</td>
 <td>Preparation approved, execution pending</td>
-<td>WP-728 zero-authority 75-row census</td>
-<td>Refresh after TASK-297, owner approval, and fan-out proof</td>
+<td>WP-829 fresh zero-authority 75-row census</td>
+<td>Regenerate with current entitlement evidence after TASK-297, obtain
+owner approval, and prove fan-out</td>
 </tr>
 <tr>
 <td>AC-14</td>
@@ -924,12 +964,12 @@ EVAL-05</td>
 <tr>
 <td>AC-15</td>
 <td>External first-trust gate</td>
-<td>WP-815 architecture; WP-822 local source; QA WP-824; security
-WP-826</td>
-<td>Provision an independent Installer signing identity and
-owner-approve the exact package/source tuple; implement and review
-root-staged monotonic ceremony; attended install and installed-state
-evidence; then candidate</td>
+<td>WP-815 architecture; pushed WP-822 source; QA WP-824; security
+WP-826; deterministic unsigned input and identity evidence WP-828</td>
+<td>Complete independent Installer-identity forensics; provision valid
+independent Installer signing authority if still absent; owner-approve
+the exact package/source tuple; root-stage and attend the monotonic
+ceremony; then obtain installed-state and candidate evidence</td>
 </tr>
 <tr>
 <td>AC-16</td>
@@ -940,8 +980,9 @@ evidence; then candidate</td>
 <tr>
 <td>AC-17</td>
 <td>Preparation approved, execution pending</td>
-<td>WP-728 deterministic provisional census</td>
-<td>Immutable approved census and TASK-288 execution</td>
+<td>WP-829 deterministic provisional census with zero authority</td>
+<td>Post-TASK-297 regeneration with entitlement plans, immutable
+owner-approved census, and TASK-288 execution</td>
 </tr>
 <tr>
 <td>AC-18</td>
@@ -977,10 +1018,11 @@ evidence; then candidate</td>
 <td>AC-23</td>
 <td>Active gate</td>
 <td>Owner approval, signed accounting root/tag, protections, signed
-organization candidate; integrated source WP-825 with QA WP-820/security
-WP-823</td>
-<td>Protected hosted reviews/merges/checks, provider GC, organization
-tag/pin, exact entitled proof, access confirmation</td>
+organization candidate; exact integrated source in PR #66 with QA
+WP-820/security WP-823</td>
+<td>Human approval on three PRs, PR #66 CodeQL, provider GC
+confirmation, need-to-have roster decision, protected merges/tags/pins,
+and exact entitled proof</td>
 </tr>
 </tbody>
 </table>
@@ -1031,16 +1073,18 @@ control did not regress.</td>
 <td><strong>TASK-287: This task is to finish crash-only supervision and
 produce a verified Control Tower release candidate without publishing
 it.</strong></td>
-<td>Local source WP-822 has QA WP-824 and security WP-826 approval. It
-still requires an independently controlled Developer ID Installer
-identity, owner approval of one exact source/package tuple through a
-trusted outside channel, root-owned staging, a monotonic anti-downgrade
-ledger, and an attended first-install ceremony under WP-815.</td>
-<td>Immutable pushed source; exact package/source binding; valid
-same-team substitution, downgrade, and race tests; clean-Quit and
-crash-restart proof; signed, notarized, stapled candidate; installed
-receipt and identity verification; fresh ceremony/candidate QA and
-security approval.</td>
+<td>WP-828 confirms the approved source is pushed and its unsigned
+package input is deterministic. The available Application identity fails
+a real Installer-package signing lookup; independent Installer-identity
+forensics remain pending. The task also requires owner approval of one
+exact source/package tuple through a trusted outside channel, root-owned
+staging, a monotonic anti-downgrade ledger, and an attended
+first-install ceremony under WP-815.</td>
+<td>Independent identity finding and, if needed, valid Installer signing
+authority; exact package/source binding; substitution, downgrade, and
+race tests; clean-Quit and crash-restart proof; signed, notarized,
+stapled candidate; installed receipt and identity verification; fresh
+ceremony/candidate QA and security approval.</td>
 </tr>
 <tr>
 <td><strong>TASK-288: This task is to remediate or formally disposition
@@ -1110,16 +1154,16 @@ state surviving a resumed session.</td>
 <td><strong>TASK-297: This task is to approve and publish the
 organization and accounting content as signed, immutable
 inputs.</strong></td>
-<td>Local integrated source WP-825 has exact-commit QA WP-820 and
-security WP-823 approval. It still requires protected hosted PR
-reviews/merges, GitHub Support purge/GC confirmation, final need-to-have
-roster confirmation, organization review/tag/pin, and narrowly restored
-hosted checks.</td>
-<td>Reviewed merges; new nonmoving signed tags; exact manifest pins and
-signer-policy proof; provider confirmation that the legacy object no
-longer resolves; approved least-privilege roster; exact
-entitlement-qualified consumer identities; and green hosted checks on
-the reviewed heads.</td>
+<td>Exact approved framework input is now in PR #66. Human review is
+absent on PR #66 and both content PRs; PR #66&#39;s required CodeQL cannot
+run while Actions are disabled; GitHub Support submission is blocked on
+its authenticated portal; and the seven-person inherited roster is
+inventoried but not need-to-have confirmed.</td>
+<td>Human-approved protected merges; green required checks; provider
+confirmation that the legacy object no longer resolves; approved
+least-privilege roster; new nonmoving signed tags; exact pins and
+signer-policy proof; and exact entitlement-qualified consumer
+identities.</td>
 </tr>
 <tr>
 <td><strong>TASK-298: This task is to publish only the security-approved
@@ -1142,13 +1186,15 @@ with every deviation explained and resolved.</td>
 <tr>
 <td><strong>TASK-300: This task is to create and obtain owner approval
 for the exact fleet census that TASK-288 may act on.</strong></td>
-<td>Waits for TASK-297, then must regenerate the provisional 75-row
-snapshot. WP-728 grants zero mutation authority, and blanket permission
-cannot approve a future unknown row set.</td>
+<td>WP-829 provides a fresh, independently checked 75-row point-in-time
+snapshot, but TASK-297 is active and the entitlement ledger was
+unavailable. Every row remains pending and
+<code>authorized_mutations=0</code>. The snapshot must be regenerated
+after TASK-297 and becomes stale if repository state changes.</td>
 <td>Deterministic current census with entitlement, dirty state,
-exclusion, actor, exact intended operation and target for every
-repository; independent QA; immutable census identity; explicit owner
-approval of that exact set.</td>
+exclusion, actor, exact canonical plan and target for every repository;
+independent QA; immutable census identity; explicit owner approval of
+that exact set.</td>
 </tr>
 </tbody>
 </table>
@@ -1157,35 +1203,31 @@ remains unfinished until its named artifacts and independent decisions
 exist.</p>
 <h2 id="dependency-safe-path-forward">Dependency-safe path forward</h2>
 <ol type="1">
-<li>Preserve clean local integration WP-825 and its exact QA
-WP-820/security WP-823 verdicts while the organization-wide GitHub pause
-remains active; do not broaden those verdicts to hosted or
-machine-marked proof.</li>
-<li>Provision the Developer ID Installer identity in an independently
-controlled signing context and prepare the immutable package/source
-tuple required by WP-815; do not attempt another self-authorizing
-repository bootstrap.</li>
-<li>Obtain owner approval for that exact tuple, implement and review
-root-owned staging plus the monotonic version-floor ledger, then obtain
-fresh ceremony/candidate QA and security beyond WP-824/WP-826&#39;s
+<li>Complete the independent Installer-identity forensic audit. If no
+valid Installer authority exists, provision it outside the
+repository-controlled boundary.</li>
+<li>Produce the final signed package from the deterministic WP-828
+input, obtain owner approval for the exact package/source tuple,
+root-stage it, and run the attended monotonic first-install ceremony.
+Obtain fresh ceremony/candidate QA and security beyond WP-824/WP-826&#39;s
 source-only scope.</li>
-<li>When the owner ends the pause, push/review the approved source and
-pending Action-SHA commits without enabling workflows prematurely; while
-the owner is present, run the attended exact-package install and obtain
-installed-state QA/security before building the Control Tower
-candidate.</li>
-<li>Submit WP-753 through GitHub Support and verify the legacy
-accounting object no longer resolves.</li>
-<li>Complete organization review, signed tag, immutable pin,
-need-to-have roster confirmation, and exact entitled consumer
-proof.</li>
+<li>Obtain real human approval for PR #66, Organization PR #1, and
+Accounting PR #1. Do not treat agent QA/security as GitHub review.</li>
+<li>Restore Actions only through the exact WP-760/WP-785 ledger when
+authorized, then satisfy PR #66&#39;s required CodeQL and the other narrowly
+scoped hosted checks on the reviewed heads.</li>
+<li>Submit the value-safe WP-830 payload through the authenticated
+GitHub Support portal and verify that the legacy accounting object no
+longer resolves after provider garbage collection.</li>
+<li>Have business-role owners affirm or remove each inherited reader,
+then complete protected content merges, signed tags, immutable pins, and
+exact entitled consumer proof.</li>
 <li>Complete TASK-296, then TASK-284/285 and TASK-291 before any Control
 Tower publication.</li>
-<li>Restore Actions/security settings exactly as recorded in WP-760/785
-only after the owner declares the work complete; prove active PR checks
-green without rerun noise.</li>
-<li>Publish only through TASK-298 after pre-publication security, then
-refresh/approve the fleet census and run TASK-288/299.</li>
+<li>Publish only through TASK-298 after pre-publication security.</li>
+<li>After TASK-297, regenerate WP-829&#39;s census with current entitlement
+and canonical plans; independently QA and owner-approve that exact
+identity before TASK-288/299.</li>
 <li>Run TASK-289 and TASK-290 against final signed artifacts, then close
 with TASK-292 only if all 23 criteria pass.</li>
 </ol>
