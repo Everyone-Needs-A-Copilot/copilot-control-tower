@@ -49,7 +49,7 @@ wps = {
         "guard": "title=clean;content=clean",
     },
 }
-if scenario != "legacy":
+if scenario not in {"legacy", "legacy-contradictory"}:
     metadata.update(
         {
             "implementationWorkProductId": 100,
@@ -80,6 +80,9 @@ elif scenario == "wrong-type":
 elif scenario == "wrong-title":
     metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
     wps[20] = dict(wps[20], title="Unrelated test evidence")
+elif scenario == "wrong-returned-id":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], id=21)
 elif scenario == "missing-title-binding":
     metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
     metadata.pop("qaWorkProductTitle")
@@ -95,6 +98,18 @@ elif scenario == "missing-artifact":
 elif scenario == "rejected-verdict":
     metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
     wps[20] = dict(wps[20], content=current_content.replace("VERDICT: APPROVED-WITH-MINOR-FIXES", "VERDICT: REJECTED"))
+elif scenario == "approved-then-rejected":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], content=current_content + "VERDICT: REJECTED\n")
+elif scenario == "rejected-then-approved":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], content="VERDICT: REJECTED\n" + current_content)
+elif scenario == "duplicate-approved":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], content=current_content + "VERDICT: APPROVED\n")
+elif scenario == "legacy-contradictory":
+    wps[10] = dict(wps[10], content=old_content + "VERDICT: REJECTED\n")
+    wps[20] = dict(wps[20], content=current_content + "VERDICT: REJECTED\n")
 elif scenario == "old-indexed":
     metadata.update(
         {
@@ -146,12 +161,17 @@ run_case wrong-binding 1
 run_case wrong-task 1
 run_case wrong-type 1
 run_case wrong-title 1
+run_case wrong-returned-id 1
 run_case missing-title-binding 1
 run_case dirty-guard 1
 run_case missing-guard 1
 run_case missing-artifact 1
 run_case rejected-verdict 1
+run_case approved-then-rejected 1
+run_case rejected-then-approved 1
+run_case duplicate-approved 1
 run_case old-indexed 1
+run_case legacy-contradictory 1
 
 printf 'Results: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" == 0 ]]

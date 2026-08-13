@@ -13,7 +13,9 @@ primary QA metadata plus an explicitly indexed test work product. That work
 product must include a passing VERDICT, an ARTIFACT marker, and references to
 the current implementation work product and commit/tree identities when set.
 The indexed work product title must exactly match metadata.qaWorkProductTitle,
-and its Task Copilot guard must be exactly title=clean;content=clean.
+its returned ID must exactly match metadata.qaWorkProductId, and its Task
+Copilot guard must be exactly title=clean;content=clean. Evidence must contain
+exactly one recognized VERDICT line; contradictory verdicts fail closed.
 
 Legacy fallback: only a task with none of implementationWorkProductId,
 implementationCommit, or implementationTree may use any passing attached test
@@ -103,9 +105,10 @@ def full_wp(wid):
     return full, str(full.get("content") or "")
 
 
-PASSING_VERDICT_RE = re.compile(
+VERDICT_RE = re.compile(
     r"^\s*(?:[-*]\s*)?(?:\*\*)?VERDICT:\s*"
-    r"(APPROVED-WITH-MINOR-FIXES|APPROVED)\b(?:\*\*)?\s*[.!]?\s*$",
+    r"(APPROVED-WITH-MINOR-FIXES|APPROVED|REJECTED)\b"
+    r"(?:\*\*)?\s*[.!]?\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
 ARTIFACT_RE = re.compile(
@@ -117,7 +120,13 @@ ARTIFACT_RE = re.compile(
 
 
 def approved_with_artifact(content):
-    return bool(PASSING_VERDICT_RE.search(content) and ARTIFACT_RE.search(content))
+    verdicts = VERDICT_RE.findall(content)
+    return bool(
+        len(verdicts) == 1
+        and verdicts[0].casefold()
+        in {"approved", "approved-with-minor-fixes"}
+        and ARTIFACT_RE.search(content)
+    )
 
 
 def approved_primary(meta):
@@ -183,12 +192,19 @@ def binds_current_implementation(full, content, meta):
 
 
 def valid_test_wp(
-    full, content, task_id, *, expected_title=None, require_clean_guard=False
+    full,
+    content,
+    task_id,
+    *,
+    expected_id=None,
+    expected_title=None,
+    require_clean_guard=False,
 ):
     wp_task_id = full.get("task_id", full.get("task"))
     return (
         full.get("type", full.get("type_")) == "test"
         and str(wp_task_id) == str(task_id)
+        and (expected_id is None or str(full.get("id")) == str(expected_id))
         and (expected_title is None or full.get("title") == expected_title)
         and (
             not require_clean_guard
@@ -227,6 +243,7 @@ for task in tasks:
                 selected_wp,
                 content,
                 task["id"],
+                expected_id=qa_wp_id,
                 expected_title=qa_wp_title,
                 require_clean_guard=True,
             )
