@@ -500,13 +500,13 @@ tr { break-inside: avoid; }
           <div>
             <p class="status-kicker">Current disposition</p>
             <p class="status-value">Active, not achieved</p>
-            <p class="status-note">Framework first. App release is deferred to PRD-24. Production journey wiring is next.</p>
+            <p class="status-note">Framework first. Local journey wiring is approved. Live signed proof waits on TASK-297.</p>
           </div>
           <div class="metric-list" aria-label="Task counts">
             <div class="metric"><strong>8</strong><span>framework tasks complete</span></div>
             <div class="metric"><strong>2</strong><span>active delivery gates</span></div>
             <div class="metric"><strong>9</strong><span>downstream tasks</span></div>
-            <div class="metric"><strong>55</strong><span>repositories paused</span></div>
+            <div class="metric"><strong>75</strong><span>census rows, zero authorized</span></div>
           </div>
         </section>
         <div class="toc-wrap">
@@ -521,7 +521,7 @@ tr { break-inside: avoid; }
             <a href="#claim-boundary">Claim boundary</a>
           </nav>
         </div>
-        <p class="nav-foot">Evidence window: WP-857<br>Generated from the paired Markdown source.</p>
+        <p class="nav-foot">Evidence window: WP-917<br>Generated from the paired Markdown source.</p>
       </div>
     </aside>
 
@@ -531,7 +531,7 @@ progress and acceptance-evidence review</h1>
 <p>Updated: 2026-08-13</p>
 <p>Execution record: PRD-23, parent TASK-278</p>
 <p>Evidence window: current task graph and work products through
-WP-857</p>
+WP-917</p>
 <p>Disposition: <strong>Framework active; app track deferred; outcome
 not yet achieved</strong></p>
 <h2 id="plain-language-answer">Plain-language answer</h2>
@@ -541,16 +541,15 @@ release and installation requirement intact to owner-deferred
 PRD-24/TASK-301. The split does not waive app security; it prevents
 Apple packaging from blocking proof of the framework, content, routing,
 evaluation, fleet, and human outcome.</p>
-<p>The framework itself has advanced. This Mac now runs one exact
-reviewed framework snapshot; an isolated fixture proves the exact
-organization and accounting inputs through signed resolution, immutable
-materialization, selective revocation, and deprovision; and the
-deterministic protocol journey contract has independent QA and security
-approval. The immediate engineering step is production wiring: connect
-that contract to the real protocol trace, signed Knowledge resolver,
-Agent dispatch hook, and Task Copilot continuation path described in
-WP-846. The approved contract is not yet evidence that those production
-boundaries are connected.</p>
+<p>The framework itself has advanced. This Mac runs one exact reviewed
+framework snapshot; an isolated fixture proves the exact organization
+and accounting inputs through signed resolution, immutable
+materialization, selective revocation, and deprovision; and TASK-296&#39;s
+production journey wiring now has local implementation, QA, and security
+approval. That approval is bounded to the local framework at WP-913
+commit <code>db397cd</code>, QA WP-917, and security WP-915. TASK-296
+still needs a live signed journey against TASK-297&#39;s protected
+organization and accounting releases before it can complete.</p>
 <p>What changed materially:</p>
 <ul>
 <li>WP-838 established the one-way framework/app split. WP-852 removed
@@ -571,13 +570,25 @@ organization; deprovision removed indexed content without touching
 unrelated state; 95 focused tests passed. The fixture does not replace
 protected merges, published tags, entitlement- qualified live proof, or
 provider garbage collection in TASK-297.</li>
-<li>TASK-296&#39;s deterministic journey contract at commit
-<code>dfaafbe</code> now binds canonical content to verifier-issued
-Knowledge provenance, fails mandatory security closed, serializes
-continuation across processes, binds Task Copilot rows, and avoids
-persisting plaintext prompts. QA WP-856 and security WP-857 approve 23
-focused tests and the final attack matrix. Production wiring and a live
-signed journey remain open.</li>
+<li>TASK-296&#39;s production journey implementation at commit
+<code>db397cd</code>, tree <code>385f6ef</code>, now connects the
+canonical protocol route, signed Knowledge receipts, Agent dispatch
+authorization, and Task Copilot continuation while preserving
+exactly-once recovery and replay denial. QA WP-917 approved the 322-test
+affected matrix, 500 contention repetitions, and 20 real-process runs;
+security WP-915 approved the same exact commit with no open local
+findings. The TASK-297 live signed proof remains open.</li>
+<li>TASK-284 now has an approved provisional foundation at commit
+<code>b2f72d</code>, tree <code>edfdef7</code>: closed schemas, models,
+fixtures, and safety controls passed 54 focused tests under QA WP-882.
+This is not the completed behavioral- effectiveness contract; live
+release identities and the accepted TASK-296 journey are still
+prerequisites for the final controls and evaluation run.</li>
+<li>The framework QA gate itself is repaired at signed Control Tower
+commit <code>e67088</code>, tree <code>e487c61</code>. WP-903 binds
+evidence to the exact selected QA row and accepts exactly one
+non-contradictory passing verdict; independent QA WP-904 approved 18
+authored and 23 independent identity/verdict cases.</li>
 <li>WP-829 preserves a fresh 75-row fleet census with every row pending
 and <code>authorized_mutations=0</code>. It is preparation only and must
 be regenerated with current entitlement evidence after TASK-297.</li>
@@ -600,14 +611,15 @@ be regenerated with current entitlement evidence after TASK-297.</li>
 <tr>
 <td>Active framework delivery</td>
 <td>TASK-296, 297</td>
-<td>Production journey wiring and protected content release are the
-current gates.</td>
+<td>Local journey wiring is approved; its live signed proof waits on the
+protected content release.</td>
 </tr>
 <tr>
 <td>Pending framework downstream</td>
 <td>TASK-284, 285, 288, 290-292, 299, 300, 303</td>
-<td>Evaluation, security, census/fleet, clean-environment, human, and
-final-audit work remains dependency-gated.</td>
+<td>TASK-284 has an approved provisional foundation; evaluation,
+security, census/fleet, clean-environment, human, and final-audit
+completion remains dependency-gated.</td>
 </tr>
 <tr>
 <td>Deferred app track</td>
@@ -623,26 +635,43 @@ framework verdict.</td>
 </tbody>
 </table>
 <h2 id="current-active-gates">Current active gates</h2>
-<h3 id="production-framework-journey--task-296">Production framework
-journey — TASK-296</h3>
+<h3 id="locally-approved-production-framework-journey--task-296">Locally
+approved production framework journey — TASK-296</h3>
 <ul>
-<li>WP-855 is the approved deterministic contract implementation at
-commit <code>dfaafbe</code>, tree <code>b244ff5</code>; QA WP-856 and
-security WP-857 report no open findings in that bounded scope.</li>
-<li>The contract proves canonical content attribution, verifier-issued
-provenance, mandatory-security fail-closed behavior, task-bound
-persistence, disclosure controls, and one-host concurrent continuation
-serialization.</li>
-<li>It does not yet prove real protocol-to-Knowledge invocation. WP-846
-is the accepted production architecture: the existing protocol remains
-the only router, the existing signed Knowledge stack remains the only
-resolver, the existing Agent hook records actual dispatch, and Task
-Copilot remains the continuation authority.</li>
-<li><strong>Next step:</strong> implement and verify
-<code>cc journey</code> production adapters and CLI, receipt-preserving
-signed Knowledge composition, actual Agent dispatch enforcement, and
-exact pause/resume behavior. Then run the local production harness and,
-after TASK-297, the live signed organization/accounting proof.</li>
+<li>WP-913 is the locally approved production implementation at commit
+<code>db397cd</code>, tree <code>385f6ef</code>; QA WP-917 and security
+WP-915 reviewed those exact bytes and report no open local
+findings.</li>
+<li>The production path preserves one router and one signed Knowledge
+resolver, projects attributable receipts, records actual dispatch
+authorization, keeps Task Copilot as continuation authority, and denies
+completed-marker replay. A dispatch-only interrupted state can recover
+once only after current security and signed Knowledge are
+revalidated.</li>
+<li>QA WP-917 passed 322 affected tests, 500/500 thread contention
+repetitions, 20/20 real-tc process runs, and both dedicated hook
+harnesses. Security WP-915 separately approved replay, chronology, lock,
+fork, persistence, provenance, revocation, and disclosure
+boundaries.</li>
+<li><strong>Remaining gate:</strong> after TASK-297 publishes protected
+immutable inputs, run the representative journey against those exact
+signed organization and accounting identities. Local approval is not a
+protected-release or live- consumer claim.</li>
+</ul>
+<h3 id="provisional-behavioral-evaluation-foundation--task-284">Provisional
+behavioral-evaluation foundation — TASK-284</h3>
+<ul>
+<li>Commit <code>b2f72d</code>, tree <code>edfdef7</code>, provides the
+schema/model/fixture/safety-only foundation. QA WP-882 approved 54
+focused tests plus lint, format, compile, and AST-identical formatting
+verification with no open provisional findings.</li>
+<li>The foundation includes closed and versioned evidence structures and
+hardened fixture/safety handling. It does not yet contain the final
+release-bound controls, real Claude/Codex attempts, comparison results,
+or an outcome verdict.</li>
+<li><strong>Remaining gate:</strong> bind the final contract to accepted
+TASK-296 and TASK-297 identities, then run TASK-285&#39;s controlled
+evaluations.</li>
 </ul>
 <h3 id="signed-organization-and-accounting-inputs--task-297">Signed
 organization and accounting inputs — TASK-297</h3>
@@ -664,9 +693,24 @@ inherited reader.</li>
 <li>Protected merges, new immutable signed tags/pins, and exact
 entitlement- qualified live consumer evidence remain required.</li>
 </ul>
+<h3 id="evidence-gate-integrity--task-278">Evidence-gate integrity —
+TASK-278</h3>
+<ul>
+<li>WP-903 repairs the framework QA gate at signed commit
+<code>e67088</code>, tree <code>e487c61</code>. The gate now requires
+the fetched work-product row to match the selected QA ID and requires
+exactly one recognized, passing verdict.</li>
+<li>Independent QA WP-904 approved all 18 authored and 23 independent
+identity, substitution, title, guard, binding, and contradictory-verdict
+cases. This makes the remaining evidence gates stricter; it does not
+complete TASK-278.</li>
+</ul>
 <h3 id="fleet-and-validation-preparation">Fleet and validation
 preparation</h3>
 <ul>
+<li>TASK-297&#39;s hosted approvals and TASK-300&#39;s post-release
+owner-approved census are the remaining remote/owner gates before any
+fleet mutation can begin.</li>
 <li>WP-829 records 75 rows: 42 dependency-pending candidates, 32
 classification exclusions, and one safety hold. Every row is pending,
 ineligible, and plan-free, so it grants no mutation authority.</li>
@@ -754,14 +798,14 @@ EVAL-05</td>
 </tr>
 <tr>
 <td>AC-11</td>
-<td>Pending</td>
-<td>Criterion-wise foundation-control contract</td>
-<td>Implement and run controls</td>
+<td>Provisional foundation approved</td>
+<td>TASK-284 commit <code>b2f72d</code>, QA WP-882, 54 tests</td>
+<td>Bind final controls to released identities and run them</td>
 </tr>
 <tr>
 <td>AC-12</td>
 <td>Partial</td>
-<td>Transaction/content gates and WP-857 journey-contract security
+<td>Transaction/content gates and WP-915 production-journey security
 approval</td>
 <td>Behavioral leak cases and integrated framework security</td>
 </tr>
@@ -792,7 +836,8 @@ approval</td>
 <tr>
 <td>AC-20</td>
 <td>Partial</td>
-<td>Durable tasks, work products, commits, reviews, and this report</td>
+<td>Durable tasks/work products plus exact-row QA gate
+WP-903/WP-904</td>
 <td>Protected releases and final TASK-292 validator</td>
 </tr>
 <tr>
@@ -804,10 +849,9 @@ proof</td>
 </tr>
 <tr>
 <td>AC-22</td>
-<td>Approved contract; production pending</td>
-<td>WP-855 implementation, QA WP-856, security WP-857</td>
-<td>WP-846 production wiring, live signed journey, final delta
-QA/security</td>
+<td>Local production approved; live proof pending</td>
+<td>WP-913 implementation, QA WP-917, security WP-915</td>
+<td>TASK-297-bound live signed organization/accounting journey</td>
 </tr>
 <tr>
 <td>AC-23</td>
@@ -843,10 +887,11 @@ verdict.</td>
 <tr>
 <td><strong>TASK-284: Build the behavioral-effectiveness contract and
 fixtures.</strong></td>
-<td>Waits for accepted TASK-296 production integration and TASK-297
-identities.</td>
-<td>Versioned controls, rubrics, runtime/content identity, safety gates,
-negative fixtures, QA/security.</td>
+<td>Provisional schema/model/fixture/safety foundation
+<code>b2f72d</code> is approved by QA WP-882; final work waits for
+TASK-296/TASK-297 identities.</td>
+<td>Release-bound controls, rubrics, runtime/content identity, safety
+gates, negative fixtures, and final QA/security.</td>
 </tr>
 <tr>
 <td><strong>TASK-285: Run the controlled Claude/Codex
@@ -888,10 +933,11 @@ releases, and validation.</td>
 <tr>
 <td><strong>TASK-296: Integrate protocol, capabilities, Knowledge, and
 Task Copilot continuity.</strong></td>
-<td>Deterministic contract is approved; production wiring and live
-signed proof remain.</td>
-<td>WP-846 wiring, actual-dispatch receipts, exact pause/resume,
-production harness, signed live proof, delta QA/security.</td>
+<td>WP-913 production wiring is locally approved by QA WP-917 and
+security WP-915; TASK-297 still gates the live proof.</td>
+<td>Representative journey against exact protected signed
+organization/accounting inputs, with preserved dispatch and continuation
+receipts.</td>
 </tr>
 <tr>
 <td><strong>TASK-297: Publish signed immutable organization and
@@ -910,10 +956,12 @@ secret, symlink, lock, or ownership breach.</td>
 </tr>
 <tr>
 <td><strong>TASK-300: Approve the exact fleet census.</strong></td>
-<td>Must regenerate after TASK-297 with current entitlement
+<td>WP-829&#39;s 75-row census is bounded preparation with zero mutation
+authority; it must regenerate after TASK-297 with current entitlement
 evidence.</td>
-<td>Deterministic row-level plans, independent QA, immutable identity,
-explicit owner approval.</td>
+<td>Deterministic row-level plans, independent QA, immutable census
+identity, explicit owner approval, and nonzero authority only for
+eligible rows.</td>
 </tr>
 <tr>
 <td><strong>TASK-303: Prove the journey in a clean framework
@@ -929,18 +977,18 @@ remains unfinished until its named artifacts and independent decisions
 exist.</p>
 <h2 id="dependency-safe-path-forward">Dependency-safe path forward</h2>
 <ol type="1">
-<li>Implement WP-846&#39;s production journey wiring without adding a second
-router or resolver; run focused, hook, continuation, and local
-production-harness checks.</li>
 <li>Obtain independent human review for PR #66 and both content PRs;
 restore only authorized Actions checks and satisfy required CodeQL.</li>
 <li>Complete provider garbage collection and the need-to-have reader
 decision; then publish protected signed content tags/pins and prove
 exact entitled consumption.</li>
-<li>Run TASK-296&#39;s live signed proof and final delta QA/security, then
-complete TASK-284/285.</li>
+<li>Run TASK-296&#39;s locally approved production journey against those
+exact signed inputs.</li>
+<li>Finish TASK-284 from its approved provisional foundation and run
+TASK-285&#39;s controlled evaluations.</li>
 <li>Complete framework-only integrated security, regenerate and approve
-TASK-300&#39;s census, execute TASK-288, and run TASK-299.</li>
+TASK-300&#39;s entitlement-qualified census, execute TASK-288, and run
+TASK-299.</li>
 <li>Execute clean-environment TASK-303 and observed participant
 TASK-290, then close only through TASK-292.</li>
 <li>Resume PRD-24 separately when app release and installation become a
@@ -949,11 +997,13 @@ priority.</li>
 <h2 id="claim-boundary">Claim boundary</h2>
 <p>It is accurate to say that the app no longer blocks the framework
 graph; the local runtime matches the reviewed framework snapshot; exact
-signed-content lifecycle behavior has bounded proof; and the
-deterministic journey contract has QA/security approval. It is not
-accurate to say production journey wiring, protected content release,
-behavior effectiveness, fleet propagation, clean-environment proof, or
-non-technical-person validation is complete.</p>
+signed-content lifecycle behavior has bounded proof; TASK-296 production
+wiring is locally approved; TASK-284 has an approved provisional
+foundation; and the exact-row QA gate is independently approved. It is
+not accurate to say TASK-296 has live signed release proof or to claim
+completion of protected content release, behavior effectiveness, fleet
+propagation, clean-environment proof, or non-technical-person
+validation.</p>
 <p>This report does not approve a PR, restore Actions, merge or tag
 content, authorize fleet mutation, publish an app, or close either
 PRD.</p>
