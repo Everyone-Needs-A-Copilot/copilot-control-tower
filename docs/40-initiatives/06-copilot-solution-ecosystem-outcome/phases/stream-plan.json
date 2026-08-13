@@ -61,20 +61,6 @@
       "specialistRoute": "ta -> me -> qa"
     },
     {
-      "streamId": "Stream-E",
-      "streamName": "Control Tower Trust",
-      "files": [
-        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/native/**",
-        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/scripts/tests/**",
-        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/scripts/package-user-release.sh",
-        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/packaging/**",
-        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/.github/workflows/**"
-      ],
-      "streamDependencies": ["Stream-A", "Stream-B"],
-      "streamPaths": [],
-      "specialistRoute": "ta -> me -> uid -> qa -> sec -> do"
-    },
-    {
       "streamId": "Stream-F",
       "streamName": "Fleet Closure",
       "files": [
@@ -98,7 +84,7 @@
       "files": [
         "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/06-copilot-solution-ecosystem-outcome/validation/**"
       ],
-      "streamDependencies": ["Stream-D", "Stream-E", "Stream-F"],
+      "streamDependencies": ["Stream-D", "Stream-F"],
       "streamPaths": [],
       "specialistRoute": "sd -> uxd -> qa -> doc"
     },
@@ -109,7 +95,7 @@
         "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/06-copilot-solution-ecosystem-outcome/retrospectives/**",
         "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/06-copilot-solution-ecosystem-outcome/decisions/**"
       ],
-      "streamDependencies": ["Stream-A", "Stream-B", "Stream-C", "Stream-D", "Stream-E", "Stream-F", "Stream-G"],
+      "streamDependencies": ["Stream-A", "Stream-B", "Stream-C", "Stream-D", "Stream-F", "Stream-G"],
       "streamPaths": [],
       "specialistRoute": "qa -> sec -> do -> doc"
     }

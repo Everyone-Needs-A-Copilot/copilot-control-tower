@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0",
+  "initiative": "control-tower-app-release-prd-24",
+  "streams": [
+    {
+      "streamId": "App-Stream-A",
+      "streamName": "Trust and Candidate",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/native/**",
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/scripts/tests/**",
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/packaging/**"
+      ],
+      "streamDependencies": [],
+      "streamPaths": [],
+      "specialistRoute": "ta -> me -> uid -> qa -> sec -> do"
+    },
+    {
+      "streamId": "App-Stream-B",
+      "streamName": "Release Security and Publication",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/scripts/package-user-release.sh",
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/07-contributing/publisher-release-runbook.md"
+      ],
+      "streamDependencies": ["App-Stream-A"],
+      "streamPaths": [],
+      "specialistRoute": "sec -> do -> qa"
+    },
+    {
+      "streamId": "App-Stream-C",
+      "streamName": "Installation Validation",
+      "files": [
+        "/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/06-copilot-solution-ecosystem-outcome/validation/clean-home-second-mac-validation-protocol.md"
+      ],
+      "streamDependencies": ["App-Stream-B"],
+      "streamPaths": [],
+      "specialistRoute": "sd -> uxd -> qa -> sec -> doc"
+    }
+  ]
+}

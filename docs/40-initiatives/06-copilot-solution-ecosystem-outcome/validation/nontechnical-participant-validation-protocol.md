@@ -2,11 +2,11 @@
 
 Status: protocol only; not recruited, scheduled, or executed
 Task: TASK-290
-Acceptance criterion: [AC-19](../phases/phase-1-outcome-prd.md#8-acceptance-criteria-and-current-evidence)
+Acceptance criterion: AC-19F
 
 ## Purpose
 
-Observe whether a real non-technical person can use the final signed ecosystem
+Observe whether a real non-technical person can use the provisioned framework
 to begin a representative problem-to-solution journey, understand each prompt,
 and leave with a useful, owned next step without terminal work, Git knowledge,
 Pablo's intervention, or observer coaching.
@@ -20,10 +20,9 @@ substitute for a real participant.
 
 Do not recruit or schedule a participant until:
 
-- TASK-289 has accepted clean-home and real second-Mac evidence for
-  [AC-18](../phases/phase-1-outcome-prd.md#8-acceptance-criteria-and-current-evidence);
-- TASK-297 and TASK-298 identify the exact owner-approved shared content and
-  final published signed artifact used in the session;
+- TASK-303 has accepted clean-framework-environment evidence for AC-18F;
+- TASK-297 identifies the exact owner-approved shared content and framework
+  revision used in the session;
 - TASK-299 has approved post-fan-out entitlement, personal/shared, secret,
   symlink, lock, and ownership boundaries;
 - the study owner has approved the recruitment text, consent form, data fields,
@@ -84,8 +83,9 @@ sensitive-content scan before evidence enters `tc` or Git.
 
 ## Representative task
 
-Give the participant the final signed user-facing artifact and the ordinary
-published instructions only. Use this synthetic brief without ecosystem
+Give the participant the neutrally provisioned framework workflow and ordinary
+participant instructions only. Provisioning is not part of this participant
+test and may not continue during observation. Use this synthetic brief without ecosystem
 jargon:
 
 > A fictional regional transportation team knows riders abandon support when
@@ -150,7 +150,7 @@ Use event notes, not interpretation alone. For each meaningful event record:
 - any intervention. An intervention automatically prevents an independent-pass
   verdict for that step.
 
-Record the exact application/runtime/content identities and the TASK-289
+Record the exact framework/runtime/content identities and the TASK-303
 environment evidence. Preserve the complete journey and stopping point; do not
 retain only successful moments or rerun because the first result is
 unflattering.
@@ -186,7 +186,7 @@ Stop immediately if the participant withdraws or shows distress; personal,
 client, credential, or unrelated data appears; the product requests terminal,
 Git, hidden settings, administrator judgment, or another person's authority;
 the observer would need to repair or coach; the artifact/content identity no
-longer matches TASK-289; a false success state appears; an unexpected external
+longer matches TASK-303; a false success state appears; an unexpected external
 write is proposed; or a TASK-299 boundary concern emerges.
 
 Seal a redacted record as `STOPPED`, `FAILED`, or `INVALID` with the exact
@@ -197,7 +197,7 @@ session ID.
 ## Claim boundary
 
 A passing session supports only the bounded claim that this participant
-completed this recorded task with these signed artifacts under this protocol.
+completed this recorded task with these immutable framework/content inputs under this protocol.
 It does not prove general usability, accessibility for every person,
 organization-wide readiness, model quality, or the complete initiative
 outcome. If no suitable participant is available, AC-19 remains pending; no

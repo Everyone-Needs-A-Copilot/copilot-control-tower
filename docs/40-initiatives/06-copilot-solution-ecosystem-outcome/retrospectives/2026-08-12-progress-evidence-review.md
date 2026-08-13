@@ -1,5 +1,17 @@
 # Initiative 06 progress and acceptance-evidence review
 
+> **Scope reset, 2026-08-13.** This report's detailed evidence remains valid,
+> but its single critical path is superseded. PRD-23/TASK-278 now covers only
+> framework, content, routing, evaluation, security, fleet, and framework-human
+> proof. App tasks TASK-286/287/289/298 and every attached work product moved
+> intact to owner-deferred PRD-24/TASK-301; TASK-302 is the future independent
+> app-release security gate. TASK-303 replaces the signed-app prerequisite with
+> a clean framework environment gate. TASK-288 no longer depends on TASK-298;
+> TASK-291 no longer depends on TASK-286/287; TASK-290 depends on TASK-303 rather
+> than TASK-289; TASK-292 no longer depends on TASK-289/298. No framework
+> content, security, evaluation, census, fleet, or human-evidence gate was
+> weakened. The paired HTML file is the historical 2026-08-12 rendering.
+
 Updated: 2026-08-13
 
 Execution record: PRD-23, parent TASK-278

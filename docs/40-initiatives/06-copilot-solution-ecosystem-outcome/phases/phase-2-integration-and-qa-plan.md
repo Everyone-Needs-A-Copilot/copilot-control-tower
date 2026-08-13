@@ -5,7 +5,7 @@ Execution record: PRD-23, parent TASK-278
 
 ## Purpose
 
-This plan prevents stream-local success from being mistaken for ecosystem success. Every result must cross the boundaries it claims to fix: source → resolution → materialization → lock → runtime consumption → solution behavior → supervision → human use.
+This plan prevents stream-local success from being mistaken for ecosystem success. Every framework result must cross the boundaries it claims to fix: source → resolution → materialization → lock → runtime consumption → solution behavior → safe propagation → human use. App supervision and packaging are validated separately in PRD-24.
 
 ## Evidence classes
 
@@ -16,8 +16,8 @@ This plan prevents stream-local success from being mistaken for ecosystem succes
 | Attribution | Can every installed item prove where it came from? | `resolve --explain`, immutable refs, content hashes, canonical lock, destination evidence |
 | Behavioral | Does nearer-tier content change the resulting work in the intended direction? | controlled prompts, resolved-context identity, output artifacts, bounded rubric verdicts |
 | Security | Can authority, secrets, or personal content cross a forbidden boundary? | abuse fixtures, negative tests, credential/path inspection, independent security review |
-| Product | Can the non-technical person understand and complete the journey? | state/copy/a11y checks, clean-home run, signed-artifact run, observed journey record |
-| Operational | Does the capability stay working and roll back safely? | cadence runs, crash/clean-Quit behavior, fleet ledgers, immutable release and rollback artifact |
+| Product | Can the non-technical person understand and complete the provisioned framework journey? | clean-framework run and observed journey record |
+| Operational | Does the framework propagate and roll back safely? | canonical update runs, fleet ledgers, immutable content refs and rollback refs |
 | Provenance | Can a future session recover why the claim was accepted? | Initiative/PRD/task/WP/commit/QA/release cross-links |
 
 ## Acceptance traceability
@@ -37,12 +37,9 @@ This plan prevents stream-local success from being mistaken for ecosystem succes
 | AC-11 Foundation does not regress | D | Stream-D QA | control cases stay within accepted foundation bounds |
 | AC-12 Personal cannot leak upward | A + C + D | independent security | cross-tier/secret/upward-write negative suite and path/credential proof |
 | AC-13 Shared change propagates | F | Stream-F QA | one immutable nearer-tier release reaches multiple eligible projects without manual copies |
-| AC-14 Native invariants enforced | E | Stream-E QA | unconditional CI over shipping Swift and removal of retired-tree proof claim |
-| AC-15 Crash-only supervision | E | Stream-E QA + security | crash restart, clean Quit remains quit, install/uninstall, plist `SuccessfulExit:false` |
-| AC-16 Plain-language app | E | Stream-E QA | visible/a11y scans and rendering tests with no raw internal tokens |
 | AC-17 Fleet dispositioned | F | integrated QA | zero S0/unknown plus machine-readable reviewed disposition for every residual deviation |
-| AC-18 Clean-machine journey | G | Stream-G QA | signed artifact, fresh environment, cold-machine transcript, rollback named |
-| AC-19 Non-technical person succeeds | G | service-design + QA | observed task success without terminal/Pablo intervention and with actor-correct prompts |
+| AC-18F Clean framework environment | G | Stream-G QA | isolated-home setup, materialization, routing, update, and continuity evidence with exact framework/content identities |
+| AC-19F Non-technical framework outcome | G | service-design + QA | observed task success after neutral provisioning without Pablo intervention and with actor-correct prompts |
 | AC-20 Provenance complete | Z | final QA | cross-link validator and recoverable artifacts for every acceptance claim |
 | AC-21 Entitlement lifecycle safe | A + Z | Stream-A QA/security + pre/post-release security | entitled/unentitled/offline/stale/revoked/reauthorization fixtures and no-leak evidence |
 | AC-22 Problem-to-solution integration | D | Stream-D QA/security | protocol routing, layered-context identity, optional-transport fail-open, and resumed `tc` continuity artifact |
@@ -90,15 +87,6 @@ This plan prevents stream-local success from being mistaken for ecosystem succes
 - Exact prose is not required; observable methods, constraints, evidence, and outcome qualities are.
 - A foundation-only control establishes that the nearer tier adds value rather than repairing a broken base.
 
-### Stream E — Control Tower trust
-
-- Tests scan or exercise shipping `native/*.swift`, not retired Rust.
-- Any new state originates in a versioned CLI contract.
-- Unknown contract values fail closed and render in plain language.
-- Clean Quit, crash restart, repeated crash, install, uninstall, and rollback are distinct cases.
-- The release gate exercises the packaged signed binary.
-- Application changes do not stop before version, immutable push, sign, notarize, staple, verification, publication, and rollback provenance.
-
 ### Stream F — fleet closure
 
 - Read-only discovery precedes every write.
@@ -107,14 +95,14 @@ This plan prevents stream-local success from being mistaken for ecosystem succes
 - Pilot evidence precedes fan-out.
 - A residual failure has an owner, reason, and accepted disposition; no bulk acknowledgement hides it.
 
-### Stream G — external validation
+### Stream G — framework validation
 
 - Fresh-home validation does not inherit Pablo's caches, materialized trees, credentials, or untracked fixes.
-- Second-machine evidence distinguishes network/entitlement failures from product defects.
-- The participant receives only the signed user-facing artifact and ordinary instructions.
+- Exact framework/content identities are recorded without requiring an app artifact.
+- The participant receives only the provisioned framework workflow, synthetic task packet, and ordinary instructions.
 - Observers do not coach around product failures.
 - No unrelated personal information enters the record.
-- If a human participant or second machine is unavailable, the initiative remains active; no simulated result substitutes for the evidence.
+- If a human participant is unavailable, the initiative remains active; no simulated result substitutes for the evidence.
 
 ## Integration sequence
 
@@ -123,11 +111,11 @@ This plan prevents stream-local success from being mistaken for ecosystem succes
 3. Integrate A + B and run canonical transaction through ordinary full conformance.
 4. Integrate C and prove real organization/department attribution, materialization, and lock identity.
 5. Run D against the exact integrated content and transaction commits.
-6. Produce and verify the signed application candidate, then run independent pre-publication security before fleet fan-out or publication.
-7. Publish only the approved app and tier-content releases.
-8. Approve the exact fleet census, pilot F through the real cadence/Sync Now path, inspect ledgers, then fan out only to approved eligible projects.
+6. Publish only the approved immutable tier-content releases.
+7. Run independent framework security against the exact content, pins, evaluation artifacts, entitlement behavior, locks, and approved census.
+8. Approve the exact fleet census, pilot F through the canonical `cc` update path, inspect ledgers, then fan out only to approved eligible projects.
 9. Run post-fan-out security and the complete live conformance/regression suite.
-10. Run G only against the final signed artifacts and immutable layer refs.
+10. Run G against the exact framework commit and immutable layer refs.
 11. Run Z's provenance and outcome audit; mark complete only if every acceptance row has evidence.
 
 ## Stop conditions
@@ -135,17 +123,15 @@ This plan prevents stream-local success from being mistaken for ecosystem succes
 Integration stops and returns to the owning stream when:
 
 - a check is weakened, deleted, or reclassified without an evidence-backed contract decision;
-- a user-facing healthy claim lacks a current CLI proof;
 - an operation mutates a dirty or ambiguous human-owned tree;
 - personal or secret content appears in a shared path or artifact;
 - two installer surfaces still produce different reference results;
 - organization/department behavior is claimed from only a synthetic marker;
-- application source changes exist without a releasable signed-artifact plan;
-- a human or second-machine result is inferred rather than observed.
+- a human result is inferred rather than observed.
 
 ## Final verdict language
 
-- **Achieved:** all AC-01 through AC-23 have passing, linked evidence.
+- **Achieved:** every active PRD-23 criterion has passing, linked evidence; PRD-24 is reported separately.
 - **Partially achieved:** a useful technical or content milestone landed, but one or more outcome criteria remain unproved.
 - **Rejected:** a completion claim relies on missing evidence, weakened checks, synthetic-only effectiveness, or an unsafe boundary.
 

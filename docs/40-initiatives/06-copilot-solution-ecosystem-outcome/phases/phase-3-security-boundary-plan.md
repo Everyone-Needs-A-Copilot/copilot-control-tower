@@ -2,6 +2,11 @@
 
 Date: 2026-08-12
 Execution record: PRD-23, parent TASK-278
+
+Scope note, 2026-08-13: PRD-23 retains every framework/content/entitlement/
+evaluation/fleet boundary in this plan. Control Tower signing, publisher first
+trust, watchdog, packaging, and app-install boundaries moved without waiver to
+PRD-24/TASK-301 and its independent app-security TASK-302.
 Security review task: TASK-291
 
 ## Security objective

@@ -2,7 +2,12 @@
 
 Status: protocol only; not executed
 Task: TASK-289
-Acceptance criterion: [AC-18](../phases/phase-1-outcome-prd.md#8-acceptance-criteria-and-current-evidence)
+Track: owner-deferred PRD-24 / APP-AC-04
+
+> Scope transfer, 2026-08-13: this is an app installation and rollback
+> protocol. It is preserved for PRD-24 and does not block the PRD-23 framework
+> outcome. Use `clean-framework-environment-validation-protocol.md` for the
+> active framework clean-home gate.
 
 ## Purpose
 
