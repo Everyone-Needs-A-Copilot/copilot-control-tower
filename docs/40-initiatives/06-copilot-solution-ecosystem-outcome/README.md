@@ -70,6 +70,7 @@ The initiative is complete only when all of the following are true:
 
 ## Execution documents
 
+- [Current framework continuation handoff](handoff/2026-08-13-framework-continuation.md)
 - [Goal-to-current-state gap analysis](phases/phase-0-goal-gap-analysis.md)
 - [Comprehensive outcome PRD](phases/phase-1-outcome-prd.md)
 - [Integration and QA plan](phases/phase-2-integration-and-qa-plan.md)
