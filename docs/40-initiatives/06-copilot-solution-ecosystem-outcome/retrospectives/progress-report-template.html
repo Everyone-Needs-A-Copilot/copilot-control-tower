@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Current delivery status, evidence, and remaining work for the Copilot Solution Ecosystem outcome program.">
+  <title>$if(title-prefix)$$title-prefix$ — $endif$$pagetitle$</title>
+  $for(css)$<link rel="stylesheet" href="$css$">$endfor$
+</head>
+<body>
+  <a class="skip-link" href="#report">Skip to report</a>
+  <header class="topbar">
+    <a class="brand" href="#report" aria-label="Copilot Solution Ecosystem report home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-copy"><strong>Copilot Solution Ecosystem</strong><span>Outcome evidence</span></span>
+    </a>
+    <div class="top-actions">
+      <span class="maintenance-pill">GitHub maintenance active</span>
+      <button class="theme-toggle" type="button" aria-label="Switch color theme" title="Switch color theme">◐</button>
+    </div>
+  </header>
+
+  <div class="report-shell">
+    <aside class="report-nav" aria-label="Report navigation">
+      <div class="nav-inner">
+        <section class="status-panel" aria-label="Program status summary">
+          <div>
+            <p class="status-kicker">Current disposition</p>
+            <p class="status-value">Active, not achieved</p>
+            <p class="status-note">Two release gates remain active. No candidate or publication exists.</p>
+          </div>
+          <div class="metric-list" aria-label="Task counts">
+            <div class="metric"><strong>9</strong><span>foundation tasks complete</span></div>
+            <div class="metric"><strong>2</strong><span>active delivery gates</span></div>
+            <div class="metric"><strong>11</strong><span>downstream tasks</span></div>
+            <div class="metric"><strong>55</strong><span>repositories paused</span></div>
+          </div>
+        </section>
+        <div class="toc-wrap">
+          <p class="toc-title">On this page</p>
+          <nav class="toc">
+            <a href="#plain-language-answer">Plain-language answer</a>
+            <a href="#program-snapshot">Program snapshot</a>
+            <a href="#current-active-gates">Active gates</a>
+            <a href="#acceptance-evidence-matrix">Evidence matrix</a>
+            <a href="#dependency-safe-path-forward">Path forward</a>
+            <a href="#claim-boundary">Claim boundary</a>
+          </nav>
+        </div>
+        <p class="nav-foot">Evidence window: WP-815<br>Generated from the paired Markdown source.</p>
+      </div>
+    </aside>
+
+    <main class="report" id="report" tabindex="-1">
+$body$
+      <footer class="report-footer">
+        <span>Initiative 06 · Evidence-bound status</span>
+        <a href="#report">Back to top ↑</a>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const button = document.querySelector('.theme-toggle');
+      const stored = localStorage.getItem('copilot-report-theme');
+      if (stored === 'light' || stored === 'dark') root.dataset.theme = stored;
+      const currentTheme = () => root.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const updateLabel = () => {
+        const next = currentTheme() === 'dark' ? 'light' : 'dark';
+        button.setAttribute('aria-label', 'Switch to ' + next + ' theme');
+        button.title = 'Switch to ' + next + ' theme';
+      };
+      updateLabel();
+      button.addEventListener('click', () => {
+        root.dataset.theme = currentTheme() === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('copilot-report-theme', root.dataset.theme);
+        updateLabel();
+      });
+
+      const stateClass = text => {
+        const value = text.toLowerCase();
+        if (value.includes('accepted') || value.includes('completed')) return 'state-accepted';
+        if (value.includes('rejected') || value.includes('blocked')) return 'state-rejected';
+        if (value.includes('active') || value.includes('partial')) return 'state-active';
+        if (value.includes('pending') || value.includes('preparation')) return 'state-pending';
+        return '';
+      };
+      document.querySelectorAll('table tbody tr').forEach(row => {
+        const candidates = row.querySelectorAll('td');
+        if (!candidates.length) return;
+        const target = candidates.length > 1 ? candidates[1] : candidates[0];
+        const cls = stateClass(target.textContent.trim());
+        if (!cls) return;
+        const span = document.createElement('span');
+        span.className = 'state-label ' + cls;
+        span.textContent = target.textContent.trim();
+        target.replaceChildren(span);
+      });
+      document.querySelectorAll('table').forEach((table, index) => {
+        table.querySelectorAll('thead th').forEach(th => th.setAttribute('scope', 'col'));
+        if (table.caption) return;
+        const heading = table.previousElementSibling;
+        const caption = table.createCaption();
+        caption.textContent = heading && heading.tagName.length === 2 && heading.tagName[0] === 'H' && '234'.includes(heading.tagName[1])
+          ? heading.textContent.trim()
+          : 'Evidence table ' + (index + 1);
+        caption.style.position = 'absolute';
+        caption.style.width = '1px';
+        caption.style.height = '1px';
+        caption.style.overflow = 'hidden';
+        caption.style.clip = 'rect(0 0 0 0)';
+      });
+
+      const links = [...document.querySelectorAll('.toc a')];
+      const sections = links.map(link => document.querySelector(link.hash)).filter(Boolean);
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver(entries => {
+          const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (!visible) return;
+          links.forEach(link => link.removeAttribute('aria-current'));
+          const active = links.find(link => link.hash === '#' + visible.target.id);
+          if (active) active.setAttribute('aria-current', 'true');
+        }, { rootMargin: '-18% 0px -70% 0px', threshold: [0, .25, .75] });
+        sections.forEach(section => observer.observe(section));
+      }
+    })();
+  </script>
+</body>
+</html>

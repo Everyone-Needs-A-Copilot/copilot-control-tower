@@ -3,455 +3,1073 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Current delivery status, evidence, and remaining work for the Copilot Solution Ecosystem outcome program.">
   <title>Initiative 06 — Progress and Acceptance Evidence</title>
-  <style>
-    :root {
-      --ink: #17212b;
-      --muted: #536171;
-      --paper: #f6f4ef;
-      --surface: #ffffff;
-      --line: #d8dde3;
-      --navy: #123047;
-      --navy-2: #1a4765;
-      --green: #196b4b;
-      --green-bg: #e5f4ec;
-      --amber: #8b5608;
-      --amber-bg: #fff2cf;
-      --red: #9b2c2c;
-      --red-bg: #fce8e7;
-      --blue: #155c88;
-      --blue-bg: #e8f1f7;
-      --shadow: 0 16px 40px rgba(18, 48, 71, .10);
-      --radius: 18px;
-      --max: 1180px;
-    }
+  <style type="text/css">:root {
+color-scheme: light dark;
+--sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+--mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, "Cascadia Mono", monospace;
+--canvas: #f1f3f8;
+--canvas-accent: #e6eafb;
+--surface: #ffffff;
+--surface-raised: #f8f9fc;
+--surface-tint: #eef1fa;
+--ink: #171923;
+--ink-soft: #555c6d;
+--ink-faint: #606a7e;
+--line: #dfe3ec;
+--line-strong: #c8cedb;
+--accent: #4357d6;
+--accent-strong: #2d3dad;
+--accent-soft: #e7eafd;
+--ok: #237a48;
+--ok-soft: #e5f4eb;
+--warn: #a65b00;
+--warn-soft: #fff0da;
+--risk: #b63239;
+--risk-soft: #fbe8e9;
+--unknown: #6d4fc2;
+--unknown-soft: #eee9fb;
+--shadow-sm: 0 1px 2px rgba(22, 28, 48, .05), 0 5px 18px rgba(22, 28, 48, .05);
+--shadow-lg: 0 18px 60px rgba(25, 32, 66, .12);
+--radius-sm: 9px;
+--radius: 14px;
+--radius-lg: 22px;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--canvas: #0d1018;
+--canvas-accent: #171c31;
+--surface: #151925;
+--surface-raised: #1a1f2d;
+--surface-tint: #1d2234;
+--ink: #eef0f7;
+--ink-soft: #acb2c2;
+--ink-faint: #939caf;
+--line: #282e3e;
+--line-strong: #3a4256;
+--accent: #8da0ff;
+--accent-strong: #b3c0ff;
+--accent-soft: #242d59;
+--ok: #75d29a;
+--ok-soft: #163a2a;
+--warn: #ffb867;
+--warn-soft: #49331c;
+--risk: #ff8d92;
+--risk-soft: #492429;
+--unknown: #b9a3ff;
+--unknown-soft: #332a52;
+--shadow-sm: 0 1px 2px rgba(0, 0, 0, .28), 0 8px 22px rgba(0, 0, 0, .2);
+--shadow-lg: 0 22px 70px rgba(0, 0, 0, .42);
+}
+}
+:root[data-theme="light"] {
+color-scheme: light;
+--canvas: #f1f3f8; --canvas-accent: #e6eafb; --surface: #ffffff;
+--surface-raised: #f8f9fc; --surface-tint: #eef1fa; --ink: #171923;
+--ink-soft: #555c6d; --ink-faint: #606a7e; --line: #dfe3ec;
+--line-strong: #c8cedb; --accent: #4357d6; --accent-strong: #2d3dad;
+--accent-soft: #e7eafd; --ok: #237a48; --ok-soft: #e5f4eb;
+--warn: #a65b00; --warn-soft: #fff0da; --risk: #b63239;
+--risk-soft: #fbe8e9; --unknown: #6d4fc2; --unknown-soft: #eee9fb;
+--shadow-sm: 0 1px 2px rgba(22, 28, 48, .05), 0 5px 18px rgba(22, 28, 48, .05);
+--shadow-lg: 0 18px 60px rgba(25, 32, 66, .12);
+}
+:root[data-theme="dark"] {
+color-scheme: dark;
+--canvas: #0d1018; --canvas-accent: #171c31; --surface: #151925;
+--surface-raised: #1a1f2d; --surface-tint: #1d2234; --ink: #eef0f7;
+--ink-soft: #acb2c2; --ink-faint: #939caf; --line: #282e3e;
+--line-strong: #3a4256; --accent: #8da0ff; --accent-strong: #b3c0ff;
+--accent-soft: #242d59; --ok: #75d29a; --ok-soft: #163a2a;
+--warn: #ffb867; --warn-soft: #49331c; --risk: #ff8d92;
+--risk-soft: #492429; --unknown: #b9a3ff; --unknown-soft: #332a52;
+--shadow-sm: 0 1px 2px rgba(0, 0, 0, .28), 0 8px 22px rgba(0, 0, 0, .2);
+--shadow-lg: 0 22px 70px rgba(0, 0, 0, .42);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+margin: 0;
+min-width: 320px;
+background:
+radial-gradient(1100px 620px at 92% -8%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 64%),
+linear-gradient(180deg, var(--canvas-accent) 0, var(--canvas) 290px);
+color: var(--ink);
+font-family: var(--sans);
+font-size: 16px;
+line-height: 1.62;
+-webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+a:focus-visible, button:focus-visible {
+outline: 3px solid color-mix(in srgb, var(--accent) 65%, transparent);
+outline-offset: 3px;
+}
+.skip-link {
+position: fixed;
+z-index: 100;
+top: 10px;
+left: 10px;
+transform: translateY(-160%);
+padding: 9px 13px;
+border-radius: 8px;
+background: var(--surface);
+color: var(--ink);
+box-shadow: var(--shadow-lg);
+}
+.skip-link:focus { transform: translateY(0); }
+.topbar {
+position: sticky;
+z-index: 30;
+top: 0;
+display: flex;
+align-items: center;
+justify-content: space-between;
+min-height: 58px;
+padding: 9px clamp(16px, 4vw, 46px);
+border-bottom: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+background: color-mix(in srgb, var(--canvas) 82%, transparent);
+backdrop-filter: blur(18px) saturate(1.3);
+}
+.brand {
+display: flex;
+align-items: center;
+gap: 10px;
+min-width: 0;
+color: var(--ink);
+text-decoration: none;
+}
+.brand-mark {
+width: 24px;
+height: 24px;
+border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+border-radius: 7px;
+background:
+linear-gradient(135deg, color-mix(in srgb, var(--accent) 88%, white) 0 46%, transparent 47%),
+var(--surface);
+box-shadow: var(--shadow-sm);
+}
+.brand-copy { display: flex; flex-direction: column; min-width: 0; line-height: 1.12; }
+.brand-copy strong { font-size: 13px; letter-spacing: -.01em; }
+.brand-copy span { color: var(--ink-faint); font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; }
+.top-actions { display: flex; align-items: center; gap: 9px; }
+.maintenance-pill {
+display: inline-flex;
+align-items: center;
+gap: 7px;
+padding: 5px 10px;
+border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--line));
+border-radius: 999px;
+background: var(--warn-soft);
+color: var(--warn);
+font-family: var(--mono);
+font-size: 10px;
+font-weight: 650;
+letter-spacing: .04em;
+text-transform: uppercase;
+}
+.maintenance-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.theme-toggle {
+width: 44px;
+height: 44px;
+border: 1px solid var(--line);
+border-radius: 10px;
+background: var(--surface);
+color: var(--ink-soft);
+box-shadow: var(--shadow-sm);
+cursor: pointer;
+font: 600 15px/1 var(--sans);
+}
+.report-shell {
+display: grid;
+grid-template-columns: 224px minmax(0, 920px);
+gap: clamp(28px, 5vw, 72px);
+justify-content: center;
+width: min(100%, 1320px);
+margin: 0 auto;
+padding: clamp(32px, 5vw, 72px) clamp(18px, 4vw, 48px) 92px;
+}
+.report-nav { position: relative; }
+.nav-inner {
+position: sticky;
+top: 88px;
+display: flex;
+flex-direction: column;
+gap: 24px;
+}
+.status-panel {
+padding: 16px;
+border: 1px solid var(--line);
+border-radius: var(--radius);
+background: color-mix(in srgb, var(--surface) 90%, transparent);
+box-shadow: var(--shadow-sm);
+}
+.status-kicker {
+margin: 0 0 7px;
+color: var(--ink-faint);
+font: 650 10px/1.2 var(--mono);
+letter-spacing: .1em;
+text-transform: uppercase;
+}
+.status-value { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 680; }
+.status-value::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 14%, transparent); }
+.status-note { margin: 7px 0 0; color: var(--ink-soft); font-size: 12px; line-height: 1.45; }
+.metric-list {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 8px;
+margin-top: 13px;
+}
+.metric { padding-top: 10px; border-top: 1px solid var(--line); }
+.metric strong { display: block; font-size: 19px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.metric span { display: block; color: var(--ink-faint); font-size: 10.5px; line-height: 1.3; }
+.toc-title { margin: 0 0 7px; color: var(--ink-faint); font: 650 10px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.toc { display: flex; flex-direction: column; gap: 3px; }
+.toc a {
+position: relative;
+display: block;
+padding: 7px 10px;
+border-radius: 8px;
+color: var(--ink-soft);
+font-size: 12.5px;
+line-height: 1.35;
+text-decoration: none;
+}
+.toc a::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: transparent; }
+.toc a:hover, .toc a[aria-current="true"] { background: var(--surface-tint); color: var(--ink); }
+.toc a[aria-current="true"]::before { background: var(--accent); }
+.nav-foot { color: var(--ink-faint); font: 10px/1.5 var(--mono); }
+.report {
+min-width: 0;
+padding: clamp(26px, 5vw, 62px) clamp(22px, 5vw, 66px) 66px;
+border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+border-radius: var(--radius-lg);
+background: color-mix(in srgb, var(--surface) 96%, transparent);
+box-shadow: var(--shadow-lg);
+}
+.report::before {
+content: "Initiative 06 / Evidence review";
+display: block;
+margin-bottom: 18px;
+color: var(--accent);
+font: 700 11px/1.4 var(--mono);
+letter-spacing: .12em;
+text-transform: uppercase;
+}
+h1, h2, h3 { color: var(--ink); text-wrap: balance; }
+h1 {
+max-width: 14ch;
+margin: 0 0 24px;
+font-size: clamp(36px, 6vw, 64px);
+font-weight: 720;
+line-height: .99;
+letter-spacing: -.045em;
+}
+h2 {
+margin: clamp(58px, 8vw, 88px) 0 22px;
+padding-top: 18px;
+border-top: 1px solid var(--line-strong);
+font-size: clamp(22px, 3vw, 30px);
+font-weight: 680;
+line-height: 1.15;
+letter-spacing: -.025em;
+scroll-margin-top: 84px;
+}
+h3 {
+margin: 38px 0 12px;
+color: var(--accent-strong);
+font-size: 18px;
+font-weight: 680;
+line-height: 1.3;
+letter-spacing: -.012em;
+scroll-margin-top: 84px;
+}
+h4 { margin: 26px 0 8px; font-size: 15px; }
+p { max-width: 76ch; margin: 0 0 16px; color: var(--ink-soft); }
+li { color: var(--ink-soft); }
+strong { color: var(--ink); font-weight: 680; }
+code {
+padding: .12em .38em;
+border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+border-radius: 5px;
+background: var(--surface-tint);
+color: var(--ink);
+font: .86em/1.45 var(--mono);
+overflow-wrap: anywhere;
+}
 
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      background: var(--paper);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: 17px;
-      line-height: 1.62;
-    }
-    a { color: var(--blue); text-underline-offset: .18em; }
-    a:hover { color: #0b3f62; }
-    a:focus-visible { outline: 3px solid #f5b82e; outline-offset: 3px; }
-    code {
-      padding: .12em .36em;
-      border-radius: 5px;
-      color: #24394a;
-      background: #edf0f2;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: .86em;
-    }
-    .wrap { width: min(calc(100% - 40px), var(--max)); margin-inline: auto; }
-    .hero {
-      color: #fff;
-      background:
-        radial-gradient(circle at 86% 12%, rgba(255,255,255,.14), transparent 27%),
-        linear-gradient(135deg, var(--navy), var(--navy-2));
-      padding: 28px 0 64px;
-    }
-    .topline {
-      display: flex;
-      justify-content: space-between;
-      gap: 20px;
-      align-items: center;
-      font-size: .86rem;
-      color: #d8e7f1;
-    }
-    .topline a { color: #fff; }
-    .eyebrow {
-      margin: 54px 0 10px;
-      color: #a9d6f0;
-      font-size: .82rem;
-      font-weight: 800;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-    }
-    h1 {
-      max-width: 900px;
-      margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(2.45rem, 6vw, 5rem);
-      font-weight: 500;
-      line-height: 1.02;
-      letter-spacing: -.035em;
-    }
-    .lede {
-      max-width: 820px;
-      margin: 24px 0 0;
-      color: #dceaf3;
-      font-size: clamp(1.08rem, 2vw, 1.34rem);
-    }
-    .verdict-band { margin-top: -34px; position: relative; }
-    .verdict-card {
-      display: grid;
-      grid-template-columns: .9fr 2.1fr;
-      gap: 28px;
-      padding: 30px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      width: fit-content;
-      padding: 7px 12px;
-      border-radius: 999px;
-      font-size: .75rem;
-      font-weight: 850;
-      letter-spacing: .07em;
-      text-transform: uppercase;
-    }
-    .badge.partial { color: var(--amber); background: var(--amber-bg); }
-    .badge.accepted { color: var(--green); background: var(--green-bg); }
-    .badge.rejected { color: var(--red); background: var(--red-bg); }
-    .badge.pending { color: var(--blue); background: var(--blue-bg); }
-    .verdict-title {
-      margin: 14px 0 4px;
-      color: var(--navy);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(2rem, 4vw, 3.1rem);
-      line-height: 1;
-    }
-    .verdict-summary { margin: 0; color: var(--muted); }
-    .plain-answer {
-      margin: 0;
-      padding-left: 26px;
-      border-left: 4px solid var(--amber);
-      font-size: 1.08rem;
-    }
-    main { padding: 48px 0 80px; }
-    .jump {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 52px;
-    }
-    .jump a {
-      padding: 8px 12px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--surface);
-      color: var(--navy);
-      font-size: .86rem;
-      font-weight: 700;
-      text-decoration: none;
-    }
-    section { scroll-margin-top: 24px; margin-top: 60px; }
-    .section-kicker {
-      margin: 0 0 4px;
-      color: var(--muted);
-      font-size: .78rem;
-      font-weight: 800;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-    }
-    h2 {
-      margin: 0 0 22px;
-      color: var(--navy);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(1.85rem, 4vw, 2.8rem);
-      font-weight: 500;
-      line-height: 1.1;
-      letter-spacing: -.02em;
-    }
-    h3 { margin: 0 0 8px; color: var(--navy); font-size: 1.08rem; line-height: 1.3; }
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin: 24px 0;
-    }
-    .metric {
-      padding: 18px 14px;
-      text-align: center;
-      border: 1px solid var(--line);
-      border-top: 5px solid var(--line);
-      border-radius: 14px;
-      background: var(--surface);
-    }
-    .metric.good { border-top-color: var(--green); }
-    .metric.warn { border-top-color: var(--amber); }
-    .metric.bad { border-top-color: var(--red); }
-    .metric strong {
-      display: block;
-      color: var(--navy);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(1.8rem, 4vw, 2.6rem);
-      font-weight: 500;
-      line-height: 1;
-    }
-    .metric.bad strong { color: var(--red); }
-    .metric span {
-      display: block;
-      margin-top: 7px;
-      color: var(--muted);
-      font-size: .78rem;
-      font-weight: 750;
-      text-transform: uppercase;
-    }
-    .callout {
-      margin: 22px 0;
-      padding: 18px 20px;
-      border-left: 4px solid var(--blue);
-      background: var(--blue-bg);
-      color: #28465b;
-    }
-    .callout.danger { border-left-color: var(--red); background: var(--red-bg); color: #5c2929; }
-    .gate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .gate {
-      padding: 22px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--surface);
-    }
-    .gate p { margin: 10px 0 0; color: var(--muted); }
-    .gate ul { margin-bottom: 0; padding-left: 1.2rem; }
-    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
-    table {
-      width: 100%;
-      min-width: 880px;
-      border-collapse: collapse;
-      background: var(--surface);
-      font-size: .9rem;
-    }
-    th, td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-    th { background: var(--navy); color: #fff; font-size: .76rem; letter-spacing: .05em; text-transform: uppercase; }
-    tr:last-child td { border-bottom: 0; }
-    tr:hover td { background: #fbfcfd; }
-    td:first-child { white-space: nowrap; font-weight: 800; color: var(--navy); }
-    .steps { padding: 0; margin: 0; list-style: none; counter-reset: step; display: grid; gap: 12px; }
-    .steps li {
-      counter-increment: step;
-      position: relative;
-      min-height: 72px;
-      padding: 16px 18px 16px 68px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--surface);
-    }
-    .steps li::before {
-      content: counter(step);
-      position: absolute;
-      left: 18px;
-      top: 16px;
-      display: grid;
-      place-items: center;
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      color: #fff;
-      background: var(--navy);
-      font-weight: 850;
-    }
-    footer { padding: 34px 0 48px; border-top: 1px solid var(--line); color: var(--muted); font-size: .86rem; }
-    footer .wrap { display: flex; justify-content: space-between; gap: 24px; }
-    footer p { margin: 0; }
-    @media (max-width: 850px) {
-      .verdict-card { grid-template-columns: 1fr; }
-      .plain-answer { border-left: 0; border-top: 4px solid var(--amber); padding: 20px 0 0; }
-      .metric-grid, .gate-grid { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 560px) {
-      body { font-size: 16px; }
-      .wrap { width: min(calc(100% - 24px), var(--max)); }
-      .topline { align-items: flex-start; flex-direction: column; gap: 4px; }
-      .eyebrow { margin-top: 38px; }
-      .verdict-card { padding: 22px; }
-      .metric-grid, .gate-grid { grid-template-columns: 1fr; }
-      footer .wrap { flex-direction: column; }
-    }
-    @media print {
-      :root { --paper: #fff; --shadow: none; }
-      body { font-size: 11pt; }
-      .hero { padding: 20px 0 30px; background: #fff; color: #111; border-bottom: 3px solid var(--navy); }
-      .topline, .lede { color: #333; }
-      .eyebrow { margin-top: 24px; color: var(--navy); }
-      .verdict-band { margin-top: 20px; }
-      .verdict-card, .metric, .gate, .steps li { break-inside: avoid; box-shadow: none; }
-      .jump { display: none; }
-      main { padding-top: 16px; }
-      section { margin-top: 34px; }
-      a { color: inherit; text-decoration: none; }
-    }
-  </style>
+.report > p:nth-of-type(-n+3) {
+display: inline-flex;
+width: auto;
+margin: 0 8px 8px 0;
+padding: 5px 9px;
+border: 1px solid var(--line);
+border-radius: 7px;
+background: var(--surface-raised);
+color: var(--ink-faint);
+font: 10.5px/1.35 var(--mono);
+}
+.report > p:nth-of-type(4) {
+max-width: 46rem;
+margin: 18px 0 0;
+padding: 14px 16px;
+border: 1px solid color-mix(in srgb, var(--warn) 28%, var(--line));
+border-left: 3px solid var(--warn);
+border-radius: var(--radius-sm);
+background: var(--warn-soft);
+color: var(--warn);
+font-size: 14px;
+}
+ul, ol { max-width: 76ch; margin: 12px 0 22px; padding-left: 1.4rem; }
+li { margin: 7px 0; padding-left: .24rem; }
+li::marker { color: var(--accent); font-weight: 700; }
+blockquote {
+margin: 24px 0;
+padding: 14px 18px;
+border-left: 3px solid var(--accent);
+border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+background: var(--accent-soft);
+}
+blockquote p { margin: 0; color: var(--ink-soft); }
+table {
+width: 100%;
+margin: 22px 0 30px;
+border-spacing: 0;
+border-collapse: separate;
+border: 1px solid var(--line);
+border-radius: 12px;
+background: var(--surface);
+box-shadow: var(--shadow-sm);
+font-size: 13px;
+line-height: 1.45;
+overflow: hidden;
+}
+thead { background: var(--surface-tint); }
+th, td { padding: 12px 13px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th:last-child, td:last-child { border-right: 0; }
+tbody tr:last-child td { border-bottom: 0; }
+th { color: var(--ink); font: 680 10.5px/1.35 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+td { color: var(--ink-soft); }
+tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-raised) 72%, transparent); }
+tbody tr:hover { background: var(--accent-soft); }
+td:first-child { color: var(--ink); font-weight: 630; }
+
+#program-snapshot + table { border: 0; background: transparent; box-shadow: none; overflow: visible; }
+#program-snapshot + table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+#program-snapshot + table tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#program-snapshot + table tr {
+display: block;
+min-height: 150px;
+padding: 16px;
+border: 1px solid var(--line);
+border-top: 3px solid var(--accent);
+border-radius: 12px;
+background: var(--surface-raised);
+box-shadow: var(--shadow-sm);
+}
+#program-snapshot + table tr:nth-child(2) { border-top-color: var(--warn); }
+#program-snapshot + table tr:nth-child(3) { border-top-color: var(--unknown); }
+#program-snapshot + table tr:nth-child(4) { border-top-color: var(--risk); }
+#program-snapshot + table td { display: block; padding: 0; border: 0; background: transparent; }
+#program-snapshot + table td:first-child { color: var(--ink-faint); font: 680 10px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+#program-snapshot + table td:nth-child(2) { margin: 8px 0 7px; color: var(--ink); font-size: 15px; font-weight: 680; }
+#program-snapshot + table td:nth-child(3) { font-size: 12px; }
+.state-label {
+display: inline-flex;
+align-items: center;
+gap: 6px;
+padding: 3px 7px;
+border-radius: 6px;
+font: 680 10px/1.3 var(--mono);
+letter-spacing: .03em;
+}
+.state-label::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.state-accepted { color: var(--ok); background: var(--ok-soft); }
+.state-active, .state-partial { color: var(--warn); background: var(--warn-soft); }
+.state-pending { color: var(--unknown); background: var(--unknown-soft); }
+.state-rejected { color: var(--risk); background: var(--risk-soft); }
+.report-footer {
+display: flex;
+justify-content: space-between;
+gap: 18px;
+margin-top: 64px;
+padding-top: 20px;
+border-top: 1px solid var(--line);
+color: var(--ink-faint);
+font: 10.5px/1.5 var(--mono);
+}
+.report-footer a { color: inherit; }
+@media (max-width: 980px) {
+.report-shell { grid-template-columns: minmax(0, 860px); padding-top: 26px; }
+.report-nav { order: -1; }
+.nav-inner { position: static; }
+.status-panel { display: grid; grid-template-columns: minmax(180px, 1fr) 1fr; gap: 16px; align-items: center; }
+.metric-list { margin-top: 0; }
+.toc-wrap { overflow-x: auto; padding-bottom: 5px; }
+.toc { flex-direction: row; width: max-content; }
+.toc a { border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+.toc a::before, .nav-foot { display: none; }
+}
+@media (max-width: 680px) {
+.topbar { padding-inline: 13px; }
+.maintenance-pill { display: none; }
+.report-shell { padding: 18px 10px 60px; gap: 18px; }
+.status-panel { display: block; margin-inline: 4px; }
+.metric-list { margin-top: 13px; }
+.toc-wrap { margin-inline: 4px; }
+.report { padding: 30px 17px 46px; border-radius: 15px; }
+h1 { font-size: clamp(32px, 12vw, 46px); }
+#program-snapshot + table tbody { grid-template-columns: 1fr; }
+#program-snapshot + table tr { min-height: 0; }
+table:not(#program-snapshot + table) { display: block; overflow-x: auto; white-space: normal; }
+table:not(#program-snapshot + table) th, table:not(#program-snapshot + table) td { min-width: 150px; }
+.report-footer { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+*, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}
+@media print {
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"] {
+color-scheme: light;
+--canvas: #fff;
+--canvas-accent: #fff;
+--surface: #fff;
+--surface-raised: #fff;
+--surface-tint: #f3f4f6;
+--ink: #111;
+--ink-soft: #333;
+--ink-faint: #555;
+--line: #d7d7d7;
+--line-strong: #bdbdbd;
+--accent: #243b80;
+--accent-strong: #1d316d;
+--accent-soft: #eef1f8;
+--ok: #185b37;
+--ok-soft: #edf6f0;
+--warn: #754100;
+--warn-soft: #fff5e5;
+--risk: #8b252b;
+--risk-soft: #fbeded;
+--unknown: #4f3994;
+--unknown-soft: #f1eef9;
+--shadow-sm: none;
+--shadow-lg: none;
+}
+body { background: #fff; color: #111; font-size: 10.5pt; }
+.topbar, .report-nav, .skip-link { display: none !important; }
+.report-shell { display: block; width: 100%; padding: 0; }
+.report { border: 0; border-radius: 0; box-shadow: none; padding: 0; background: #fff; }
+.report::before { color: #444; }
+h1 { font-size: 28pt; }
+h2 { break-after: avoid; margin-top: 28pt; }
+h3 { break-after: avoid; }
+p, li { color: #333; }
+a { color: #111; text-decoration: none; }
+table { box-shadow: none; break-inside: auto; }
+tr { break-inside: avoid; }
+#program-snapshot + table tbody { display: table-row-group; }
+#program-snapshot + table thead { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+#program-snapshot + table tr { display: table-row; padding: 0; border: 0; }
+#program-snapshot + table td { display: table-cell; padding: 8px; border-bottom: 1px solid #ddd; }
+.report-footer { display: none; }
+}
+</style>
 </head>
 <body>
-  <header class="hero">
-    <div class="wrap">
-      <div class="topline">
-        <span>Copilot Control Tower · Initiative 06</span>
-        <span>Evidence through WP-718 · 12 August 2026</span>
-      </div>
-      <p class="eyebrow">Progress and acceptance evidence</p>
-      <h1>Strong foundations. Critical gates still open.</h1>
-      <p class="lede">A plain-language view of what has accepted evidence, what was rejected, what is waiting on an owner, and what must happen before the ecosystem outcome can be claimed.</p>
+  <a class="skip-link" href="#report">Skip to report</a>
+  <header class="topbar">
+    <a class="brand" href="#report" aria-label="Copilot Solution Ecosystem report home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-copy"><strong>Copilot Solution Ecosystem</strong><span>Outcome evidence</span></span>
+    </a>
+    <div class="top-actions">
+      <span class="maintenance-pill">GitHub maintenance active</span>
+      <button class="theme-toggle" type="button" aria-label="Switch color theme" title="Switch color theme">◐</button>
     </div>
   </header>
 
-  <div class="wrap verdict-band">
-    <div class="verdict-card">
-      <div>
-        <span class="badge partial">Active · partially achieved</span>
-        <p class="verdict-title">Not ready to close</p>
-        <p class="verdict-summary">Foundational milestones are real; release, entitlement, behavior, fleet, and human proof are not complete.</p>
+  <div class="report-shell">
+    <aside class="report-nav" aria-label="Report navigation">
+      <div class="nav-inner">
+        <section class="status-panel" aria-label="Program status summary">
+          <div>
+            <p class="status-kicker">Current disposition</p>
+            <p class="status-value">Active, not achieved</p>
+            <p class="status-note">Two release gates remain active. No candidate or publication exists.</p>
+          </div>
+          <div class="metric-list" aria-label="Task counts">
+            <div class="metric"><strong>9</strong><span>foundation tasks complete</span></div>
+            <div class="metric"><strong>2</strong><span>active delivery gates</span></div>
+            <div class="metric"><strong>11</strong><span>downstream tasks</span></div>
+            <div class="metric"><strong>55</strong><span>repositories paused</span></div>
+          </div>
+        </section>
+        <div class="toc-wrap">
+          <p class="toc-title">On this page</p>
+          <nav class="toc">
+            <a href="#plain-language-answer">Plain-language answer</a>
+            <a href="#program-snapshot">Program snapshot</a>
+            <a href="#current-active-gates">Active gates</a>
+            <a href="#acceptance-evidence-matrix">Evidence matrix</a>
+            <a href="#dependency-safe-path-forward">Path forward</a>
+            <a href="#claim-boundary">Claim boundary</a>
+          </nav>
+        </div>
+        <p class="nav-foot">Evidence window: WP-815<br>Generated from the paired Markdown source.</p>
       </div>
-      <p class="plain-answer"><strong>The program is materially further along than its original baseline, but the full goal is not achieved.</strong> Entitlement is now an accepted stream gate; release implementation has QA approval but still awaits security and immutable-source proof; fleet owner-gate preparation remains rejected; and shared content still requires owner decisions.</p>
-    </div>
+    </aside>
+
+    <main class="report" id="report" tabindex="-1">
+<h1 id="initiative-06-progress-and-acceptance-evidence-review">Initiative 06
+progress and acceptance-evidence review</h1>
+<p>Updated: 2026-08-13</p>
+<p>Execution record: PRD-23, parent TASK-278</p>
+<p>Evidence window: current task graph and work products through
+WP-815</p>
+<p>Disposition: <strong>Active; outcome not yet achieved</strong></p>
+<h2 id="plain-language-answer">Plain-language answer</h2>
+<p>The ecosystem foundation is substantially stronger and several
+high-risk boundaries are now implemented, independently tested, and
+preserved in durable evidence. The program is not complete because the
+two active release tasks still have open security, provider, and
+human-review gates, and the behavioral, fleet, publication,
+clean-machine, and observed-person phases have not started.</p>
+<p>What changed materially:</p>
+<ul>
+<li>The canonical Claude/Codex transaction, conformance truth, signed
+plugin materialization, native rendering boundary, and entitlement
+lifecycle are completed stream gates.</li>
+<li>The approved accounting source was rewritten to a signed sanitized
+history root and released as <code>v1.0.0</code>. Observable refs and
+authorized local mirrors are clean. GitHub still serves the old
+unreachable object by direct SHA, so provider garbage collection remains
+required.</li>
+<li>Control Tower now has a clean public source repository with one new
+history root. The former repository is preserved as a private archived
+repository; old releases, issues, Actions artifacts, and Git history
+were not migrated.</li>
+<li>The repository-contained Control Tower launcher was rejected as a
+circular trust anchor. A separately signed, notarized, stapled publisher
+anchor was installed and passed QA, but security rejected
+<code>/Applications</code> as writable by the logged-in administrator.
+Architecture WP-808 selects a script-free signed installer package.
+WP-812 implements the local package/receipt/verifier contract and source
+QA WP-813 approves it, but security WP-814 rejects the first-trust
+handoff because mutable checkout code still gains signing authority and
+the Installer input is not bound to the exact approved package and
+source. Architecture WP-815 confirms that a fully automated first
+install is impossible under this threat model without an existing
+independent trust anchor; the first secure install must therefore be
+owner-attended and bind one exact package and source tuple out of band.
+No app candidate exists.</li>
+<li>GitHub Actions are temporarily disabled on all 55 organization
+repositories to stop repeated runs while defects are fixed locally.
+Branch protections, review rules, signer rules, and tag protections
+remain enabled. Actions must be restored from the WP-785 ledger with
+full-SHA pinning and clean hosted verification before merge or
+release.</li>
+<li>The formerly red <code>claude-copilot</code> workflows are green
+locally on signed PR #63. The protected Knowledge runtime on signed PR
+#65 has independent QA and security approval through WP-782. Complete
+Action-SHA pinning corrections remain local and unpushed during the
+owner-directed GitHub pause.</li>
+</ul>
+<h2 id="program-snapshot">Program snapshot</h2>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Tasks</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Completed with accepted bounded evidence</td>
+<td>TASK-279, 280, 281, 282, 283, 286, 293, 294, 295</td>
+<td>Nine foundational transaction, conformance, content-input,
+native-trust, containment, signed-source, and entitlement tasks are
+complete.</td>
+</tr>
+<tr>
+<td>Active</td>
+<td>TASK-287, 297</td>
+<td>Control Tower candidate production and signed shared-content release
+remain blocked by explicit security, provider, or human-review
+gates.</td>
+</tr>
+<tr>
+<td>Pending downstream</td>
+<td>TASK-284, 285, 288-292, 296, 298-300</td>
+<td>Evaluation, integration, publication, fleet work, external
+validation, and final audit remain dependency-gated.</td>
+</tr>
+<tr>
+<td>Parent</td>
+<td>TASK-278 active</td>
+<td>No final ecosystem outcome or release claim is authorized.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="current-active-gates">Current active gates</h2>
+<h3 id="control-tower-public-source-and-release-candidate--task-287">Control
+Tower public source and release candidate — TASK-287</h3>
+<ul>
+<li>Owner decisions are recorded in WP-747 and WP-751.</li>
+<li>The original repository is now
+<code>Everyone-Needs-A-Copilot/copilot-control-tower-private-archive-20260812</code>,
+private and archived at <code>fd1694f</code>.</li>
+<li>The canonical
+<code>Everyone-Needs-A-Copilot/copilot-control-tower</code> repository
+is public with one clean root commit. It excludes private initiatives,
+agent state, retired stacks, historical releases, private topology, and
+the old Git/GitHub record. Apache-2.0 is the selected license.</li>
+<li>QA WP-771 approved the public transition and source bootstrap at the
+reviewed revision. Security WP-772 rejected the repository-contained
+launcher because a local build and adjacent manifest could authenticate
+themselves.</li>
+<li>Architecture WP-773 moved release authority to an independently
+installed publisher anchor. The corrected anchor was Apple-accepted,
+stapled, installed, and approved by QA WP-789.</li>
+<li>Security WP-791 rejected that installed anchor because
+<code>/Applications</code> is writable by the logged-in administrator,
+allowing replacement before the genuine anchor can verify itself.</li>
+<li>Architecture WP-792 and implementation WP-793 moved the first
+executable to a root-only protected subtree. Independent QA WP-797
+rejected the migration because it moved an attacker-replaceable old
+entry into the protected directory without validating or sanitizing
+it.</li>
+<li>Superseding implementation WP-799 installs only the freshly verified
+artifact into the protected directory. The rejected entry may only be
+renamed to a hidden, non-application quarantine path within
+<code>/Applications</code>; its bytes are never read, copied, trusted,
+executed, or imported into a trust root. Collision, rollback, symlink,
+ownership, writable-mode, ACL, invalid-identity, and replacement cases
+pass locally.</li>
+<li>QA WP-800 approved WP-799&#39;s exact generated install and rollback
+behavior. Security WP-801 rejected three additional pre-trust paths:
+<code>PYTHONPATH</code> startup execution before immutable verification,
+caller-controlled <code>TMPDIR</code> interpolation into the privileged
+shell, and a quarantine destination symlink race that could redirect
+rejected bytes into a protected directory.</li>
+<li>WP-802/WP-803 run pre-authority verification under an empty,
+isolated environment; send privileged inputs only as positional
+arguments; use root-created staging with root-side signature,
+Gatekeeper, and staple checks; and remove only the exact rejected path
+rather than moving it. The future ceremony intentionally does not
+restore the rejected old bytes.</li>
+<li>QA WP-804 approved the exact local source revision after four
+repeated security-focused runs. Security WP-805 rejected it because
+authority-bearing build and post-install verification still ran from a
+user-writable materialization; the root copy was not bound to an exact
+digest/CDHash, Team ID, and bundle ID; and destination/approval
+ancestors were not fully revalidated before mutation.</li>
+<li>WP-806 attempted a root-owned authenticated snapshot and exact
+candidate identity binding. QA WP-807 rejected it because the snapshot
+creator and its expected hash came from the same user-writable scratch
+path; its read-only fixture was still owner-writable after
+<code>chmod</code>; Team/bundle negatives did not exercise actual
+candidate-carried identity; approval-path zero-write coverage and the
+runbook were incomplete.</li>
+<li>Architecture WP-808 replaces repository-generated privileged shell
+with a payload-only Developer ID Installer package containing the
+root-only anchor and protected approval ledger. The package has no
+scripts; macOS Installer validates the package signature and performs
+privileged placement. The rejected <code>/Applications</code> bundle is
+removed only after successful installed-state verification and is never
+migration input or rollback.</li>
+<li>WP-812 completes the script-free payload package builder, versioned
+approval receipt, compiled bootstrap compatibility, hostile
+package/candidate mutations, source movement checks, and production
+verifier ancestry matrix. Source QA WP-813 approves the exact local
+revision.</li>
+<li>Security WP-814 rejects WP-812. The authenticated Git
+materialization never becomes the authority-bearing process: mutable
+checkout code continues into credentials, signing, notarization, and
+package signing. Separately, the verified package remains replaceable
+through a user-owned parent before Installer consumes it, while
+installed-state verification lacks an independently supplied expected
+package digest and source identity. This permits valid older same-team
+package substitution or downgrade.</li>
+<li>Architecture WP-815 closes the design question. A fully automated
+first install is not achievable while a hostile same-user process may
+alter all user-owned code and files and no protected helper or policy
+already exists. The feasible ceremony must independently approve the
+immutable remote/ref/commit/tree, monotonic package version, application
+CDHash and bundle digest, and final signed-package SHA-256; copy that
+package into root-owned non-writable staging; have Installer consume
+that exact path; verify the installed receipt/version and identities;
+and only then advance a separate non-overwritable root
+policy/version-floor ledger. Signatures, notarization, package receipts,
+a disk image, or the admin prompt do not by themselves prove owner
+intent or freshness.</li>
+<li>The machine has a Developer ID Application identity but no
+independently provisioned Developer ID Installer identity. The owner has
+not yet approved an exact out-of-band package/source tuple. These are
+now explicit first-install prerequisites, not implementation details
+that repository automation can safely manufacture.</li>
+<li>WP-812 remains local and unpushed under the organization-wide GitHub
+pause. The older <code>/Applications</code> anchor remains
+rejected.</li>
+<li><strong>Current result:</strong> public source exists, but no
+security-approved protected publisher anchor is installed, no Control
+Tower candidate has been built, and nothing has been published.</li>
+</ul>
+<h3 id="shared-organization-and-accounting-content--task-297">Shared
+organization and accounting content — TASK-297</h3>
+<ul>
+<li>Owner approval for the exact trees, history purge, protections, and
+compiled signer is recorded in WP-747/WP-748.</li>
+<li>Accounting <code>main</code> is signed root <code>493cec9</code>,
+tree <code>1c27ea0</code>, with signed immutable tag
+<code>v1.0.0</code>. Branch and <code>v*</code> tag protections are
+active. The current scanner, source checkout, authorized mirror,
+manifest pin, and current consumer bytes pass bounded checks.</li>
+<li>GitHub still resolves the legacy sensitive commit by direct SHA even
+though no branch, tag, PR, or fork references it. WP-753 contains the
+value-suppressed GitHub Support request for cached-view removal and
+server-side garbage collection. Until GitHub confirms removal,
+<code>historyPurged=false</code> and external copies remain
+uncontained.</li>
+<li>Organization content is a signed exact-tree candidate in protected
+PR #1. It remains <code>REVIEW_REQUIRED</code>; organization
+<code>main</code>, tag, and pin are unchanged.</li>
+<li>Accounting scanner enforcement and tag immutability were implemented
+after security WP-755. The current Accounting PR check was green before
+maintenance mode; the earlier failure email came from a deliberately
+failing synthetic PR that was closed and removed from the active
+workflow.</li>
+<li>Protected per-read Knowledge provenance is on signed PR #65. WP-780
+approves its exact signed revision and security WP-782 approves the
+entitlement-bound snapshot lifecycle, closing the stale-path retention
+blocker.</li>
+<li><strong>Current result:</strong> the accounting current release
+slice and bounded runtime security control are real, but TASK-297 cannot
+complete until PR #65 is merged after maintenance, organization human
+review/tag/pin, GitHub Support garbage collection, the named
+need-to-have access review, and an exact entitlement-qualified live read
+close.</li>
+</ul>
+<h3 id="claude-copilot-release-trust--pr-63"><code>claude-copilot</code>
+release trust — PR #63</h3>
+<ul>
+<li>PR #63 head <code>f8a0717</code> is signed by the approved
+foundation key.</li>
+<li>Local verification passes: root tests, fitness, smoke, agent
+evaluation, TypeScript, launcher, <code>cc</code>, <code>tc</code>,
+CodeQL-related configuration, conformance, and portability scopes.</li>
+<li>The content defects that generated repeated workflow emails were
+fixed at their source: Knowledge iteration, three context-budget
+overruns, and dead skill references.</li>
+<li>Hosted checks are intentionally absent while Actions maintenance is
+active. The PR remains <code>REVIEW_REQUIRED</code> and unmerged.</li>
+</ul>
+<h3 id="github-actions-maintenance">GitHub Actions maintenance</h3>
+<ul>
+<li>WP-785 supersedes the smaller maintenance boundary: Actions are
+disabled on all 55 <code>Everyone-Needs-A-Copilot</code> repositories,
+with zero queued or running jobs and an exact repository-by-repository
+restore ledger.</li>
+<li>WP-760 records the restore order: enable Actions only after owner
+authorization, restore full-SHA pinning, reverify required check/app
+bindings and protections, then trigger only explicitly authorized
+verification runs.</li>
+<li>Maintenance mode is temporary. A release or initiative-completion
+claim is forbidden while Actions remain disabled.</li>
+</ul>
+<h3 id="fleet-census-and-evaluation">Fleet census and evaluation</h3>
+<ul>
+<li>WP-728 approves only the bounded preparation contract: a
+deterministic 75-row census with zero mutation authority. It must be
+refreshed and independently re-reviewed after TASK-297.</li>
+<li>WP-706 and WP-718 are architecture-only contracts for TASK-296 and
+TASK-284. No protocol-integration or behavioral-effectiveness result is
+claimed.</li>
+<li>Clean-machine and nontechnical-participant protocols exist, but
+neither has been executed.</li>
+</ul>
+<h2 id="acceptance-evidence-matrix">Acceptance evidence matrix</h2>
+<table>
+<thead>
+<tr>
+<th>AC</th>
+<th>State</th>
+<th>Evidence held now</th>
+<th>What remains</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AC-01</td>
+<td>Accepted stream gate</td>
+<td>TASK-279/294 QA and security</td>
+<td>Final integrated run against released refs</td>
+</tr>
+<tr>
+<td>AC-02</td>
+<td>Accepted stream gate</td>
+<td>TASK-280 QA</td>
+<td>Final integrated full run</td>
+</tr>
+<tr>
+<td>AC-03</td>
+<td>Partial</td>
+<td>Approved transaction/conformance/baseline work</td>
+<td>Final live zero-S0 fleet result</td>
+</tr>
+<tr>
+<td>AC-04</td>
+<td>Partial</td>
+<td>Actionable unknown semantics</td>
+<td>Final fleet-wide live verification</td>
+</tr>
+<tr>
+<td>AC-05</td>
+<td>Accepted stream gate</td>
+<td>TASK-281 QA</td>
+<td>Revalidate after integration</td>
+</tr>
+<tr>
+<td>AC-06</td>
+<td>Accepted stream gate</td>
+<td>TASK-280 QA</td>
+<td>Final integrated conformance</td>
+</tr>
+<tr>
+<td>AC-07</td>
+<td>Partial</td>
+<td>Approved organization inputs and signed consumer mechanics</td>
+<td>Organization review, tag, pin, and real consumer proof</td>
+</tr>
+<tr>
+<td>AC-08</td>
+<td>Partial</td>
+<td>Signed sanitized accounting release; protected runtime QA/security
+approval</td>
+<td>Provider GC, exact entitlement-qualified live proof, and
+EVAL-05</td>
+</tr>
+<tr>
+<td>AC-09</td>
+<td>Partial</td>
+<td>Approved <code>uids</code>/<code>cco</code> extension inputs</td>
+<td>Organization release and integrated loader proof</td>
+</tr>
+<tr>
+<td>AC-10</td>
+<td>Pending</td>
+<td>Phase 4 and WP-718 architecture</td>
+<td>TASK-284/285 controlled behavior artifacts</td>
+</tr>
+<tr>
+<td>AC-11</td>
+<td>Pending</td>
+<td>Criterion-wise foundation-control contract</td>
+<td>Implement and run controls</td>
+</tr>
+<tr>
+<td>AC-12</td>
+<td>Partial</td>
+<td>Multiple transaction/content security gates</td>
+<td>Behavioral leak cases and integrated security</td>
+</tr>
+<tr>
+<td>AC-13</td>
+<td>Preparation approved, execution pending</td>
+<td>WP-728 zero-authority 75-row census</td>
+<td>Refresh after TASK-297, owner approval, and fan-out proof</td>
+</tr>
+<tr>
+<td>AC-14</td>
+<td>Accepted stream gate</td>
+<td>TASK-286 QA/security</td>
+<td>Preserve through packaged release</td>
+</tr>
+<tr>
+<td>AC-15</td>
+<td>Security/runtime gate</td>
+<td>WP-808/815 architecture, WP-812 implementation, source QA WP-813,
+security WP-814</td>
+<td>Provision an independent Installer signing identity and
+owner-approve the exact package/source tuple; implement the root-staged
+monotonic ceremony; fresh QA/security; attended install and
+installed-state review; then candidate</td>
+</tr>
+<tr>
+<td>AC-16</td>
+<td>Accepted stream gate</td>
+<td>TASK-286 QA/security</td>
+<td>Packaged candidate regression check</td>
+</tr>
+<tr>
+<td>AC-17</td>
+<td>Preparation approved, execution pending</td>
+<td>WP-728 deterministic provisional census</td>
+<td>Immutable approved census and TASK-288 execution</td>
+</tr>
+<tr>
+<td>AC-18</td>
+<td>Pending</td>
+<td>Validation protocol only</td>
+<td>Signed artifact and second-machine execution</td>
+</tr>
+<tr>
+<td>AC-19</td>
+<td>Pending</td>
+<td>Participant protocol only</td>
+<td>Observed nontechnical-person journey</td>
+</tr>
+<tr>
+<td>AC-20</td>
+<td>Partial</td>
+<td>Durable tasks, WPs, commits, PRs, and this matrix</td>
+<td>Merges, tags, releases, final validator</td>
+</tr>
+<tr>
+<td>AC-21</td>
+<td>Accepted stream gate</td>
+<td>TASK-295 QA/security</td>
+<td>Preserve through integrated pre/post-release review</td>
+</tr>
+<tr>
+<td>AC-22</td>
+<td>Pending</td>
+<td>WP-706/WP-718 architecture</td>
+<td>TASK-296 implementation and behavioral evidence</td>
+</tr>
+<tr>
+<td>AC-23</td>
+<td>Active gate</td>
+<td>Owner approval, signed accounting root/tag, protections, signed
+organization candidate, runtime QA/security approval</td>
+<td>Provider GC, organization review/tag/pin, exact entitled proof,
+access confirmation</td>
+</tr>
+</tbody>
+</table>
+<p>The full criterion wording remains in the <a href="../phases/phase-1-outcome-prd.md#8-acceptance-criteria-and-current-evidence">PRD
+acceptance matrix</a>.</p>
+<h2 id="dependency-safe-path-forward">Dependency-safe path forward</h2>
+<ol type="1">
+<li>Preserve PR #65&#39;s QA/security approval and the local full-SHA
+corrections while the organization-wide GitHub pause remains
+active.</li>
+<li>Provision the Developer ID Installer identity in an independently
+controlled signing context and prepare the immutable package/source
+tuple required by WP-815; do not attempt another self-authorizing
+repository bootstrap.</li>
+<li>Obtain owner approval for that exact tuple, implement and review
+root-owned staging plus the monotonic version-floor ledger, then repeat
+source QA/security.</li>
+<li>When the owner ends the pause, push/review the approved source and
+pending Action-SHA commits without enabling workflows prematurely; while
+the owner is present, run the attended exact-package install and obtain
+installed-state QA/security before building the Control Tower
+candidate.</li>
+<li>Submit WP-753 through GitHub Support and verify the legacy
+accounting object no longer resolves.</li>
+<li>Complete organization review, signed tag, immutable pin,
+need-to-have roster confirmation, and exact entitled consumer
+proof.</li>
+<li>Complete TASK-296, then TASK-284/285 and TASK-291 before any Control
+Tower publication.</li>
+<li>Restore Actions/security settings exactly as recorded in WP-760/785
+only after the owner declares the work complete; prove active PR checks
+green without rerun noise.</li>
+<li>Publish only through TASK-298 after pre-publication security, then
+refresh/approve the fleet census and run TASK-288/299.</li>
+<li>Run TASK-289 and TASK-290 against final signed artifacts, then close
+with TASK-292 only if all 23 criteria pass.</li>
+</ol>
+<h2 id="claim-boundary">Claim boundary</h2>
+<p>It is accurate to say that the core transaction, conformance,
+entitlement, signed accounting root, public-source transition, and
+several native/runtime security controls are real and evidence-backed.
+It is not accurate to say the ecosystem is complete, fully purged, fully
+reviewed, released, fleet-propagated, behaviorally effective,
+clean-machine proven, or validated with a nontechnical person.</p>
+<p>This report records current evidence. It does not approve a PR,
+restore Actions, merge or tag content, install the publisher anchor,
+publish a Control Tower release, authorize fleet mutation, or close the
+initiative.</p>
+      <footer class="report-footer">
+        <span>Initiative 06 · Evidence-bound status</span>
+        <a href="#report">Back to top ↑</a>
+      </footer>
+    </main>
   </div>
 
-  <main class="wrap">
-    <nav class="jump" aria-label="Report sections">
-      <a href="#snapshot">Snapshot</a>
-      <a href="#gates">Gate history</a>
-      <a href="#matrix">Acceptance matrix</a>
-      <a href="#dependencies">Path forward</a>
-      <a href="#claim">Claim boundary</a>
-    </nav>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const button = document.querySelector('.theme-toggle');
+      const stored = localStorage.getItem('copilot-report-theme');
+      if (stored === 'light' || stored === 'dark') root.dataset.theme = stored;
+      const currentTheme = () => root.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const updateLabel = () => {
+        const next = currentTheme() === 'dark' ? 'light' : 'dark';
+        button.setAttribute('aria-label', 'Switch to ' + next + ' theme');
+        button.title = 'Switch to ' + next + ' theme';
+      };
+      updateLabel();
+      button.addEventListener('click', () => {
+        root.dataset.theme = currentTheme() === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('copilot-report-theme', root.dataset.theme);
+        updateLabel();
+      });
 
-    <section id="snapshot">
-      <p class="section-kicker">Program snapshot</p>
-      <h2>What the task graph says now</h2>
-      <div class="metric-grid">
-        <div class="metric good"><strong>9</strong><span>Completed delivery tasks</span></div>
-        <div class="metric warn"><strong>2</strong><span>Active delivery tasks</span></div>
-        <div class="metric"><strong>11</strong><span>Pending downstream tasks</span></div>
-        <div class="metric bad"><strong>1</strong><span>Current rejected gate</span></div>
-      </div>
-      <p>Completed tasks are TASK-279, 280, 281, 282, 283, 286, 293, 294, and 295. They cover the canonical transaction, conformance truth and baseline, organization and bounded accounting inputs, native app invariants/plain language, accounting current-tree containment, signed Codex source mechanics, and entitlement lifecycle.</p>
-      <div class="callout"><strong>Completion of a producing task is not automatic completion of an acceptance criterion.</strong> Several rows still require immutable releases, integrated consumer proof, fleet evidence, or external validation.</div>
-    </section>
+      const stateClass = text => {
+        const value = text.toLowerCase();
+        if (value.includes('accepted') || value.includes('completed')) return 'state-accepted';
+        if (value.includes('rejected') || value.includes('blocked')) return 'state-rejected';
+        if (value.includes('active') || value.includes('partial')) return 'state-active';
+        if (value.includes('pending') || value.includes('preparation')) return 'state-pending';
+        return '';
+      };
+      document.querySelectorAll('table tbody tr').forEach(row => {
+        const candidates = row.querySelectorAll('td');
+        if (!candidates.length) return;
+        const target = candidates.length > 1 ? candidates[1] : candidates[0];
+        const cls = stateClass(target.textContent.trim());
+        if (!cls) return;
+        const span = document.createElement('span');
+        span.className = 'state-label ' + cls;
+        span.textContent = target.textContent.trim();
+        target.replaceChildren(span);
+      });
+      document.querySelectorAll('table').forEach((table, index) => {
+        table.querySelectorAll('thead th').forEach(th => th.setAttribute('scope', 'col'));
+        if (table.caption) return;
+        const heading = table.previousElementSibling;
+        const caption = table.createCaption();
+        caption.textContent = heading && heading.tagName.length === 2 && heading.tagName[0] === 'H' && '234'.includes(heading.tagName[1])
+          ? heading.textContent.trim()
+          : 'Evidence table ' + (index + 1);
+        caption.style.position = 'absolute';
+        caption.style.width = '1px';
+        caption.style.height = '1px';
+        caption.style.overflow = 'hidden';
+        caption.style.clip = 'rect(0 0 0 0)';
+      });
 
-    <section id="gates">
-      <p class="section-kicker">Evidence through WP-718</p>
-      <h2>The five gates that control the next phase</h2>
-      <div class="gate-grid">
-        <article class="gate">
-          <span class="badge pending">Security pending</span>
-          <h3>Control Tower release candidate · TASK-287</h3>
-          <p>WP-716 replaces the replayable shared-interpreter path with a dedicated compiled launcher and source/binary identity proof. WP-717 approves the implementation; fresh security and immutable-source candidate proof remain.</p>
-          <ul>
-            <li>The exact foreign Swift-parent replay now fails.</li>
-            <li>Reviewed changes remain uncommitted and unpushed.</li>
-            <li>No immutable-source candidate is claimed.</li>
-          </ul>
-        </article>
-        <article class="gate">
-          <span class="badge accepted">Accepted stream gate</span>
-          <h3>Entitlement lifecycle · TASK-295</h3>
-          <p>WP-708 binds entitlement authority through canonical reconciliation. Security WP-713 and QA gate WPs 714/715 approve the complete mutation and rollback boundary; TASK-295 is complete.</p>
-          <ul>
-            <li>Canonical revoke and reauthorize races are generation-bound.</li>
-            <li>Private facts remain absent from public plans and locks.</li>
-            <li>Final integrated/release regression proof remains.</li>
-          </ul>
-        </article>
-        <article class="gate">
-          <span class="badge pending">Owner-gated</span>
-          <h3>Signed shared content · TASK-297</h3>
-          <p>WP-683 contains exact proposed trees, signer and rollback procedures, access facts, and decision choices. It deliberately stops before any external or destructive action.</p>
-          <ul>
-            <li>Semantic approval is pending.</li>
-            <li>Accounting-history retain/purge disposition is pending.</li>
-            <li>Least-privilege and signer decisions are pending.</li>
-          </ul>
-        </article>
-        <article class="gate">
-          <span class="badge pending">Architecture prepared</span>
-          <h3>Problem-to-solution integration · TASK-296</h3>
-          <p>WP-706 defines the synthetic structural journey. WP-718 adds the dependent evaluation schemas, controls, hard gates, and synthetic accounting architecture without starting implementation.</p>
-          <ul>
-            <li>No external mutation or model-quality claim is allowed.</li>
-            <li>Missing Codex layered-consumption proof stays visible.</li>
-            <li>Implementation waits on TASK-295 and TASK-297.</li>
-          </ul>
-        </article>
-        <article class="gate">
-          <span class="badge rejected">Rejected preparation gate</span>
-          <h3>Eligible-fleet census · TASK-300</h3>
-          <p>WP-710 confirms WP-686 is a deterministic, exact-path, zero-authority provisional census, but rejects its promotion because approval semantics, repository-specific entitlement, target binding, and one redaction claim are incomplete.</p>
-          <ul>
-            <li>Refresh waits on TASK-295 and TASK-297.</li>
-            <li>The current 75 rows remain unapproved and ineligible.</li>
-            <li>Repair and fresh QA must precede owner approval.</li>
-          </ul>
-        </article>
-      </div>
-    </section>
-
-    <section id="matrix">
-      <p class="section-kicker">Evidence, not optimism</p>
-      <h2>Acceptance evidence matrix</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th scope="col">AC</th><th scope="col">State</th><th scope="col">Evidence held now</th><th scope="col">What remains</th></tr></thead>
-          <tbody>
-            <tr><td>AC-01</td><td>Accepted stream gate</td><td>TASK-279/294 QA and security</td><td>Final integrated run against released refs</td></tr>
-            <tr><td>AC-02</td><td>Accepted stream gate</td><td>TASK-280 QA</td><td>Final integrated full run</td></tr>
-            <tr><td>AC-03</td><td>Partial</td><td>Approved transaction, conformance, and baseline fixes</td><td>Final live zero-S0 fleet result</td></tr>
-            <tr><td>AC-04</td><td>Partial</td><td>Approved actionable-unknown semantics</td><td>Final fleet-wide live verification</td></tr>
-            <tr><td>AC-05</td><td>Accepted stream gate</td><td>TASK-281 QA</td><td>Revalidate after integration</td></tr>
-            <tr><td>AC-06</td><td>Accepted stream gate</td><td>TASK-280 QA</td><td>Final integrated conformance</td></tr>
-            <tr><td>AC-07</td><td>Partial</td><td>Approved organization inputs and signed consumer mechanics</td><td>TASK-297 release/pins and real consumer proof</td></tr>
-            <tr><td>AC-08</td><td>Partial</td><td>Bounded accounting contribution and current-tree containment</td><td>Release, materialization, and EVAL-05</td></tr>
-            <tr><td>AC-09</td><td>Partial</td><td>Approved organization extension inputs</td><td>Immutable release and loader proof</td></tr>
-            <tr><td>AC-10</td><td>Pending</td><td>Phase 4 design and WP-718 architecture</td><td>TASK-284/285 behavior artifacts after TASK-296/297</td></tr>
-            <tr><td>AC-11</td><td>Pending</td><td>WP-718 non-regression contract</td><td>Implement and run foundation controls</td></tr>
-            <tr><td>AC-12</td><td>Partial</td><td>Bounded transaction/content security gates</td><td>Behavioral and integrated pre/post-publication security</td></tr>
-            <tr><td>AC-13</td><td>Rejected preparation gate</td><td>Zero-authority census; WP-710 rejection</td><td>Repair validation and per-repository entitlement, then approve and fan out</td></tr>
-            <tr><td>AC-14</td><td>Accepted stream gate</td><td>TASK-286 QA/security</td><td>Preserve through packaged release</td></tr>
-            <tr><td>AC-15</td><td>Active gate</td><td>WP-716 dedicated launcher; WP-717 QA approval</td><td>Fresh security and immutable-source signed candidate proof</td></tr>
-            <tr><td>AC-16</td><td>Accepted stream gate</td><td>TASK-286 QA/security</td><td>Packaged-release regression check</td></tr>
-            <tr><td>AC-17</td><td>Rejected preparation gate</td><td>WP-686 census; WP-710 rejection</td><td>Repair approval/target/redaction contracts, then approve and execute</td></tr>
-            <tr><td>AC-18</td><td>Pending</td><td>No signed final artifact</td><td>Clean/second-machine TASK-289</td></tr>
-            <tr><td>AC-19</td><td>Pending</td><td>No observed-person result</td><td>TASK-290</td></tr>
-            <tr><td>AC-20</td><td>Partial</td><td>Durable task/WP trail and this matrix</td><td>Commit/tag/release links and final validator</td></tr>
-            <tr><td>AC-21</td><td>Accepted stream gate</td><td>WP-708; WP-713 security; WP-714/715 QA; TASK-295 complete</td><td>Preserve through integrated pre/post-release review</td></tr>
-            <tr><td>AC-22</td><td>Pending</td><td>WP-706 journey contract and WP-718 evaluation architecture</td><td>Implement after TASK-297, then structural and behavioral proof</td></tr>
-            <tr><td>AC-23</td><td>Owner-gated</td><td>WP-683 decision package</td><td>Owner decisions, signed releases, pins, consumer proof</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p>The full criterion wording and required evidence are preserved in the <a href="../phases/phase-1-outcome-prd.md#8-acceptance-criteria-and-current-evidence">PRD acceptance matrix</a>.</p>
-    </section>
-
-    <section id="dependencies">
-      <p class="section-kicker">Dependency-safe sequence</p>
-      <h2>What has to happen next</h2>
-      <ol class="steps">
-        <li>Preserve TASK-295's accepted entitlement controls through final integrated and release regression checks.</li>
-        <li>Complete security review of WP-716, then build and verify a candidate from committed and pushed source without publishing it.</li>
-        <li>Resolve WP-683's four owner decisions before any TASK-297 release mutation.</li>
-        <li>Implement WP-706's TASK-296 journey and WP-718's TASK-284 contract, then run TASK-285 against the exact approved entitlement and content identities.</li>
-        <li>Run TASK-291 pre-publication security before TASK-298 publication or fleet mutation.</li>
-        <li>Repair WP-710's census findings, refresh after TASK-295/297, independently recheck and obtain owner approval, then execute TASK-288 and TASK-299.</li>
-        <li>Run TASK-289 and TASK-290 against final signed artifacts without simulating external evidence.</li>
-        <li>Use TASK-292 to validate all 23 acceptance rows before publishing a final verdict.</li>
-      </ol>
-    </section>
-
-    <section id="claim">
-      <p class="section-kicker">Truthful language</p>
-      <h2>What can—and cannot—be claimed</h2>
-      <div class="callout"><strong>Supported:</strong> the program has accepted foundational transaction, conformance, content-input, native-invariant, signed-source-mechanics, and bounded security work.</div>
-      <div class="callout danger"><strong>Not supported:</strong> that the ecosystem is complete, released, safely fleet-propagated, behaviorally effective, safe under every entitlement race, clean-machine proven, or validated with a non-technical person.</div>
-      <p>This report records evidence only. It does not change task status, approve an owner decision, authorize publication, or authorize fleet mutation.</p>
-    </section>
-  </main>
-
-  <footer>
-    <div class="wrap">
-      <p>Initiative 06 · PRD-23 · TASK-278</p>
-      <p><a href="2026-08-12-progress-evidence-review.md">Markdown source</a> · <a href="../README.md">Initiative index</a></p>
-    </div>
-  </footer>
+      const links = [...document.querySelectorAll('.toc a')];
+      const sections = links.map(link => document.querySelector(link.hash)).filter(Boolean);
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver(entries => {
+          const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (!visible) return;
+          links.forEach(link => link.removeAttribute('aria-current'));
+          const active = links.find(link => link.hash === '#' + visible.target.id);
+          if (active) active.setAttribute('aria-current', 'true');
+        }, { rootMargin: '-18% 0px -70% 0px', threshold: [0, .25, .75] });
+        sections.forEach(section => observer.observe(section));
+      }
+    })();
+  </script>
 </body>
 </html>

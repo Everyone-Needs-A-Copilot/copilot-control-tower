@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Progress evidence report — visual walkthrough</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, monospace;
+      --bg: #f1f3f8; --surface: #fff; --surface-2: #eef1fa;
+      --ink: #171923; --soft: #596174; --faint: #81899a; --line: #dfe3ec;
+      --accent: #4357d6; --ok: #237a48; --warn: #a65b00; --risk: #b63239;
+      --shadow: 0 16px 48px rgba(25,32,66,.12);
+    }
+    @media (prefers-color-scheme: dark) { :root {
+      --bg: #0d1018; --surface: #151925; --surface-2: #1d2234;
+      --ink: #eef0f7; --soft: #acb2c2; --faint: #747d91; --line: #2c3345;
+      --accent: #8da0ff; --ok: #75d29a; --warn: #ffb867; --risk: #ff8d92;
+      --shadow: 0 18px 56px rgba(0,0,0,.42);
+    }}
+    :root[data-theme="light"] { color-scheme: light; --bg:#f1f3f8;--surface:#fff;--surface-2:#eef1fa;--ink:#171923;--soft:#596174;--faint:#81899a;--line:#dfe3ec;--accent:#4357d6;--ok:#237a48;--warn:#a65b00;--risk:#b63239;--shadow:0 16px 48px rgba(25,32,66,.12); }
+    :root[data-theme="dark"] { color-scheme: dark; --bg:#0d1018;--surface:#151925;--surface-2:#1d2234;--ink:#eef0f7;--soft:#acb2c2;--faint:#747d91;--line:#2c3345;--accent:#8da0ff;--ok:#75d29a;--warn:#ffb867;--risk:#ff8d92;--shadow:0 18px 56px rgba(0,0,0,.42); }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin:0; background:radial-gradient(900px 440px at 88% -8%, color-mix(in srgb,var(--accent) 13%,transparent),transparent 64%),var(--bg); color:var(--ink); font:16px/1.55 var(--sans); }
+    .page { width:min(1120px,100%); margin:auto; padding:clamp(24px,5vw,64px) clamp(16px,4vw,40px) 80px; }
+    .top { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; }
+    .eyebrow { margin:0 0 12px; color:var(--accent); font:700 11px/1.3 var(--mono); letter-spacing:.12em; text-transform:uppercase; }
+    h1 { max-width:15ch; margin:0; font-size:clamp(34px,6vw,62px); line-height:1; letter-spacing:-.045em; }
+    .intro { max-width:66ch; margin:18px 0 0; color:var(--soft); font-size:17px; }
+    button { width:44px; height:44px; border:1px solid var(--line); border-radius:11px; background:var(--surface); color:var(--ink); box-shadow:var(--shadow); cursor:pointer; }
+    button:focus-visible, a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+    nav { display:flex; flex-wrap:wrap; gap:8px; margin:28px 0 0; }
+    nav a { padding:6px 11px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--soft); font:12px var(--mono); text-decoration:none; }
+    .screen { margin-top:64px; scroll-margin-top:24px; }
+    .screen-head { display:grid; grid-template-columns:44px 1fr; gap:14px; align-items:start; margin-bottom:20px; }
+    .num { display:grid; place-items:center; width:38px; height:38px; border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line)); border-radius:10px; color:var(--accent); font:700 13px var(--mono); }
+    h2 { margin:0; font-size:clamp(22px,3vw,30px); letter-spacing:-.02em; }
+    .screen-head p { margin:5px 0 0; color:var(--soft); }
+    .frame { overflow:hidden; border:1px solid var(--line); border-radius:18px; background:var(--surface); box-shadow:var(--shadow); }
+    .bar { display:flex; align-items:center; gap:7px; height:34px; padding:0 13px; border-bottom:1px solid var(--line); background:var(--surface-2); }
+    .bar i { width:8px; height:8px; border-radius:50%; background:var(--faint); opacity:.55; }
+    .mock { display:grid; grid-template-columns:180px 1fr; min-height:430px; }
+    .rail { padding:24px 17px; border-right:1px solid var(--line); background:color-mix(in srgb,var(--surface-2) 45%,var(--surface)); }
+    .label { color:var(--faint); font:700 9.5px var(--mono); letter-spacing:.1em; text-transform:uppercase; }
+    .status { margin:9px 0 17px; font-weight:700; }
+    .status::before { content:""; display:inline-block; width:7px; height:7px; margin-right:7px; border-radius:50%; background:var(--warn); }
+    .metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .metric { padding-top:8px; border-top:1px solid var(--line); }
+    .metric b { display:block; font-size:18px; }
+    .metric span { color:var(--faint); font-size:9.5px; }
+    .rail-links { margin-top:24px; display:grid; gap:8px; color:var(--soft); font-size:11px; }
+    .content { padding:clamp(24px,5vw,52px); }
+    .content h3 { max-width:12ch; margin:0; font-size:clamp(28px,5vw,48px); line-height:1; letter-spacing:-.04em; }
+    .chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:20px; }
+    .chip { padding:5px 8px; border:1px solid var(--line); border-radius:7px; color:var(--faint); background:var(--surface-2); font:10px var(--mono); }
+    .verdict { margin-top:22px; padding:12px 14px; border:1px solid color-mix(in srgb,var(--warn) 35%,var(--line)); border-left:3px solid var(--warn); border-radius:9px; color:var(--warn); background:color-mix(in srgb,var(--warn) 11%,var(--surface)); font-size:13px; }
+    .cards { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:24px; }
+    .card { min-height:100px; padding:13px; border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:10px; background:var(--surface-2); }
+    .card:nth-child(2) { border-top-color:var(--warn); }.card:nth-child(3){border-top-color:#8066d5}.card:nth-child(4){border-top-color:var(--risk)}
+    .card b { display:block; margin:7px 0 4px; font-size:12px; }.card span { color:var(--soft); font-size:10px; }
+    .table { margin:24px; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+    .row { display:grid; grid-template-columns:70px 150px 1fr 1.2fr; }
+    .row > div { padding:11px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); color:var(--soft); font-size:11px; }
+    .row > div:last-child { border-right:0; }.row:last-child > div{border-bottom:0}.row.head{background:var(--surface-2)}.row.head>div{color:var(--ink);font:700 9px var(--mono);text-transform:uppercase}.row .good{color:var(--ok);font-weight:700}.row .active{color:var(--warn);font-weight:700}.row .pending{color:#8066d5;font-weight:700}
+    .mobile-demo { display:grid; grid-template-columns:320px 1fr; gap:30px; align-items:center; padding:30px; }
+    .phone { overflow:hidden; border:1px solid var(--line); border-radius:26px; background:var(--bg); box-shadow:var(--shadow); }
+    .phone-bar { height:36px; background:var(--surface-2); border-bottom:1px solid var(--line); }
+    .phone-body { padding:12px; }.phone-card{padding:15px;border:1px solid var(--line);border-radius:14px;background:var(--surface);margin-bottom:12px}.phone-card h3{font-size:25px;max-width:9ch}.phone-card p{color:var(--soft);font-size:11px}.phone-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}.phone-metrics span{padding:8px;border-top:1px solid var(--line);font:10px var(--mono)}
+    .notes { display:grid; gap:12px; }.note{padding:14px 16px;border-left:3px solid var(--accent);border-radius:0 10px 10px 0;background:var(--surface-2)}.note b{display:block;font-size:13px}.note span{color:var(--soft);font-size:12px}
+    footer { margin-top:70px; padding-top:18px; border-top:1px solid var(--line); color:var(--faint); font:11px var(--mono); }
+    @media(max-width:760px){.mock{grid-template-columns:1fr}.rail{border-right:0;border-bottom:1px solid var(--line)}.mobile-demo{grid-template-columns:1fr}.phone{max-width:360px;margin:auto}.row{min-width:680px}.table{overflow-x:auto}.top{align-items:flex-start}.cards{grid-template-columns:1fr}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="top">
+      <div><p class="eyebrow">UI design walkthrough · Initiative 06</p><h1>A progress report that reads like an operating brief.</h1><p class="intro">The visual system makes disposition, evidence, and next actions scannable without inventing a health score or disguising incomplete work.</p></div>
+      <button type="button" aria-label="Switch color theme">◐</button>
+    </header>
+    <nav aria-label="Walkthrough screens"><a href="#overview">1 Overview</a><a href="#evidence">2 Evidence</a><a href="#responsive">3 Responsive</a></nav>
+
+    <section class="screen" id="overview"><div class="screen-head"><span class="num">01</span><div><h2>Decision first, evidence second</h2><p>The first screen answers “where are we?” before exposing implementation detail.</p></div></div><div class="frame"><div class="bar"><i></i><i></i><i></i></div><div class="mock"><aside class="rail"><span class="label">Current disposition</span><div class="status">Active, not achieved</div><div class="metric-grid"><div class="metric"><b>9</b><span>complete</span></div><div class="metric"><b>2</b><span>active</span></div><div class="metric"><b>11</b><span>downstream</span></div><div class="metric"><b>55</b><span>paused</span></div></div><div class="rail-links"><span>Plain-language answer</span><span>Program snapshot</span><span>Active gates</span><span>Evidence matrix</span></div></aside><div class="content"><span class="label">Initiative 06 / Evidence review</span><h3>Progress and acceptance evidence</h3><div class="chips"><span class="chip">Date: 2026-08-12</span><span class="chip">Through WP-793</span></div><div class="verdict">Active; outcome not yet achieved</div><div class="cards"><div class="card"><span class="label">Completed</span><b>Foundation gates</b><span>Nine bounded tasks have accepted evidence.</span></div><div class="card"><span class="label">Active</span><b>Release gates</b><span>Publisher and shared content work remain open.</span></div><div class="card"><span class="label">Pending</span><b>Downstream proof</b><span>Evaluation, fleet, and observed validation.</span></div><div class="card"><span class="label">Parent</span><b>No outcome claim</b><span>The initiative remains active.</span></div></div></div></div></div></section>
+
+    <section class="screen" id="evidence"><div class="screen-head"><span class="num">02</span><div><h2>Dense evidence remains legible</h2><p>Status is always expressed with words; color only reinforces it.</p></div></div><div class="frame"><div class="bar"><i></i><i></i><i></i></div><div class="table" role="table" aria-label="Acceptance evidence example"><div class="row head" role="row"><div>AC</div><div>State</div><div>Evidence held</div><div>What remains</div></div><div class="row"><div>AC-08</div><div class="active">Partial</div><div>Signed accounting release and runtime approval</div><div>Provider purge and exact entitled read</div></div><div class="row"><div>AC-14</div><div class="good">Accepted</div><div>Native invariant QA and security</div><div>Preserve through packaged release</div></div><div class="row"><div>AC-19</div><div class="pending">Pending</div><div>Participant protocol only</div><div>Observed nontechnical-person journey</div></div></div></div></section>
+
+    <section class="screen" id="responsive"><div class="screen-head"><span class="num">03</span><div><h2>Small-screen and print behavior are designed states</h2><p>The report stays readable without shrinking body text or clipping evidence.</p></div></div><div class="frame mobile-demo"><div class="phone"><div class="phone-bar"></div><div class="phone-body"><div class="phone-card"><span class="label">Current disposition</span><p class="status">Active, not achieved</p><div class="phone-metrics"><span>9 complete</span><span>2 active</span><span>11 pending</span><span>55 paused</span></div></div><div class="phone-card"><span class="label">Initiative 06</span><h3>Progress and evidence</h3><p>Navigation scrolls horizontally; evidence cards stack.</p></div></div></div><div class="notes"><div class="note"><b>Responsive</b><span>Status rail moves above the report; cards become one column; tables scroll.</span></div><div class="note"><b>Accessible</b><span>Skip link, landmarks, focus rings, labeled theme toggle, and text status labels.</span></div><div class="note"><b>Printable</b><span>White paper, no navigation or shadows, protected table rows, repeated headers.</span></div><div class="note"><b>Standalone</b><span>All CSS and behavior are embedded; no external resource is requested.</span></div></div></div></section>
+
+    <footer>Visual direction: Quiet Instrument · Markdown remains the source of truth · Implemented by the paired report template and stylesheet</footer>
+  </main>
+  <script>(()=>{const r=document.documentElement,b=document.querySelector('button');const cur=()=>r.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');b.addEventListener('click',()=>{r.dataset.theme=cur()==='dark'?'light':'dark'})})()</script>
+</body>
+</html>
