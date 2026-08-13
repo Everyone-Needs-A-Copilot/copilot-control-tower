@@ -12,6 +12,8 @@ metadata.requiresQa=true and indexes an implementation must have approved
 primary QA metadata plus an explicitly indexed test work product. That work
 product must include a passing VERDICT, an ARTIFACT marker, and references to
 the current implementation work product and commit/tree identities when set.
+The indexed work product title must exactly match metadata.qaWorkProductTitle,
+and its Task Copilot guard must be exactly title=clean;content=clean.
 
 Legacy fallback: only a task with none of implementationWorkProductId,
 implementationCommit, or implementationTree may use any passing attached test
@@ -180,11 +182,18 @@ def binds_current_implementation(full, content, meta):
     return True
 
 
-def valid_test_wp(full, content, task_id):
+def valid_test_wp(
+    full, content, task_id, *, expected_title=None, require_clean_guard=False
+):
     wp_task_id = full.get("task_id", full.get("task"))
     return (
         full.get("type", full.get("type_")) == "test"
         and str(wp_task_id) == str(task_id)
+        and (expected_title is None or full.get("title") == expected_title)
+        and (
+            not require_clean_guard
+            or full.get("guard") == "title=clean;content=clean"
+        )
         and approved_with_artifact(content)
     )
 
@@ -208,10 +217,19 @@ for task in tasks:
     verdict_ok = False
     if has_current_implementation(meta):
         qa_wp_id = meta.get("qaWorkProductId")
+        qa_wp_title = meta.get("qaWorkProductTitle")
         selected_wp, content = full_wp(qa_wp_id)
         verdict_ok = (
             approved_primary(meta)
-            and valid_test_wp(selected_wp, content, task["id"])
+            and isinstance(qa_wp_title, str)
+            and bool(qa_wp_title)
+            and valid_test_wp(
+                selected_wp,
+                content,
+                task["id"],
+                expected_title=qa_wp_title,
+                require_clean_guard=True,
+            )
             and binds_current_implementation(selected_wp, content, meta)
         )
     else:

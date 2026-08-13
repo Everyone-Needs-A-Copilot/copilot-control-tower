@@ -32,8 +32,22 @@ Tree: `{implementation_tree}`
 
 metadata = {"requiresQa": True}
 wps = {
-    10: {"id": 10, "task_id": 1, "type": "test", "content": old_content},
-    20: {"id": 20, "task_id": 1, "type": "test", "content": current_content},
+    10: {
+        "id": 10,
+        "task_id": 1,
+        "type": "test",
+        "title": "Historical QA approval",
+        "content": old_content,
+        "guard": "title=clean;content=clean",
+    },
+    20: {
+        "id": 20,
+        "task_id": 1,
+        "type": "test",
+        "title": "Current QA approval",
+        "content": current_content,
+        "guard": "title=clean;content=clean",
+    },
 }
 if scenario != "legacy":
     metadata.update(
@@ -42,6 +56,7 @@ if scenario != "legacy":
             "implementationCommit": implementation_commit,
             "implementationTree": implementation_tree,
             "qaWorkProductId": 20,
+            "qaWorkProductTitle": "Current QA approval",
         }
     )
 if scenario == "pending":
@@ -56,6 +71,30 @@ elif scenario == "approved":
 elif scenario == "wrong-binding":
     metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
     wps[20] = dict(wps[20], content=current_content.replace(implementation_tree, "c" * 40))
+elif scenario == "wrong-task":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], task_id=2)
+elif scenario == "wrong-type":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], type="code")
+elif scenario == "wrong-title":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], title="Unrelated test evidence")
+elif scenario == "missing-title-binding":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    metadata.pop("qaWorkProductTitle")
+elif scenario == "dirty-guard":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], guard="title=modified;content=clean")
+elif scenario == "missing-guard":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20].pop("guard")
+elif scenario == "missing-artifact":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], content=current_content.replace("ARTIFACT:", "Evidence:"))
+elif scenario == "rejected-verdict":
+    metadata.update({"qaStatus": "approved", "qaVerdict": "APPROVED"})
+    wps[20] = dict(wps[20], content=current_content.replace("VERDICT: APPROVED-WITH-MINOR-FIXES", "VERDICT: REJECTED"))
 elif scenario == "old-indexed":
     metadata.update(
         {
@@ -104,6 +143,14 @@ run_case legacy 0
 run_case pending 1
 run_case approved 0
 run_case wrong-binding 1
+run_case wrong-task 1
+run_case wrong-type 1
+run_case wrong-title 1
+run_case missing-title-binding 1
+run_case dirty-guard 1
+run_case missing-guard 1
+run_case missing-artifact 1
+run_case rejected-verdict 1
 run_case old-indexed 1
 
 printf 'Results: %s passed, %s failed\n' "${passed}" "${failed}"
