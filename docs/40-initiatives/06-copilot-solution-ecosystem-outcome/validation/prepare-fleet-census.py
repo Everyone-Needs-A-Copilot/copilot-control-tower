@@ -12,6 +12,7 @@ import re
 import subprocess
 import tempfile
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -34,11 +35,40 @@ def census_identity(payload: dict[str, Any]) -> str:
     identity["summary"]["authorized_mutations"] = 0
     for repository in identity["repositories"]:
         repository["approval_status"] = "pending"
+        repository["eligible"] = False
     return digest(identity)
 
 
 def operation_binding(repo_identity: str, plan: dict[str, Any]) -> str:
     return digest({"repo_identity": repo_identity, "plan_id": plan["plan_id"], "plan_fingerprint": plan["plan_fingerprint"], "expires_at": plan["expires_at"], "target_paths": plan["target_paths"]})
+
+
+def private_plan_binding(
+    request_fingerprint: str,
+    plan_fingerprint: str,
+    helper_version: str,
+    schema_version: str,
+) -> str:
+    return digest(
+        {
+            "request_fingerprint": request_fingerprint,
+            "fresh_plan_fingerprint": plan_fingerprint,
+            "helper_version": helper_version,
+            "schema_version": schema_version,
+        }
+    )
+
+
+def _timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
 
 
 def selected_rows(census: dict[str, Any]) -> list[dict[str, Any]]:
@@ -97,7 +127,17 @@ def exact_targets(repo_path: str, operations: list[dict[str, Any]]) -> list[str]
     return sorted(targets)
 
 
-def prepare(census: dict[str, Any], plan_report: dict[str, Any], plan_record: dict[str, Any]) -> dict[str, Any]:
+def prepare(
+    census: dict[str, Any],
+    plan_report: dict[str, Any],
+    plan_record: dict[str, Any],
+    *,
+    now_utc: datetime | None = None,
+) -> dict[str, Any]:
+    captured_now = now_utc or datetime.now(timezone.utc)
+    if captured_now.tzinfo is None:
+        raise ValueError("now_utc must be timezone-aware")
+    captured_now = captured_now.astimezone(timezone.utc)
     if census.get("status") != "provisional" or any(item.get("status") != "completed" for item in census.get("dependencies", [])):
         raise ValueError("only a dependency-complete provisional census can be prepared")
     plan_id = plan_report.get("plan_id")
@@ -107,15 +147,56 @@ def prepare(census: dict[str, Any], plan_report: dict[str, Any], plan_record: di
         raise ValueError("canonical plan identity is invalid")
     if not isinstance(plan_fingerprint, str) or not DIGEST.fullmatch(plan_fingerprint):
         raise ValueError("canonical plan fingerprint is invalid")
-    if not isinstance(expires_at, str) or plan_record.get("expires_at") != expires_at:
+    expiration = _timestamp(expires_at)
+    created_at = _timestamp(plan_record.get("created_at"))
+    if (
+        not isinstance(expires_at, str)
+        or plan_record.get("expires_at") != expires_at
+        or expiration is None
+        or expiration <= captured_now
+        or created_at is None
+        or created_at > captured_now
+        or created_at >= expiration
+    ):
         raise ValueError("canonical plan expiration is invalid")
+    if (
+        plan_record.get("storage_schema_version") != "1.0"
+        or plan_record.get("state") != "reviewed"
+        or plan_record.get("claim_token_hash") is not None
+        or plan_record.get("outcome") is not None
+        or plan_record.get("finished_at") is not None
+    ):
+        raise ValueError("private canonical plan is not fresh and unclaimed")
+    expected_request = build_request(census)
+    request_fingerprint = digest(expected_request)
+    helper_version = plan_record.get("helper_version")
+    schema_version = plan_record.get("schema_version")
+    if (
+        plan_record.get("canonical_request") != expected_request
+        or plan_record.get("request_fingerprint") != request_fingerprint
+        or not isinstance(helper_version, str)
+        or not helper_version
+        or not isinstance(schema_version, str)
+        or not schema_version
+        or plan_record.get("binding_fingerprint")
+        != private_plan_binding(
+            request_fingerprint,
+            plan_fingerprint,
+            helper_version,
+            schema_version,
+        )
+    ):
+        raise ValueError("private canonical plan binding is invalid")
     public_plans = plan_report.get("plans")
     if not isinstance(public_plans, list) or plan_record.get("plans") != public_plans:
         raise ValueError("public and private canonical plans do not match")
-    plans_by_path = {item.get("path"): item for item in public_plans if isinstance(item, dict)}
+    if not all(isinstance(item, dict) and isinstance(item.get("path"), str) for item in public_plans):
+        raise ValueError("canonical plan contains an invalid project record")
+    public_paths = [item["path"] for item in public_plans]
     expected_paths = [row["repo_path"] for row in selected_rows(census)]
-    if list(plans_by_path) != expected_paths:
+    if public_paths != expected_paths or len(public_paths) != len(set(public_paths)):
         raise ValueError("canonical plan paths do not match the census candidates")
+    plans_by_path = {item["path"]: item for item in public_plans}
     prepared = copy.deepcopy(census)
     for row in prepared["repositories"]:
         if row["repo_path"] not in plans_by_path:

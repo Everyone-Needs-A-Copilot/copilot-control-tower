@@ -32,6 +32,8 @@ preparer = load_module("fleet_census_preparer", "prepare-fleet-census.py")
 
 
 class FleetCensusSemanticTests(unittest.TestCase):
+    NOW = datetime(2026, 8, 14, 17, 0, tzinfo=timezone.utc)
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.schema = json.loads(
@@ -44,7 +46,7 @@ class FleetCensusSemanticTests(unittest.TestCase):
         )
 
     def errors(self, report: dict) -> list[str]:
-        return validator.validate(report, self.schema)
+        return validator.validate(report, self.schema, now_utc=self.NOW)
 
     def refresh_identity(self, report: dict) -> None:
         report["census_id"] = validator.census_identity(report)
@@ -66,6 +68,42 @@ class FleetCensusSemanticTests(unittest.TestCase):
         }
         plan["binding_id"] = validator.operation_binding(row["repo_identity"], plan)
         return plan
+
+    def private_plan_record(
+        self,
+        census: dict,
+        *,
+        plan_id: str,
+        expires_at: str,
+        plan_fingerprint: str,
+        plans: list[dict],
+    ) -> dict:
+        canonical_request = preparer.build_request(census)
+        request_fingerprint = preparer.digest(canonical_request)
+        helper_version = "2.12.10"
+        schema_version = "2.0"
+        return {
+            "storage_schema_version": "1.0",
+            "plan_id": plan_id,
+            "state": "reviewed",
+            "expires_at": expires_at,
+            "created_at": "2026-08-14T16:55:00Z",
+            "fresh_plan_fingerprint": plan_fingerprint,
+            "plans": copy.deepcopy(plans),
+            "canonical_request": canonical_request,
+            "request_fingerprint": request_fingerprint,
+            "helper_version": helper_version,
+            "schema_version": schema_version,
+            "binding_fingerprint": preparer.private_plan_binding(
+                request_fingerprint,
+                plan_fingerprint,
+                helper_version,
+                schema_version,
+            ),
+            "claim_token_hash": None,
+            "outcome": None,
+            "finished_at": None,
+        }
 
     def test_provisional_report_is_semantically_valid_and_zero_authority(self) -> None:
         self.assertEqual(self.errors(copy.deepcopy(self.report)), [])
@@ -323,8 +361,19 @@ class FleetCensusSemanticTests(unittest.TestCase):
             {"path": candidates[1]["repo_path"], "operations": []},
         ]
         plan_report = {"plan_id": plan_id, "expires_at": expires_at, "plans": plans}
-        plan_record = {"plan_id": plan_id, "expires_at": expires_at, "fresh_plan_fingerprint": "sha256:" + "d" * 64, "plans": plans}
-        prepared = preparer.prepare(report, plan_report, plan_record)
+        plan_record = self.private_plan_record(
+            report,
+            plan_id=plan_id,
+            expires_at=expires_at,
+            plan_fingerprint="sha256:" + "d" * 64,
+            plans=plans,
+        )
+        prepared = preparer.prepare(
+            report,
+            plan_report,
+            plan_record,
+            now_utc=self.NOW,
+        )
         first = next(row for row in prepared["repositories"] if row["repo_path"] == candidates[0]["repo_path"])
         second = next(row for row in prepared["repositories"] if row["repo_path"] == candidates[1]["repo_path"])
         self.assertEqual(first["proposed_operation"]["kind"], "canonical-reconcile")
@@ -346,6 +395,234 @@ class FleetCensusSemanticTests(unittest.TestCase):
         held = next(row for row in routed["repositories"] if row["repo_path"] == candidates[1]["repo_path"])
         self.assertEqual(held["proposed_operation"]["kind"], "hold")
         self.assertEqual(held["exclusions"][-1]["code"], "canonical-route-excluded")
+
+    def test_approval_ready_plan_expiration_is_checked_against_one_captured_time(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        before_expiration = datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc)
+        after_expiration = datetime(2026, 8, 14, 19, 13, tzinfo=timezone.utc)
+        self.assertEqual(validator.validate(report, self.schema, now_utc=before_expiration), [])
+        errors = validator.validate(report, self.schema, now_utc=after_expiration)
+        self.assertTrue(any("canonical plan expired" in item for item in errors), errors)
+        self.assertEqual(sum("canonical plan expired" in item for item in errors), report["summary"]["candidate"])
+
+    def test_approval_ready_rows_require_one_plan_identity(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        planned = [row for row in report["repositories"] if row["proposed_operation"]["plan"] is not None]
+        for field, value in (
+            ("plan_id", "plan_" + "e" * 32),
+            ("plan_fingerprint", "sha256:" + "f" * 64),
+            ("expires_at", "2026-08-14T19:11:12Z"),
+        ):
+            with self.subTest(field=field):
+                mutated = copy.deepcopy(report)
+                row = next(item for item in mutated["repositories"] if item["repo_path"] == planned[0]["repo_path"])
+                plan = row["proposed_operation"]["plan"]
+                plan[field] = value
+                plan["binding_id"] = validator.operation_binding(row["repo_identity"], plan)
+                self.refresh_identity(mutated)
+                errors = validator.validate(
+                    mutated,
+                    self.schema,
+                    now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+                )
+                self.assertTrue(any("one canonical plan identity" in item for item in errors), errors)
+
+    def test_preparer_rejects_public_private_plan_or_path_disagreement(self) -> None:
+        report = copy.deepcopy(self.report)
+        for dependency in report["dependencies"]:
+            dependency["status"] = "completed"
+        candidate = self.candidate_row(report)
+        candidate["proposed_operation"] = {"kind": "canonical-reconcile", "plan": None}
+        for row in report["repositories"]:
+            if row is not candidate and row["proposed_operation"]["kind"] == "refresh-after-dependencies":
+                row["proposed_operation"] = {"kind": "hold", "plan": None}
+        plan_id = "plan_" + "a" * 32
+        plans = [{"path": candidate["repo_path"], "operations": [{"target": ".claude/settings.json"}]}]
+        report_payload = {"plan_id": plan_id, "expires_at": "2026-08-14T18:00:00Z", "plans": plans}
+        private_payload = self.private_plan_record(
+            report,
+            plan_id=plan_id,
+            expires_at=report_payload["expires_at"],
+            plan_fingerprint="sha256:" + "b" * 64,
+            plans=plans,
+        )
+        mismatched_private = copy.deepcopy(private_payload)
+        mismatched_private["plans"][0]["operations"] = []
+        with self.assertRaisesRegex(ValueError, "public and private canonical plans do not match"):
+            preparer.prepare(report, report_payload, mismatched_private, now_utc=self.NOW)
+        duplicate_report = copy.deepcopy(report_payload)
+        duplicate_report["plans"].append(copy.deepcopy(duplicate_report["plans"][0]))
+        duplicate_private = copy.deepcopy(private_payload)
+        duplicate_private["plans"] = copy.deepcopy(duplicate_report["plans"])
+        with self.assertRaisesRegex(ValueError, "canonical plan paths do not match"):
+            preparer.prepare(report, duplicate_report, duplicate_private, now_utc=self.NOW)
+        invalid_binding = copy.deepcopy(private_payload)
+        invalid_binding["binding_fingerprint"] = "sha256:" + "0" * 64
+        with self.assertRaisesRegex(ValueError, "private canonical plan binding is invalid"):
+            preparer.prepare(report, report_payload, invalid_binding, now_utc=self.NOW)
+
+    def test_approval_ready_rejects_unresolved_or_hidden_plan_operations(self) -> None:
+        baseline = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidate = next(row for row in baseline["repositories"] if row["proposed_operation"]["kind"] == "canonical-reconcile")
+        unresolved = copy.deepcopy(baseline)
+        unresolved_row = next(row for row in unresolved["repositories"] if row["repo_path"] == candidate["repo_path"])
+        unresolved_row["proposed_operation"] = {"kind": "refresh-after-dependencies", "plan": None}
+        self.refresh_identity(unresolved)
+        errors = validator.validate(unresolved, self.schema, now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc))
+        self.assertTrue(any("unresolved operation" in item for item in errors), errors)
+
+        hidden = copy.deepcopy(baseline)
+        hermes = next(row for row in hidden["repositories"] if row["repo_path"] == "/Volumes/Dev/Sites/TSM/hermes")
+        hidden_plan = copy.deepcopy(candidate["proposed_operation"]["plan"])
+        hidden_plan["target_paths"] = [hermes["repo_path"] + "/.claude/settings.json"]
+        hidden_plan["binding_id"] = validator.operation_binding(hermes["repo_identity"], hidden_plan)
+        hermes["proposed_operation"]["plan"] = hidden_plan
+        self.refresh_identity(hidden)
+        errors = validator.validate(hidden, self.schema, now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc))
+        self.assertTrue(any("held or excluded operation carries a plan" in item for item in errors), errors)
+
+    def test_preparer_rejects_consumed_or_expired_private_plan(self) -> None:
+        report = copy.deepcopy(self.report)
+        for dependency in report["dependencies"]:
+            dependency["status"] = "completed"
+        candidate = self.candidate_row(report)
+        candidate["proposed_operation"] = {"kind": "canonical-reconcile", "plan": None}
+        for row in report["repositories"]:
+            if row is not candidate and row["proposed_operation"]["kind"] == "refresh-after-dependencies":
+                row["proposed_operation"] = {"kind": "hold", "plan": None}
+        plan_id = "plan_" + "a" * 32
+        plans = [{"path": candidate["repo_path"], "operations": [{"target": ".claude/settings.json"}]}]
+        plan_report = {"plan_id": plan_id, "expires_at": "2026-08-14T18:00:00Z", "plans": plans}
+        plan_record = self.private_plan_record(
+            report,
+            plan_id=plan_id,
+            expires_at=plan_report["expires_at"],
+            plan_fingerprint="sha256:" + "b" * 64,
+            plans=plans,
+        )
+        for state in ("applying", "consumed", "reverted"):
+            with self.subTest(state=state):
+                consumed = copy.deepcopy(plan_record)
+                consumed["state"] = state
+                consumed["claim_token_hash"] = "sha256:" + "c" * 64
+                with self.assertRaisesRegex(ValueError, "not fresh and unclaimed"):
+                    preparer.prepare(report, plan_report, consumed, now_utc=self.NOW)
+        with self.assertRaisesRegex(ValueError, "expiration is invalid"):
+            preparer.prepare(
+                report,
+                plan_report,
+                plan_record,
+                now_utc=datetime(2026, 8, 14, 18, 0, tzinfo=timezone.utc),
+            )
+
+    def test_current_census_has_exact_hermes_exclusions_and_safety_holds(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        expected_hermes = {
+            "/Volumes/Dev/Sites/TSM/_archive/h1",
+            "/Volumes/Dev/Sites/TSM/h2",
+            "/Volumes/Dev/Sites/TSM/h3",
+            "/Volumes/Dev/Sites/TSM/hermes",
+        }
+        owner_excluded = {
+            row["repo_path"]
+            for row in report["repositories"]
+            if any(item["code"] == "owner-policy-exclusion" for item in row["exclusions"])
+        }
+        self.assertEqual(owner_excluded, expected_hermes)
+        for row in report["repositories"]:
+            unsafe = (
+                row["workspace_state"]["git"] == "dirty"
+                or row["workspace_state"]["customization"] == "detected"
+                or row["workspace_state"]["ambiguity"]
+            )
+            if unsafe:
+                self.assertIn(row["proposed_operation"]["kind"], {"none", "hold"}, row["repo_path"])
+
+    def test_current_approval_ready_census_has_exact_zero_authority(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["approval"]["status"], "pending")
+        self.assertEqual(report["summary"]["approved"], 0)
+        self.assertEqual(report["summary"]["authorized_mutations"], 0)
+        self.assertTrue(all(not row["eligible"] for row in report["repositories"]))
+        self.assertTrue(all(row["approval_status"] == "pending" for row in report["repositories"]))
+
+    def test_owner_decision_preserves_exact_approval_ready_census_identity(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        approval_ready_id = report["census_id"]
+        candidate = next(row for row in report["repositories"] if row["proposed_operation"]["kind"] == "canonical-reconcile")
+        for row in report["repositories"]:
+            row["approval_status"] = "rejected"
+        candidate["approval_status"] = "approved"
+        candidate["eligible"] = True
+        report["summary"]["approved"] = 1
+        report["summary"]["authorized_mutations"] = 1
+        report["approval"] = {
+            "status": "approved",
+            "responsible_actor": "product-owner",
+            "requested_at": report["observed_at"],
+            "approved_census_id": approval_ready_id,
+        }
+        self.assertEqual(validator.census_identity(report), approval_ready_id)
+        self.assertEqual(
+            validator.validate(
+                report,
+                self.schema,
+                now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+            ),
+            [],
+        )
+
+    def test_dirty_customized_or_ambiguous_candidate_fails_closed(self) -> None:
+        baseline = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidate = next(row for row in baseline["repositories"] if row["proposed_operation"]["kind"] == "canonical-reconcile")
+        for field, value in (
+            ("git", "dirty"),
+            ("customization", "detected"),
+            ("ambiguity", True),
+        ):
+            with self.subTest(field=field):
+                report = copy.deepcopy(baseline)
+                row = next(item for item in report["repositories"] if item["repo_path"] == candidate["repo_path"])
+                row["workspace_state"][field] = value
+                if field == "git":
+                    row["workspace_state"]["dirty_entry_count"] = 1
+                summary_field = {
+                    "git": "dirty",
+                    "customization": "customized",
+                    "ambiguity": "ambiguous",
+                }[field]
+                report["summary"][summary_field] += 1
+                self.refresh_identity(report)
+                errors = validator.validate(
+                    report,
+                    self.schema,
+                    now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+                )
+                self.assertTrue(any("unsafe workspace must remain held or excluded" in item for item in errors), errors)
+
+    def test_superseded_census_cannot_regain_authority(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        report["status"] = "superseded"
+        candidate = next(row for row in report["repositories"] if row["proposed_operation"]["kind"] == "canonical-reconcile")
+        for row in report["repositories"]:
+            row["approval_status"] = "rejected"
+        candidate["approval_status"] = "approved"
+        candidate["eligible"] = True
+        report["summary"]["approved"] = 1
+        report["summary"]["authorized_mutations"] = 1
+        self.refresh_identity(report)
+        report["approval"] = {
+            "status": "approved",
+            "responsible_actor": "product-owner",
+            "requested_at": report["observed_at"],
+            "approved_census_id": report["census_id"],
+        }
+        errors = validator.validate(
+            report,
+            self.schema,
+            now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+        )
+        self.assertTrue(any("superseded census cannot carry mutation authority" in item for item in errors), errors)
 
 
 if __name__ == "__main__":

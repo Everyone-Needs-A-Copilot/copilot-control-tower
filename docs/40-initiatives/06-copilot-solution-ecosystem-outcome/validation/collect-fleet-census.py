@@ -182,6 +182,7 @@ def census_identity(payload: dict[str, Any]) -> str:
     identity["summary"]["authorized_mutations"] = 0
     for repository in identity["repositories"]:
         repository["approval_status"] = "pending"
+        repository["eligible"] = False
     return digest(identity)
 
 

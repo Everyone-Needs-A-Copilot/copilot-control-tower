@@ -10,6 +10,7 @@ import json
 import posixpath
 import re
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,7 @@ def census_identity(payload: dict[str, Any]) -> str:
     identity["summary"]["authorized_mutations"] = 0
     for repository in identity["repositories"]:
         repository["approval_status"] = "pending"
+        repository["eligible"] = False
     return digest(identity)
 
 
@@ -117,7 +119,23 @@ def _scan_identity_leaks(value: Any, location: str = "$") -> list[str]:
     return errors
 
 
-def semantic_errors(payload: dict[str, Any]) -> list[str]:
+def _expiration(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def semantic_errors(payload: dict[str, Any], *, now_utc: datetime | None = None) -> list[str]:
+    captured_now = now_utc or datetime.now(timezone.utc)
+    if captured_now.tzinfo is None:
+        raise ValueError("now_utc must be timezone-aware")
+    captured_now = captured_now.astimezone(timezone.utc)
     errors = _scan_identity_leaks(payload)
     repositories = payload.get("repositories")
     if not isinstance(repositories, list):
@@ -139,6 +157,7 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
             errors.append(f"$.configured_roots[{index}]: path is not canonical")
         else:
             roots.append(root)
+    approval_ready_plan_identities: set[tuple[Any, Any, Any]] = set()
     for index, row in enumerate(repositories):
         location = f"$.repositories[{index}]"
         if not isinstance(row, dict):
@@ -160,7 +179,21 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
             errors.append(f"{location}.repo_identity: does not bind exact path")
         operation = row.get("proposed_operation")
         plan = operation.get("plan") if isinstance(operation, dict) else None
+        operation_kind = operation.get("kind") if isinstance(operation, dict) else None
         if plan is not None:
+            if payload.get("status") == "approval-ready":
+                approval_ready_plan_identities.add(
+                    (
+                        plan.get("plan_id"),
+                        plan.get("plan_fingerprint"),
+                        plan.get("expires_at"),
+                    )
+                )
+                expiration = _expiration(plan.get("expires_at"))
+                if expiration is None:
+                    errors.append(f"{location}.proposed_operation.plan: invalid expiration")
+                elif expiration <= captured_now:
+                    errors.append(f"{location}.proposed_operation.plan: canonical plan expired")
             targets = plan.get("target_paths", [])
             if targets != sorted(targets) or len(targets) != len(set(targets)):
                 errors.append(f"{location}.proposed_operation.plan: targets not sorted/unique")
@@ -176,6 +209,8 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
                 str(row.get("repo_identity")), plan
             ):
                 errors.append(f"{location}.proposed_operation.plan: binding mismatch")
+            if operation_kind not in {"canonical-reconcile", "canonical-no-change"}:
+                errors.append(f"{location}: held or excluded operation carries a plan")
         approved = row.get("approval_status") == "approved"
         if approved and (
             not row.get("eligible")
@@ -183,7 +218,16 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
             or plan is None
         ):
             errors.append(f"{location}: approved row lacks eligibility/exact plan")
-        operation_kind = operation.get("kind")
+        workspace_state = row.get("workspace_state", {})
+        unsafe_workspace = (
+            workspace_state.get("git") in {"dirty", "unavailable"}
+            or workspace_state.get("customization") == "detected"
+            or workspace_state.get("ambiguity") is True
+        )
+        if unsafe_workspace and operation_kind not in {"none", "hold"}:
+            errors.append(f"{location}: unsafe workspace must remain held or excluded")
+        if payload.get("status") == "approval-ready" and operation_kind == "refresh-after-dependencies":
+            errors.append(f"{location}: approval-ready census contains an unresolved operation")
         if operation_kind in {"canonical-reconcile", "canonical-no-change"} and plan is None and payload.get("status") == "approval-ready":
             errors.append(f"{location}: canonical reconcile lacks exact plan")
         if operation_kind == "canonical-reconcile" and plan is not None and not plan.get("target_paths"):
@@ -192,6 +236,8 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
             errors.append(f"{location}: canonical no-change carries mutation targets")
         if row.get("eligible") != approved:
             errors.append(f"{location}: eligibility and row approval are inconsistent")
+    if payload.get("status") == "approval-ready" and len(approval_ready_plan_identities) > 1:
+        errors.append("$.repositories: approval-ready rows do not share one canonical plan identity")
     if payload.get("census_id") != census_identity(payload):
         errors.append("$.census_id: does not match semantic census identity")
     expected_summary = Counter()
@@ -261,6 +307,10 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
         for row in repositories
     )
     reported_authority = summary.get("authorized_mutations", 0) != 0
+    if payload.get("status") == "superseded" and (
+        approval.get("status") == "approved" or row_authority or reported_authority
+    ):
+        errors.append("$: superseded census cannot carry mutation authority")
     if (row_authority or reported_authority) and approval.get("status") != "approved":
         errors.append("$.approval: row authority requires global owner approval")
     if approval.get("status") == "approved":
@@ -277,7 +327,13 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
     return errors
 
 
-def validate(payload: dict[str, Any], schema: dict[str, Any]) -> list[str]:
+def validate(
+    payload: dict[str, Any],
+    schema: dict[str, Any],
+    *,
+    now_utc: datetime | None = None,
+) -> list[str]:
+    captured_now = now_utc or datetime.now(timezone.utc)
     try:
         import jsonschema
     except ImportError as exc:  # pragma: no cover - environment prerequisite
@@ -289,7 +345,7 @@ def validate(payload: dict[str, Any], schema: dict[str, Any]) -> list[str]:
         f"{'.'.join(str(item) for item in error.absolute_path) or '$'}: {error.message}"
         for error in sorted(validator.iter_errors(payload), key=lambda item: list(item.absolute_path))
     ]
-    return [*schema_errors, *semantic_errors(payload)]
+    return [*schema_errors, *semantic_errors(payload, now_utc=captured_now)]
 
 
 def main() -> int:
