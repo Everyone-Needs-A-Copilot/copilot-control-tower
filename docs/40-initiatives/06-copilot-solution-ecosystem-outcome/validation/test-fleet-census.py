@@ -6,7 +6,9 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import subprocess
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +28,7 @@ def load_module(name: str, filename: str):
 
 validator = load_module("fleet_census_validator", "validate-fleet-census.py")
 collector = load_module("fleet_census_collector", "collect-fleet-census.py")
+preparer = load_module("fleet_census_preparer", "prepare-fleet-census.py")
 
 
 class FleetCensusSemanticTests(unittest.TestCase):
@@ -57,6 +60,7 @@ class FleetCensusSemanticTests(unittest.TestCase):
         plan = {
             "plan_id": "plan_" + "a" * 32,
             "plan_fingerprint": "sha256:" + "b" * 64,
+            "expires_at": "2026-08-14T18:00:00Z",
             "target_paths": [target],
             "binding_id": "",
         }
@@ -281,6 +285,67 @@ class FleetCensusSemanticTests(unittest.TestCase):
                 {repo},
             )
         )
+
+    def test_nested_archive_owner_exclusion_produces_exact_synthetic_row(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            repo = Path(temporary) / "h1"
+            repo.mkdir()
+            subprocess.run(("git", "init", "-q", str(repo)), check=True)
+            row = collector.synthetic_owner_exclusion_row(repo)
+        self.assertEqual(row["repo_path"], str(repo))
+        self.assertEqual(row["repo_class"], "SCRATCH-ARCHIVE")
+        self.assertEqual(row["proposed_operation"], {"kind": "none", "plan": None})
+        self.assertFalse(row["eligible"])
+        self.assertEqual(row["exclusions"][0]["code"], "owner-policy-exclusion")
+
+    def test_preparer_binds_mutation_and_no_change_without_selecting_exclusions(self) -> None:
+        report = copy.deepcopy(self.report)
+        for dependency in report["dependencies"]:
+            dependency["status"] = "completed"
+        candidates = [row for row in report["repositories"] if row["proposed_operation"]["kind"] == "refresh-after-dependencies"][:2]
+        candidate_paths = {row["repo_path"] for row in candidates}
+        for row in report["repositories"]:
+            if row["proposed_operation"]["kind"] != "refresh-after-dependencies":
+                continue
+            if row["repo_path"] in candidate_paths:
+                row["proposed_operation"] = {"kind": "canonical-reconcile", "plan": None}
+            else:
+                row["proposed_operation"] = {"kind": "hold", "plan": None}
+                row["responsible_actor"] = "repository-owner"
+                row["reason"] = "Fixture hold."
+        report["census_id"] = collector.census_identity(report)
+        request = preparer.build_request(report)
+        self.assertEqual([item["path"] for item in request["projects"]], [row["repo_path"] for row in candidates])
+        plan_id = "plan_" + "c" * 32
+        expires_at = "2026-08-14T18:00:00Z"
+        plans = [
+            {"path": candidates[0]["repo_path"], "operations": [{"target": ".claude/settings.json"}]},
+            {"path": candidates[1]["repo_path"], "operations": []},
+        ]
+        plan_report = {"plan_id": plan_id, "expires_at": expires_at, "plans": plans}
+        plan_record = {"plan_id": plan_id, "expires_at": expires_at, "fresh_plan_fingerprint": "sha256:" + "d" * 64, "plans": plans}
+        prepared = preparer.prepare(report, plan_report, plan_record)
+        first = next(row for row in prepared["repositories"] if row["repo_path"] == candidates[0]["repo_path"])
+        second = next(row for row in prepared["repositories"] if row["repo_path"] == candidates[1]["repo_path"])
+        self.assertEqual(first["proposed_operation"]["kind"], "canonical-reconcile")
+        self.assertEqual(first["proposed_operation"]["plan"]["target_paths"], [candidates[0]["repo_path"] + "/.claude/settings.json"])
+        self.assertEqual(second["proposed_operation"]["kind"], "canonical-no-change")
+        self.assertEqual(second["proposed_operation"]["plan"]["target_paths"], [])
+        self.assertEqual(prepared["status"], "approval-ready")
+        self.assertEqual(self.errors(prepared), [])
+
+    def test_assessment_route_hold_is_removed_from_canonical_request(self) -> None:
+        report = copy.deepcopy(self.report)
+        candidates = [row for row in report["repositories"] if row["proposed_operation"]["kind"] == "refresh-after-dependencies"][:2]
+        for row in candidates:
+            row["proposed_operation"] = {"kind": "canonical-reconcile", "plan": None}
+        assessment = {"projects": [{"path": candidates[0]["repo_path"], "route": "ready"}, {"path": candidates[1]["repo_path"], "route": "excluded"}]}
+        routed = preparer.apply_assessment(report, assessment)
+        request = preparer.build_request(routed)
+        self.assertEqual([item["path"] for item in request["projects"]], [candidates[0]["repo_path"]])
+        held = next(row for row in routed["repositories"] if row["repo_path"] == candidates[1]["repo_path"])
+        self.assertEqual(held["proposed_operation"]["kind"], "hold")
+        self.assertEqual(held["exclusions"][-1]["code"], "canonical-route-excluded")
 
 
 if __name__ == "__main__":

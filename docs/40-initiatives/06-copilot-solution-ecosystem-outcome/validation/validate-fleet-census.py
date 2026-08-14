@@ -62,6 +62,7 @@ def operation_binding(repo_identity: str, plan: dict[str, Any]) -> str:
             "repo_identity": repo_identity,
             "plan_id": plan["plan_id"],
             "plan_fingerprint": plan["plan_fingerprint"],
+            "expires_at": plan["expires_at"],
             "target_paths": plan["target_paths"],
         }
     )
@@ -182,20 +183,28 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
             or plan is None
         ):
             errors.append(f"{location}: approved row lacks eligibility/exact plan")
-        if operation.get("kind") == "canonical-reconcile" and plan is None:
+        operation_kind = operation.get("kind")
+        if operation_kind in {"canonical-reconcile", "canonical-no-change"} and plan is None and payload.get("status") == "approval-ready":
             errors.append(f"{location}: canonical reconcile lacks exact plan")
+        if operation_kind == "canonical-reconcile" and plan is not None and not plan.get("target_paths"):
+            errors.append(f"{location}: canonical reconcile has no exact targets")
+        if operation_kind == "canonical-no-change" and plan is not None and plan.get("target_paths"):
+            errors.append(f"{location}: canonical no-change carries mutation targets")
         if row.get("eligible") != approved:
             errors.append(f"{location}: eligibility and row approval are inconsistent")
     if payload.get("census_id") != census_identity(payload):
         errors.append("$.census_id: does not match semantic census identity")
-    expected_summary = Counter(
-        "excluded"
-        if row["proposed_operation"]["kind"] == "none"
-        else "held"
-        if row["proposed_operation"]["kind"] == "hold"
-        else "candidate"
-        for row in repositories
-    )
+    expected_summary = Counter()
+    for row in repositories:
+        kind = row["proposed_operation"]["kind"]
+        if kind == "none":
+            expected_summary["excluded"] += 1
+        elif kind == "hold":
+            expected_summary["held"] += 1
+        elif kind == "canonical-no-change":
+            expected_summary["no_change"] += 1
+        else:
+            expected_summary["candidate"] += 1
     summary = payload.get("summary", {})
     recomputed = {
         "total": len(repositories),
@@ -217,6 +226,8 @@ def semantic_errors(payload: dict[str, Any]) -> list[str]:
             for row in repositories
         ),
     }
+    if expected_summary["no_change"] or "no_change" in summary:
+        recomputed["no_change"] = expected_summary["no_change"]
     if summary != recomputed:
         errors.append("$.summary: does not match repository dispositions")
     dependencies = payload.get("dependencies", [])

@@ -85,7 +85,7 @@
     "summary": {
       "type": "object", "additionalProperties": false,
       "required": ["total", "candidate", "excluded", "held", "dirty", "customized", "ambiguous", "approved", "authorized_mutations"],
-      "properties": { "total": { "type": "integer", "minimum": 0 }, "candidate": { "type": "integer", "minimum": 0 }, "excluded": { "type": "integer", "minimum": 0 }, "held": { "type": "integer", "minimum": 0 }, "dirty": { "type": "integer", "minimum": 0 }, "customized": { "type": "integer", "minimum": 0 }, "ambiguous": { "type": "integer", "minimum": 0 }, "approved": { "type": "integer", "minimum": 0 }, "authorized_mutations": { "type": "integer", "minimum": 0 } }
+      "properties": { "total": { "type": "integer", "minimum": 0 }, "candidate": { "type": "integer", "minimum": 0 }, "no_change": { "type": "integer", "minimum": 0 }, "excluded": { "type": "integer", "minimum": 0 }, "held": { "type": "integer", "minimum": 0 }, "dirty": { "type": "integer", "minimum": 0 }, "customized": { "type": "integer", "minimum": 0 }, "ambiguous": { "type": "integer", "minimum": 0 }, "approved": { "type": "integer", "minimum": 0 }, "authorized_mutations": { "type": "integer", "minimum": 0 } }
     },
     "exclusion": {
       "type": "object", "additionalProperties": false, "required": ["code", "source", "reason"],
@@ -105,12 +105,12 @@
       "properties": { "state": { "enum": ["not-required", "entitled", "offline-cached", "unentitled", "revoked", "signed-out", "offline-unverified", "stale-entitlement", "invalid-source", "dependency-pending", "unknown"] }, "evidence": { "type": "array", "items": { "$ref": "#/$defs/entitlementEvidence" } } }
     },
     "plan": {
-      "type": "object", "additionalProperties": false, "required": ["plan_id", "plan_fingerprint", "target_paths", "binding_id"],
-      "properties": { "plan_id": { "type": "string", "pattern": "^plan_[0-9a-f]{32}$" }, "plan_fingerprint": { "$ref": "#/$defs/digest" }, "target_paths": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/exactPath" } }, "binding_id": { "$ref": "#/$defs/digest" } }
+      "type": "object", "additionalProperties": false, "required": ["plan_id", "plan_fingerprint", "expires_at", "target_paths", "binding_id"],
+      "properties": { "plan_id": { "type": "string", "pattern": "^plan_[0-9a-f]{32}$" }, "plan_fingerprint": { "$ref": "#/$defs/digest" }, "expires_at": { "type": "string", "format": "date-time" }, "target_paths": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/exactPath" } }, "binding_id": { "$ref": "#/$defs/digest" } }
     },
     "operation": {
       "type": "object", "additionalProperties": false, "required": ["kind", "plan"],
-      "properties": { "kind": { "enum": ["none", "hold", "refresh-after-dependencies", "canonical-reconcile"] }, "plan": { "oneOf": [{ "$ref": "#/$defs/plan" }, { "type": "null" }] } }
+      "properties": { "kind": { "enum": ["none", "hold", "refresh-after-dependencies", "canonical-reconcile", "canonical-no-change"] }, "plan": { "oneOf": [{ "$ref": "#/$defs/plan" }, { "type": "null" }] } }
     },
     "repository": {
       "type": "object", "additionalProperties": false,

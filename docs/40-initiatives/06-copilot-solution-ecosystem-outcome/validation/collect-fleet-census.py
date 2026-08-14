@@ -356,6 +356,45 @@ def owner_exclusion(repo: Path, excluded_repositories: set[Path]) -> dict[str, s
     }
 
 
+def synthetic_owner_exclusion_row(repo: Path) -> dict[str, Any]:
+    git, dirty_count, git_ambiguity = git_state(repo)
+    if git == "unavailable":
+        raise ValueError(f"nested owner exclusion is not a readable Git root: {repo}")
+    lock, lock_ambiguity = read_lock(repo)
+    customization, mismatched, missing, checksum_ambiguity = checksum_state(repo, lock)
+    ambiguity = sorted(set(git_ambiguity + lock_ambiguity + checksum_ambiguity))
+    exclusions = [owner_exclusion(repo, {repo})]
+    if git == "dirty":
+        exclusions.append({"code": "dirty-working-tree", "source": "census-safety", "reason": "Active work is held and must never be changed by fan-out."})
+    if customization == "detected":
+        exclusions.append({"code": "customized-managed-content", "source": "census-safety", "reason": "Framework-tracked bytes differ from the recorded checksum and require person review."})
+    if ambiguity:
+        exclusions.append({"code": "ambiguous-state", "source": "census-safety", "reason": "The collector could not prove a safe deterministic project state."})
+    return {
+        "repo_identity": digest(["repository", str(repo)]),
+        "repo_path": str(repo),
+        "repo_class": "SCRATCH-ARCHIVE",
+        "tier_role": "none",
+        "product_families": installed_families(repo, lock),
+        "entitlement": {"state": "not-required", "evidence": []},
+        "workspace_state": {
+            "git": git,
+            "dirty_entry_count": dirty_count,
+            "customization": customization,
+            "mismatched_managed_count": mismatched,
+            "missing_managed_count": missing,
+            "ambiguity": bool(ambiguity),
+            "ambiguity_reasons": ambiguity,
+        },
+        "exclusions": exclusions,
+        "eligible": False,
+        "responsible_actor": "none",
+        "proposed_operation": {"kind": "none", "plan": None},
+        "reason": OWNER_EXCLUSION_REASON,
+        "approval_status": "pending",
+    }
+
+
 def collect(args: argparse.Namespace) -> dict[str, Any]:
     projects_root = exact_path(args.projects_root)
     classification_path = exact_path(args.classification)
@@ -372,6 +411,7 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
     observed_at = datetime.fromisoformat(args.observed_at.replace("Z", "+00:00")).astimezone(timezone.utc)
     repositories: list[dict[str, Any]] = []
     seen: set[Path] = set()
+    classified_classes: dict[Path, str] = {}
     for row in sorted(rows, key=lambda item: str(item.get("path", ""))):
         relative = Path(str(row.get("path", "")))
         if relative.is_absolute() or ".." in relative.parts or any(char in str(relative) for char in WILDCARD_CHARACTERS):
@@ -381,6 +421,7 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
             raise ValueError(f"duplicate repository path: {repo}")
         seen.add(repo)
         repo_class = str(row.get("class", ""))
+        classified_classes[repo] = repo_class
         role = str(row.get("role", "none"))
         git, dirty_count, ambiguity = git_state(repo)
         lock, lock_ambiguity = read_lock(repo)
@@ -457,9 +498,12 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
             }
         )
     missing_exclusions = sorted(excluded_repositories - seen)
-    if missing_exclusions:
-        rendered = ", ".join(str(path) for path in missing_exclusions)
-        raise ValueError(f"owner exclusion is not present in classification: {rendered}")
+    for repo in missing_exclusions:
+        inherited_archive = any(parent in repo.parents and repo_class == "SCRATCH-ARCHIVE" for parent, repo_class in classified_classes.items())
+        if not inherited_archive:
+            raise ValueError(f"owner exclusion is neither classified nor nested below a classified archive: {repo}")
+        repositories.append(synthetic_owner_exclusion_row(repo))
+    repositories.sort(key=lambda row: row["repo_path"])
     counts = Counter(
         "excluded" if row["proposed_operation"]["kind"] == "none" else "held" if row["proposed_operation"]["kind"] == "hold" else "candidate"
         for row in repositories
@@ -467,7 +511,7 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "schema_version": "1.1",
         "mode": "read-only",
-        "status": "provisional" if dependency_pending else "approval-ready",
+        "status": "provisional",
         "census_id": "",
         "observed_at": args.observed_at,
         "configured_roots": [str(projects_root)],

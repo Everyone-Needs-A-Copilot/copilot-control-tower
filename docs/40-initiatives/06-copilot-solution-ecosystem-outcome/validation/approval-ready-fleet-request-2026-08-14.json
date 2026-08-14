@@ -1,0 +1,155 @@
+{
+  "projects": [
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/copilot-news"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/flow"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/method-copilot"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/n8n-copilot"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/project-copilot"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/saas-financial-model"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/small-business-copilot"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/the-collective"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/COPILOT/thought-leadership"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/financial-tracker"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/investr-api"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/investr-app"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/job-finder"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/revenue-projections"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/runway"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/sproutworks"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/thoughts"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/tigers-toads-fl-weekend"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/tigers-toads-weekend-2026"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/PERSONAL/tracker"
+    },
+    {
+      "components": [
+        "claude",
+        "codex"
+      ],
+      "path": "/Volumes/Dev/Sites/TSM/Delphi"
+    }
+  ],
+  "roots": [
+    "/Volumes/Dev/Sites"
+  ],
+  "schema_version": "1.0"
+}
