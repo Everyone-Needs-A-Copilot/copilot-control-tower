@@ -29,6 +29,7 @@ def load_module(name: str, filename: str):
 validator = load_module("fleet_census_validator", "validate-fleet-census.py")
 collector = load_module("fleet_census_collector", "collect-fleet-census.py")
 preparer = load_module("fleet_census_preparer", "prepare-fleet-census.py")
+approver = load_module("fleet_census_approver", "approve-fleet-census.py")
 
 
 class FleetCensusSemanticTests(unittest.TestCase):
@@ -68,6 +69,29 @@ class FleetCensusSemanticTests(unittest.TestCase):
         }
         plan["binding_id"] = validator.operation_binding(row["repo_identity"], plan)
         return plan
+
+    def owner_selection(self, report: dict, rows: list[dict]) -> dict:
+        plan = next(
+            row["proposed_operation"]["plan"]
+            for row in report["repositories"]
+            if row["proposed_operation"]["plan"] is not None
+        )
+        return {
+            "census_id": report["census_id"],
+            "plan": {
+                "plan_id": plan["plan_id"],
+                "plan_fingerprint": plan["plan_fingerprint"],
+                "expires_at": plan["expires_at"],
+            },
+            "repositories": [
+                {
+                    "repo_identity": row["repo_identity"],
+                    "repo_path": row["repo_path"],
+                    "target_paths": list(row["proposed_operation"]["plan"]["target_paths"]),
+                }
+                for row in sorted(rows, key=lambda item: item["repo_path"])
+            ],
+        }
 
     def private_plan_record(
         self,
@@ -571,6 +595,258 @@ class FleetCensusSemanticTests(unittest.TestCase):
             ),
             [],
         )
+
+    def test_approval_command_authorizes_only_one_explicit_exact_selection(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidate = next(
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        )
+        selection = self.owner_selection(report, [candidate])
+        result = approver.decide(
+            report,
+            selection,
+            self.schema,
+            census_id=report["census_id"],
+            actor="product-owner",
+            decision="approved",
+            now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+        )
+        approved = [
+            row for row in result["repositories"] if row["approval_status"] == "approved"
+        ]
+        self.assertEqual([row["repo_identity"] for row in approved], [candidate["repo_identity"]])
+        self.assertEqual(result["census_id"], report["census_id"])
+        self.assertEqual(result["approval"]["approved_census_id"], report["census_id"])
+        self.assertEqual(result["summary"]["approved"], 1)
+        self.assertEqual(result["summary"]["authorized_mutations"], 1)
+        self.assertTrue(
+            all(
+                not row["eligible"] and row["approval_status"] == "rejected"
+                for row in result["repositories"]
+                if row["proposed_operation"]["kind"] == "canonical-no-change"
+            )
+        )
+        self.assertEqual(
+            validator.validate(
+                result,
+                self.schema,
+                now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+            ),
+            [],
+        )
+
+    def test_rejection_requires_and_records_the_complete_explicit_proposal(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidates = [
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        ]
+        with self.assertRaisesRegex(ValueError, "complete mutation proposal"):
+            approver.decide(
+                report,
+                self.owner_selection(report, candidates[:-1]),
+                self.schema,
+                census_id=report["census_id"],
+                actor="product-owner",
+                decision="rejected",
+                now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+            )
+        result = approver.decide(
+            report,
+            self.owner_selection(report, candidates),
+            self.schema,
+            census_id=report["census_id"],
+            actor="product-owner",
+            decision="rejected",
+            now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(result["census_id"], report["census_id"])
+        self.assertEqual(result["approval"]["status"], "rejected")
+        self.assertIsNone(result["approval"]["approved_census_id"])
+        self.assertTrue(
+            all(
+                row["approval_status"] == "rejected" and not row["eligible"]
+                for row in result["repositories"]
+            )
+        )
+        self.assertEqual(result["summary"]["authorized_mutations"], 0)
+
+    def test_approval_command_rejects_stale_superseded_invalid_or_hidden_authority(self) -> None:
+        baseline = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidate = next(
+            row
+            for row in baseline["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        )
+        selection = self.owner_selection(baseline, [candidate])
+        with self.assertRaisesRegex(ValueError, "expired"):
+            approver.decide(
+                baseline,
+                selection,
+                self.schema,
+                census_id=baseline["census_id"],
+                actor="product-owner",
+                decision="approved",
+                now_utc=datetime(2026, 8, 14, 19, 13, tzinfo=timezone.utc),
+            )
+        superseded = copy.deepcopy(baseline)
+        superseded["status"] = "superseded"
+        self.refresh_identity(superseded)
+        superseded_selection = self.owner_selection(superseded, [candidate])
+        with self.assertRaisesRegex(ValueError, "approval-ready"):
+            approver.decide(
+                superseded,
+                superseded_selection,
+                self.schema,
+                census_id=superseded["census_id"],
+                actor="product-owner",
+                decision="approved",
+                now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+            )
+        invalid = copy.deepcopy(baseline)
+        invalid["summary"]["candidate"] += 1
+        with self.assertRaisesRegex(ValueError, "input census is invalid"):
+            approver.decide(
+                invalid,
+                selection,
+                self.schema,
+                census_id=invalid["census_id"],
+                actor="product-owner",
+                decision="approved",
+                now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+            )
+        authorized = copy.deepcopy(baseline)
+        authorized["approval"] = {
+            "status": "approved",
+            "responsible_actor": "product-owner",
+            "requested_at": "2026-08-14T19:00:00Z",
+            "approved_census_id": authorized["census_id"],
+        }
+        for row in authorized["repositories"]:
+            row["approval_status"] = "rejected"
+        authorized_candidate = next(
+            row
+            for row in authorized["repositories"]
+            if row["repo_identity"] == candidate["repo_identity"]
+        )
+        authorized_candidate["approval_status"] = "approved"
+        authorized_candidate["eligible"] = True
+        authorized["summary"]["approved"] = 1
+        authorized["summary"]["authorized_mutations"] = 1
+        with self.assertRaisesRegex(ValueError, "hidden or prior mutation authority"):
+            approver.decide(
+                authorized,
+                selection,
+                self.schema,
+                census_id=authorized["census_id"],
+                actor="product-owner",
+                decision="approved",
+                now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+            )
+
+    def test_approval_command_rejects_identity_plan_and_target_mismatches(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidates = [
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        ]
+
+        def assert_rejected(selection: dict, pattern: str, *, census_id: str | None = None) -> None:
+            with self.assertRaisesRegex(ValueError, pattern):
+                approver.decide(
+                    report,
+                    selection,
+                    self.schema,
+                    census_id=census_id or report["census_id"],
+                    actor="product-owner",
+                    decision="approved",
+                    now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+                )
+
+        mismatched_census = self.owner_selection(report, [candidates[0]])
+        mismatched_census["census_id"] = "sha256:" + "0" * 64
+        assert_rejected(mismatched_census, "selection census ID")
+        assert_rejected(
+            self.owner_selection(report, [candidates[0]]),
+            "explicit census ID",
+            census_id="sha256:" + "0" * 64,
+        )
+        wrong_plan = self.owner_selection(report, [candidates[0]])
+        wrong_plan["plan"]["plan_id"] = "plan_" + "0" * 32
+        assert_rejected(wrong_plan, "plan identity")
+        wrong_binding = self.owner_selection(report, [candidates[0]])
+        wrong_binding["repositories"][0]["repo_path"] = candidates[1]["repo_path"]
+        assert_rejected(wrong_binding, "identity/path binding")
+        missing_target = self.owner_selection(report, [candidates[0]])
+        missing_target["repositories"][0]["target_paths"].pop()
+        assert_rejected(missing_target, "partial, extra, reordered, or mismatched")
+        extra_target = self.owner_selection(report, [candidates[0]])
+        extra_target["repositories"][0]["target_paths"].append(
+            candidates[0]["repo_path"] + "/unreviewed-target"
+        )
+        assert_rejected(extra_target, "partial, extra, reordered, or mismatched")
+        duplicate_target = self.owner_selection(report, [candidates[0]])
+        duplicate_target["repositories"][0]["target_paths"].append(
+            duplicate_target["repositories"][0]["target_paths"][-1]
+        )
+        assert_rejected(duplicate_target, "duplicate")
+        duplicate_row = self.owner_selection(report, [candidates[0]])
+        duplicate_row["repositories"].append(copy.deepcopy(duplicate_row["repositories"][0]))
+        assert_rejected(duplicate_row, "duplicate repository")
+        wildcard = self.owner_selection(report, [candidates[0]])
+        wildcard["repositories"][0]["repo_path"] += "/*"
+        assert_rejected(wildcard, "wildcard")
+        empty = self.owner_selection(report, [candidates[0]])
+        empty["repositories"] = []
+        assert_rejected(empty, "explicitly selected")
+
+    def test_approval_command_rejects_held_excluded_and_hermes_rows(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidate = next(
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        )
+        for forbidden in (
+            next(row for row in report["repositories"] if row["proposed_operation"]["kind"] == "hold"),
+            next(row for row in report["repositories"] if row["proposed_operation"]["kind"] == "none"),
+            next(row for row in report["repositories"] if row["repo_path"] == "/Volumes/Dev/Sites/TSM/hermes"),
+        ):
+            with self.subTest(repo_path=forbidden["repo_path"]):
+                selection = self.owner_selection(report, [candidate])
+                selection["repositories"][0] = {
+                    "repo_identity": forbidden["repo_identity"],
+                    "repo_path": forbidden["repo_path"],
+                    "target_paths": list(candidate["proposed_operation"]["plan"]["target_paths"]),
+                }
+                with self.assertRaisesRegex(ValueError, "held, excluded, or Hermes"):
+                    approver.decide(
+                        report,
+                        selection,
+                        self.schema,
+                        census_id=report["census_id"],
+                        actor="product-owner",
+                        decision="approved",
+                        now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+                    )
+
+    def test_approval_output_is_exclusive_and_never_overwrites_input(self) -> None:
+        payload = {"decision": "fixture"}
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            input_path = root / "input.json"
+            output_path = root / "output.json"
+            input_path.write_text("{}\n", encoding="utf-8")
+            approver.write_exclusive(output_path, payload, input_path=input_path)
+            self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), payload)
+            with self.assertRaises(FileExistsError):
+                approver.write_exclusive(output_path, payload, input_path=input_path)
+            with self.assertRaises(FileExistsError):
+                approver.write_exclusive(input_path, payload, input_path=input_path)
 
     def test_dirty_customized_or_ambiguous_candidate_fails_closed(self) -> None:
         baseline = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
