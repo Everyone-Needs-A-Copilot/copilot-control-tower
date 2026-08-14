@@ -11,6 +11,8 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      - name: Install test prerequisites
+        run: brew install ripgrep
       - name: Enforce native witness and plain-language boundaries
         run: ./scripts/tests/test_native_invariants.sh
       - name: Build shipping native User app
