@@ -349,7 +349,7 @@
           "path": "plugins/codex-copilot/skills/uxd/SKILL.md"
         },
         {
-          "checksum": "sha256:06b215427f0d8cd6820d5a249240dc667d16c9188d33634615212df9e0137883",
+          "checksum": "sha256:ef7123ab132fa1fba90992df67d9b1b672b981b3660bae466f47f23c383b1c3f",
           "ownership": "framework",
           "path": "scripts/copilot-gate.sh"
         }
