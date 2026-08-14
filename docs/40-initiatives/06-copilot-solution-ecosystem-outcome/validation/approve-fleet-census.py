@@ -196,7 +196,11 @@ def decide(
         for row in census["repositories"]
         if row["proposed_operation"]["kind"] == "canonical-reconcile"
     }
-    if decision == "rejected" and selected_identities != candidates:
+    if selected_identities != candidates:
+        if decision == "approved":
+            raise ValueError(
+                "approval must explicitly enumerate the complete batch plan; regenerate a plan containing only the intended repositories before approving a subset"
+            )
         raise ValueError("rejection must explicitly enumerate the complete mutation proposal")
 
     result = copy.deepcopy(census)

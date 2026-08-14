@@ -33,7 +33,7 @@ Owner-policy exclusions are supplied as repeated exact `--owner-exclusion` paths
 
 The census does not replace conformance’s global exception schema. Its exclusions answer only whether an exact repository may enter a later fleet operation. A conformance failure still belongs to the conformance report and its reviewed exception mechanism.
 
-Approval status is a closed `pending`, `approved`, or `rejected` enum. Every row in a provisional report is `pending`, ineligible, and plan-free, so a provisional census always grants zero mutation authority. The collector always emits provisional evidence, even after its release dependencies complete. [`prepare-fleet-census.py`](prepare-fleet-census.py) is the only promotion path: it requests one fresh canonical plan for the exact non-excluded candidates, verifies the private and public plan records agree, records the expiration, binds every exact target, and distinguishes planned mutation from canonical no-change. A wildcard, directory family, repository glob, or stream-plan brace expansion is never mutation authority.
+Approval status is a closed `pending`, `approved`, or `rejected` enum. Every row in a provisional report is `pending`, ineligible, and plan-free, so a provisional census always grants zero mutation authority. The collector always emits provisional evidence, even after its release dependencies complete. [`prepare-fleet-census.py`](prepare-fleet-census.py) is the only promotion path: it holds every candidate outside the exact pre-plan batch, requests one fresh canonical plan for that batch, verifies the private and public plan records agree, records the expiration, binds every exact target, and distinguishes planned mutation from canonical no-change. A wildcard, directory family, repository glob, or stream-plan brace expansion is never mutation authority.
 
 An approval-ready census is valid only while every planned row shares the same plan ID, plan fingerprint, and expiration and that single plan remains unexpired. Canonical reconcile rows require nonempty exact targets, canonical no-change rows require empty targets, and held or excluded rows must be plan-free; no dependency-refresh operation can survive promotion. Preparation accepts only the private plan store's exact unclaimed `reviewed` state and captures one current UTC instant for its creation/expiration check. Validation likewise captures the current UTC time once for the entire census so no row can observe a different expiration boundary. An expired or consumed approval-ready plan must be regenerated from a fresh read-only plan; changing timestamps or copying a different plan identity into the old census is not permitted. Provisional historical evidence remains valid because it contains no plans and grants zero authority. A superseded census can never regain mutation authority.
 
@@ -76,14 +76,17 @@ python3 validate-fleet-census.py \
 Do not ask the owner to approve a provisional or expired approval-ready report. When the upstream completion gates are settled:
 
 1. rerun the collector against the same configured root and the installed entitlement ledger;
-2. use `prepare-fleet-census.py` to run the canonical transaction’s read-only plan for the exact remaining candidates;
+2. create an exact pre-plan batch selection bound to the provisional census ID, then use `prepare-fleet-census.py --batch-selection` to hold every unselected candidate before requesting the canonical transaction’s read-only plan;
 3. retain only its exact plan ID, expiration, fingerprint, and exact file targets in the census;
 4. independently verify every held/excluded/candidate disposition;
-5. request owner approval for that immutable census ID only.
+5. request owner approval for that immutable census ID only;
+6. use one approved pilot batch first, then recollect and create a new exact plan and owner decision for the remaining fan-out batch.
 
 ## Owner-decision ceremony
 
 [`approve-fleet-census.py`](approve-fleet-census.py) records the owner’s decision without touching a fleet repository. It accepts only a schema-valid, semantically valid, unexpired `approval-ready` census whose global and row decisions are still pending and whose mutation authority is zero. The owner must explicitly supply the exact census ID, the `product-owner` actor, an `approved` or `rejected` decision, and a separate selection JSON file. There is no wildcard, inferred selection, or default-all option.
+
+Batch selection happens before planning, never during approval. The required `--batch-selection` file is bound to the provisional census ID and contains a nonempty, sorted list of exact repository identity/path pairs. Every candidate outside that list becomes an `owner-batch-deferred` hold before the plan is requested. This makes the resulting private plan indivisible and safe: the pilot and the later fan-out always use separate fresh plans, censuses, and owner decisions.
 
 The selection JSON repeats the reviewed census ID and its single canonical plan identity. Every selected repository record must contain the exact repository identity, exact absolute repository path, and the complete sorted target list copied from that repository’s plan:
 
@@ -107,7 +110,7 @@ The selection JSON repeats the reviewed census ID and its single canonical plan 
 }
 ```
 
-For `approved`, the explicit nonempty selection is the complete authorized mutation subset; every unselected candidate and every canonical-no-change row is recorded as rejected and ineligible. For `rejected`, the selection must explicitly enumerate every canonical-reconcile candidate and its exact targets, proving which complete proposal the owner rejected. Held, excluded, ambiguous, dirty, customized, non-canonical, and exact Hermes rows can never be selected.
+For `approved` or `rejected`, the explicit selection must enumerate every canonical-reconcile candidate and its exact targets because the underlying canonical plan is one indivisible batch. A partial selection is never executable authority. To approve only some candidates, first regenerate a fresh plan whose request contains only those intended repositories, then review and approve that new exact census and plan. Every canonical-no-change row is recorded as rejected and ineligible. Held, excluded, ambiguous, dirty, customized, non-canonical, and exact Hermes rows can never be selected.
 
 Run the command only after independent QA confirms the plan remains unexpired:
 

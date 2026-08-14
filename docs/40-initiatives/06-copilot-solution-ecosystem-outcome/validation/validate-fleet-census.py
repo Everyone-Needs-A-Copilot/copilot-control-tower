@@ -322,6 +322,13 @@ def semantic_errors(payload: dict[str, Any], *, now_utc: datetime | None = None)
             errors.append("$.approval: approval is not bound to census identity")
         if any(row.get("approval_status") == "pending" for row in repositories):
             errors.append("$.repositories: globally approved census has pending rows")
+        if (
+            summary.get("approved") != summary.get("candidate")
+            or summary.get("authorized_mutations") != summary.get("candidate")
+        ):
+            errors.append(
+                "$.approval: approved authority must cover the complete canonical batch plan"
+            )
     elif approval.get("approved_census_id") is not None:
         errors.append("$.approval: unapproved census carries approved identity")
     return errors

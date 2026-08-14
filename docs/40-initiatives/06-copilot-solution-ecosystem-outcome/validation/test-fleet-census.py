@@ -420,6 +420,137 @@ class FleetCensusSemanticTests(unittest.TestCase):
         self.assertEqual(held["proposed_operation"]["kind"], "hold")
         self.assertEqual(held["exclusions"][-1]["code"], "canonical-route-excluded")
 
+    def test_preplan_batch_selection_holds_every_unselected_candidate(self) -> None:
+        report = json.loads((ROOT / "provisional-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidates = [
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        ]
+        selected = sorted(candidates[:2], key=lambda row: row["repo_path"])
+        batched = preparer.select_batch(
+            report,
+            {
+                "census_id": report["census_id"],
+                "repositories": [
+                    {
+                        "repo_identity": row["repo_identity"],
+                        "repo_path": row["repo_path"],
+                    }
+                    for row in selected
+                ],
+            },
+        )
+        selected_identities = {row["repo_identity"] for row in selected}
+        candidate_identities = {row["repo_identity"] for row in candidates}
+        self.assertEqual(
+            {row["repo_identity"] for row in preparer.selected_rows(batched)},
+            selected_identities,
+        )
+        for row in batched["repositories"]:
+            if row["repo_identity"] in selected_identities:
+                self.assertEqual(row["proposed_operation"]["kind"], "canonical-reconcile")
+            elif row["repo_identity"] in candidate_identities:
+                self.assertEqual(row["proposed_operation"], {"kind": "hold", "plan": None})
+                self.assertTrue(any(item["code"] == "owner-batch-deferred" for item in row["exclusions"]))
+
+    def test_preplan_batch_selection_rejects_unbound_unsafe_or_duplicate_rows(self) -> None:
+        report = json.loads((ROOT / "provisional-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidate = next(
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        )
+
+        def selection(row: dict) -> dict:
+            return {
+                "census_id": report["census_id"],
+                "repositories": [
+                    {
+                        "repo_identity": row["repo_identity"],
+                        "repo_path": row["repo_path"],
+                    }
+                ],
+            }
+
+        wrong_census = selection(candidate)
+        wrong_census["census_id"] = "sha256:" + "0" * 64
+        with self.assertRaisesRegex(ValueError, "provisional census identity"):
+            preparer.select_batch(report, wrong_census)
+        wrong_path = selection(candidate)
+        wrong_path["repositories"][0]["repo_path"] += "-other"
+        with self.assertRaisesRegex(ValueError, "identity/path binding"):
+            preparer.select_batch(report, wrong_path)
+        held = next(
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] in {"hold", "none"}
+        )
+        with self.assertRaisesRegex(ValueError, "held, excluded, or unknown"):
+            preparer.select_batch(report, selection(held))
+        duplicate = selection(candidate)
+        duplicate["repositories"].append(copy.deepcopy(duplicate["repositories"][0]))
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            preparer.select_batch(report, duplicate)
+
+    def test_preplan_batch_selection_independently_denies_forged_hermes_or_dirty_candidates(self) -> None:
+        baseline = json.loads((ROOT / "provisional-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        forged_hermes = copy.deepcopy(baseline)
+        hermes = next(
+            row
+            for row in forged_hermes["repositories"]
+            if row["repo_path"] == "/Volumes/Dev/Sites/TSM/_archive/h1"
+        )
+        hermes["repo_class"] = "PRODUCT"
+        hermes["tier_role"] = "none"
+        hermes["exclusions"] = []
+        hermes["workspace_state"] = {
+            "git": "clean",
+            "dirty_entry_count": 0,
+            "customization": "not-detected",
+            "missing_managed_count": 0,
+            "mismatched_managed_count": 0,
+            "ambiguity": False,
+            "ambiguity_reasons": [],
+        }
+        hermes["proposed_operation"] = {"kind": "canonical-reconcile", "plan": None}
+        hermes["repo_identity"] = preparer.digest(["repository", hermes["repo_path"]])
+        with self.assertRaisesRegex(ValueError, "held, excluded, or unknown"):
+            preparer.select_batch(
+                forged_hermes,
+                {
+                    "census_id": forged_hermes["census_id"],
+                    "repositories": [
+                        {
+                            "repo_identity": hermes["repo_identity"],
+                            "repo_path": hermes["repo_path"],
+                        }
+                    ],
+                },
+            )
+
+        forged_dirty = copy.deepcopy(baseline)
+        dirty = next(
+            row
+            for row in forged_dirty["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        )
+        dirty["workspace_state"]["git"] = "dirty"
+        dirty["workspace_state"]["dirty_entry_count"] = 1
+        with self.assertRaisesRegex(ValueError, "held, excluded, or unknown"):
+            preparer.select_batch(
+                forged_dirty,
+                {
+                    "census_id": forged_dirty["census_id"],
+                    "repositories": [
+                        {
+                            "repo_identity": dirty["repo_identity"],
+                            "repo_path": dirty["repo_path"],
+                        }
+                    ],
+                },
+            )
+
     def test_approval_ready_plan_expiration_is_checked_against_one_captured_time(self) -> None:
         report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
         before_expiration = datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc)
@@ -573,13 +704,12 @@ class FleetCensusSemanticTests(unittest.TestCase):
     def test_owner_decision_preserves_exact_approval_ready_census_identity(self) -> None:
         report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
         approval_ready_id = report["census_id"]
-        candidate = next(row for row in report["repositories"] if row["proposed_operation"]["kind"] == "canonical-reconcile")
         for row in report["repositories"]:
-            row["approval_status"] = "rejected"
-        candidate["approval_status"] = "approved"
-        candidate["eligible"] = True
-        report["summary"]["approved"] = 1
-        report["summary"]["authorized_mutations"] = 1
+            authorized = row["proposed_operation"]["kind"] == "canonical-reconcile"
+            row["approval_status"] = "approved" if authorized else "rejected"
+            row["eligible"] = authorized
+        report["summary"]["approved"] = report["summary"]["candidate"]
+        report["summary"]["authorized_mutations"] = report["summary"]["candidate"]
         report["approval"] = {
             "status": "approved",
             "responsible_actor": "product-owner",
@@ -596,14 +726,14 @@ class FleetCensusSemanticTests(unittest.TestCase):
             [],
         )
 
-    def test_approval_command_authorizes_only_one_explicit_exact_selection(self) -> None:
+    def test_approval_command_authorizes_the_complete_explicit_batch_plan(self) -> None:
         report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
-        candidate = next(
+        candidates = [
             row
             for row in report["repositories"]
             if row["proposed_operation"]["kind"] == "canonical-reconcile"
-        )
-        selection = self.owner_selection(report, [candidate])
+        ]
+        selection = self.owner_selection(report, candidates)
         result = approver.decide(
             report,
             selection,
@@ -616,11 +746,14 @@ class FleetCensusSemanticTests(unittest.TestCase):
         approved = [
             row for row in result["repositories"] if row["approval_status"] == "approved"
         ]
-        self.assertEqual([row["repo_identity"] for row in approved], [candidate["repo_identity"]])
+        self.assertEqual(
+            [row["repo_identity"] for row in approved],
+            [row["repo_identity"] for row in candidates],
+        )
         self.assertEqual(result["census_id"], report["census_id"])
         self.assertEqual(result["approval"]["approved_census_id"], report["census_id"])
-        self.assertEqual(result["summary"]["approved"], 1)
-        self.assertEqual(result["summary"]["authorized_mutations"], 1)
+        self.assertEqual(result["summary"]["approved"], len(candidates))
+        self.assertEqual(result["summary"]["authorized_mutations"], len(candidates))
         self.assertTrue(
             all(
                 not row["eligible"] and row["approval_status"] == "rejected"
@@ -635,6 +768,52 @@ class FleetCensusSemanticTests(unittest.TestCase):
                 now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
             ),
             [],
+        )
+
+    def test_approval_command_rejects_a_subset_of_the_batch_plan(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidates = [
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        ]
+        with self.assertRaisesRegex(ValueError, "complete batch plan"):
+            approver.decide(
+                report,
+                self.owner_selection(report, candidates[:-1]),
+                self.schema,
+                census_id=report["census_id"],
+                actor="product-owner",
+                decision="approved",
+                now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+            )
+
+    def test_validator_rejects_handcrafted_partial_batch_authority(self) -> None:
+        report = json.loads((ROOT / "approval-ready-fleet-census-2026-08-14.json").read_text(encoding="utf-8"))
+        candidate = next(
+            row
+            for row in report["repositories"]
+            if row["proposed_operation"]["kind"] == "canonical-reconcile"
+        )
+        for row in report["repositories"]:
+            row["approval_status"] = "rejected"
+        candidate["approval_status"] = "approved"
+        candidate["eligible"] = True
+        report["summary"]["approved"] = 1
+        report["summary"]["authorized_mutations"] = 1
+        report["approval"] = {
+            "status": "approved",
+            "responsible_actor": "product-owner",
+            "requested_at": report["observed_at"],
+            "approved_census_id": report["census_id"],
+        }
+        self.assertIn(
+            "$.approval: approved authority must cover the complete canonical batch plan",
+            validator.validate(
+                report,
+                self.schema,
+                now_utc=datetime(2026, 8, 14, 19, 0, tzinfo=timezone.utc),
+            ),
         )
 
     def test_rejection_requires_and_records_the_complete_explicit_proposal(self) -> None:
@@ -726,16 +905,11 @@ class FleetCensusSemanticTests(unittest.TestCase):
             "approved_census_id": authorized["census_id"],
         }
         for row in authorized["repositories"]:
-            row["approval_status"] = "rejected"
-        authorized_candidate = next(
-            row
-            for row in authorized["repositories"]
-            if row["repo_identity"] == candidate["repo_identity"]
-        )
-        authorized_candidate["approval_status"] = "approved"
-        authorized_candidate["eligible"] = True
-        authorized["summary"]["approved"] = 1
-        authorized["summary"]["authorized_mutations"] = 1
+            row_authorized = row["proposed_operation"]["kind"] == "canonical-reconcile"
+            row["approval_status"] = "approved" if row_authorized else "rejected"
+            row["eligible"] = row_authorized
+        authorized["summary"]["approved"] = authorized["summary"]["candidate"]
+        authorized["summary"]["authorized_mutations"] = authorized["summary"]["candidate"]
         with self.assertRaisesRegex(ValueError, "hidden or prior mutation authority"):
             approver.decide(
                 authorized,
