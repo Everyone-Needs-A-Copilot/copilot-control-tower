@@ -29,6 +29,8 @@ The census assets prepare TASK-300’s owner-approval gate without changing any 
 - structured census exclusions, their source, and a plain reason;
 - the responsible actor, proposed operation, exact target paths, and approval status.
 
+Owner-policy exclusions are supplied as repeated exact `--owner-exclusion` paths. The collector rejects wildcards and rejects an exclusion path that is absent from classification, so a misspelling cannot silently place a protected repository back into scope. The current company policy excludes Hermes from company-wide ecosystem mutation.
+
 The census does not replace conformance’s global exception schema. Its exclusions answer only whether an exact repository may enter a later fleet operation. A conformance failure still belongs to the conformance report and its reviewed exception mechanism.
 
 Approval status is a closed `pending`, `approved`, or `rejected` enum. Every row in a provisional report is `pending`, ineligible, and plan-free, so a provisional census always grants zero mutation authority. An approval-ready row must eventually carry the immutable census ID, canonical plan ID, and exact target paths produced by the canonical transaction. A wildcard, directory family, repository glob, or stream-plan brace expansion is never mutation authority.
@@ -44,6 +46,7 @@ python3 collect-fleet-census.py \
   --projects-root /Volumes/Dev/Sites \
   --classification /Volumes/Dev/Sites/COPILOT/claude-copilot/tools/cc/classification.toml \
   --entitlement-ledger <machine-local-entitlement-ledger> \
+  --owner-exclusion /Volumes/Dev/Sites/TSM/hermes \
   --dependency TASK-281=completed \
   --dependency TASK-295=completed \
   --dependency TASK-297=in_progress \

@@ -264,6 +264,24 @@ class FleetCensusSemanticTests(unittest.TestCase):
         rendered = json.dumps({"claude": claude, "codex": codex})
         self.assertNotIn("private", rendered)
 
+    def test_exact_owner_exclusion_is_non_mutating_and_content_free(self) -> None:
+        repo = Path("/Volumes/Dev/Sites/TSM/hermes")
+        exclusion = collector.owner_exclusion(repo, {repo})
+        self.assertEqual(
+            exclusion,
+            {
+                "code": "owner-policy-exclusion",
+                "source": "owner-policy",
+                "reason": collector.OWNER_EXCLUSION_REASON,
+            },
+        )
+        self.assertIsNone(
+            collector.owner_exclusion(
+                Path("/Volumes/Dev/Sites/COPILOT/example"),
+                {repo},
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

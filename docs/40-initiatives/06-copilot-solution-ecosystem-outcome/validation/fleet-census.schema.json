@@ -89,7 +89,7 @@
     },
     "exclusion": {
       "type": "object", "additionalProperties": false, "required": ["code", "source", "reason"],
-      "properties": { "code": { "type": "string", "pattern": "^[a-z0-9-]+$" }, "source": { "enum": ["classification", "census-safety"] }, "reason": { "type": "string", "minLength": 1 } }
+      "properties": { "code": { "type": "string", "pattern": "^[a-z0-9-]+$" }, "source": { "enum": ["classification", "census-safety", "owner-policy"] }, "reason": { "type": "string", "minLength": 1 } }
     },
     "workspaceState": {
       "type": "object", "additionalProperties": false,

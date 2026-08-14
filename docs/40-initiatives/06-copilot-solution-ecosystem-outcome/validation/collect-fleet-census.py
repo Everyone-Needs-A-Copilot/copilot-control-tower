@@ -26,6 +26,7 @@ WILDCARD_CHARACTERS = frozenset("*?[]{}")
 SUPPORTED_CLASSES = frozenset({"PRODUCT", "SITE-CONTENT"})
 COMPONENT_FAMILIES = ("claude", "codex", "cli", "knowledge")
 PROTECTED_ROLES = ("organization", "department")
+OWNER_EXCLUSION_REASON = "The product owner explicitly excluded this exact repository from company-wide ecosystem mutation."
 
 
 def exact_path(value: str | Path) -> Path:
@@ -345,10 +346,21 @@ def parse_dependency(value: str) -> dict[str, Any]:
     return {"task": task, "status": status, "required_for_approval": True}
 
 
+def owner_exclusion(repo: Path, excluded_repositories: set[Path]) -> dict[str, str] | None:
+    if repo not in excluded_repositories:
+        return None
+    return {
+        "code": "owner-policy-exclusion",
+        "source": "owner-policy",
+        "reason": OWNER_EXCLUSION_REASON,
+    }
+
+
 def collect(args: argparse.Namespace) -> dict[str, Any]:
     projects_root = exact_path(args.projects_root)
     classification_path = exact_path(args.classification)
     ledger_path = exact_path(args.entitlement_ledger) if args.entitlement_ledger else None
+    excluded_repositories = {exact_path(value) for value in args.owner_exclusion}
     dependencies = sorted((parse_dependency(value) for value in args.dependency), key=lambda item: item["task"])
     dependency_pending = any(item["required_for_approval"] and item["status"] != "completed" for item in dependencies)
     with classification_path.open("rb") as handle:
@@ -376,6 +388,9 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
         ambiguity = sorted(set(ambiguity + lock_ambiguity + checksum_ambiguity))
         families = component_family(repo) if repo_class == "COMPONENT" else installed_families(repo, lock)
         exclusions: list[dict[str, str]] = []
+        explicit_exclusion = owner_exclusion(repo, excluded_repositories)
+        if explicit_exclusion:
+            exclusions.append(explicit_exclusion)
         if repo_class == "COMPONENT":
             exclusions.append({"code": "component-authoring-tree", "source": "classification", "reason": "Tier/component authoring trees are outside project fan-out."})
         elif repo_class not in SUPPORTED_CLASSES:
@@ -388,10 +403,10 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
             exclusions.append({"code": "customized-managed-content", "source": "census-safety", "reason": "Framework-tracked bytes differ from the recorded checksum and require person review."})
         if ambiguity:
             exclusions.append({"code": "ambiguous-state", "source": "census-safety", "reason": "The collector could not prove a safe deterministic project state."})
-        classification_excluded = any(
-            item["source"] == "classification" for item in exclusions
+        scope_excluded = any(
+            item["source"] in {"classification", "owner-policy"} for item in exclusions
         )
-        if classification_excluded:
+        if scope_excluded:
             proposed_kind = "none"
             actor = "none"
             reason = "; ".join(item["reason"] for item in exclusions)
@@ -441,6 +456,10 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
                 "approval_status": "pending",
             }
         )
+    missing_exclusions = sorted(excluded_repositories - seen)
+    if missing_exclusions:
+        rendered = ", ".join(str(path) for path in missing_exclusions)
+        raise ValueError(f"owner exclusion is not present in classification: {rendered}")
     counts = Counter(
         "excluded" if row["proposed_operation"]["kind"] == "none" else "held" if row["proposed_operation"]["kind"] == "hold" else "candidate"
         for row in repositories
@@ -487,6 +506,7 @@ def main() -> int:
     parser.add_argument("--projects-root", required=True)
     parser.add_argument("--classification", required=True)
     parser.add_argument("--entitlement-ledger")
+    parser.add_argument("--owner-exclusion", action="append", default=[])
     parser.add_argument("--dependency", action="append", default=[])
     parser.add_argument("--observed-at", required=True)
     parser.add_argument("--output")
