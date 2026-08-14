@@ -1,7 +1,8 @@
 # Phase 2 — Integration and QA plan
 
-Date: 2026-08-12
-Execution record: PRD-23, parent TASK-278
+> **Scope update, 2026-08-14:** [ADR-010](../decisions/adr-010-technical-ecosystem-first.md) removes non-technical participant and app proof from Initiative 06 completion. Use the [Phase 5 plan](phase-5-technical-ecosystem-completion-plan.md) for the active technical scenario and evidence contract. This plan remains authoritative for component, integration, security, fleet, clean-environment, and provenance gates where it does not conflict with that decision.
+
+Date: 2026-08-12 Execution record: PRD-23, parent TASK-278
 
 ## Purpose
 

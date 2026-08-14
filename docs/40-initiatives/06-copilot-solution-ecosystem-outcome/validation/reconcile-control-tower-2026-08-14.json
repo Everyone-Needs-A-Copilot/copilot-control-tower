@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "roots": [
+    "/Volumes/Dev/Sites"
+  ],
+  "projects": [
+    {
+      "path": "/Volumes/Dev/Sites/COPILOT/copilot-control-tower",
+      "components": [
+        "claude",
+        "codex"
+      ]
+    }
+  ]
+}

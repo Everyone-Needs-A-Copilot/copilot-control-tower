@@ -1,16 +1,10 @@
 # Phase 3 — Security boundary and abuse-case plan
 
-Date: 2026-08-12
-Execution record: PRD-23, parent TASK-278
+> **Scope update, 2026-08-14:** [ADR-010](../decisions/adr-010-technical-ecosystem-first.md) keeps every framework, content, entitlement, evaluation, project-ownership, and fleet boundary here, but app and non-technical participant evidence are outside Initiative 06. [ADR-011](../decisions/adr-011-solo-owner-repository-governance.md) also replaces universal independent-human-review assumptions with the solo-owner default and repository-specific exceptions.
 
-Scope note, 2026-08-13: PRD-23 retains every framework/content/entitlement/
-evaluation/fleet boundary in this plan. Control Tower signing, publisher first
-trust, watchdog, packaging, and app-install boundaries moved without waiver to
-PRD-24/TASK-301 and its independent app-security TASK-302. The transferred
-boundaries and abuse cases are authoritative in the
-[app release PRD](../tracks/control-tower-app-release-prd.md), not in the
-TASK-291 verdict contract below.
-Security review task: TASK-291
+Date: 2026-08-12 Execution record: PRD-23, parent TASK-278
+
+Scope note, 2026-08-13: PRD-23 retains every framework/content/entitlement/ evaluation/fleet boundary in this plan. Control Tower signing, publisher first trust, watchdog, packaging, and app-install boundaries moved without waiver to PRD-24/TASK-301 and its independent app-security TASK-302. The transferred boundaries and abuse cases are authoritative in the [app release PRD](../tracks/control-tower-app-release-prd.md), not in the TASK-291 verdict contract below. Security review task: TASK-291
 
 ## Security objective
 
@@ -42,9 +36,7 @@ The ecosystem must be safer than a person manually copying and updating executab
 
 ### AB-01 — Personal content is promoted into an organization or department repository
 
-Exploit path: a shared authoring or fan-out command uses one tree/remote for every layer, or a content agent copies personal context into an organization extension.
-Impact: irreversible privacy breach and loss of organizational trust.
-Controls:
+Exploit path: a shared authoring or fan-out command uses one tree/remote for every layer, or a content agent copies personal context into an organization extension. Impact: irreversible privacy breach and loss of organizational trust. Controls:
 
 - separate source trees and remotes per layer;
 - no shared push credential on personal/background paths;
@@ -57,9 +49,7 @@ Required proof: negative cross-tier write test, credential/path inspection, shar
 
 ### AB-02 — A secret value enters inherited content or evidence
 
-Exploit path: token-bearing URL, PEM, API key, `.env` value, or command output is added to a repo, lock, test fixture, task WP, or model-evaluation artifact.
-Impact: credential compromise across every entitled clone and history.
-Controls:
+Exploit path: token-bearing URL, PEM, API key, `.env` value, or command output is added to a repo, lock, test fixture, task WP, or model-evaluation artifact. Impact: credential compromise across every entitled clone and history. Controls:
 
 - references only in manifests/content;
 - fail-closed secret scanning before shared writes;
@@ -73,9 +63,7 @@ Current triggered case: TASK-293 tracks removal and history/exposure assessment 
 
 ### AB-03 — Lock attribution claims a source that did not materialize
 
-Exploit path: resolver winner and lock writer use different item identities or destinations, allowing a declared personal/organization source to appear without matching disk content.
-Impact: false provenance and unreviewed executable behavior.
-Controls:
+Exploit path: resolver winner and lock writer use different item identities or destinations, allowing a declared personal/organization source to appear without matching disk content. Impact: false provenance and unreviewed executable behavior. Controls:
 
 - canonical transaction owns materialization and lock generation;
 - item identity includes source layer, immutable ref, content hash, and destination;
@@ -86,9 +74,7 @@ Required proof: zero live E-4 failures, tampered lock/disk fixtures fail, clean/
 
 ### AB-04 — Materialization damages human-owned work
 
-Exploit path: reset/rebase/delete/overwrite, symlink target escape, whole-file rewrite, or a “repair” action treats an authoring/project tree as disposable.
-Impact: data loss, accidental push, and loss of confidence in unattended operation.
-Controls:
+Exploit path: reset/rebase/delete/overwrite, symlink target escape, whole-file rewrite, or a “repair” action treats an authoring/project tree as disposable. Impact: data loss, accidental push, and loss of confidence in unattended operation. Controls:
 
 - deterministic preflight before first irreversible write;
 - explicit managed/disposable versus human-owned classification;
@@ -101,9 +87,7 @@ Required proof: dirty tracked/untracked/staged fixtures, symlink escape fixture,
 
 ### AB-05 — An untrusted release or ref becomes executable-adjacent material
 
-Exploit path: mutable branch, unsigned/mis-signed tag, wrong signer, tree missing the claimed path, moved tag, or user-configurable trust root.
-Impact: supply-chain compromise.
-Controls:
+Exploit path: mutable branch, unsigned/mis-signed tag, wrong signer, tree missing the claimed path, moved tag, or user-configurable trust root. Impact: supply-chain compromise. Controls:
 
 - version-controlled framework trust roots and signed inherited policy only;
 - signed tag verification plus exact tree-path existence;
@@ -115,9 +99,7 @@ Required proof: bad signer, unsigned tag, missing path, mutable ref, missing fie
 
 ### AB-06 — Entitlement is inferred rather than proved
 
-Exploit path: cached repository presence or stale prior access is treated as current permission; layer content remains active after access is revoked.
-Impact: unauthorized company/department knowledge remains in active use.
-Controls:
+Exploit path: cached repository presence or stale prior access is treated as current permission; layer content remains active after access is revoked. Impact: unauthorized company/department knowledge remains in active use. Controls:
 
 - GitHub repository access remains authoritative;
 - offline becomes honest unknown/holding, not assumed entitlement;
@@ -127,16 +109,11 @@ Controls:
 
 Required proof: unentitled/revoked/offline fixtures produce distinct evidence-backed states; no false ready.
 
-Former AB-07 (Control Tower as a second resolver) and AB-08 (crash
-supervision) moved intact to PRD-24 as APP-AB-01 and APP-AB-02. They are not
-TASK-291 framework gates. Their removal here does not waive them; TASK-302 owns
-their exact-candidate security verdict and TASK-289 owns installed behavior.
+Former AB-07 (Control Tower as a second resolver) and AB-08 (crash supervision) moved intact to PRD-24 as APP-AB-01 and APP-AB-02. They are not TASK-291 framework gates. Their removal here does not waive them; TASK-302 owns their exact-candidate security verdict and TASK-289 owns installed behavior.
 
 ### AB-09 — Optional integration failure rejects all solution work
 
-Exploit path: notification, Discord, documentation cache, or other optional transport exits non-zero in a required hook path.
-Impact: a peripheral outage disables every prompt or workflow.
-Controls:
+Exploit path: notification, Discord, documentation cache, or other optional transport exits non-zero in a required hook path. Impact: a peripheral outage disables every prompt or workflow. Controls:
 
 - optional transports fail open;
 - security enforcement remains mandatory and separate;
@@ -146,9 +123,7 @@ Required proof: transport failure fixture leaves core protocol usable and record
 
 ### AB-10 — Behavioral evaluation leaks data or manufactures effectiveness
 
-Exploit path: prompts include confidential or personal material beyond scope; model outputs are selectively retained; a synthetic marker or evaluator preference is reported as outcome proof.
-Impact: privacy breach and false product claim.
-Controls:
+Exploit path: prompts include confidential or personal material beyond scope; model outputs are selectively retained; a synthetic marker or evaluator preference is reported as outcome proof. Impact: privacy breach and false product claim. Controls:
 
 - versioned, sanitized realistic fixtures;
 - foundation-only and layered controls;
@@ -161,9 +136,7 @@ Required proof: artifact inventory, sanitization check, repeatable evaluation co
 
 ### AB-11 — Parallel delivery changes the wrong repository or hides active work
 
-Exploit path: overlapping agents edit the same files, fan-out touches active repos, or integration overwrites another agent's/user's changes.
-Impact: lost work, unreviewable diffs, accidental broad mutation.
-Controls:
+Exploit path: overlapping agents edit the same files, fan-out touches active repos, or integration overwrites another agent's/user's changes. Impact: lost work, unreviewable diffs, accidental broad mutation. Controls:
 
 - validated disjoint stream ownership;
 - task and stream identity in every handoff;
@@ -192,13 +165,4 @@ Required proof: stream validator pass, task file metadata, clean conflict check 
 
 ## Independent review verdict contract
 
-TASK-291 may approve only when every high-impact PRD-23 framework abuse case
-has a concrete implemented control and failable artifact against the exact
-content, signer policy, pins, entitlement behavior, evaluation artifacts,
-locks, and approved census. It must reject completion if personal/shared
-separation, trusted-ref and source/lock truth, never-destroy behavior,
-fail-closed entitlement, evaluation privacy, or fleet mutation safety is
-asserted only by prose. Control Tower rendering, compiled app trust,
-publisher-first-trust, packaging, clean-Quit, crash restart, app installation,
-and second-Mac proof are excluded from TASK-291 and remain mandatory under
-PRD-24/TASK-302/TASK-289.
+TASK-291 may approve only when every high-impact PRD-23 framework abuse case has a concrete implemented control and failable artifact against the exact content, signer policy, pins, entitlement behavior, evaluation artifacts, locks, and approved census. It must reject completion if personal/shared separation, trusted-ref and source/lock truth, never-destroy behavior, fail-closed entitlement, evaluation privacy, or fleet mutation safety is asserted only by prose. Control Tower rendering, compiled app trust, publisher-first-trust, packaging, clean-Quit, crash restart, app installation, and second-Mac proof are excluded from TASK-291 and remain mandatory under PRD-24/TASK-302/TASK-289.

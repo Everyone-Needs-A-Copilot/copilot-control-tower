@@ -1,31 +1,29 @@
 ---
 initiative: 06-copilot-solution-ecosystem-outcome
-title: Copilot Solution Ecosystem — From Conformance to Proven Solution Creation
+title: Copilot Solution Ecosystem — Technical Readiness for Owner Dogfooding
 status: active
-status_note: The active delivery graph is framework-only. App release and installation work moved intact to owner-deferred PRD-24, so Apple packaging no longer blocks framework content, routing, evaluation, security, fleet, or human-outcome proof.
+status_note: The active delivery graph proves the technical ecosystem through Claude Code and Codex. Control Tower, non-technical participant validation, and long-term dogfooding are future work and do not block Initiative 06.
 owner: Pablo Alejo
 created: 2026-08-12
 execution_context:
   prd: PRD-23
-  tasks: TASK-278 framework parent; TASK-279 through TASK-300 plus TASK-303 framework graph; app tasks are tracked under PRD-24/TASK-301
+  tasks: TASK-278 technical-ecosystem parent; TASK-279 through TASK-300 plus TASK-303, TASK-306, and TASK-307; app tasks remain under PRD-24/TASK-301
 superseded_by: null
 ---
 
-# Copilot Solution Ecosystem — From Conformance to Proven Solution Creation
+# Copilot Solution Ecosystem — Technical Readiness for Owner Dogfooding
 
-> Mode: Initiative
-> Status: Active
-> Source evidence: Initiative 05 audit and live `cc conformance`
+> Mode: Initiative Status: Active Source evidence: Initiative 05 audit and live `cc conformance`
 
 ## Goal
 
 Give every person access to a trustworthy, company-aware, multidisciplinary solution team—one that helps them turn real problems into working solutions without requiring technical expertise, while safely carrying the organization's accumulated knowledge and capabilities to them.
 
-The ultimate goal is democratizing high-quality solution creation, not merely installing and maintaining a collection of copilots.
+That remains the long-term product goal. The active Initiative 06 objective is narrower and earlier in the sequence: make the underlying technical ecosystem released, complete, safe, scenario-proven, and ready for Pablo to use directly through Claude Code and Codex. Dogfooding will inform the later app and product experience.
 
 ## Scope
 
-This initiative closes the distance between a mechanically installed ecosystem and one that demonstrably improves the solutions people create. It covers:
+This initiative closes the distance between a mechanically installed candidate and one dependable technical ecosystem. It covers:
 
 - one canonical, complete Claude + Codex project-install transaction;
 - truthful, complete conformance and regression evidence;
@@ -33,7 +31,10 @@ This initiative closes the distance between a mechanically installed ecosystem a
 - Claude/Codex parity and specialist-extension coverage;
 - controlled behavioral evaluation of company- and department-specific outcomes;
 - personal-layer isolation and inherited-content security;
-- framework fleet remediation, clean-environment proof, and non-technical outcome validation;
+- realistic problem-to-solution scenario tests across Claude Code and Codex;
+- framework fleet remediation and clean-environment technical proof;
+- CLI Copilot capability boundaries and Task Copilot continuity;
+- solo-owner repository governance with repository-level exceptions;
 - durable documentation and Task Copilot provenance.
 
 ## Non-Goals
@@ -46,10 +47,9 @@ This initiative closes the distance between a mechanically installed ecosystem a
 - secrets in inherited content or Git repositories;
 - real-time inherited-content refresh;
 - reviving the deferred `repair` or `publish` verbs without a superseding ADR;
-- declaring general availability before cold-machine and non-technical-person evidence exists.
-- Control Tower packaging, publisher first trust, app publication, app installation,
-  app rollback, and app-specific cold-Mac proof; those requirements and all prior
-  evidence are preserved in [PRD-24's deferred app track](tracks/control-tower-app-release-prd.md).
+- declaring general availability or the full democratization goal achieved from technical readiness alone;
+- long-term dogfooding conclusions or non-technical participant validation;
+- Control Tower product design, source changes, packaging, publisher first trust, publication, installation, supervision, rollback, and app-specific cold-Mac proof; prior app work remains preserved in [PRD-24's deferred app track](tracks/control-tower-app-release-prd.md).
 
 ## Outcome contract
 
@@ -63,14 +63,22 @@ The initiative is complete only when all of the following are true:
 6. Controlled evaluations show attributable company-context, department-method, decision, and artifact differences in the intended direction without reducing foundation quality; they do not claim generalized solution quality.
 7. Personal content and credentials cannot move into shared layers; the proof includes negative leak fixtures.
 8. An approved framework/content change reaches the exact eligible fleet through the canonical `cc` path without touching dirty, unentitled, excluded, or ambiguous repositories.
-9. The framework journey succeeds in an isolated clean environment, and a real non-technical participant can use the already-provisioned workflow without Pablo acting as the synchronization layer.
+9. The complete technical journey succeeds in an isolated clean environment without Control Tower, publisher-machine caches, copied state, or manual repository wiring.
 10. The task, test, security, release, and provenance record is recoverable from the initiative and `tc`.
 11. Entitled, unentitled, offline, stale, and revoked access states fail safely and explain who can recover them.
-12. A representative problem actually flows through protocol routing, layered specialist context, bounded operational capabilities, and durable Task Copilot continuity.
+12. Representative problems flow through intake, routing, entitled assembly, application, artifact creation, preservation, fresh-session continuation, approved update, and recovery in Claude Code and Codex wherever supported.
+13. GitHub governance permits Pablo to authorize and merge non-Hermes work without an independent-review deadlock while preserving configured technical checks.
 
 ## Execution documents
 
-- [Current framework continuation handoff](handoff/2026-08-13-framework-continuation.md)
+- [Current technical completion plan](phases/phase-5-technical-ecosystem-completion-plan.md)
+- [Readable standalone HTML technical plan](phases/phase-5-technical-ecosystem-completion-plan.html)
+- [Current technical ecosystem continuation handoff](handoff/2026-08-14-technical-ecosystem-continuation.md)
+- [Technical-first scope decision](decisions/adr-010-technical-ecosystem-first.md)
+- [Solo-owner repository-governance decision](decisions/adr-011-solo-owner-repository-governance.md)
+- [GitHub governance audit](validation/github-governance-audit-2026-08-14.md)
+- [Superseded point-in-time ecosystem goal audit — 2026-08-14](2026-08-14-ecosystem-goal-audit.md)
+- [Superseded standalone HTML goal audit](2026-08-14-ecosystem-goal-audit.html)
 - [Goal-to-current-state gap analysis](phases/phase-0-goal-gap-analysis.md)
 - [Comprehensive outcome PRD](phases/phase-1-outcome-prd.md)
 - [Integration and QA plan](phases/phase-2-integration-and-qa-plan.md)
@@ -90,7 +98,7 @@ Task Copilot entry point: `tc task get 278 --json`. The first parallel wave is T
 
 TASK-294 records the trust work revealed during implementation: Codex organization and department plugins must be selected from signed immutable tier sources, materialized as verified atomic plugins, and represented in the canonical project lock with layer/ref/tree/signer provenance before parity or effectiveness can pass.
 
-TASK-295 through TASK-300 plus TASK-303 close the independent framework-review gaps: entitlement lifecycle, the real protocol/capabilities/Task Copilot journey, owner-approved signed content releases, framework security before fan-out, post-fan-out security, an explicit approved fleet census, and clean-environment proof. TASK-286/287/289/298 and their work products moved intact to PRD-24; TASK-302 is the future independent app-release security gate.
+TASK-295 through TASK-300 plus TASK-303 close entitlement lifecycle, the real protocol/capabilities/Task Copilot journey, signed content releases, framework security before fan-out, post-fan-out security, an explicit approved fleet census, and clean-environment proof. TASK-306 records the applied solo-owner governance change. TASK-307 owns the technical-first rebaseline. TASK-290 is future product validation and is not a TASK-292 dependency. TASK-286/287/289/298 and their work products remain under PRD-24; TASK-302 is the future app-release security gate.
 
 ## Validation contract
 
@@ -98,22 +106,16 @@ TASK-295 through TASK-300 plus TASK-303 close the independent framework-review g
 - the complete `claude-copilot/tools/cc` test suite
 - canonical-install round-trip and degraded-install recovery fixtures
 - controlled behavioral evaluation fixtures with and without nearer-tier content
+- realistic problem-to-solution, create, preserve, resume, update, and recovery scenarios in Claude Code and Codex
 - leak, entitlement, signature, lock-integrity, and symlink-escape tests
 - clean-home framework setup, materialization, routing, update, and continuity proof
-- observed non-technical framework-outcome acceptance against the journey rubric
 
-App build, signing, notarization, installation, rollback, and native-app gates are
-validated only when PRD-24 resumes; they are not waived or counted toward this
-initiative's framework verdict.
+App build, signing, notarization, installation, supervision, rollback, non-technical participant, and long-term dogfooding gates are future work. They are neither waived nor counted toward this initiative's technical-readiness verdict.
 
 ## Current summary
 
-The framework program has eight completed foundational tasks. The canonical transaction, conformance/full-mode truth, regression baseline, organization and accounting inputs, signed Codex source handling, and entitlement lifecycle have accepted bounded evidence. TASK-286 remains completed with its original QA/security evidence, but now belongs to PRD-24 and does not count as a framework completion gate.
+The [Phase 5 technical completion plan](phases/phase-5-technical-ecosystem-completion-plan.md) is the current decision and execution record. Its verdict is **active and incomplete**: the candidate is credible, but the released, fully resolved, scenario-proven technical ecosystem does not yet exist.
 
-Owner decisions are complete. Accounting has a signed sanitized root and `v1.0.0`; branch/tag protections are active, but GitHub Support must still purge the unreachable legacy object. Organization content is a signed exact-tree candidate behind required review. WP-850 now proves both exact content inputs through a disposable signed lifecycle fixture without claiming a hosted release.
+The installed runtime is exact framework PR #66 commit `3e5f129` / tree `9867955`, reports `cc 2.12.8`, and passes the no-cache disposable round trip 19/19. Hosted candidate checks are green. On 2026-08-14, the owner removed independent-approval requirements from all 51 non-Hermes ENAC repositories while preserving configured technical checks; the four Hermes repositories were untouched. Framework PR #66 and both content PRs now report clean merge state, but no merge was performed because Pablo did not name those pull requests for merge in that instruction.
 
-Control Tower work is intentionally not on the framework critical path. PRD-24 preserves the public-source transition, native enforcement, publisher-first-trust design, signing forensics, candidate work, QA/security verdicts, and remaining installation/release gates without claiming that the app is complete. The existing Developer ID Application identity is sufficient for app/DMG signing but not the selected Installer-package first-trust mechanism; that distinction has no bearing on whether the framework works.
-
-The local `cc` and Codex Copilot runtime is normalized to exact reviewed PR #66 commit `f3a3bc9` under WP-841/WP-844. TASK-296's deterministic journey contract at `dfaafbe` has QA WP-856 and security WP-857 approval, but production protocol/Knowledge/hook/Task Copilot wiring remains the immediate framework implementation step under WP-846.
-
-GitHub Actions remain temporarily disabled under WP-785. Framework PR review, CodeQL, provider purge, least-privilege confirmation, immutable content release, behavioral evaluation, approved fleet propagation, framework security, clean-environment proof, and observed nontechnical-person validation remain real gates. None was weakened by the app split. The paired [Markdown](retrospectives/2026-08-12-progress-evidence-review.md) and [designed HTML](retrospectives/2026-08-12-progress-evidence-review.html) reports contain the current evidence.
+The organization release is absent, live full conformance still reports six S0 failures, and behavioral effectiveness, approved fleet fan-out, integrated pre/post-fan-out security, and clean-environment proof remain open. Control Tower and observed long-term human outcomes are deliberately outside this initiative; Initiative 06 prepares the technical system Pablo will use to learn what those future layers need to become.

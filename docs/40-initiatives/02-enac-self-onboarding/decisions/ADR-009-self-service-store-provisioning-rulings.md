@@ -1,5 +1,7 @@
 # ADR-009 — Self-service store provisioning — B′ rulings ratified (2026-08-03)
 
+> **Partially superseded on 2026-08-14:** Initiative 06 [ADR-011](../../06-copilot-solution-ecosystem-outcome/decisions/adr-011-solo-owner-repository-governance.md) replaces Decision item 4 and its applied one-review branch-protection state. The other seven provisioning/security rulings remain accepted.
+
 Status: Accepted (owner-delegated ratification 2026-08-03)
 Date: 2026-08-03
 Task: `tc` 222 (WP-399, WP-400, WP-401)

@@ -1,12 +1,8 @@
 # Phase 1 — Copilot Solution Ecosystem outcome PRD
 
-Status: Active
-Date: 2026-08-12
-Product owner: Pablo Alejo
-Delivery owner: Codex
-Execution record: PRD-23, parent TASK-278, framework delivery TASK-279 through TASK-300 plus TASK-303
-App split: PRD-24, parent TASK-301; TASK-286/287/289/298 and all attached evidence retained there
-Source target: [Initiative 05 goal-driven audit](../../05-ecosystem-conformance-audit/retrospectives/2026-08-12-work-audit.md)
+> **Owner rebaseline, 2026-08-14:** [ADR-010](../decisions/adr-010-technical-ecosystem-first.md) and the [Phase 5 technical completion plan](phase-5-technical-ecosystem-completion-plan.md) are authoritative where this PRD requires a non-technical participant, long-term human proof, or Control Tower to complete Initiative 06. The active verdict is technical readiness for Pablo's direct dogfooding through Claude Code and Codex. The original long-term product goal is preserved as future validation.
+
+Status: Active Date: 2026-08-12 Product owner: Pablo Alejo Delivery owner: Codex Execution record: PRD-23, parent TASK-278, framework delivery TASK-279 through TASK-300 plus TASK-303 App split: PRD-24, parent TASK-301; TASK-286/287/289/298 and all attached evidence retained there Source target: [Initiative 05 goal-driven audit](../../05-ecosystem-conformance-audit/retrospectives/2026-08-12-work-audit.md)
 
 Current evidence snapshot: [2026-08-12 progress and acceptance-evidence review](../retrospectives/2026-08-12-progress-evidence-review.md). The initiative remains active. Owner decisions and several release mutations have occurred, but no final outcome claim is permitted while runtime and publisher-anchor security remain open, provider-side accounting purge and human reviews are incomplete, hosted CI is in maintenance mode, and evaluation/fleet/external validation are absent.
 
@@ -87,10 +83,7 @@ When the ecosystem changes, I want evidence that it is correct and effective wit
 - real-time sync;
 - automatic upward publishing or revival of deferred `repair`/`publish` without a new ADR;
 - claiming general availability before the external validation gates pass.
-- Control Tower source changes, native invariant enforcement, crash-only watchdog,
-  publisher first trust, signing/notarization, app publication, app installation,
-  rollback, and app-specific cold-Mac validation. Those requirements are preserved,
-  not waived, in [PRD-24](../tracks/control-tower-app-release-prd.md).
+- Control Tower source changes, native invariant enforcement, crash-only watchdog, publisher first trust, signing/notarization, app publication, app installation, rollback, and app-specific cold-Mac validation. Those requirements are preserved, not waived, in [PRD-24](../tracks/control-tower-app-release-prd.md).
 
 ## 6. Functional requirements
 
@@ -223,10 +216,7 @@ Status terms are evidence states, not percentages: **accepted stream gate** mean
 | AC-22 | Protocol, specialists, operational capabilities, and Task Copilot form one durable problem-to-solution journey. | **Approved contract; production pending.** WP-855 implements the deterministic journey contract; QA WP-856 and security WP-857 approve its provenance, fail-closed, persistence, concurrency, and disclosure boundaries. | Implement WP-846 production protocol/Knowledge/hook/continuation wiring, run live signed proof after TASK-297, and obtain final delta QA/security before TASK-284/285. |
 | AC-23 | Shared organization/accounting inputs are owner-approved, signed, pinned, and proven at the consumer. | **Active gate.** Owner decisions are recorded; the local runtime is normalized to reviewed PR #66 bytes under WP-841/WP-844; WP-850 proves both exact content inputs in an isolated signed lifecycle fixture. | Human reviews, CodeQL, GitHub Support purge, need-to-have access confirmation, protected signed tags/pins, and exact entitled consumer proof. |
 
-Former AC-14, AC-15, AC-16, and app-specific AC-18 remain intact as
-APP-AC-01 through APP-AC-04 in PRD-24. TASK-286's completed evidence and
-TASK-287/289/298's open state moved with those criteria. They are neither
-discarded nor required for PRD-23 completion.
+Former AC-14, AC-15, AC-16, and app-specific AC-18 remain intact as APP-AC-01 through APP-AC-04 in PRD-24. TASK-286's completed evidence and TASK-287/289/298's open state moved with those criteria. They are neither discarded nor required for PRD-23 completion.
 
 ## 9. Delivery phases
 
@@ -283,33 +273,23 @@ No stream may edit another stream's owned files. Cross-stream changes are handed
 
 ### ADR-P1 — Canonical transaction lives in `cc`
 
-Decision: the complete project transaction is a library-level `cc` capability. Shell commands and Codex scripts become thin adapters.
-Rejected: keeping multiple installers “in sync” with duplicate logic; defining correctness in Control Tower.
-Consequence: migration must preserve existing entry points while eliminating independent behavior.
+Decision: the complete project transaction is a library-level `cc` capability. Shell commands and Codex scripts become thin adapters. Rejected: keeping multiple installers “in sync” with duplicate logic; defining correctness in Control Tower. Consequence: migration must preserve existing entry points while eliminating independent behavior.
 
 ### ADR-P2 — Effectiveness evidence has structural and behavioral halves
 
-Decision: deterministic tests prove entitlement, resolution, materialization, locks, and prompt assembly; controlled evaluations assess resulting model behavior. Neither substitutes for the other.
-Rejected: claiming effectiveness from synthetic file markers; making stochastic output a release-blocking byte comparison.
-Consequence: behavioral evidence records context and rubric, while hard safety requirements remain deterministic gates.
+Decision: deterministic tests prove entitlement, resolution, materialization, locks, and prompt assembly; controlled evaluations assess resulting model behavior. Neither substitutes for the other. Rejected: claiming effectiveness from synthetic file markers; making stochastic output a release-blocking byte comparison. Consequence: behavioral evidence records context and rubric, while hard safety requirements remain deterministic gates.
 
 ### ADR-P3 — Content belongs at the narrowest stable layer
 
-Decision: foundation holds universal craft, organization holds durable ENAC intent, department holds accounting practice, personal holds Pablo-specific preference/private context.
-Rejected: copying foundation into nearer layers; putting personal voice or memory into organization content.
-Consequence: shared content is smaller, easier to audit, and less likely to shadow improvements.
+Decision: foundation holds universal craft, organization holds durable ENAC intent, department holds accounting practice, personal holds Pablo-specific preference/private context. Rejected: copying foundation into nearer layers; putting personal voice or memory into organization content. Consequence: shared content is smaller, easier to audit, and less likely to shadow improvements.
 
 ### ADR-P4 — Exceptions are evidence, not silence
 
-Decision: reviewed exclusions use structured metadata and emit one attributable result.
-Rejected: requiring empty registries; duplicating one global condition across every repo; treating exclusions as invisible.
-Consequence: the report stays honest without making intentional policy look like 76 independent defects.
+Decision: reviewed exclusions use structured metadata and emit one attributable result. Rejected: requiring empty registries; duplicating one global condition across every repo; treating exclusions as invisible. Consequence: the report stays honest without making intentional policy look like 76 independent defects.
 
 ### ADR-P5 — Framework completion is independent of its optional app witness
 
-Decision: PRD-23 is complete when the framework/content/routing/evaluation/fleet contract is proven. Control Tower may render that truth later, but app packaging and installation cannot establish or block framework correctness.
-Rejected: weakening app security to clear the framework graph; retaining app publication as a fleet prerequisite; discarding completed app evidence.
-Consequence: TASK-286/287/289/298 retain their IDs, status, dependencies, and WPs under PRD-24. Framework security remains mandatory in TASK-291, while TASK-302 owns future app-candidate security.
+Decision: PRD-23 is complete when the framework/content/routing/evaluation/fleet contract is proven. Control Tower may render that truth later, but app packaging and installation cannot establish or block framework correctness. Rejected: weakening app security to clear the framework graph; retaining app publication as a fleet prerequisite; discarding completed app evidence. Consequence: TASK-286/287/289/298 retain their IDs, status, dependencies, and WPs under PRD-24. Framework security remains mandatory in TASK-291, while TASK-302 owns future app-candidate security.
 
 ## 13. Risks and mitigations
 

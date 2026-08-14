@@ -1,0 +1,1915 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="A superseded point-in-time audit of the Copilot Solution Ecosystem before the 2026-08-14 technical-first scope and solo-owner governance decisions."
+    />
+    <title>Superseded — Initiative 06 Ecosystem Goal Audit</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --sans:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        --serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+        --mono:
+          ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+        --canvas: #f3f2ee;
+        --canvas-accent: #e6eaf4;
+        --surface: #ffffff;
+        --surface-soft: #f8f8f5;
+        --surface-tint: #edf0f8;
+        --ink: #17212b;
+        --ink-soft: #536171;
+        --ink-faint: #687587;
+        --line: #d9dee5;
+        --line-strong: #bdc7d2;
+        --navy: #123047;
+        --navy-2: #1b4c68;
+        --accent: #4357d6;
+        --accent-soft: #e8ebff;
+        --ok: #196b4b;
+        --ok-soft: #e5f4ec;
+        --warn: #8b5608;
+        --warn-soft: #fff2cf;
+        --risk: #9b2c3c;
+        --risk-soft: #fce8e9;
+        --unknown: #6650a8;
+        --unknown-soft: #eee9fb;
+        --shadow-sm:
+          0 1px 2px rgba(18, 48, 71, 0.05), 0 8px 24px rgba(18, 48, 71, 0.06);
+        --shadow-lg: 0 22px 70px rgba(18, 48, 71, 0.14);
+        --radius-sm: 10px;
+        --radius: 16px;
+        --radius-lg: 24px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --canvas: #0d1118;
+          --canvas-accent: #171d2b;
+          --surface: #151b24;
+          --surface-soft: #1a212b;
+          --surface-tint: #1e2637;
+          --ink: #eef2f6;
+          --ink-soft: #b0bac6;
+          --ink-faint: #909dad;
+          --line: #2c3542;
+          --line-strong: #465262;
+          --navy: #d8eaf5;
+          --navy-2: #97c7e2;
+          --accent: #91a2ff;
+          --accent-soft: #26305f;
+          --ok: #77d5a0;
+          --ok-soft: #163a2a;
+          --warn: #ffc16f;
+          --warn-soft: #49331c;
+          --risk: #ff969e;
+          --risk-soft: #4b252c;
+          --unknown: #c1adff;
+          --unknown-soft: #332b52;
+          --shadow-sm:
+            0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.22);
+          --shadow-lg: 0 24px 74px rgba(0, 0, 0, 0.44);
+        }
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --canvas: #f3f2ee;
+        --canvas-accent: #e6eaf4;
+        --surface: #ffffff;
+        --surface-soft: #f8f8f5;
+        --surface-tint: #edf0f8;
+        --ink: #17212b;
+        --ink-soft: #536171;
+        --ink-faint: #687587;
+        --line: #d9dee5;
+        --line-strong: #bdc7d2;
+        --navy: #123047;
+        --navy-2: #1b4c68;
+        --accent: #4357d6;
+        --accent-soft: #e8ebff;
+        --ok: #196b4b;
+        --ok-soft: #e5f4ec;
+        --warn: #8b5608;
+        --warn-soft: #fff2cf;
+        --risk: #9b2c3c;
+        --risk-soft: #fce8e9;
+        --unknown: #6650a8;
+        --unknown-soft: #eee9fb;
+        --shadow-sm:
+          0 1px 2px rgba(18, 48, 71, 0.05), 0 8px 24px rgba(18, 48, 71, 0.06);
+        --shadow-lg: 0 22px 70px rgba(18, 48, 71, 0.14);
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --canvas: #0d1118;
+        --canvas-accent: #171d2b;
+        --surface: #151b24;
+        --surface-soft: #1a212b;
+        --surface-tint: #1e2637;
+        --ink: #eef2f6;
+        --ink-soft: #b0bac6;
+        --ink-faint: #909dad;
+        --line: #2c3542;
+        --line-strong: #465262;
+        --navy: #d8eaf5;
+        --navy-2: #97c7e2;
+        --accent: #91a2ff;
+        --accent-soft: #26305f;
+        --ok: #77d5a0;
+        --ok-soft: #163a2a;
+        --warn: #ffc16f;
+        --warn-soft: #49331c;
+        --risk: #ff969e;
+        --risk-soft: #4b252c;
+        --unknown: #c1adff;
+        --unknown-soft: #332b52;
+        --shadow-sm:
+          0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.22);
+        --shadow-lg: 0 24px 74px rgba(0, 0, 0, 0.44);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        min-width: 320px;
+        color: var(--ink);
+        background:
+          radial-gradient(
+            1050px 580px at 92% -6%,
+            color-mix(in srgb, var(--accent) 12%, transparent),
+            transparent 64%
+          ),
+          linear-gradient(180deg, var(--canvas-accent), var(--canvas) 360px);
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.62;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        text-decoration-thickness: 2px;
+      }
+      a:focus-visible,
+      button:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid color-mix(in srgb, var(--accent) 66%, transparent);
+        outline-offset: 3px;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.9em;
+      }
+      .skip-link {
+        position: fixed;
+        z-index: 100;
+        top: 10px;
+        left: 10px;
+        transform: translateY(-160%);
+        padding: 9px 13px;
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: var(--shadow-lg);
+      }
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      .topbar {
+        position: sticky;
+        z-index: 40;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 58px;
+        padding: 9px clamp(16px, 4vw, 46px);
+        border-bottom: 1px solid
+          color-mix(in srgb, var(--line) 76%, transparent);
+        background: color-mix(in srgb, var(--canvas) 84%, transparent);
+        backdrop-filter: blur(18px) saturate(1.25);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-width: 0;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .brand-mark {
+        display: grid;
+        width: 27px;
+        height: 27px;
+        place-items: center;
+        border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        color: var(--accent);
+        font-weight: 900;
+      }
+      .brand-copy {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        line-height: 1.12;
+      }
+      .brand-copy strong {
+        font-size: 13px;
+        letter-spacing: -0.01em;
+      }
+      .brand-copy span {
+        color: var(--ink-faint);
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .theme-toggle {
+        width: 44px;
+        height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--ink-soft);
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+        font: 700 14px/1 var(--sans);
+      }
+
+      .hero {
+        padding: clamp(48px, 8vw, 92px) 0 74px;
+        color: #fff;
+        background:
+          radial-gradient(
+            circle at 88% 12%,
+            rgba(255, 255, 255, 0.14),
+            transparent 28%
+          ),
+          linear-gradient(135deg, #102c42, #1b4f6d);
+      }
+      .wrap {
+        width: min(calc(100% - 38px), 1140px);
+        margin-inline: auto;
+      }
+      .eyebrow {
+        margin: 0 0 12px;
+        color: #aed7ed;
+        font: 800 12px/1.3 var(--mono);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      h1 {
+        max-width: 930px;
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(2.55rem, 6.4vw, 5.45rem);
+        font-weight: 540;
+        line-height: 0.98;
+        letter-spacing: -0.045em;
+      }
+      .hero-lede {
+        max-width: 810px;
+        margin: 24px 0 0;
+        color: #dceaf3;
+        font-size: clamp(1.06rem, 2vw, 1.34rem);
+      }
+      .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin-top: 28px;
+      }
+      .hero-meta span {
+        padding: 7px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #e5f1f7;
+        font: 650 11px/1.2 var(--mono);
+      }
+
+      .verdict-wrap {
+        position: relative;
+        margin-top: -38px;
+      }
+      .verdict-card {
+        display: grid;
+        grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.8fr);
+        gap: 28px;
+        padding: clamp(24px, 4vw, 38px);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        background: var(--surface);
+        box-shadow: var(--shadow-lg);
+      }
+      .verdict-badge,
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font: 800 11px/1.1 var(--mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .verdict-badge {
+        color: var(--risk);
+        background: var(--risk-soft);
+      }
+      .verdict-badge::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .verdict-title {
+        margin: 16px 0 6px;
+        color: var(--navy);
+        font-family: var(--serif);
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        font-weight: 560;
+        line-height: 1;
+        letter-spacing: -0.025em;
+      }
+      .verdict-sub {
+        margin: 0;
+        color: var(--ink-soft);
+      }
+      .plain-answer {
+        align-self: center;
+        margin: 0;
+        padding-left: 25px;
+        border-left: 4px solid var(--risk);
+        font-size: 1.08rem;
+      }
+      .plain-answer strong {
+        color: var(--risk);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 860px);
+        gap: clamp(30px, 5vw, 70px);
+        align-items: start;
+        width: min(calc(100% - 38px), 1160px);
+        margin: 0 auto;
+        padding: 52px 0 96px;
+      }
+      .side {
+        position: sticky;
+        top: 84px;
+        display: grid;
+        gap: 20px;
+      }
+      .side-card {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: color-mix(in srgb, var(--surface) 92%, transparent);
+        box-shadow: var(--shadow-sm);
+      }
+      .side-kicker {
+        margin: 0 0 7px;
+        color: var(--ink-faint);
+        font: 750 10px/1.2 var(--mono);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .side-value {
+        margin: 0;
+        color: var(--risk);
+        font-size: 14px;
+        font-weight: 760;
+      }
+      .side-note {
+        margin: 7px 0 0;
+        color: var(--ink-soft);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .toc {
+        display: grid;
+        gap: 3px;
+      }
+      .toc a {
+        display: block;
+        padding: 7px 10px;
+        border-radius: 8px;
+        color: var(--ink-soft);
+        font-size: 12.5px;
+        line-height: 1.3;
+        text-decoration: none;
+      }
+      .toc a:hover {
+        background: var(--surface-tint);
+        color: var(--ink);
+      }
+
+      main {
+        min-width: 0;
+      }
+      section {
+        margin-top: 68px;
+        scroll-margin-top: 84px;
+      }
+      section:first-child {
+        margin-top: 0;
+      }
+      .section-kicker {
+        margin: 0 0 5px;
+        color: var(--ink-faint);
+        font: 800 11px/1.2 var(--mono);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      h2 {
+        margin: 0 0 20px;
+        color: var(--navy);
+        font-family: var(--serif);
+        font-size: clamp(1.9rem, 4vw, 2.85rem);
+        font-weight: 560;
+        line-height: 1.08;
+        letter-spacing: -0.025em;
+      }
+      h3 {
+        margin: 0;
+        color: var(--navy);
+        font-size: 1.05rem;
+        line-height: 1.3;
+      }
+      p {
+        margin: 0 0 16px;
+      }
+      .intro {
+        max-width: 760px;
+        color: var(--ink-soft);
+        font-size: 1.04rem;
+      }
+      .callout {
+        margin: 24px 0;
+        padding: 20px 22px;
+        border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+        border-left: 5px solid var(--accent);
+        border-radius: var(--radius);
+        background: var(--surface-tint);
+      }
+      .callout p:last-child {
+        margin-bottom: 0;
+      }
+
+      .judgment-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .judgment {
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-top: 5px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+      }
+      .judgment.ok {
+        border-top-color: var(--ok);
+      }
+      .judgment.warn {
+        border-top-color: var(--warn);
+      }
+      .judgment.risk {
+        border-top-color: var(--risk);
+      }
+      .judgment .status-badge {
+        margin-bottom: 13px;
+      }
+      .judgment.ok .status-badge {
+        color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .judgment.warn .status-badge {
+        color: var(--warn);
+        background: var(--warn-soft);
+      }
+      .judgment.risk .status-badge {
+        color: var(--risk);
+        background: var(--risk-soft);
+      }
+      .judgment p {
+        margin: 8px 0 0;
+        color: var(--ink-soft);
+        font-size: 0.92rem;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .metric {
+        min-height: 142px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+      .metric strong {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--navy);
+        font-size: clamp(1.8rem, 4vw, 2.65rem);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.045em;
+        line-height: 1;
+      }
+      .metric span {
+        color: var(--ink-soft);
+        font-size: 0.9rem;
+      }
+      .metric small {
+        display: block;
+        margin-top: 9px;
+        color: var(--ink-faint);
+        line-height: 1.4;
+      }
+
+      .journey {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 9px;
+        margin-top: 24px;
+      }
+      .journey-step {
+        position: relative;
+        min-height: 145px;
+        padding: 18px 15px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+      .journey-step::after {
+        content: "→";
+        position: absolute;
+        top: 50%;
+        right: -13px;
+        z-index: 2;
+        color: var(--ink-faint);
+        font-weight: 800;
+      }
+      .journey-step:last-child::after {
+        display: none;
+      }
+      .journey-number {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font: 800 12px/1 var(--mono);
+      }
+      .journey-step p {
+        margin: 6px 0 0;
+        color: var(--ink-soft);
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .win-list,
+      .finding-list,
+      .next-list {
+        display: grid;
+        gap: 14px;
+      }
+      .win,
+      .finding,
+      .next {
+        display: grid;
+        grid-template-columns: 46px minmax(0, 1fr);
+        gap: 16px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+      }
+      .number {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        border-radius: 12px;
+        background: var(--surface-tint);
+        color: var(--accent);
+        font: 850 13px/1 var(--mono);
+      }
+      .finding .number {
+        color: var(--risk);
+        background: var(--risk-soft);
+      }
+      .next .number {
+        color: var(--warn);
+        background: var(--warn-soft);
+      }
+      .win p,
+      .finding p,
+      .next p {
+        margin: 7px 0 0;
+        color: var(--ink-soft);
+      }
+      .explain {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 14px;
+      }
+      .explain div {
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+      .explain strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--ink);
+        font-size: 0.82rem;
+      }
+      .explain span {
+        color: var(--ink-soft);
+        font-size: 0.87rem;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        margin-top: 22px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.91rem;
+      }
+      caption {
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--line);
+        color: var(--ink-soft);
+        text-align: left;
+      }
+      th,
+      td {
+        padding: 13px 15px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--surface-tint);
+        color: var(--ink);
+        font: 800 11px/1.25 var(--mono);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      tbody tr:last-child th,
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 8px;
+        border-radius: 999px;
+        white-space: nowrap;
+        font: 800 10px/1.15 var(--mono);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .pill::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .pill.candidate {
+        color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .pill.partial {
+        color: var(--warn);
+        background: var(--warn-soft);
+      }
+      .pill.open {
+        color: var(--risk);
+        background: var(--risk-soft);
+      }
+
+      .severity-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .severity {
+        padding: 16px;
+        border-radius: var(--radius);
+        background: var(--surface);
+        border: 1px solid var(--line);
+      }
+      .severity strong {
+        display: block;
+        color: var(--risk);
+        font-size: 1.8rem;
+        line-height: 1;
+      }
+      .severity span {
+        color: var(--ink-soft);
+        font-size: 0.82rem;
+      }
+      .truth-note {
+        margin-top: 16px;
+        padding: 18px;
+        border: 1px solid color-mix(in srgb, var(--risk) 28%, var(--line));
+        border-radius: var(--radius);
+        background: var(--risk-soft);
+      }
+      .truth-note strong {
+        color: var(--risk);
+      }
+
+      details {
+        margin-top: 18px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+      summary {
+        cursor: pointer;
+        padding: 16px 18px;
+        color: var(--navy);
+        font-weight: 760;
+      }
+      .details-body {
+        padding: 0 18px 18px;
+        color: var(--ink-soft);
+      }
+      .details-body ul {
+        margin-bottom: 0;
+      }
+
+      .final {
+        margin-top: 72px;
+        padding: clamp(26px, 5vw, 42px);
+        border-radius: var(--radius-lg);
+        color: #fff;
+        background: linear-gradient(135deg, #15344b, #234f68);
+        box-shadow: var(--shadow-lg);
+      }
+      .final .section-kicker {
+        color: #add3e7;
+      }
+      .final h2 {
+        color: #fff;
+      }
+      .final p {
+        max-width: 780px;
+        color: #dcebf3;
+      }
+      .final strong {
+        color: #fff;
+      }
+      .source-list {
+        margin: 18px 0 0;
+        padding-left: 20px;
+        color: var(--ink-soft);
+      }
+      .source-list li {
+        margin: 7px 0;
+      }
+      footer {
+        padding: 0 0 56px;
+        color: var(--ink-faint);
+        font-size: 0.82rem;
+      }
+
+      @media (max-width: 940px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .side {
+          position: static;
+          grid-template-columns: 1fr 1fr;
+        }
+        .toc {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .judgment-grid,
+        .metric-grid {
+          grid-template-columns: 1fr;
+        }
+        .journey {
+          grid-template-columns: 1fr 1fr;
+        }
+        .journey-step::after {
+          display: none;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .topbar {
+          padding-inline: 14px;
+        }
+        .brand-copy span {
+          display: none;
+        }
+        .hero {
+          padding-top: 44px;
+        }
+        .verdict-card {
+          grid-template-columns: 1fr;
+        }
+        .plain-answer {
+          padding: 18px 0 0;
+          border-top: 4px solid var(--risk);
+          border-left: 0;
+        }
+        .layout {
+          padding-top: 34px;
+        }
+        .side {
+          grid-template-columns: 1fr;
+        }
+        .toc {
+          grid-template-columns: 1fr 1fr;
+        }
+        .journey {
+          grid-template-columns: 1fr;
+        }
+        .win,
+        .finding,
+        .next {
+          grid-template-columns: 38px minmax(0, 1fr);
+          padding: 17px;
+        }
+        .number {
+          width: 36px;
+          height: 36px;
+        }
+        .explain,
+        .severity-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      @media print {
+        :root {
+          color-scheme: light;
+        }
+        .topbar,
+        .side {
+          display: none;
+        }
+        body {
+          background: #fff;
+          color: #111;
+        }
+        .hero {
+          padding: 30px 0 54px;
+          background: #123047 !important;
+          print-color-adjust: exact;
+        }
+        .layout {
+          display: block;
+          width: 100%;
+          padding: 32px 24px;
+        }
+        .verdict-card,
+        .judgment,
+        .metric,
+        .win,
+        .finding,
+        .next,
+        .table-wrap {
+          box-shadow: none;
+          break-inside: avoid;
+        }
+        section {
+          break-before: auto;
+        }
+        a {
+          color: inherit;
+          text-decoration: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to the audit</a>
+    <div
+      style="
+        padding: 14px 20px;
+        color: #ffffff;
+        background: #8a570a;
+        text-align: center;
+        font-weight: 750;
+      "
+    >
+      Superseded as the current decision record on 2026-08-14. Review gates and
+      app/human completion gates changed after this snapshot. Read the
+      <a
+        href="phases/phase-5-technical-ecosystem-completion-plan.html"
+        style="color: #ffffff"
+        >current technical completion plan</a
+      >.
+    </div>
+    <div class="topbar">
+      <a class="brand" href="#top" aria-label="Back to the top of the report">
+        <span class="brand-mark" aria-hidden="true">06</span>
+        <span class="brand-copy"
+          ><strong>Copilot Solution Ecosystem</strong
+          ><span>Initiative 06 · Outcome audit</span></span
+        >
+      </a>
+      <button
+        class="theme-toggle"
+        type="button"
+        aria-label="Switch color theme"
+        aria-pressed="false"
+      >
+        ◐
+      </button>
+    </div>
+
+    <header class="hero" id="top">
+      <div class="wrap">
+        <p class="eyebrow">Decision-first audit · 14 August 2026</p>
+        <h1>Have we achieved the ecosystem goal?</h1>
+        <p class="hero-lede">
+          An evidence-backed comparison of the original goal with the framework
+          candidate, protected releases, live conformance, behavioral proof,
+          fleet delivery, human validation, and Control Tower.
+        </p>
+        <div class="hero-meta" aria-label="Report metadata">
+          <span>PRD-23</span>
+          <span>TASK-278</span>
+          <span>Current decision record</span>
+          <span>Framework + whole ecosystem</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap verdict-wrap">
+      <div class="verdict-card">
+        <div>
+          <span class="verdict-badge">Not achieved yet</span>
+          <p class="verdict-title">The answer is no.</p>
+          <p class="verdict-sub">
+            Continue the initiative. Preserve the candidate. Do not make the
+            completion claim.
+          </p>
+        </div>
+        <p class="plain-answer">
+          <strong
+            >The framework is now a credible release candidate, but the
+            ecosystem has not yet delivered its promised human outcome.</strong
+          >
+          The reviewed releases, real layered effectiveness, safe fleet
+          propagation, clean-environment journey, non-technical participant
+          proof, and Control Tower delivery are still missing.
+        </p>
+      </div>
+    </div>
+
+    <div class="layout">
+      <aside class="side" aria-label="Report navigation">
+        <div class="side-card">
+          <p class="side-kicker">Current status</p>
+          <p class="side-value">Outcome not achieved</p>
+          <p class="side-note">
+            A strong mechanism cannot substitute for the missing user, rollout,
+            and safety outcomes.
+          </p>
+        </div>
+        <nav class="side-card" aria-label="On this page">
+          <p class="side-kicker">On this page</p>
+          <div class="toc">
+            <a href="#short-answer">Short answer</a>
+            <a href="#goal">The goal</a>
+            <a href="#progress">What worked</a>
+            <a href="#gaps">Why not done</a>
+            <a href="#conformance">Live truth</a>
+            <a href="#contract">12 gates</a>
+            <a href="#next">Closure path</a>
+            <a href="#sources">Evidence</a>
+          </div>
+        </nav>
+      </aside>
+
+      <main id="content">
+        <section id="short-answer">
+          <p class="section-kicker">Read this in one minute</p>
+          <h2>Three judgments, kept separate</h2>
+          <div class="judgment-grid">
+            <article class="judgment ok">
+              <span class="status-badge">Credible candidate</span>
+              <h3>Framework mechanism</h3>
+              <p>
+                The installed candidate is exact, passes its 19/19 disposable
+                installation round trip, and has a broad green hosted test
+                matrix.
+              </p>
+            </article>
+            <article class="judgment warn">
+              <span class="status-badge">Active</span>
+              <h3>Framework outcome</h3>
+              <p>
+                The candidate is not a reviewed release. Organization content is
+                not published, full conformance fails, and live effectiveness
+                and fleet proof are absent.
+              </p>
+            </article>
+            <article class="judgment risk">
+              <span class="status-badge">Not achieved</span>
+              <h3>Original ecosystem goal</h3>
+              <p>
+                No non-technical participant has completed the journey, Pablo
+                has not been removed from rollout, and the Control Tower
+                delivery track remains deferred.
+              </p>
+            </article>
+          </div>
+
+          <div class="metric-grid" aria-label="Key audit evidence">
+            <div class="metric">
+              <strong>19/19</strong
+              ><span>Disposable round-trip checks pass</span
+              ><small
+                >This proves the canonical candidate can produce the reference
+                Claude + Codex installation in a safe scratch
+                environment.</small
+              >
+            </div>
+            <div class="metric">
+              <strong>3/3</strong
+              ><span>Protected PRs still have zero reviews</span
+              ><small
+                >Framework, organization content, and accounting remediation are
+                not yet independently approved releases.</small
+              >
+            </div>
+            <div class="metric">
+              <strong>155</strong><span>Live full-conformance failures</span
+              ><small
+                >Six are S0 blockers; 149 are lower-severity failures that still
+                require fixes or explicit dispositions.</small
+              >
+            </div>
+            <div class="metric">
+              <strong>0</strong><span>Live layered outcome evaluations</span
+              ><small
+                >The evaluation runner exists, but no real
+                foundation-versus-layered behavioral result has been
+                preserved.</small
+              >
+            </div>
+            <div class="metric">
+              <strong>0</strong><span>Authorized fleet mutations</span
+              ><small
+                >The 75-repository census is deliberately provisional. No shared
+                change has been approved for fan-out.</small
+              >
+            </div>
+            <div class="metric">
+              <strong>0</strong><span>Non-technical completions</span
+              ><small
+                >The person the ecosystem is designed to democratize the
+                capability for has not yet completed the journey.</small
+              >
+            </div>
+          </div>
+        </section>
+
+        <section id="goal">
+          <p class="section-kicker">The standard being audited</p>
+          <h2>The goal is a human outcome, not a software inventory</h2>
+          <p class="intro">
+            The Initiative 05 retrospective defines the finish line as giving
+            every person a trustworthy, company-aware, multidisciplinary
+            solution team that turns real problems into working solutions
+            without requiring technical expertise. The product SOUL makes
+            democratization—not installation—the essence.
+          </p>
+          <div class="callout">
+            <p>
+              <strong>Simplest expression of the goal:</strong> a real person
+              starts with a real problem, receives the right company and
+              department expertise through the right specialists and tools,
+              preserves the work and evidence, and never needs Pablo to wire the
+              ecosystem together.
+            </p>
+          </div>
+          <div class="journey" aria-label="Intended ecosystem journey">
+            <article class="journey-step">
+              <span class="journey-number">1</span>
+              <h3>Start with a problem</h3>
+              <p>
+                No terminal, repository, manifest, agent roster, or
+                infrastructure assembly.
+              </p>
+            </article>
+            <article class="journey-step">
+              <span class="journey-number">2</span>
+              <h3>Assemble the team</h3>
+              <p>
+                Protocol routes the right multidisciplinary specialists across
+                Claude and Codex.
+              </p>
+            </article>
+            <article class="journey-step">
+              <span class="journey-number">3</span>
+              <h3>Apply real context</h3>
+              <p>
+                Organization, department, and personal inputs appropriately
+                change methods and decisions.
+              </p>
+            </article>
+            <article class="journey-step">
+              <span class="journey-number">4</span>
+              <h3>Create and preserve</h3>
+              <p>
+                Bounded operational tools help; Task Copilot keeps evidence and
+                continuation durable.
+              </p>
+            </article>
+            <article class="journey-step">
+              <span class="journey-number">5</span>
+              <h3>Keep it working</h3>
+              <p>
+                Shared improvements reach entitled people safely, while Control
+                Tower reports verified truth.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="progress">
+          <p class="section-kicker">Substantial progress</p>
+          <h2>What the work genuinely accomplished</h2>
+          <div class="win-list">
+            <article class="win">
+              <span class="number">01</span>
+              <div>
+                <h3>One canonical candidate transaction now exists</h3>
+                <p>
+                  The installed <code>cc 2.12.8</code> runtime, six global
+                  commands, and one enabled Codex Copilot plugin are bound to
+                  immutable framework commit <code>3e5f129…</code> / tree
+                  <code>9867955…</code>. The 19/19 round trip closes the earlier
+                  split-installer failure at the candidate level.
+                </p>
+              </div>
+            </article>
+            <article class="win">
+              <span class="number">02</span>
+              <div>
+                <h3>
+                  Full verification now includes the end-to-end round trip
+                </h3>
+                <p>
+                  The command described as “full” no longer omits the
+                  highest-value scratch installation proof. It runs without
+                  unexplained could-not-run results and keeps regression
+                  comparison separate from live conformance.
+                </p>
+              </div>
+            </article>
+            <article class="win">
+              <span class="number">03</span>
+              <div>
+                <h3>Trust boundaries moved into tested implementation</h3>
+                <p>
+                  Signed tier-provenant Codex plugins, entitlement lifecycle
+                  states, immutable source receipts, lock evidence, symlink
+                  protections, and fail-closed checks now have substantial QA
+                  and security coverage.
+                </p>
+              </div>
+            </article>
+            <article class="win">
+              <span class="number">04</span>
+              <div>
+                <h3>Real content and outcome machinery now exist</h3>
+                <p>
+                  ENAC organization inputs, accounting content,
+                  <code>uids</code>/<code>cco</code> extensions, a deterministic
+                  journey contract, and a bounded evaluation runner have been
+                  authored and tested locally. They are the machinery needed for
+                  outcome proof; they are not the outcome proof itself.
+                </p>
+              </div>
+            </article>
+            <article class="win">
+              <span class="number">05</span>
+              <div>
+                <h3>The durable record is materially better</h3>
+                <p>
+                  PRD-23 and its tasks carry commit/tree-bound implementation,
+                  QA, security, release, evaluation, fleet, and handoff
+                  evidence. Future work has a much clearer dependency graph than
+                  Initiative 05 did.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="gaps">
+          <p class="section-kicker">Decisive missing outcomes</p>
+          <h2>Why those wins do not add up to “done”</h2>
+          <div class="finding-list">
+            <article class="finding">
+              <span class="number">01</span>
+              <div>
+                <h3>
+                  The candidate has not passed the protected release gates
+                </h3>
+                <p>
+                  Framework PR #66 and accounting PR #1 remain blocked for
+                  review; organization PR #1 is clean but unreviewed. All three
+                  have zero human reviews.
+                </p>
+                <div class="explain">
+                  <div>
+                    <strong>What that means</strong
+                    ><span
+                      >The exact tested bytes are still candidate bytes. They
+                      have not been merged and published through the required
+                      protected path.</span
+                    >
+                  </div>
+                  <div>
+                    <strong>Why it matters</strong
+                    ><span
+                      >Self-review cannot replace the independent human gate
+                      that the trust model requires. No merge, tag, or release
+                      may be manufactured around it.</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="finding">
+              <span class="number">02</span>
+              <div>
+                <h3>Live conformance still says “fail”</h3>
+                <p>
+                  The complete no-cache run reports six S0
+                  organization-resolution blockers and 149 lower-severity
+                  failures. There are zero unknowns and zero regression-layer
+                  failures, but those facts do not turn failed live rows into
+                  passes.
+                </p>
+                <div class="explain">
+                  <div>
+                    <strong>What that means</strong
+                    ><span
+                      >The checker is complete enough to tell the truth, and the
+                      truth is that the classified fleet is not yet in the
+                      required state.</span
+                    >
+                  </div>
+                  <div>
+                    <strong>Why it matters</strong
+                    ><span
+                      >One hundred and one failed rows still declare
+                      <code>expected_today: pass</code>. A stable baseline only
+                      says the comparison did not identify a new delta; it is
+                      not ecosystem health.</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="finding">
+              <span class="number">03</span>
+              <div>
+                <h3>Installed and wired have not become effective</h3>
+                <p>
+                  TASK-284 remains bounded and in progress. TASK-285 has not
+                  run. The hosted billed live-model evaluation was skipped, so
+                  none of the required foundation-versus-layered cases has
+                  produced a real outcome artifact.
+                </p>
+                <div class="explain">
+                  <div>
+                    <strong>What that means</strong
+                    ><span
+                      >We can show that context can be selected and delivered,
+                      but not yet that it changes company or accounting work in
+                      the intended way.</span
+                    >
+                  </div>
+                  <div>
+                    <strong>Why it matters</strong
+                    ><span
+                      >The original risk was a technically impressive system
+                      that reliably delivers generic assistance. Only behavioral
+                      evidence closes that risk.</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="finding">
+              <span class="number">04</span>
+              <div>
+                <h3>Pablo is still part of the rollout path</h3>
+                <p>
+                  The 75-row fleet census is preparation with zero mutation
+                  authority. Fan-out, pre-fan-out security, and post-fan-out
+                  security have not run.
+                </p>
+                <div class="explain">
+                  <div>
+                    <strong>What that means</strong
+                    ><span
+                      >No reviewed organization or department improvement has
+                      yet traveled once through the canonical path to the exact
+                      eligible projects.</span
+                    >
+                  </div>
+                  <div>
+                    <strong>Why it matters</strong
+                    ><span
+                      >The ecosystem goal explicitly removes Pablo as the person
+                      who copies, connects, interprets, and repairs every
+                      project by hand.</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="finding">
+              <span class="number">05</span>
+              <div>
+                <h3>The primary user has not proved the journey</h3>
+                <p>
+                  TASK-303 has not proved the framework in an isolated clean
+                  environment, and TASK-290 has no non-technical participant
+                  artifact.
+                </p>
+                <div class="explain">
+                  <div>
+                    <strong>What that means</strong
+                    ><span
+                      >There is no observed evidence that someone can start with
+                      their problem, understand the workflow, and continue
+                      without ecosystem vocabulary or Pablo.</span
+                    >
+                  </div>
+                  <div>
+                    <strong>Why it matters</strong
+                    ><span
+                      >Democratization is the product's essence. If only the
+                      author can install, verify, and operate it, the essential
+                      goal remains unmet.</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="finding">
+              <span class="number">06</span>
+              <div>
+                <h3>The Control Tower split is sequencing, not completion</h3>
+                <p>
+                  PRD-24 validly removes Apple packaging from the framework
+                  critical path, but app publication, installation, native
+                  enforcement, crash-only supervision, and app cold-machine
+                  proof remain deferred.
+                </p>
+                <div class="explain">
+                  <div>
+                    <strong>What that means</strong
+                    ><span
+                      >PRD-23 can eventually prove a framework that works after
+                      neutral provisioning without also shipping a new app
+                      release.</span
+                    >
+                  </div>
+                  <div>
+                    <strong>Why it matters</strong
+                    ><span
+                      >The original whole-ecosystem promise includes
+                      one-double-click setup and dependable supervision for a
+                      non-technical person. That promise still requires Control
+                      Tower.</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="conformance">
+          <p class="section-kicker">Current machine and fleet truth</p>
+          <h2>How to read the live conformance result</h2>
+          <p class="intro">
+            The current full run is valuable because it is both complete and
+            honest. The result is <strong>fail</strong>. Severity counts are
+            separate categories, not a score that can be averaged.
+          </p>
+          <div class="severity-grid" aria-label="Failure counts by severity">
+            <div class="severity">
+              <strong>6</strong><span>S0 blockers</span>
+            </div>
+            <div class="severity">
+              <strong>81</strong><span>S1 failures</span>
+            </div>
+            <div class="severity">
+              <strong>39</strong><span>S2 failures</span>
+            </div>
+            <div class="severity">
+              <strong>29</strong><span>S3 failures</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Fresh
+                <code>cc conformance check --full --no-cache --json</code>
+                result generated 2026-08-14T10:36:50Z.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Layer</th>
+                  <th class="num" scope="col">Pass</th>
+                  <th class="num" scope="col">Fail</th>
+                  <th class="num" scope="col">Skip</th>
+                  <th class="num" scope="col">Could not run</th>
+                  <th scope="col">Plain-language reading</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Tier</th>
+                  <td class="num">76</td>
+                  <td class="num">15</td>
+                  <td class="num">10</td>
+                  <td class="num">0</td>
+                  <td>
+                    The six S0 rows are the missing published organization
+                    extension viewed across six specialists.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Stack</th>
+                  <td class="num">78</td>
+                  <td class="num">2</td>
+                  <td class="num">32</td>
+                  <td class="num">0</td>
+                  <td>Two foundation signer-expression gaps remain at S1.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Repository</th>
+                  <td class="num">1,493</td>
+                  <td class="num">137</td>
+                  <td class="num">527</td>
+                  <td class="num">0</td>
+                  <td>
+                    The fleet still contains installation, wiring,
+                    documentation, and reachability deviations.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Lock</th>
+                  <td class="num">318</td>
+                  <td class="num">1</td>
+                  <td class="num">16</td>
+                  <td class="num">0</td>
+                  <td>
+                    Control Tower's approved gate bytes do not yet match its
+                    recorded project-lock checksum.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Round trip</th>
+                  <td class="num">19</td>
+                  <td class="num">0</td>
+                  <td class="num">0</td>
+                  <td class="num">0</td>
+                  <td>
+                    The canonical candidate produces the reference install in a
+                    disposable environment.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Regression</th>
+                  <td class="num">22</td>
+                  <td class="num">0</td>
+                  <td class="num">0</td>
+                  <td class="num">0</td>
+                  <td>
+                    The current observations are stable against the committed
+                    comparison; this is not a substitute for fixing live
+                    failures.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="truth-note">
+            <strong>Most important distinction:</strong> “round trip passes”
+            means the candidate transaction works in its sanctioned scratch
+            journey. “regression passes” means the current comparison is stable.
+            Neither statement means “the ecosystem conforms.” The full result
+            remains fail until the live blockers and undispositioned residuals
+            are closed.
+          </div>
+        </section>
+
+        <section id="contract">
+          <p class="section-kicker">Initiative 06 acceptance</p>
+          <h2>The 12 outcome gates, explained</h2>
+          <p class="intro">
+            No aggregate score is shown. One missing safety or human-outcome
+            gate cannot be cancelled by many passing technical checks.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Candidate demonstrated means the behavior is credibly proved in
+                the current candidate, but its protected released identity is
+                still pending.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Outcome gate</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">What the status means</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>One complete Claude + Codex setup transaction</td>
+                  <td>
+                    <span class="pill candidate">Candidate demonstrated</span>
+                  </td>
+                  <td>
+                    The installed candidate passes 19/19; protected release
+                    remains.
+                  </td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>
+                    Full verification includes round trip, zero S0, zero unknown
+                  </td>
+                  <td><span class="pill partial">Partial</span></td>
+                  <td>
+                    Coverage and unknowns are fixed; six S0 organization
+                    failures remain.
+                  </td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>Every residual is fixed or explicitly reviewed</td>
+                  <td><span class="pill open">Open</span></td>
+                  <td>
+                    155 failed rows remain, including 101 whose expected state
+                    is pass.
+                  </td>
+                </tr>
+                <tr>
+                  <td>4</td>
+                  <td>
+                    Real organization and department content wins and locks
+                  </td>
+                  <td><span class="pill partial">Partial</span></td>
+                  <td>
+                    Accounting E-4 works; organization content is not published
+                    or selected.
+                  </td>
+                </tr>
+                <tr>
+                  <td>5</td>
+                  <td>
+                    <code>uids</code> and <code>cco</code> receive substantive
+                    tier direction
+                  </td>
+                  <td><span class="pill partial">Partial</span></td>
+                  <td>
+                    The content is authored and locally reviewed, but not live
+                    from a new immutable organization release.
+                  </td>
+                </tr>
+                <tr>
+                  <td>6</td>
+                  <td>
+                    Controlled evaluations show intended behavioral differences
+                  </td>
+                  <td><span class="pill open">Open</span></td>
+                  <td>
+                    The runner exists; no live layered evaluation result exists.
+                  </td>
+                </tr>
+                <tr>
+                  <td>7</td>
+                  <td>Personal content and credentials cannot move upward</td>
+                  <td><span class="pill partial">Partial</span></td>
+                  <td>
+                    Strong structural controls exist; behavioral leak and final
+                    integrated gates remain.
+                  </td>
+                </tr>
+                <tr>
+                  <td>8</td>
+                  <td>
+                    One approved change reaches the exact eligible fleet safely
+                  </td>
+                  <td><span class="pill open">Open</span></td>
+                  <td>
+                    The census grants zero authority and fan-out has not run.
+                  </td>
+                </tr>
+                <tr>
+                  <td>9</td>
+                  <td>
+                    Clean environment and non-technical participant succeed
+                  </td>
+                  <td><span class="pill open">Open</span></td>
+                  <td>Both tasks are pending with no completion evidence.</td>
+                </tr>
+                <tr>
+                  <td>10</td>
+                  <td>
+                    Task, test, security, release, and provenance record is
+                    recoverable
+                  </td>
+                  <td><span class="pill partial">Partial</span></td>
+                  <td>
+                    The Task Copilot record is strong; reviewed releases and
+                    final outcome closure are missing.
+                  </td>
+                </tr>
+                <tr>
+                  <td>11</td>
+                  <td>
+                    Entitlement lifecycle fails safely and routes recovery
+                  </td>
+                  <td>
+                    <span class="pill candidate">Candidate demonstrated</span>
+                  </td>
+                  <td>
+                    The implementation and fixtures are approved; final released
+                    integration remains.
+                  </td>
+                </tr>
+                <tr>
+                  <td>12</td>
+                  <td>
+                    A real problem flows through routing, context, capabilities,
+                    and continuity
+                  </td>
+                  <td><span class="pill partial">Partial</span></td>
+                  <td>
+                    Structural journey machinery is tested; live signed-content
+                    problem-to-solution evidence is pending.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="next">
+          <p class="section-kicker">Decision-ordered continuation</p>
+          <h2>What must happen before “done” becomes honest</h2>
+          <div class="next-list">
+            <article class="next">
+              <span class="number">1</span>
+              <div>
+                <h3>Complete protected review and release</h3>
+                <p>
+                  Obtain independent human reviews, merge through normal
+                  protections, and publish new immutable framework,
+                  organization, and accounting identities. Do not bypass the
+                  gates.
+                </p>
+              </div>
+            </article>
+            <article class="next">
+              <span class="number">2</span>
+              <div>
+                <h3>Prove the released installed truth</h3>
+                <p>
+                  Reinstall the reviewed identities, verify receipts and locks,
+                  retain the 19/19 round trip, remove all S0 failures, and
+                  disposition every residual instead of relying on regression
+                  stability.
+                </p>
+              </div>
+            </article>
+            <article class="next">
+              <span class="number">3</span>
+              <div>
+                <h3>Run the real effectiveness cases</h3>
+                <p>
+                  Execute EVAL-01, EVAL-02, one of EVAL-03/EVAL-04, and EVAL-05
+                  across foundation and applicable layered conditions,
+                  preserving criterion-level Claude/Codex evidence without a
+                  blended score.
+                </p>
+              </div>
+            </article>
+            <article class="next">
+              <span class="number">4</span>
+              <div>
+                <h3>Propagate once, safely</h3>
+                <p>
+                  Complete pre-fan-out security, regenerate and approve the
+                  exact census, run canonical fan-out only for eligible
+                  projects, and complete post-fan-out security and conformance.
+                </p>
+              </div>
+            </article>
+            <article class="next">
+              <span class="number">5</span>
+              <div>
+                <h3>Prove the person and the clean environment</h3>
+                <p>
+                  Run the isolated clean-home journey, then observe a
+                  non-technical participant starting with a problem and
+                  continuing without Pablo, Git, or ecosystem vocabulary.
+                </p>
+              </div>
+            </article>
+            <article class="next">
+              <span class="number">6</span>
+              <div>
+                <h3>Rejoin the Control Tower track for the whole goal</h3>
+                <p>
+                  Finish the signed app release, installation, trustworthy
+                  supervision, cold-machine, and non-technical setup proof. Then
+                  run the final cross-record audit and close the initiative from
+                  evidence.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="sources">
+          <p class="section-kicker">Claim boundary</p>
+          <h2>Evidence and audit method</h2>
+          <p class="intro">
+            This report is a point-in-time synthesis. The audit performed no
+            protected merge, tag, release, Actions change, fleet mutation, app
+            change, or external approval.
+          </p>
+          <details>
+            <summary>See the evidence sources and exact checks</summary>
+            <div class="details-body">
+              <ul class="source-list">
+                <li>
+                  <a href="2026-08-14-ecosystem-goal-audit.md"
+                    >Markdown source audit</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="../05-ecosystem-conformance-audit/retrospectives/2026-08-12-work-audit.html"
+                    >Initiative 05 goal-driven HTML audit</a
+                  >
+                </li>
+                <li>
+                  <a href="handoff/2026-08-13-framework-continuation.md"
+                    >2026-08-13 framework continuation handoff</a
+                  >
+                </li>
+                <li>
+                  <a href="phases/phase-1-outcome-prd.md"
+                    >Initiative 06 outcome PRD and acceptance criteria</a
+                  >
+                </li>
+                <li>
+                  <a href="phases/phase-4-effectiveness-evaluation-design.md"
+                    >Behavioral effectiveness evaluation design</a
+                  >
+                </li>
+                <li>
+                  <a href="tracks/control-tower-app-release-prd.md"
+                    >Deferred Control Tower app track</a
+                  >
+                </li>
+                <li>
+                  Task Copilot: PRD-23, TASK-278, TASK-284/285,
+                  TASK-288/290/291/292, TASK-296/297, TASK-299/300/303, and
+                  audit TASK-304.
+                </li>
+                <li>
+                  Fresh round trip: generated 2026-08-14T10:35:02Z, result pass,
+                  19/19.
+                </li>
+                <li>
+                  Fresh full conformance: generated 2026-08-14T10:36:50Z, result
+                  fail, 155 failed rows, zero could-not-run.
+                </li>
+                <li>
+                  Live protected PR states and installed runtime manifest
+                  checked on 2026-08-14.
+                </li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="final" aria-labelledby="final-title">
+          <p class="section-kicker">Final determination</p>
+          <h2 id="final-title">
+            Preserve the candidate. Continue the initiative.
+          </h2>
+          <p>
+            <strong>Do not declare the ecosystem goal achieved.</strong> The
+            program has moved from a harness that proves the ecosystem is broken
+            to a credible framework candidate with most of the machinery needed
+            to prove the outcome. The finish line is now a concrete chain:
+            protected release, behavioral effectiveness, safe propagation,
+            clean-environment proof, non-technical human validation, and Control
+            Tower delivery.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <footer class="wrap">
+      Copilot Control Tower · Initiative 06 · Evidence current through 14 August
+      2026
+    </footer>
+
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const button = document.querySelector(".theme-toggle");
+        const preferred = window.matchMedia("(prefers-color-scheme: dark)");
+        const apply = (theme) => {
+          root.dataset.theme = theme;
+          button.setAttribute(
+            "aria-pressed",
+            theme === "dark" ? "true" : "false",
+          );
+          button.title = `Switch to ${theme === "dark" ? "light" : "dark"} theme`;
+        };
+        apply(preferred.matches ? "dark" : "light");
+        button.addEventListener("click", () =>
+          apply(root.dataset.theme === "dark" ? "light" : "dark"),
+        );
+      })();
+    </script>
+  </body>
+</html>

@@ -1,8 +1,8 @@
 # Phase 4 — Behavioral effectiveness evaluation design
 
-Date: 2026-08-12
-Execution tasks: TASK-284 and TASK-285
-Source knowledge: ratified ENAC company, voice, methodology, design, and accounting-skill documents. Evaluation fixtures use synthetic people, organizations, clients, and financial data.
+> **Scope update, 2026-08-14:** The evaluation remains a technical evidence gate under [ADR-010](../decisions/adr-010-technical-ecosystem-first.md), but it supports only bounded claims about attributable layered behavior. It does not wait for the app, long-term dogfooding, or a non-technical participant and cannot declare the full democratization goal achieved.
+
+Date: 2026-08-12 Execution tasks: TASK-284 and TASK-285 Source knowledge: ratified ENAC company, voice, methodology, design, and accounting-skill documents. Evaluation fixtures use synthetic people, organizations, clients, and financial data.
 
 ## Evaluation question
 
