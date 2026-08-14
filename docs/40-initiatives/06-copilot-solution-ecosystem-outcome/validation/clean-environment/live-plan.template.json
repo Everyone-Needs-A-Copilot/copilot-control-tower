@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "session_id": "TASK-303-REPLACE-WITH-UTC-SESSION-ID",
+  "mode": "live",
+  "prerequisites": [
+    {"task": "TASK-285", "status": "pending", "evidence": null},
+    {"task": "TASK-291", "status": "pending", "evidence": null},
+    {"task": "TASK-300", "status": "pending", "evidence": null},
+    {"task": "TASK-288", "status": "pending", "evidence": null},
+    {"task": "TASK-299", "status": "pending", "evidence": null}
+  ],
+  "identities": {
+    "framework_commit": "REPLACE-AFTER-TASK-299",
+    "framework_tree": "REPLACE-AFTER-TASK-299",
+    "framework_tag": "REPLACE-AFTER-TASK-299",
+    "framework_signer": "REPLACE-AFTER-TASK-299",
+    "organization_release_receipts_sha256": "REPLACE-AFTER-TASK-299",
+    "accounting_release_receipts_sha256": "REPLACE-AFTER-TASK-299",
+    "approved_census_id": "REPLACE-AFTER-TASK-300",
+    "claude_runtime_model_sha256": "REPLACE-FROM-TASK-285",
+    "codex_runtime_model_plugin_sha256": "REPLACE-FROM-TASK-285"
+  },
+  "execution_contract": {
+    "bindings": {
+      "python": {"kind": "interpreter", "sha256": "REPLACE-AFTER-TASK-299", "interpreter_family": "python", "allowed_script_bindings": ["evidence_driver", "cc", "journey_driver"], "app_dependency_free": true, "review_evidence": "REPLACE-WITH-INTERPRETER-PROVENANCE"},
+      "shell": {"kind": "interpreter", "sha256": "REPLACE-AFTER-TASK-299", "interpreter_family": "posix-shell", "allowed_script_bindings": ["framework_installer"], "app_dependency_free": true, "review_evidence": "REPLACE-WITH-INTERPRETER-PROVENANCE"},
+      "node": {"kind": "interpreter", "sha256": "REPLACE-FROM-TASK-285", "interpreter_family": "node", "allowed_script_bindings": ["codex"], "app_dependency_free": true, "review_evidence": "REPLACE-WITH-TASK-285-RUNTIME-EVIDENCE"},
+      "evidence_driver": {"kind": "script", "sha256": "REPLACE-AFTER-TASK-299", "app_dependency_free": true, "review_evidence": "REPLACE-WITH-WORK-PRODUCT-AND-SOURCE-HASH"},
+      "framework_installer": {"kind": "script", "sha256": "REPLACE-AFTER-TASK-299", "app_dependency_free": true, "review_evidence": "REPLACE-WITH-WORK-PRODUCT-AND-SOURCE-HASH"},
+      "cc": {"kind": "script", "sha256": "REPLACE-AFTER-TASK-299", "app_dependency_free": true, "review_evidence": "REPLACE-WITH-WORK-PRODUCT-AND-SOURCE-HASH"},
+      "claude": {"kind": "executable", "sha256": "REPLACE-FROM-TASK-285", "app_dependency_free": true, "review_evidence": "REPLACE-WITH-TASK-285-RUNTIME-EVIDENCE"},
+      "codex": {"kind": "script", "sha256": "REPLACE-FROM-TASK-285", "app_dependency_free": true, "review_evidence": "REPLACE-WITH-TASK-285-RUNTIME-EVIDENCE"},
+      "journey_driver": {"kind": "script", "sha256": "REPLACE-AFTER-TASK-299", "app_dependency_free": true, "review_evidence": "REPLACE-WITH-WORK-PRODUCT-AND-SOURCE-HASH"}
+    }
+  },
+  "problem": {
+    "id": "accounting-evidence-gap-v1",
+    "text": "# Synthetic problem\n\nAn accounting team has a recurring monthly variance between approved vendor invoices and the general-ledger expense total. Produce an evidence-gap package that separates facts from assumptions, identifies the next competent specialist actions, and preserves enough decision context for a different session to continue without reconstructing the prompt."
+  },
+  "commands": [
+    {"id": "inventory", "stage": "inventory", "argv": ["{python}", "{evidence_driver}", "inventory", "--root", "{root}"], "evidence_paths": ["evidence/inventory.json"], "mutation_policy": "project-forbidden"},
+    {"id": "install-released-framework", "stage": "install", "argv": ["{shell}", "{framework_installer}", "--home", "{home}", "--ref", "REPLACE-AFTER-TASK-299", "--json"], "evidence_paths": ["evidence/install.json"], "mutation_policy": "project-forbidden"},
+    {"id": "assemble-claude-and-codex", "stage": "assemble", "argv": ["{python}", "{cc}", "onboard", "--org", "auto", "--products", "claude,codex", "--repository-root", "{project}", "--apply", "--json"], "evidence_paths": ["evidence/assembly.json"], "mutation_policy": "project-required", "project_mutation_paths": [".claude", ".codex", "AGENTS.md", "CLAUDE.md"]},
+    {"id": "claude-problem-route", "stage": "problem", "argv": ["{claude}", "--print", "Work from the problem in problem.md using the normal protocol entry point. Record the route and rationale in claude-route.json."], "evidence_paths": ["project/claude-route.json"], "mutation_policy": "project-required", "project_mutation_paths": ["claude-route.json"]},
+    {"id": "codex-problem-route", "stage": "problem", "argv": ["{node}", "{codex}", "exec", "--json", "Work from the problem in problem.md using the normal protocol entry point. Record the route and rationale in codex-route.json."], "evidence_paths": ["project/codex-route.json"], "mutation_policy": "project-required", "project_mutation_paths": ["codex-route.json"]},
+    {"id": "apply-and-create", "stage": "apply_create", "argv": ["{python}", "{journey_driver}", "apply-create", "--project", "{project}"], "evidence_paths": ["project/evidence-gap-package.md", "evidence/create.json"], "mutation_policy": "project-required", "project_mutation_paths": ["evidence-gap-package.md"], "preserve_paths": ["project/problem.md"]},
+    {"id": "preserve", "stage": "preserve", "argv": ["{python}", "{journey_driver}", "preserve", "--project", "{project}"], "evidence_paths": ["evidence/handoff.json"], "mutation_policy": "project-forbidden", "preserve_paths": ["project/problem.md", "project/evidence-gap-package.md"]},
+    {"id": "fresh-process-continue", "stage": "continue", "argv": ["{python}", "{journey_driver}", "continue", "--project", "{project}"], "evidence_paths": ["evidence/continuation.json", "project/continued-evidence-gap-package.md"], "mutation_policy": "project-required", "project_mutation_paths": ["continued-evidence-gap-package.md"], "preserve_paths": ["project/problem.md", "project/evidence-gap-package.md"]},
+    {"id": "approved-shared-update", "stage": "update", "argv": ["{python}", "{cc}", "update", "--json"], "evidence_paths": ["evidence/update.json"], "mutation_policy": "project-forbidden", "preserve_paths": ["project/problem.md", "project/evidence-gap-package.md", "project/continued-evidence-gap-package.md"]},
+    {"id": "dirty-project-hold", "stage": "failure", "argv": ["{python}", "{journey_driver}", "dirty-hold", "--project", "{project}"], "expected_exit_codes": [42], "evidence_paths": ["evidence/held.json"], "mutation_policy": "project-forbidden", "preserve_paths": ["project/problem.md", "project/evidence-gap-package.md", "project/continued-evidence-gap-package.md"]},
+    {"id": "entitlement-recovery", "stage": "recovery", "argv": ["{python}", "{journey_driver}", "entitlement-recovery", "--project", "{project}"], "evidence_paths": ["evidence/recovery.json"], "mutation_policy": "project-forbidden", "preserve_paths": ["project/problem.md", "project/evidence-gap-package.md", "project/continued-evidence-gap-package.md"]},
+    {"id": "full-conformance", "stage": "conformance", "argv": ["{python}", "{cc}", "conformance", "check", "--full", "--no-cache", "--json"], "evidence_paths": ["evidence/conformance.json"], "mutation_policy": "project-forbidden", "preserve_paths": ["project/problem.md", "project/evidence-gap-package.md", "project/continued-evidence-gap-package.md"]}
+  ]
+}

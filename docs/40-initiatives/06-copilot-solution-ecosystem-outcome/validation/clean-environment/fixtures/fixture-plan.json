@@ -1,0 +1,133 @@
+{
+  "schema_version": 2,
+  "session_id": "task-303-harness-fixture-v1",
+  "mode": "fixture",
+  "prerequisites": [
+    {
+      "task": "HARNESS-FIXTURE",
+      "status": "complete",
+      "evidence": "deterministic local fake; not product evidence"
+    }
+  ],
+  "identities": {
+    "framework": "fixture-v1",
+    "organization": "fixture-org-v1",
+    "accounting": "fixture-accounting-v1",
+    "runtimes": [
+      "fixture-claude",
+      "fixture-codex"
+    ]
+  },
+  "execution_contract": {
+    "bindings": {
+      "python": {
+        "kind": "interpreter",
+        "sha256": "capture-at-run",
+        "interpreter_family": "python",
+        "allowed_script_bindings": ["fixture_tool"],
+        "app_dependency_free": true,
+        "review_evidence": "TASK-303 deterministic harness fixture interpreter; captured exactly at run"
+      },
+      "fixture_tool": {
+        "kind": "script",
+        "sha256": "41817b3a0ef234b1198791b0a19e6468ccd6f76f4cf6ca9a4788b1b71e57110f",
+        "app_dependency_free": true,
+        "review_evidence": "TASK-303 fixture_runtime.py source review"
+      }
+    }
+  },
+  "problem": {
+    "id": "accounting-evidence-gap-v1",
+    "text": "# Synthetic problem\n\nAn accounting team has a recurring monthly variance between approved vendor invoices and the general-ledger expense total. Produce an evidence-gap package that separates facts from assumptions, identifies the next competent specialist actions, and preserves enough decision context for a different session to continue without reconstructing the prompt."
+  },
+  "commands": [
+    {
+      "id": "inventory",
+      "stage": "inventory",
+      "argv": ["{python}", "{fixture_tool}", "inventory"],
+      "evidence_paths": ["evidence/inventory.json"],
+      "mutation_policy": "project-forbidden"
+    },
+    {
+      "id": "install",
+      "stage": "install",
+      "argv": ["{python}", "{fixture_tool}", "install"],
+      "evidence_paths": ["evidence/install.json"],
+      "mutation_policy": "project-forbidden"
+    },
+    {
+      "id": "assemble",
+      "stage": "assemble",
+      "argv": ["{python}", "{fixture_tool}", "assemble"],
+      "evidence_paths": ["evidence/assembly.json"],
+      "mutation_policy": "project-required",
+      "project_mutation_paths": [".claude", ".codex", "human-owned.txt"]
+    },
+    {
+      "id": "problem",
+      "stage": "problem",
+      "argv": ["{python}", "{fixture_tool}", "problem"],
+      "evidence_paths": ["evidence/route.json"],
+      "mutation_policy": "project-forbidden"
+    },
+    {
+      "id": "apply-create",
+      "stage": "apply_create",
+      "argv": ["{python}", "{fixture_tool}", "apply"],
+      "evidence_paths": ["evidence/create.json", "project/artifact.md"],
+      "mutation_policy": "project-required",
+      "project_mutation_paths": ["artifact.md"],
+      "preserve_paths": ["project/problem.md", "project/human-owned.txt"]
+    },
+    {
+      "id": "preserve",
+      "stage": "preserve",
+      "argv": ["{python}", "{fixture_tool}", "preserve"],
+      "evidence_paths": ["evidence/handoff.json", "home/.task-copilot/state.json"],
+      "mutation_policy": "project-forbidden",
+      "preserve_paths": ["project/problem.md", "project/human-owned.txt", "project/artifact.md"]
+    },
+    {
+      "id": "continue",
+      "stage": "continue",
+      "argv": ["{python}", "{fixture_tool}", "continue"],
+      "evidence_paths": ["evidence/continuation.json"],
+      "mutation_policy": "project-required",
+      "project_mutation_paths": ["artifact.md"],
+      "preserve_paths": ["project/problem.md", "project/human-owned.txt"]
+    },
+    {
+      "id": "update",
+      "stage": "update",
+      "argv": ["{python}", "{fixture_tool}", "update"],
+      "evidence_paths": ["evidence/update.json"],
+      "mutation_policy": "project-forbidden",
+      "preserve_paths": ["project/problem.md", "project/human-owned.txt", "project/artifact.md"]
+    },
+    {
+      "id": "honest-failure",
+      "stage": "failure",
+      "argv": ["{python}", "{fixture_tool}", "failure"],
+      "expected_exit_codes": [42],
+      "evidence_paths": ["evidence/held.json"],
+      "mutation_policy": "project-forbidden",
+      "preserve_paths": ["project/problem.md", "project/human-owned.txt", "project/artifact.md"]
+    },
+    {
+      "id": "recover",
+      "stage": "recovery",
+      "argv": ["{python}", "{fixture_tool}", "recovery"],
+      "evidence_paths": ["evidence/recovery.json", "home/.claude/entitlement.json"],
+      "mutation_policy": "project-forbidden",
+      "preserve_paths": ["project/problem.md", "project/human-owned.txt", "project/artifact.md"]
+    },
+    {
+      "id": "conformance",
+      "stage": "conformance",
+      "argv": ["{python}", "{fixture_tool}", "conformance"],
+      "evidence_paths": ["evidence/conformance.json"],
+      "mutation_policy": "project-forbidden",
+      "preserve_paths": ["project/problem.md", "project/human-owned.txt", "project/artifact.md"]
+    }
+  ]
+}
