@@ -50,6 +50,11 @@ PRODUCT_LAYOUTS = {
     # `codex`'s shape: one top-level product directory holding the real
     # shipped package, not a `.claude`-style multi-dimension split.
     "cli": (".", ("copilot_cli",)),
+    # Knowledge foundations can carry executable framework surfaces beside
+    # ordinary prose. Verify every top-level item beneath those executable
+    # surfaces while leaving non-executable knowledge content integrity-pinned
+    # by the normal layer lock.
+    "knowledge": (".", (".claude", "plugins", "scripts")),
 }
 
 
