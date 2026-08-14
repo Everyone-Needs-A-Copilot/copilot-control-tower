@@ -1,0 +1,23 @@
+name: foundation-release
+
+on:
+  pull_request:
+    paths:
+      - scripts/foundation-snapshot-release.py
+      - scripts/tests/test_foundation_snapshot_release.sh
+      - .github/workflows/foundation-release.yml
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/foundation-snapshot-release.py
+      - scripts/tests/test_foundation_snapshot_release.sh
+      - .github/workflows/foundation-release.yml
+
+jobs:
+  signed-release-contract:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify signed foundation release contract
+        run: ./scripts/tests/test_foundation_snapshot_release.sh
