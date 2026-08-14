@@ -2,7 +2,7 @@
 
 > **Deferred on 2026-08-14.** This protocol is preserved for future product validation but is not an Initiative 06 completion gate. See [ADR-010](../decisions/adr-010-technical-ecosystem-first.md).
 
-Status: protocol only; not recruited, scheduled, or executed Task: TASK-290 Acceptance criterion: AC-19F
+Status: preserved future-validation protocol; not recruited, scheduled, or executed Preservation record: TASK-290 Future execution record: create a new task when Pablo authorizes the study Acceptance criterion: AC-19F remains pending
 
 ## Purpose
 
@@ -10,13 +10,40 @@ Observe whether a real non-technical person can use the provisioned framework to
 
 This is a service-validation protocol, not a model-quality benchmark. One participant cannot prove general usability or ecosystem effectiveness. A team member, agent, scripted persona, model simulation, or the product author cannot substitute for a real participant.
 
+## Preservation boundary
+
+TASK-290 preserves this executable protocol and its evidence requirements. Completing TASK-290 means only that a future study can begin from a reviewed, durable protocol after Pablo has dogfooded the technically complete ecosystem. It does not mean a participant was recruited, a session occurred, or AC-19F passed.
+
+The future study must receive a new `tc` task rather than reopening or reinterpreting TASK-290. That execution task must link this protocol, the exact then-current clean-environment proof, the framework and content identities used, its consent and privacy approval, the redacted observation record, and an independent QA verdict. Until that record exists, PRD-23 and later product records must describe AC-19F as `PENDING — STUDY NOT RUN`.
+
+TASK-290 therefore has no execution dependencies. Its former TASK-299 and TASK-303 dependency links were conditions for running a participant session; ADR-010 moved that session out of this initiative's completion graph. The equivalent then-current security and clean-environment evidence remains mandatory at the future study's entry gate below.
+
+This protocol has no Control Tower dependency. It evaluates the ordinary provisioned framework workflow that exists after technical dogfooding. A later app-specific participant journey belongs to PRD-24 or its successor and cannot borrow a verdict from this framework-only protocol.
+
+## Service boundary and journey
+
+The participant's job is to turn an ordinary problem into a useful, owned next step without learning the ecosystem's machinery. The study owner's job is to create a safe, neutral environment and observe where that journey succeeds or breaks without repairing it during the session.
+
+| Stage | Participant frontstage | Framework backstage | Study owner and support boundary | Transition evidence |
+| --- | --- | --- | --- | --- |
+| Prepare | Sees nothing and provides no credentials or work data | Exact released framework and synthetic task packet are provisioned and sealed | Confirms entry gates, consent materials, privacy controls, stop contacts, and artifact identities before recruitment | Approved prerequisite record and packet digest |
+| Consent | Chooses whether to participate and whether any recording is allowed | No framework interaction begins | Explains voluntary participation, withdrawal, retention, compensation, and data handling in plain language | Signed consent stored outside Git/`tc`; pseudonymous session ID in the evidence record |
+| Begin | Starts from the ordinary problem and participant instructions | Normal routing selects relevant specialist work | Gives the brief and only permitted neutral prompts; does not translate or coach | Timestamped start, visible state, action, and routing evidence |
+| Create | Frames the problem, weighs evidence and unknowns, and creates a shareable decision brief | Entitled context and specialist craft support the work without exposing internal architecture | Records behavior and stopping points without steering choices | Redacted event notes and hashed project artifact |
+| Preserve and return | Finds the saved work, explains the next step, and shows how they would return | Task state and artifact links survive the process/session boundary | Does not reconstruct the prompt or navigate on the participant's behalf | Pre-pause state, fresh-session return evidence, and participant explanation |
+| Recover or stop | Encounters the planned unavailable-state probe or an unplanned failure and decides what to do | Failure state remains honest, bounded, and actor-appropriate | Stops on any safety condition; never repairs in the evidence session | Failure/recovery event, actor/action comprehension, or sealed stop reason |
+| Debrief | Explains what happened, what remains theirs to decide, and whether they feel finished | Produces no new claim on the participant's behalf | Asks the fixed debrief questions and confirms quotation permissions | Completed rubric with evidence links and approved quotations only |
+| Seal | Has no further obligation beyond compensation and withdrawal rights | No live state is treated as evidence after identities change | Redacts, scans, independently reviews, retains, and deletes records according to the approved policy | Evidence manifest, redaction result, QA verdict, and deletion dates |
+
+The recommended first execution is one moderated think-aloud session using the neutral observer script below because it makes comprehension failures and prohibited assistance observable while preserving a precise stop record. An unmoderated run may be useful later for ecological validity, but it should not replace the first moderated evidence session because missing context would make failures hard to interpret. Internal rehearsals, simulated participants, expert walkthroughs, and Pablo's dogfooding are rejected as AC-19F evidence because they do not test the intended participant boundary.
+
 ## Entry gate
 
 Do not recruit or schedule a participant until:
 
-- TASK-303 has accepted clean-framework-environment evidence for AC-18F;
-- TASK-297 identifies the exact owner-approved shared content and framework revision used in the session;
-- TASK-299 has approved post-fan-out entitlement, personal/shared, secret, symlink, lock, and ownership boundaries;
+- the then-current clean-framework-environment proof satisfies the TASK-303 contract for AC-18F;
+- the then-current immutable-release proof satisfies the TASK-297 contract and identifies the exact owner-approved shared content and framework revision used in the session;
+- the then-current integrated security proof satisfies the TASK-299 contract for post-fan-out entitlement, personal/shared, secret, symlink, lock, and ownership boundaries;
 - the study owner has approved the recruitment text, consent form, data fields, compensation if any, retention schedule, observer, location, and stop/escalation contacts;
 - the test account/device contains only synthetic task material and no other person's private workspace.
 
@@ -94,6 +121,36 @@ Use event notes, not interpretation alone. For each meaningful event record:
 - any intervention. An intervention automatically prevents an independent-pass verdict for that step.
 
 Record the exact framework/runtime/content identities and the TASK-303 environment evidence. Preserve the complete journey and stopping point; do not retain only successful moments or rerun because the first result is unflattering.
+
+## Future evidence packet
+
+Store the redacted study result as a manifest that links, rather than embeds, privacy-sensitive source records. Every required field must be present even when the value is `NOT RUN`, `NOT COLLECTED`, `STOPPED`, or `NOT APPLICABLE` with a reason.
+
+| Evidence group | Required fields or linked artifacts |
+| --- | --- |
+| Authorization | Future execution task ID; study owner; protocol commit and content digest; recruitment, consent, compensation, retention, observer, location, and stop-contact approvals; authorization date |
+| Preconditions | TASK-303 successor evidence; TASK-297 and TASK-299 successor evidence as applicable to the then-current release; framework, runtime/model, organization, department, fixture, and synthetic packet identities; clean test account/device declaration |
+| Consent boundary | Pseudonymous session ID; eligibility attestation; consent timestamp; separate recording choice; confirmation that identifying consent/payment records remain outside Git and `tc` |
+| Journey record | Start and end timestamps; ordered redacted events; independent/help-requested/stopped classification; interventions; visible states; artifact and Task Copilot identities; exact stopping point |
+| Rubric | One `DEMONSTRATED`, `PARTIAL`, `ABSENT`, or `VIOLATED` decision per criterion; evidence link; rationale; hard-gate summary; no numeric or aggregate score |
+| Privacy and integrity | Sensitive-value scan result; redaction review; allowed quotation approvals; artifact hashes; unexpected writes; retention and deletion deadlines |
+| Verdict | Session state `COMPLETED`, `STOPPED`, `FAILED`, or `INVALID`; bounded claim text; independent QA task and work product; `ARTIFACT:` marker; exact `VERDICT:` token |
+
+The independent QA work product must be evidence-bound and use this minimum form:
+
+```text
+Task: TASK-<future-execution-task> | WP: WP-<qa-work-product>
+Protocol: <commit>:docs/40-initiatives/06-copilot-solution-ecosystem-outcome/validation/nontechnical-participant-validation-protocol.md
+Session: <pseudonymous-session-id>
+Artifact identities: <manifest digest and linked redacted evidence digests>
+Hard gates: <criterion-by-criterion result>
+Intervention: NONE | <exact intervention and invalidated step>
+Claim: This participant completed this recorded task with these immutable inputs under this protocol.
+ARTIFACT: file-check|<evidence location and digest>
+VERDICT: APPROVED | APPROVED-WITH-MINOR-FIXES | REJECTED
+```
+
+`APPROVED-WITH-MINOR-FIXES` may correct documentation or redaction defects only. It cannot waive a missing hard gate, observer intervention, identity mismatch, consent failure, privacy breach, or incomplete task.
 
 ## Success and comprehension rubric
 
