@@ -79,6 +79,37 @@ if git ls-remote --tags "${ORIGIN}" refs/tags/v1.0.0 | grep -q .; then
   exit 1
 fi
 
+# Knowledge foundations use the same ancestry and signing controls while
+# inventorying their executable-adjacent .claude, plugin, and script surfaces.
+KNOWLEDGE_OUTPUT="$(
+  "${TOOL}" \
+    --repo "${REPO}" \
+    --source HEAD \
+    --branch main \
+    --tag v1.0.1 \
+    --product knowledge \
+    --signing-key "${KEY}.pub" \
+    --approved-fingerprint "${FINGERPRINT}"
+)"
+
+python3 - "${KNOWLEDGE_OUTPUT}" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+assert payload["product"] == "knowledge"
+assert payload["release_commit"] == payload["source_commit"]
+assert payload["executable_items_verified"] == 2
+assert payload["ancestry_verified"] is True
+assert payload["tag_signature"] == "verified"
+assert payload["published"] is False
+PY
+
+if git -C "${REPO}" show-ref --verify --quiet refs/tags/v1.0.1; then
+  echo "FAIL: Knowledge dry run changed the source repository" >&2
+  exit 1
+fi
+
 "${TOOL}" \
   --repo "${REPO}" \
   --source HEAD \
