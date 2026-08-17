@@ -1,5 +1,7 @@
 # Technical ecosystem continuation handoff
 
+> **Superseded on 2026-08-15.** Use the [Claude/Codex effectiveness and release continuation handoff](2026-08-15-effectiveness-release-continuation.md). It contains the current signed branch, installed-tool status, evaluator evidence, uncommitted broker/prepared files, exact blockers, and release/live-evaluation continuation sequence. This file remains as the 2026-08-14 pre-evaluator snapshot.
+
 Date: 2026-08-14 Owner: Pablo Alejo Scope: direct technical ecosystem through Claude Code and Codex; no Control Tower app work Current plan: [Phase 5 technical completion plan](../phases/phase-5-technical-ecosystem-completion-plan.md)
 
 ## Owner decisions already applied

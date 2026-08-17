@@ -73,7 +73,8 @@ The initiative is complete only when all of the following are true:
 
 - [Current technical completion plan](phases/phase-5-technical-ecosystem-completion-plan.md)
 - [Readable standalone HTML technical plan](phases/phase-5-technical-ecosystem-completion-plan.html)
-- [Current technical ecosystem continuation handoff](handoff/2026-08-14-technical-ecosystem-continuation.md)
+- [Current Claude/Codex effectiveness and release continuation handoff](handoff/2026-08-15-effectiveness-release-continuation.md)
+- [Superseded 2026-08-14 technical ecosystem handoff](handoff/2026-08-14-technical-ecosystem-continuation.md)
 - [Technical-first scope decision](decisions/adr-010-technical-ecosystem-first.md)
 - [Solo-owner repository-governance decision](decisions/adr-011-solo-owner-repository-governance.md)
 - [GitHub governance audit](validation/github-governance-audit-2026-08-14.md)
@@ -114,8 +115,8 @@ App build, signing, notarization, installation, supervision, rollback, non-techn
 
 ## Current summary
 
-The [Phase 5 technical completion plan](phases/phase-5-technical-ecosystem-completion-plan.md) is the current decision and execution record. Its verdict is **active and incomplete**: the candidate is credible, but the released, fully resolved, scenario-proven technical ecosystem does not yet exist.
+The [2026-08-15 effectiveness and release handoff](handoff/2026-08-15-effectiveness-release-continuation.md) is the current operational record. Its verdict is **active and incomplete**.
 
-The installed runtime is exact framework PR #66 commit `3e5f129` / tree `9867955`, reports `cc 2.12.8`, and passes the no-cache disposable round trip 19/19. Hosted candidate checks are green. On 2026-08-14, the owner removed independent-approval requirements from all 51 non-Hermes ENAC repositories while preserving configured technical checks; the four Hermes repositories were untouched. Framework PR #66 and both content PRs now report clean merge state, but no merge was performed because Pablo did not name those pull requests for merge in that instruction.
+Claude Copilot and Codex Copilot are usable for ordinary ecosystem development. The release branch is three signed commits ahead of `origin/main` and prepares framework `5.14.11` / `cc 2.12.11`, an exact 28-cell evaluator, protected Knowledge publication, durable assessment/finalization evidence, and fail-closed no-call readiness. Release-input preflight passes, but six broker/prepared files remain uncommitted, the fake/process broker has four unresolved QA defects, the production Codex credential/TLS boundary is absent, and installed signed source still disagrees with physical lock/materialization for routed foundation content.
 
-The organization release is absent, live full conformance still reports six S0 failures, and behavioral effectiveness, approved fleet fan-out, integrated pre/post-fan-out security, and clean-environment proof remain open. Control Tower and observed long-term human outcomes are deliberately outside this initiative; Initiative 06 prepares the technical system Pablo will use to learn what those future layers need to become.
+No live effectiveness call has started. The exact 28-cell run, final signed assessment, integrated security approval, immutable release/install, and any later fleet fan-out remain separate gated work.
