@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "machine_id": "m-0004",
+  "host": "claude-code",
+  "status": "updating-app",
+  "event_kind": "rollback",
+  "occurred_at": "2026-07-07T09:20:11Z",
+  "escalate": false,
+  "occurrence_count": 1
+}

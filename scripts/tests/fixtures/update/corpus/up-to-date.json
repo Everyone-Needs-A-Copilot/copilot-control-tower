@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "host": "bobs-mbp.local",
+  "result": "up-to-date",
+  "lock_before": "a1b2c3d",
+  "lock_after": "a1b2c3d",
+  "changed": [],
+  "held_for_approval": [],
+  "blocked": []
+}

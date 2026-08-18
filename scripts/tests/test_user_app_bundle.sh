@@ -138,7 +138,7 @@ fi
 # same CliClient typed verb Detect uses. The mock owns ecosystem computation;
 # this assertion covers app location/spawn/schema/decode/reporting only.
 headless_detect_output="$(
-  CT_CLI_PATH="${REPO_ROOT}/src-tauri/fixtures/mock-cc" \
+  CT_CLI_PATH="${REPO_ROOT}/scripts/tests/fixtures/mock-cc" \
     PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
     "${APP_BIN}" --headless-detect
 )"
@@ -159,7 +159,7 @@ PY
 
 # Every production Detect call is gating. A healthy onboarding plan must not
 # hide an unreadable auth or doctor response.
-if CT_CLI_PATH="${REPO_ROOT}/src-tauri/fixtures/mock-cc" \
+if CT_CLI_PATH="${REPO_ROOT}/scripts/tests/fixtures/mock-cc" \
     CT_AUTH_SCENARIO=exit-2 \
     PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
     "${APP_BIN}" --headless-detect >/dev/null 2>&1
@@ -168,7 +168,7 @@ then
   exit 1
 fi
 
-if CT_CLI_PATH="${REPO_ROOT}/src-tauri/fixtures/mock-cc" \
+if CT_CLI_PATH="${REPO_ROOT}/scripts/tests/fixtures/mock-cc" \
     CT_AUTH_SCENARIO=signed-out \
     PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
     "${APP_BIN}" --headless-detect >/dev/null 2>&1
@@ -177,7 +177,7 @@ then
   exit 1
 fi
 
-if CT_CLI_PATH="${REPO_ROOT}/src-tauri/fixtures/mock-cc" \
+if CT_CLI_PATH="${REPO_ROOT}/scripts/tests/fixtures/mock-cc" \
     CT_FIXTURE=exit-2 \
     PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
     "${APP_BIN}" --headless-detect >/dev/null 2>&1

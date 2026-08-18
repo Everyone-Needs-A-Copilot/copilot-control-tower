@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "result": "noop",
+  "removed": {
+    "materialized": 0,
+    "clones": []
+  },
+  "retained_dirty": [],
+  "secrets_touched": 0
+}

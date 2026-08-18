@@ -1,0 +1,12 @@
+{
+  "fixture_version": "1",
+  "description": "Sample ecosystem.yml-derived product list for the product-first host step (ADR-M3-005, S5). Config-driven -- N products, not a hardcoded Claude/Codex/Both toggle. Pre-checked entries reflect what a given ecosystem.yml already grants; narrow-not-widen means the wizard may only narrow this pre-checked set, never add a product the ecosystem doesn't already grant.",
+  "products": [
+    { "id": "knowledge", "label": "Knowledge Copilot", "pre_checked": true },
+    { "id": "cli", "label": "CLI Copilot", "pre_checked": true },
+    { "id": "claude", "label": "Claude Copilot", "pre_checked": true },
+    { "id": "codex", "label": "Codex Copilot", "pre_checked": false }
+  ],
+  "ambiguous": true,
+  "notes": "ambiguous:true means more than one product is available, so Q1 is actually asked (0-question path only applies when the ecosystem grants exactly one product). A single-product variant (ambiguous:false, one entry) is left as an exercise for Stream-A's unit tests rather than duplicated here."
+}

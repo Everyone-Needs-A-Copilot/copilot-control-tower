@@ -1,9 +1,0 @@
-{
-  "hosts": [
-    { "machine_id": "MBP-ENG-014", "status": "healthy", "badge_state": "pass", "actionable_items": [] },
-    { "machine_id": "MBP-ENG-027", "status": "needs-attention", "badge_state": "triangle", "actionable_items": [] },
-    { "machine_id": "MBP-SALES-003", "status": "signed-out", "badge_state": "key", "actionable_items": [] },
-    { "machine_id": "MBP-SUPPORT-009", "status": "offline", "badge_state": "cloud-slash", "actionable_items": [] },
-    { "machine_id": "MBP-SUPPORT-011", "status": "waiting-for-network", "badge_state": "clock", "actionable_items": [] }
-  ]
-}

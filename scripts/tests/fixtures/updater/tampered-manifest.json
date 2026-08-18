@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "app_version": "9.9.9",
+  "channel": "stable",
+  "pub_date": "2026-07-01T00:00:00Z",
+  "notes": "Fixture: a validly-signed update manifest for cargo test only.",
+  "artifact_url": "https://updates.example.invalid/ControlTower-9.9.9.app.tar.gz",
+  "artifact_sha256": "2b9a6ab49672becc3bb1b3b12198e585d8eecdb6b9fde7133ee648b4f1d8092f"
+}

@@ -1,0 +1,22 @@
+{
+  "fixture_version": "1",
+  "scenario_id": "managed-silent-healthy",
+  "title": "Managed silent first-run reaches Healthy (Silent First Light, happy path)",
+  "path": "managed",
+  "env": {
+    "CT_MANAGED_OVERRIDE": "1",
+    "CT_CLI_PATH": "scripts/tests/fixtures/mock-cc",
+    "CT_FIXTURE": "healthy-clean-fleet"
+  },
+  "managed_profile_fixture": "../../settings/valid-multi-layer.yml",
+  "managed_profile_state": "valid",
+  "wizard_auth_scenario": null,
+  "wizard_answers": null,
+  "questions_expected": 0,
+  "expected": {
+    "wizard_terminal": "Done",
+    "doctor_status": "healthy",
+    "doctor_fixture": "healthy-clean-fleet"
+  },
+  "notes": "S4's ~0-question path: is_managed() true, the MDM-delivered layer manifest (reused from M2's settings/valid-multi-layer.yml) schema-validates clean, materialize/verify run with no user interaction, and Done is gated on a FRESH doctor status:healthy (ADR-M3-002) -- point the app's post-materialize doctor re-poll at CT_FIXTURE=healthy-clean-fleet (this repo's existing corpus) rather than re-authoring a doctor fixture here. wizard_auth_scenario is null because the managed-silent path signs in via the machine/AuthMode credential (D-3-M3 item 4, still batched for the owner), not the interactive user_code ceremony -- this scenario intentionally does not exercise mock-cc auth."
+}

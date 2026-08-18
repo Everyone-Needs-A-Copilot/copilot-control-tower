@@ -22,7 +22,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 APP_PATH="${REPO_ROOT}/build/Copilot Control Tower.app"
-MOCK_CC="${REPO_ROOT}/src-tauri/fixtures/mock-cc"
+MOCK_CC="${REPO_ROOT}/scripts/tests/fixtures/mock-cc"
 
 usage() {
     cat <<'EOF'
@@ -30,7 +30,7 @@ Usage: scripts/headless-setup-transaction.sh [options]
 
 Options:
   --app PATH             App bundle to inspect. Defaults to build/Copilot Control Tower.app.
-  --mock-cc PATH         Inert mock helper. Defaults to src-tauri/fixtures/mock-cc.
+  --mock-cc PATH         Inert mock helper. Defaults to scripts/tests/fixtures/mock-cc.
   --skip-topology-leg    Skip the real-packaged-binary topology-contract leg
                          (scripts/tests/test_packaged_cc_topology_contract.sh).
                          Run by default.

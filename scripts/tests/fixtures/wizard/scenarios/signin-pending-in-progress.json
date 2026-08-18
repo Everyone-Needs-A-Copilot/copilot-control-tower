@@ -1,0 +1,24 @@
+{
+  "fixture_version": "1",
+  "scenario_id": "signin-pending-in-progress",
+  "title": "Sign-in device-flow: still polling, not yet terminal -- the spinner state, NOT a failure",
+  "path": "unmanaged",
+  "env": {
+    "CT_MANAGED_OVERRIDE": "0",
+    "CT_CLI_PATH": "scripts/tests/fixtures/mock-cc",
+    "CT_FIXTURE": "setup-needed-first-run",
+    "CT_AUTH_SCENARIO": "pending"
+  },
+  "managed_profile_fixture": null,
+  "wizard_auth_scenario": "pending",
+  "questions_expected": 2,
+  "expected": {
+    "wizard_terminal": "InProgress (device-flow wrapper spinner, still polling at the ceremony's interval)",
+    "doctor_status": "setup-needed",
+    "doctor_fixture": "setup-needed-first-run",
+    "auth_terminal_status": "pending",
+    "reaches_done": false,
+    "is_a_failure": false
+  },
+  "notes": "Not one of the 3 failure variants -- included because 'pending' is a distinct, valid, non-terminal poll response the Rust seam must keep polling on (at the ceremony's `interval` seconds) rather than treat as any kind of holding/error. A test harness driving mock-cc should typically return this a few times before flipping CT_AUTH_SCENARIO to a terminal value, to exercise the polling loop itself."
+}

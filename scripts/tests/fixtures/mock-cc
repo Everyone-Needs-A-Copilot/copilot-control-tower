@@ -1,0 +1,1261 @@
+#!/usr/bin/env bash
+# mock-cc — a stand-in for the real `cc`/`copilot` CLI, driven entirely by the fixture
+# corpus in this directory. Lets Control Tower be driven through every doctor state
+# (and, as of M3, the wizard's device-flow sign-in seam; as of M5/S2, the deprovision
+# seam) without a real fleet, a real CLI, real OAuth, or a real (mutating!) wipe. See
+# README.md for the doctor corpus map, fixtures/wizard/README.md for the auth seam +
+# wizard scenario corpus, and fixtures/deprovision/README.md for the deprovision corpus.
+#
+# Usage (mirrors the real CLI's invocation shape):
+#   mock-cc doctor --json
+#   mock-cc auth --json              # initiate: emit the device-flow ceremony
+#   mock-cc auth --json --poll       # poll: emit the terminal (or pending) status
+#   mock-cc auth login --json        # alias verb form (D-3-M3 reconciliation: the
+#                                     #   wizard's host/GitHub sign-in step is one more
+#                                     #   `cc auth` integration, never a `gh auth status`
+#                                     #   screen-scrape) — identical behavior to `auth`.
+#   mock-cc auth login --json --poll
+#   mock-cc auth status --json       # WS-A Stream-Z: offline-safe "who is signed in".
+#   mock-cc deprovision <org> --json # M5/S2: emit a canned deprovision REPORT — this
+#                                     #   stub NEVER touches the filesystem; it only
+#                                     #   prints a fixture body, exactly like `doctor`.
+#   mock-cc update --json            # M6/S1: emit a canned `update --json` RESULT — this
+#                                     #   stub NEVER runs a real (mutating) reconciling
+#                                     #   sync; it only prints a fixture body, exactly
+#                                     #   like `doctor`/`deprovision`.
+#   mock-cc update --project <path> --json   # WS-A Stream-Z (Component Sync): a single
+#                                     #   embedding project's materialize result — reuses
+#                                     #   the SAME update/ corpus, stamped with the given
+#                                     #   `--project` path (additive `path` field).
+#   mock-cc update --fanout --json   # WS-A Stream-Z: the machine-wide fan-out roll-up —
+#                                     #   reads projects/corpus/ (fanout_report shape).
+#   mock-cc freshness --json                 # WS-A Stream-Z: cheap single-SHA poll (canned).
+#   mock-cc freshness --all-projects --json  # WS-A Stream-Z: per-project sweep — reads
+#                                     #   projects/corpus/ (all_projects_freshness shape).
+#   mock-cc layers --json            # WS-A Stream-Z: entitlement discovery — reads
+#                                     #   layers/corpus/ (list_report shape).
+#   mock-cc layers join <id> --json  # WS-A Stream-Z: join action — canned join_result,
+#                                     #   outcome selected by the SAME fixture name as
+#                                     #   `layers --json` (available|joined|not-entitled|
+#                                     #   offline map to joined|already-joined|
+#                                     #   not-entitled|offline respectively).
+#   mock-cc connections --json       # task 221 bridge stage C: the org's declared
+#                                     #   connections roster + shared-store reachability —
+#                                     #   reads connections/corpus/ (connections.schema.json).
+#                                     #   `CT_FIXTURE=verb-unavailable` simulates an installed
+#                                     #   `cc` build that PREDATES this verb entirely (exit 2,
+#                                     #   no readable body — the real bundled 0.3.2 app's
+#                                     #   `cc 2.1.2` helper's exact observed shape).
+#   mock-cc connect <id> --json      # task 222: writes the values read from STDIN into the
+#                                     #   keychain and re-checks (connect.schema.json). Derives
+#                                     #   the row from the SAME connections/corpus/ body, and
+#                                     #   FAILS LOUDLY if any supplied value is also visible in
+#                                     #   argv or the environment — that assertion is the point.
+#   mock-cc connect <id> --check --json
+#                                     #   read-only re-evaluation: never reads stdin, never writes.
+#   mock-cc onboard --org <o> --products <p> --json
+#                                     # the aggregate ecosystem PLAN call (`WizardModel.
+#                                     #   performDetect`/`WizardSelftest`'s CT_SELFTEST_STEP=
+#                                     #   holding). `$CT_FIXTURE`/`$CC_FIXTURE`/`--fixture`
+#                                     #   is otherwise IGNORED by this verb (a fixed canned
+#                                     #   body is always returned), EXCEPT the named
+#                                     #   fixtures carved out for `control-tower-copy-deck.md`
+#                                     #   §2.9/§2.2.1 coverage: blocked-device-ssh-held (H4,
+#                                     #   invariant #3 working — a genuinely-held case, e.g.
+#                                     #   a different GitHub login on the existing
+#                                     #   connection; every other held cause, wrong host, no
+#                                     #   repo access, malformed config, maps through the
+#                                     #   SAME `config == "held"` classifier and is the
+#                                     #   CLI's own tested surface, not re-fixtured here),
+#                                     #   blocked-device-ssh-fault (H3, the default fault
+#                                     #   variant), device-ssh-adoptable (the State 1 offer —
+#                                     #   `config: "adoptable"`, a `scope: "machine"`
+#                                     #   inventory row, `result: "changes-required"`, never
+#                                     #   `"blocked"` — the dead end this whole change
+#                                     #   replaces), device-ssh-not-permitted (H7 —
+#                                     #   `registration: "not-permitted"`), exit2-onboard-unavailable
+#                                     #   (H6 via a REAL, differentiated exit-2 error
+#                                     #   envelope, unlike every other exit-2 fixture in
+#                                     #   this script, which prints an empty body),
+#                                     #   exit2-empty-fields (§2.9.1's empty-value guard: a
+#                                     #   real exit-2 envelope whose code/message are
+#                                     #   present but `""`, not omitted), exit2-no-company-app
+#                                     #   (the real-world trigger's own code, verbatim: H6
+#                                     #   for a genuine end user, or H7 self-serve when
+#                                     #   THIS Mac's own admin standup brief is present —
+#                                     #   `native/models.swift`'s `LocalAdminSignal`, never
+#                                     #   this fixture body, is what tells the two apart).
+#
+# Fixture selection for `doctor` (checked in this order):
+#   1. --fixture=<name> or --fixture <name> on the command line
+#   2. $CT_FIXTURE           (the name documented in the M1 architecture WP — this is
+#                              what src-tauri/cli/path.rs's dev override is expected to set
+#                              alongside CT_CLI_PATH=/path/to/mock-cc)
+#   3. $CC_FIXTURE           (alias, same meaning, for callers that prefer the CLI's own
+#                              env-var naming convention)
+#   4. "healthy-clean-fleet" (default, so an unconfigured run is still deterministic)
+#
+# <name> resolves to corpus/<name>.json first, then invalid/<name>.json, then is tried
+# as a literal path. Two special names bypass the corpus entirely:
+#   CT_FIXTURE=list      -> print the names of every available fixture and exit 0
+#                            (no doctor/--json args required)
+#   CT_FIXTURE=exit-2    -> simulate the contract's env-error path: nothing usable on
+#                            stdout, a diagnostic on stderr, exit 2. This is how T3/T9
+#                            exercise "do NOT trust the body" independent of any fixture
+#                            file's content.
+#
+# Exit code for `doctor` (contractually correct per cli-contract.md's doctor row):
+#   0  when the emitted JSON parses and no checker has severity:"fail"
+#   1  when the emitted JSON parses and at least one checker has severity:"fail"
+#   2  for CT_FIXTURE=exit-2, or if the requested fixture can't be found
+#
+# NOTE on the invalid/ corpus: every fixture in invalid/ *except* CT_FIXTURE=exit-2 is
+# deliberately emitted with a "successful-looking" exit code (0 or 1, computed the same
+# way as any other fixture) even though its body is poisoned (missing required field,
+# unparseable JSON, or an out-of-range schema_version). This is intentional: it is the
+# harder, more honest adversarial case — the app must fail closed on the BODY, not rely
+# on the exit code to save it. Only CT_FIXTURE=exit-2 exercises the "trust nothing,
+# exit code 2" path.
+#
+# --- auth (device-flow sign-in seam, M3, D-3-M3 mock-first) ---------------------------
+# Scenario selection for `auth` (checked in this order):
+#   1. --scenario=<name> or --scenario <name> on the command line
+#   2. $CT_AUTH_SCENARIO     (mirrors the $CT_FIXTURE convention)
+#   3. $CC_AUTH_SCENARIO     (alias, mirrors $CC_FIXTURE)
+#   4. "authorized"          (default happy path, so an unconfigured run is deterministic)
+#
+# Scenarios: authorized | denied | expired | timeout | pending | exit-2 |
+#            authorized-leaked-field-adversarial | org-required-then-authorized |
+#            org-required-then-not-found | org-required-then-no-company-app |
+#            org-required-then-network-unavailable
+#
+# The four `org-required-then-*` scenarios (org-question copy spec §2.1.1/§6,
+# `WizardModel.handleOrgRequired`/`handleConnectGitHubError`) model the ONE real
+# CLI behavior the whole organization-question screen exists to answer: EVERY
+# call that carries no `--org <name>` fails `org-required` (a genuinely fresh
+# Mac, every time); a call that DOES carry `--org` resolves per scenario name:
+#   org-required-then-authorized        -> the ordinary ceremony/poll, exactly
+#                                           as if the organization were already
+#                                           known (the happy "ask, then sign in"
+#                                           path)
+#   org-required-then-not-found         -> exit 2, code org-not-found (the typed
+#                                           name isn't a real GitHub organization)
+#   org-required-then-no-company-app    -> exit 2, code no-company-app (the
+#                                           organization is real; its sign-in
+#                                           isn't published yet)
+#   org-required-then-network-unavailable -> exit 2, code network-unavailable
+#                                           (a transport failure, never told as
+#                                           a fabricated "not set up yet")
+# `--org <name>` is otherwise ignored by every OTHER auth scenario (it's a
+# genuinely no-op flag there, same as an unrecognized flag) -- only these four
+# scenario names react to its presence at all.
+#
+# The INITIATE call (no --poll) always emits the same canned ceremony regardless of
+# scenario — the ceremony is the render data shown to the user BEFORE any outcome is
+# known, so it cannot vary by an outcome that hasn't happened yet. WS-A Stream-Z
+# ADDITIVELY folds in `schema_version`/`kind`/`device_code` (auth.schema.json's
+# `deviceCode` shape) alongside the original four wizard-frozen fields — the Rust
+# seam drops unknown fields, so this is safe for the existing wizard consumer:
+#   {"schema_version":"1.0","kind":"device-code","user_code":"WDJB-MJHT","verification_uri":"https://example.com/device","expires_in":900,"interval":5,"device_code":"mock-device-code-0000"}
+#
+# The POLL call (--poll) emits a JSON object carrying `status` (WS-A Stream-Z
+# ADDITIVELY folds in `schema_version`/`kind:"poll"` alongside it, same additive-safe
+# rule as the ceremony above):
+#   {"schema_version":"1.0","kind":"poll","status":"authorized"}   (or "denied" / "expired" / "timeout" / "pending")
+#
+# NEVER emits a real or realistic-looking token — the app must hold nothing (invariant
+# #6; ADR-M3-001; fitness fn 2 no-secret-on-wizard-DTO). The one exception,
+# `authorized-leaked-field-adversarial`, exists ONLY as a negative-test fixture: it adds
+# an obviously-synthetic, obviously-fake extra field to an otherwise-`authorized` poll
+# response, so the Rust seam's parser can be proven to drop/ignore any unexpected
+# token-shaped field rather than forward it into the WizardState DTO. The fake value is
+# clearly labeled (`FAKE-SYNTHETIC-NOT-A-REAL-TOKEN...`) and is never emitted by any
+# other scenario.
+#
+# Exit code for `auth` (consistent with the existing contract's two non-doctor-specific
+# codes — there is no per-body "severity" concept for auth, so only two codes apply):
+#   0  normal — the JSON parses and describes a real ceremony/poll outcome, INCLUDING
+#      the honest-failure outcomes (denied/expired/timeout/pending are normal, expected
+#      terminal/interim states, not env errors)
+#   2  env error — CT_AUTH_SCENARIO=exit-2, or an unrecognized scenario name
+#
+# `mock-cc auth status --json` (WS-A Stream-Z, offline-safe "who is signed in", no
+# --poll/ceremony concept): driven by the SAME $CT_AUTH_SCENARIO/$CC_AUTH_SCENARIO/
+# --scenario selection as above. "authorized" -> `{"schema_version":"1.0","kind":"status","status":"authorized","identity":{"login":"octocat"}}`;
+# every other scenario name (including the default-unset case) -> `{"schema_version":"1.0","kind":"status","status":"signed-out"}`.
+# `status-not-valid-json` emits a malformed status body for fail-closed consumer tests.
+# `exit-2` still simulates the env-error path. Exit code: always 0 except `exit-2`
+# (status is never a terminal-failure concept the way poll is — signed-out is a normal,
+# renderable state).
+#
+# --- layers [join] (WS-A Stream-Z, D7.1 proposed contract addition) -------------------
+# Fixture selection for `layers` (list) — the SAME $CT_FIXTURE/$CC_FIXTURE/--fixture
+# convention as `doctor`, resolved against layers/corpus/<name>.json, then tried as a
+# literal path. Default (when unset): "available". CT_FIXTURE=list/exit-2 behave the
+# same as `doctor`'s (list also enumerates the layers corpus).
+#
+# `mock-cc layers join <id> --json` reuses the SAME fixture-name selection to pick the
+# join OUTCOME (never a corpus file of its own — the join_result body is small enough
+# to synthesize inline, echoing the caller's own `<id>` positional argument):
+#   available     -> {"result":"joined", synced_lock_sha included}
+#   joined        -> {"result":"already-joined"}
+#   not-entitled  -> {"result":"not-entitled"}
+#   offline       -> {"result":"offline", reason included}
+#   error         -> {"result":"error", reason:"unknown layer id"} (exit 1)
+#   exit-2        -> env/credential error, no body (exit 2)
+#
+# Exit code for `layers`/`layers join` (per cli-contract.md D7.1): `layers` (list) is
+# always exit 0 once a fixture body is found (same simpler convention as
+# `deprovision`/`update`); `layers join` is 0 for joined/already-joined/not-entitled/
+# offline, 1 for the `error` fixture, 2 for exit-2/unknown-fixture.
+#
+# --- freshness (WS-A Stream-Z) ---------------------------------------------------------
+# `mock-cc freshness --json` (bare, the cheap single-SHA poll): a small canned body,
+# not driven by any fixture corpus (there is exactly one shape to demonstrate).
+#
+# `mock-cc freshness --all-projects --json` (Component Sync per-project sweep): the
+# SAME $CT_FIXTURE/$CC_FIXTURE/--fixture convention, resolved against
+# projects/corpus/<name>.json (the `all_projects_freshness` shape). Default:
+# "mixed-fresh-and-stale". Exit code: always 0 once a fixture body is found (read-only,
+# no per-body severity concept), 2 for exit-2/unknown-fixture.
+#
+# `mock-cc update --project <path> --json` (Component Sync, one project): reuses the
+# EXISTING update/corpus/<name>.json (update.schema.json shape) verbatim, with the
+# caller's own `--project <path>` value stamped into the body's additive `path` field —
+# the SAME $CT_FIXTURE/$CC_FIXTURE/--fixture convention and default ("applied-clean")
+# as bare `update`.
+#
+# `mock-cc update --fanout --json` (Component Sync, the machine-wide roll-up): the SAME
+# $CT_FIXTURE/$CC_FIXTURE/--fixture convention, resolved against
+# projects/corpus/<name>.json (the `fanout_report` shape). Default: "12-of-14-updated".
+# Exit code for both: same simpler convention as bare `update` (always 0 once a fixture
+# body is found; 2 for exit-2/unknown-fixture).
+#
+# --- deprovision (M5/S2, `.copilot/wp/30.md`) ------------------------------------------
+# Fixture selection for `deprovision <org>` — the SAME $CT_FIXTURE/$CC_FIXTURE/
+# --fixture convention as `doctor` (checked in the same order), resolved against
+# deprovision/corpus/<name>.json first, then deprovision/invalid/<name>.json, then
+# tried as a literal path. Default (when unset): "wiped-clean". CT_FIXTURE=list and
+# CT_FIXTURE=exit-2 behave the same as they do for `doctor` (list also enumerates the
+# deprovision corpus; exit-2 simulates the env-error/flock-held path — no trustworthy
+# body, exit 2).
+#
+# Exit code for `deprovision` — deliberately simpler than `doctor`'s: cli-contract.md's
+# `deprovision` row names no per-body exit-code convention (no analogue of doctor's
+# severity:"fail" -> exit 1), so this stub always exits 0 once a fixture body is found,
+# EVERY fixture printed verbatim (including deprovision/invalid/ — those exist so the
+# app's OWN fail-closed parsing, `model::deprovision::parse_deprovision_body`, is what's
+# under test, exactly like doctor's `checker-missing-*` fixtures rely on the app failing
+# closed on CONTENT rather than on the exit code):
+#   0  a fixture body was found and printed (corpus/ OR invalid/ — see above)
+#   2  CT_FIXTURE=exit-2, or the requested fixture can't be found
+#
+# NEVER wipes anything: this stub is pure text-in/text-out, exactly like `doctor` — it
+# holds no filesystem-deletion logic at all, matching the real invariant this whole
+# feature exists to prove (FF-M5-2, `tests/fitness_m5_no_wipe_logic.rs`).
+#
+# --- update (M6/S1, `.copilot/wp/37.md`, task 52) --------------------------------------
+# Fixture selection for `update` — the SAME $CT_FIXTURE/$CC_FIXTURE/--fixture
+# convention as `doctor`/`deprovision` (checked in the same order), resolved against
+# update/corpus/<name>.json first, then update/invalid/<name>.json, then tried as a
+# literal path. Default (when unset): "applied-clean". CT_FIXTURE=list and
+# CT_FIXTURE=exit-2 behave the same as they do for `doctor`/`deprovision` (list also
+# enumerates the update corpus; exit-2 simulates the env-error/flock-held path — no
+# trustworthy body, exit 2).
+#
+# Exit code for `update` — same simpler convention as `deprovision`: cli-contract.md's
+# `update` row names no per-body exit-code convention, so this stub always exits 0 once
+# a fixture body is found, EVERY fixture printed verbatim (including update/invalid/ —
+# those exist so the app's OWN fail-closed parsing, `model::update::parse_update_body`,
+# is what's under test, never the exit code):
+#   0  a fixture body was found and printed (corpus/ OR invalid/ — see above)
+#   2  CT_FIXTURE=exit-2, or the requested fixture can't be found
+#
+# NEVER applies a real reconciling sync: this stub is pure text-in/text-out, exactly
+# like `doctor`/`deprovision` — it holds no sync/merge/signature logic at all.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORPUS_DIR="$HERE/corpus"
+INVALID_DIR="$HERE/invalid"
+# M5/S2: the `deprovision` verb's own fixture corpus, deliberately separate
+# from doctor's (a different --json shape entirely) — see
+# fixtures/deprovision/README.md.
+DEPROVISION_CORPUS_DIR="$HERE/deprovision/corpus"
+DEPROVISION_INVALID_DIR="$HERE/deprovision/invalid"
+# M6/S1: the `update` verb's own fixture corpus, deliberately separate from
+# doctor/deprovision (a different --json shape entirely) — see
+# fixtures/update/README.md.
+UPDATE_CORPUS_DIR="$HERE/update/corpus"
+UPDATE_INVALID_DIR="$HERE/update/invalid"
+# WS-A Stream-Z: the `layers`/`layers join` verb's own fixture corpus
+# (list_report shape, layers.schema.json) — see fixtures/layers/corpus/.
+LAYERS_CORPUS_DIR="$HERE/layers/corpus"
+# WS-A Stream-Z (Component Sync): the `freshness --all-projects`/
+# `update --fanout` fixture corpus — one directory, two shapes
+# (all_projects_freshness / fanout_report, projects.schema.json's `oneOf`),
+# distinguished structurally exactly like the real schema — see
+# fixtures/projects/corpus/.
+PROJECTS_CORPUS_DIR="$HERE/projects/corpus"
+# Task 221 bridge stage C: the `connections` verb's own fixture corpus
+# (connections.schema.json) — see fixtures/connections/README.md.
+CONNECTIONS_CORPUS_DIR="$HERE/connections/corpus"
+
+# No hardcoded default here — `doctor` defaults to "healthy-clean-fleet" and
+# `deprovision` defaults to "wiped-clean", applied below once $verb is known
+# (both share the same $CT_FIXTURE/$CC_FIXTURE/--fixture selection
+# convention; only the fallback-when-unset value differs per verb).
+fixture="${CT_FIXTURE:-${CC_FIXTURE:-}}"
+auth_scenario="${CT_AUTH_SCENARIO:-${CC_AUTH_SCENARIO:-authorized}}"
+
+# --fixture=<name> / --fixture <name>, --scenario=<name> / --scenario <name>, and
+# --poll on the command line win over env vars / defaults. WS-A Stream-Z additions:
+# --project <path> / --fanout (for `update`), --all-projects (for `freshness`).
+args=("$@")
+# Optional test-only audit trail. This fixture never mutates product state,
+# but integration tests can ask it to record the exact argv received so a
+# passing decoder cannot hide that the wrong production verb was called.
+if [[ -n "${CT_MOCK_INVOCATION_LOG:-}" ]]; then
+  printf '%s\n' "$*" >>"${CT_MOCK_INVOCATION_LOG}"
+fi
+verb=""
+subverb=""
+arg3=""
+poll=0
+connect_check=0
+project_path=""
+fanout=0
+all_projects=0
+onboard_apply=0
+ecosystem_onboard=0
+org_value=""
+i=0
+while [ $i -lt ${#args[@]} ]; do
+  arg="${args[$i]}"
+  case "$arg" in
+    --project=*)
+      project_path="${arg#--project=}"
+      ;;
+    --project)
+      i=$((i + 1))
+      project_path="${args[$i]:-}"
+      ;;
+    --fanout)
+      fanout=1
+      ;;
+    --all-projects)
+      all_projects=1
+      ;;
+    --apply)
+      onboard_apply=1
+      ;;
+    --org|--org=*)
+      # Reused for BOTH `onboard --org <o>` (ecosystem_onboard, pre-existing)
+      # AND `auth login --org <name>` (org-question copy spec §2.1.1) --
+      # orthogonal verbs, so one flag safely serves both. `org_value` is the
+      # ONLY thing the four `org-required-then-*` auth scenarios read.
+      ecosystem_onboard=1
+      if [ "$arg" = "--org" ]; then
+        i=$((i + 1))
+        org_value="${args[$i]:-}"
+      else
+        org_value="${arg#--org=}"
+      fi
+      ;;
+    --fixture=*)
+      fixture="${arg#--fixture=}"
+      ;;
+    --fixture)
+      i=$((i + 1))
+      fixture="${args[$i]:-$fixture}"
+      ;;
+    --scenario=*)
+      auth_scenario="${arg#--scenario=}"
+      ;;
+    --scenario)
+      i=$((i + 1))
+      auth_scenario="${args[$i]:-$auth_scenario}"
+      ;;
+    --poll)
+      poll=1
+      ;;
+    --check)
+      # `connect --check` (task 222): read-only re-evaluation, never reads
+      # stdin and never writes. Declared explicitly rather than falling into
+      # the `-*` ignore case below, because the difference between check mode
+      # and connect mode is the whole point of the verb.
+      connect_check=1
+      ;;
+    --json) ;; # accepted, no-op marker
+    -*) ;;      # ignore unknown flags
+    *)
+      if [ -z "$verb" ]; then
+        verb="$arg"
+      elif [ -z "$subverb" ]; then
+        subverb="$arg"
+      elif [ -z "$arg3" ]; then
+        arg3="$arg"
+      fi
+      ;;
+  esac
+  i=$((i + 1))
+done
+
+# Per-verb default (only when nothing set $fixture at all — an explicit
+# `--fixture=list`/`exit-2`/named fixture always wins, checked below).
+if [ -z "$fixture" ]; then
+  case "$verb" in
+    deprovision) fixture="wiped-clean" ;;
+    update)
+      if [ "$fanout" -eq 1 ]; then
+        fixture="12-of-14-updated"
+      else
+        fixture="applied-clean"
+      fi
+      ;;
+    freshness) fixture="mixed-fresh-and-stale" ;;
+    layers) fixture="available" ;;
+    connections|connect) fixture="ready-and-needs-connect" ;;
+    *) fixture="healthy-clean-fleet" ;;
+  esac
+fi
+
+list_fixtures() {
+  echo "corpus (valid, schema-passing, for 'doctor'):"
+  for f in "$CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "invalid (adversarial, intentionally NOT schema-valid — for CliUnreadable tests):"
+  for f in "$INVALID_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "deprovision corpus (valid, for 'deprovision <org> --json'):"
+  for f in "$DEPROVISION_CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "deprovision invalid (adversarial, for the Unreadable path):"
+  for f in "$DEPROVISION_INVALID_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "update corpus (valid, for 'update --json'):"
+  for f in "$UPDATE_CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "update invalid (adversarial, for the Unreadable path):"
+  for f in "$UPDATE_INVALID_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "auth scenarios (for 'auth' / 'auth login'):"
+  echo "  authorized denied expired timeout pending authorized-leaked-field-adversarial"
+  echo "auth status scenarios (for 'auth status'):"
+  echo "  authorized (-> status:authorized)   anything else (-> status:signed-out)"
+  echo "layers corpus (valid, for 'layers --json' / 'layers join <id> --json'):"
+  for f in "$LAYERS_CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "projects corpus (valid, for 'freshness --all-projects --json' / 'update --fanout --json'):"
+  for f in "$PROJECTS_CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "connections corpus (valid, for 'connections --json'):"
+  for f in "$CONNECTIONS_CORPUS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    printf '  %s\n' "$(basename "${f%.json}")"
+  done
+  echo "connections special: verb-unavailable (exit 2, no body — a pre-connections cc build)"
+  echo "special: list, exit-2"
+}
+
+if [ "$fixture" = "list" ]; then
+  list_fixtures
+  exit 0
+fi
+
+if [ -z "$verb" ]; then
+  echo "mock-cc: usage: mock-cc doctor --json | mock-cc auth --json [--poll] | mock-cc deprovision <org> --json   (or CT_FIXTURE=list mock-cc doctor --json)" >&2
+  exit 2
+fi
+
+case "$verb" in
+  workspace)
+    workspace_fixture="${CT_WORKSPACE_FIXTURE:-$fixture}"
+    ready_contract='"classification":"ready","responsible_actor":"none","inspection":{"id":"sha256:1111111111111111111111111111111111111111111111111111111111111111","contract_id":"project-integration","contract_version":"1","scope":"detail","complete":true},"components":[{"component":"claude","expected":true,"expected_contract":{"id":"project-integration","version":"1"},"classification":"ready","recognized_setup":{"variant_id":"mock-tracked-lock-v1","version":"1","evidence":[{"kind":"lock-record","path":"copilot.lock.json","state":"verified","detail":"Recorded evidence matches."}]},"missing_requirements":[],"responsible_actor":"none","safe_action":null,"verification":{"command":["cc","workspace","verify","--project","/tmp/example-project","--json"],"expected":"Claude and Codex classify ready.","stop_conditions":["Stop if evidence changed."]}},{"component":"codex","expected":true,"expected_contract":{"id":"project-integration","version":"1"},"classification":"ready","recognized_setup":{"variant_id":"mock-tracked-lock-v1","version":"1","evidence":[{"kind":"lock-record","path":"copilot.lock.json","state":"verified","detail":"Recorded evidence matches."}]},"missing_requirements":[],"responsible_actor":"none","safe_action":null,"verification":{"command":["cc","workspace","verify","--project","/tmp/example-project","--json"],"expected":"Claude and Codex classify ready.","stop_conditions":["Stop if evidence changed."]}}],"capabilities":{"instructions":2,"agents":0,"skills":0,"commands":0,"plugins":0,"integration_paths":["CLAUDE.md","AGENTS.md"]},"preservation":{"must_preserve":[],"prohibited_actions":["overwrite-project-instructions","delete-project-capabilities","trust-assistant-self-report","skip-verification"]},"safe_action":null,"plan_available":false,"integration_plan":null'
+    safe_contract='"classification":"safe-finish","responsible_actor":"cli","inspection":{"id":"sha256:1111111111111111111111111111111111111111111111111111111111111111","contract_id":"project-integration","contract_version":"1","scope":"detail","complete":true},"components":[{"component":"claude","expected":true,"expected_contract":{"id":"project-integration","version":"1"},"classification":"safe-finish","recognized_setup":null,"missing_requirements":[{"id":"component-setup","detail":"Claude setup is missing."}],"responsible_actor":"cli","safe_action":null,"verification":{"command":["cc","workspace","verify","--project","/tmp/example-project","--json"],"expected":"Claude and Codex classify ready.","stop_conditions":["Stop if evidence changed."]}},{"component":"codex","expected":true,"expected_contract":{"id":"project-integration","version":"1"},"classification":"safe-finish","recognized_setup":null,"missing_requirements":[{"id":"component-setup","detail":"Codex setup is missing."}],"responsible_actor":"cli","safe_action":null,"verification":{"command":["cc","workspace","verify","--project","/tmp/example-project","--json"],"expected":"Claude and Codex classify ready.","stop_conditions":["Stop if evidence changed."]}}],"capabilities":{"instructions":0,"agents":0,"skills":0,"commands":0,"plugins":0,"integration_paths":[]},"preservation":{"must_preserve":[],"prohibited_actions":["overwrite-project-instructions","delete-project-capabilities","trust-assistant-self-report","skip-verification"]},"safe_action":{"id":"sha256:2222222222222222222222222222222222222222222222222222222222222222","inspection_id":"sha256:1111111111111111111111111111111111111111111111111111111111111111","kind":"add-missing","components":["claude","codex"],"detail":"Add only the missing Copilot integration files.","apply_verb":"finish","will_add":[{"kind":"manifest","path":"copilot.lock.json","detail":"Record verified component evidence."}],"will_preserve":[],"will_not_change":[],"verification":{"command":["cc","workspace","verify","--project","/tmp/example-project","--json"],"expected":"Claude and Codex classify ready.","stop_conditions":["Stop if evidence changed."]}},"plan_available":false,"integration_plan":null'
+    if [ "$workspace_fixture" = "project-guided" ] && { [ -z "$subverb" ] || [ "$subverb" = "plan" ]; }; then
+      cat "$HERE/workspaces/status-project-guided-1.1.json"
+    elif [ "$subverb" = "approve-root" ] && [ "$onboard_apply" -eq 1 ]; then
+      printf '%s\n' '{"schema_version":"1.0","mode":"apply","result":"applied","root":{"name":"Projects","state":"approved","detail":"Control Tower will look for projects only inside this folder."}}'
+    elif [ "$subverb" = "configure" ] && [ "$onboard_apply" -eq 1 ]; then
+printf '%s\n' '{"schema_version":"1.1","mode":"apply","result":"applied","workspaces":[{"path":"/tmp/example-project","name":"example-project","project_id":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"ready","detail":"Copilot is ready for this project.","declared_components":["claude","codex"],"installed_components":["claude","codex"],"recommended_components":["claude","codex"],"personal_profile":{"state":"associated","project_id":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"setup_policy":"not-offered","policy_detail":"Copilot is already set up here, so there is nothing to ask.","can_apply_now":false,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There is nothing here to undo yet."},'"$ready_contract"'}],"summary":{"ready":1,"setup-available":0,"activation-required":0,"blocked":0,"total":1},"classification_summary":{"ready":1,"safe-finish":0,"guided-integration":0,"owner-decision":0,"could-not-verify":0,"total":1},"actions":[{"id":"activate-components","scope":"project","status":"applied","detail":"Add the selected Copilot setup without replacing existing project files."}]}'
+    elif [ "$subverb" = "revert" ]; then
+      # B3 (undo/decline-cost close-out): the REAL `cc workspace revert`
+      # report is a narrower shape than every other workspace verb's — no
+      # `summary`/`discovery`/`recently_set_up` (see claude-copilot's
+      # `workspaces.py` `revert` command; `native/cli-dtos.swift`'s
+      # `WorkspaceRevertReport` is the app's own dedicated decode target for
+      # exactly this reason). `--apply` applies; without it, this is the plan.
+      if [ "$onboard_apply" -eq 1 ]; then
+printf '%s\n' '{"schema_version":"1.1","mode":"apply","result":"applied","workspaces":[{"path":"/tmp/example-project","name":"example-project","project_id":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"local-only","project_id":null},"setup_policy":"excluded","policy_detail":"You asked me not to set this project up again.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There is nothing here to undo yet."},'"$safe_contract"'}],"revert":{"removed":["claude","codex"],"kept":[],"detail":"Removed. Your own files were left alone, and I will not set this project up again unless you ask."}}'
+      else
+printf '%s\n' '{"schema_version":"1.1","mode":"plan","result":"action-required","workspaces":[{"path":"/tmp/example-project","name":"example-project","project_id":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"ready","detail":"Copilot is ready for this project.","declared_components":["claude","codex"],"installed_components":["claude","codex"],"recommended_components":["claude","codex"],"personal_profile":{"state":"associated","project_id":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"setup_policy":"not-offered","policy_detail":"Copilot is already set up here, so there is nothing to ask.","can_apply_now":false,"apply_blocked_detail":null,"undo":{"available":true,"detail":"Removes only what I added. Your own files are left alone."},'"$ready_contract"'}],"revert":{"removed":[],"kept":[],"detail":"Removes only what I added. Your own files are left alone."}}'
+      fi
+    else
+printf '%s\n' '{"schema_version":"1.1","mode":"status","result":"action-required","workspaces":[{"path":"/tmp/example-project","name":"example-project","project_id":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"setup-available","detail":"Copilot can be set up for this project.","declared_components":[],"installed_components":[],"recommended_components":["claude","codex"],"personal_profile":{"state":"available","project_id":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"setup_policy":"ask","policy_detail":"You will be asked before anything is added here.","can_apply_now":true,"apply_blocked_detail":null,"undo":{"available":false,"detail":"There is nothing here to undo yet."},'"$safe_contract"'}],"summary":{"ready":0,"setup-available":1,"activation-required":0,"blocked":0,"total":1},"classification_summary":{"ready":0,"safe-finish":1,"guided-integration":0,"owner-decision":0,"could-not-verify":0,"total":1},"recently_set_up":[]}'
+    fi
+    exit 0
+    ;;
+
+  onboard)
+    # copy-deck §2.9/§2.2.1 test fixtures (Control Tower's Holding
+    # H3/H4/H6/H7 + "One question first" coverage, `scripts/tests/smoke-scenarios.sh`
+    # S18-S23): the aggregate ecosystem PLAN call is the only one these
+    # fixtures touch (never `--apply`) — `$fixture` is otherwise IGNORED by
+    # this verb entirely (see the unconditional canned bodies below), so
+    # these names are carved out first and everything else falls through
+    # unchanged.
+    if [ "$ecosystem_onboard" -eq 1 ] && [ "$onboard_apply" -eq 0 ]; then
+      case "$fixture" in
+        onboard-schema-v1-legacy)
+          # Task 210/G-7 negative test: the pre-task-208 helper contract,
+          # `schema_version: "1.0"`, byte-identical to this fixture's own
+          # shape before the schema-2.0 rewrite above — no `layers_state`,
+          # no `completed_actions`, no `resume`, skeletal `layers` rows.
+          # `SchemaGate.requiredMajor(forVerb:)` now rejects this for the
+          # `onboard` verb specifically (major 2 required, not the blanket
+          # major 1 every other verb still accepts) — proves the OLD helper
+          # is correctly treated as contract-incomplete rather than silently
+          # decoded with the new fields simply absent.
+          printf '%s\n' '{"schema_version":"1.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"unknown","registration":"unknown","config":"held","detail":"This Mac'\''s existing GitHub connection signs in as a different account (other-account), so I left it exactly as it is."}],"layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10},{"id":"claude-organization","product":"claude","role":"organization","rank":30},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0}}'
+          exit 0
+          ;;
+        blocked-personal-packages-not-computed)
+          # G-5 (task 208)'s one legal typed absence: `personal-packages`
+          # blocks BEFORE the layer manifest (and therefore topology) is
+          # ever built, so `layers_state` is honestly `not-computed` and
+          # `layers` is `[]` — never a bare `[]` on its own, and never a
+          # skeletal `id`/`product`/`role`/`rank`-only row standing in for
+          # "not computed yet".
+          printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"blocked","detail":"GitHub could not confirm one of your own spaces."}],"layers_state":"not-computed","layers":[],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0},"completed_actions":[],"resume":{"safe_to_rerun":true,"detail":"Nothing on this Mac or on GitHub was changed before this stopped, so running setup again starts from the beginning."}}'
+          exit 0
+          ;;
+        blocked-device-ssh-held)
+          # H4: `config == "held"` — invariant #3 working. A genuinely-held
+          # case (verified.md D.1's "different GitHub login" replacement
+          # string, the one D.1 itself calls out as "the most common real
+          # cause" — deliberately keeps `(login)`, the one fact that lets
+          # the person recognize the situation).
+          printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"unknown","registration":"unknown","config":"held","detail":"This Mac'\''s existing GitHub connection signs in as a different account (other-account), so I left it exactly as it is."}],"layers_state":"reported","layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"claude-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-organization","product":"claude","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"claude-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"claude-copilot","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0},"completed_actions":[],"resume":{"safe_to_rerun":true,"detail":"Nothing on this Mac or on GitHub was changed before this stopped, so running setup again starts from the beginning."}}'
+          exit 0
+          ;;
+        blocked-device-ssh-fault)
+          # H3: blocked, but NOT classified as held-for-you — the default,
+          # nobody's-fault-retry fault variant. Empty `completed_actions`
+          # deliberately (task 211/G-4b): this is the "genuinely nothing
+          # changed yet" case, proving the ORIGINAL clean-stop text still
+          # renders when the ledger really is empty — see
+          # `visible-repositories-review-blocked` below for the non-empty
+          # counterpart.
+          printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"missing","registration":"missing","config":"missing","detail":"Could not reach GitHub to register this device key."}],"layers_state":"reported","layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"claude-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-organization","product":"claude","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"claude-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"claude-copilot","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0},"completed_actions":[],"resume":{"safe_to_rerun":true,"detail":"Nothing on this Mac or on GitHub was changed before this stopped, so running setup again starts from the beginning."}}'
+          exit 0
+          ;;
+        blocked-device-ssh-fault-with-ledger)
+          # Task 211/G-4b: the SAME H3 fault stage as `blocked-device-ssh-fault`
+          # above, but this run already created a personal repository before
+          # this stage blocked — proving the "so I stopped there" honest
+          # replacement renders (never the false "Nothing that was already
+          # here was changed." claim) once the ledger is non-empty. Stays
+          # `retryable=true` (an ordinary transient stage fault, unlike the
+          # `visible-repositories` Git-history block above).
+          printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"apply","result":"blocked","org":"acme-co","products":["claude"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"applied"},{"stage":"device-ssh","result":"blocked","key":"missing","registration":"missing","config":"missing","detail":"Could not reach GitHub to register this device key."}],"layers_state":"reported","layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"claude-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-organization","product":"claude","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"claude-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"claude-copilot","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0},"completed_actions":[{"kind":"github-repository","target":"octocat/claude-copilot-private","outcome":"completed","summary":"Created the private GitHub repository octocat/claude-copilot-private.","url":"https://github.com/octocat/claude-copilot-private"}],"resume":{"safe_to_rerun":true,"detail":"Running setup again is safe: it will find and reuse what'\''s already been created or registered rather than recreating it, and continue from where this stopped."}}'
+          exit 0
+          ;;
+        visible-repositories-review-blocked)
+          # Task 210/G-7 + task 211/G-4b: the closed Git-history classifier
+          # (claude-copilot task 204) blocks on a `review`-action topology
+          # row (codex-copilot-private is `ahead` — local commits GitHub
+          # doesn't have) AFTER this run already completed real mutations
+          # (a created personal repository, a generated+registered SSH key)
+          # — proving BOTH: `Try again` must not render for this block
+          # (retrying cannot make a Git history problem go away), and the
+          # screen must say what already happened instead of the false
+          # "nothing changed" claim.
+          printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"apply","result":"blocked","org":"acme-co","products":["claude","codex"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"applied"},{"stage":"device-ssh","result":"applied"},{"stage":"repository-location","result":"ready","action":"reuse","path":"/Users/octocat/Copilot","detail":"Copilot repositories are visible in /Users/octocat/Copilot."},{"stage":"visible-repositories","result":"blocked","detail":"codex-copilot-private has local commits that are not yet on GitHub. Nothing will be changed.","path":"/Users/octocat/Copilot","layers":7}],"layers_state":"reported","layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"claude-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-organization","product":"claude","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"claude-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"claude-copilot","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"codex-personal","product":"codex","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"codex-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/codex-copilot-private","local_state":"visible","connection_state":"blocked","sync_state":"ahead","action":"review","detail":"Visible at /Users/octocat/Copilot/codex-copilot-private; local commits are not yet on GitHub and will be preserved, not overwritten."}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0},"completed_actions":[{"kind":"github-repository","target":"octocat/claude-copilot-private","outcome":"completed","summary":"Created the private GitHub repository octocat/claude-copilot-private.","url":"https://github.com/octocat/claude-copilot-private"},{"kind":"ssh-keypair","target":"this Mac'\''s GitHub SSH key","outcome":"completed","summary":"Generated a new, encrypted SSH keypair for this Mac."},{"kind":"ssh-key-registration","target":"this Mac'\''s GitHub SSH key","outcome":"completed","summary":"Registered this Mac'\''s public SSH key with GitHub as \"Copilot Control Tower (octocat'\''s Mac)\"."}],"resume":{"safe_to_rerun":true,"detail":"Running setup again is safe: it will find and reuse what'\''s already been created or registered rather than recreating it, and continue from where this stopped.","already_completed_kinds":["github-repository","ssh-key-registration","ssh-keypair"]}}'
+          exit 0
+          ;;
+        device-ssh-adoptable)
+          # State 1, the adopt offer that replaces the dead end: `config:
+          # "adoptable"` on the `device-ssh` stage, `result: "changes-required"`
+          # (NEVER "blocked" on this path — the whole point), plus the
+          # matching `scope: "machine"` inventory row `_ssh_inventory`
+          # emits (`onboard.py`), same shape as an adoptable personal
+          # package. Exercises Bug 1 (the dropped `scope == "machine"`
+          # filter) and, once its consent is sent back, Bug 2 (the
+          # `device-ssh` -> `ssh` token mapping).
+          printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"plan","result":"changes-required","org":"acme-co","products":["claude"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"ready"},{"stage":"device-ssh","result":"changes-required","key":"existing","registration":"missing","config":"adoptable","detail":"This Mac already connects to GitHub, and I checked that it works and that it'\''s signed in as you. I'\''ll leave that exactly as it is and add the one connection it'\''s still missing."}],"layers_state":"reported","layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"claude-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-organization","product":"claude","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"claude-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"claude-copilot","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."}],"inventory":[{"id":"personal-claude","scope":"personal","title":"Claude personal space","state":"ready","action":"reuse","detail":"Existing rank-10 package will be reused.","source_path":null,"destination_path":null,"reversible":false},{"id":"device-ssh","scope":"machine","title":"Your Mac'\''s connection to GitHub","state":"adoptable","action":"create","detail":"This Mac already connects to GitHub, and I checked that it works and that it'\''s signed in as you. I'\''ll leave that exactly as it is and add the one connection it'\''s still missing.","source_path":null,"destination_path":null,"reversible":true,"decline_detail":"Without this, this Mac keeps one of the two GitHub connections setup uses. Setup carries on, and I'\''ll offer this again from the menu bar whenever you'\''re ready."}],"inventory_summary":{"reused":1,"changes":1,"review":0},"completed_actions":[]}'
+          exit 0
+          ;;
+        device-ssh-not-permitted)
+          # H7: `registration == "not-permitted"` — a missing GitHub
+          # permission, the person's own real fix, checked BEFORE the
+          # held-for-you case on this same stage.
+          printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"plan","result":"blocked","org":"acme-co","products":["claude"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"blocked","key":"missing","registration":"not-permitted","config":"planned","detail":"Your GitHub sign-in doesn'\''t include permission to add this Mac'\''s key."}],"layers_state":"reported","layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"claude-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-organization","product":"claude","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"claude-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"claude-copilot","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."}],"inventory":[],"inventory_summary":{"reused":0,"changes":0,"review":0},"completed_actions":[],"resume":{"safe_to_rerun":true,"detail":"Nothing on this Mac or on GitHub was changed before this stopped, so running setup again starts from the beginning."}}'
+          exit 0
+          ;;
+        exit2-onboard-unavailable)
+          # H6 via exit-2: the shared `{schema_version, error:{code,message}}`
+          # envelope (`auth.schema.json`'s `errorEnvelope`) with a REAL,
+          # differentiated code/message — every other exit-2 fixture in this
+          # script prints nothing on stdout (empty body, `CliClient` falls
+          # back to code="unknown"), which cannot prove the wizard actually
+          # binds and forwards a genuine `.exit2(code:message:)` pair.
+          printf '%s\n' '{"schema_version":"1.0","error":{"code":"onboard-unavailable","message":"Could not reach GitHub to read the organization setup."}}'
+          exit 2
+          ;;
+        exit2-empty-fields)
+          # `scripts/tests/smoke-scenarios.sh` S21 (`holding-copy-spec.md`
+          # §5's own rule: "Never print `unknown`, `nil`, `n/a`, or an empty
+          # value"): a genuine exit-2 envelope whose `code`/`message` are
+          # present but EMPTY STRINGS, not omitted and not "unknown" — the
+          # one shape `CliClient` decodes straight through (`ErrorEnvelope`'s
+          # `code`/`message` are plain, non-optional `String`s, so `""`
+          # decodes successfully instead of failing/falling back). Proves
+          # `HoldingInfo.supportLines(_:)` omits the `Code:`/`Message:`
+          # lines entirely rather than printing a dangling bare label.
+          printf '%s\n' '{"schema_version":"1.0","error":{"code":"","message":""}}'
+          exit 2
+          ;;
+        exit2-no-company-app)
+          # `scripts/tests/smoke-scenarios.sh` S27-S29 (Holding H6 vs H7,
+          # `no-company-app`): the exact code/message shape the real-world
+          # trigger's own screen showed. `$CT_FIXTURE` only selects this
+          # error envelope; whether the app renders H6 or the H7 self-serve
+          # flavor depends ENTIRELY on the launching scratch `HOME`'s own
+          # `standup-brief.json` (`LocalAdminSignal`, `native/models.swift`),
+          # never on anything this fixture prints.
+          printf '%s\n' '{"schema_version":"1.0","error":{"code":"no-company-app","message":"GitHub reports your organization'\''s sign-in app isn'\''t finished being set up yet."}}'
+          exit 2
+          ;;
+      esac
+    fi
+
+    if [ "$ecosystem_onboard" -eq 1 ] && [ "$onboard_apply" -eq 1 ]; then
+      printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"apply","result":"ready","org":"acme-co","products":["claude","codex"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"applied"},{"stage":"device-ssh","result":"applied"},{"stage":"layer-manifest","result":"applied","action":"repair","path":"/tmp/copilot.layers.yml","rollback_path":"/tmp/.copilot-control-tower-backups/abc/copilot.layers.yml","layers":8},{"stage":"secret-store","result":"deferred"},{"stage":"codex-plugin","result":"ready"},{"stage":"materialize","result":"up-to-date","blocked":0,"held":0},{"stage":"doctor","result":"healthy","score":100}],"layers_state":"reported","layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"claude-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-organization","product":"claude","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"claude-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-internal","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"claude-copilot","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"codex-personal","product":"codex","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"codex-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/codex-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"codex-organization","product":"codex","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"codex-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/codex-copilot-internal","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"codex-foundation","product":"codex","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"codex-copilot","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/codex-copilot","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."}],"inventory":[{"id":"personal-claude","scope":"personal","title":"Claude personal space","state":"ready","action":"reuse","detail":"Existing rank-10 package will be reused.","source_path":null,"destination_path":null,"reversible":false},{"id":"personal-codex","scope":"personal","title":"Codex personal space","state":"missing","action":"create","detail":"Rank-10 package will be initialized after creation.","source_path":null,"destination_path":null,"reversible":false},{"id":"layer-manifest","scope":"machine","title":"Copilot layers","state":"partial","action":"repair","detail":"Existing supported layers will be kept and missing layers added.","source_path":"/tmp/copilot.layers.yml","destination_path":"/tmp/copilot.layers.yml","reversible":true}],"inventory_summary":{"reused":1,"changes":2,"review":0},"completed_actions":[{"kind":"github-repository","target":"octocat/codex-copilot-private","outcome":"completed","summary":"Created the private GitHub repository octocat/codex-copilot-private.","url":"https://github.com/octocat/codex-copilot-private"},{"kind":"layer-manifest","target":"/tmp/copilot.layers.yml","outcome":"completed","summary":"Updated the layer manifest with the missing layers.","backup_path":"/tmp/.copilot-control-tower-backups/abc/copilot.layers.yml"}]}'
+    elif [ "$ecosystem_onboard" -eq 1 ]; then
+      printf '%s\n' '{"schema_version":"2.0","scope":"ecosystem","mode":"plan","result":"changes-required","org":"acme-co","products":["claude","codex"],"components":["knowledge","cli","claude","codex"],"stages":[{"stage":"organization-handoff","result":"ready"},{"stage":"personal-packages","result":"changes-required"},{"stage":"device-ssh","result":"changes-required"},{"stage":"layer-manifest","result":"changes-required","action":"repair","detail":"Existing supported layers will be kept and missing layers added.","path":"/tmp/copilot.layers.yml","layers":8},{"stage":"secret-store","result":"deferred"},{"stage":"codex-plugin","result":"changes-required"}],"layers_state":"reported","layers":[{"id":"claude-personal","product":"claude","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"claude-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/claude-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"claude-organization","product":"claude","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"claude-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"claude-foundation","product":"claude","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"claude-copilot","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"codex-personal","product":"codex","role":"personal","rank":10,"repository_owner":"octocat","repository_name":"codex-copilot-private","repository_visibility":"private","remote_state":"ready","local_path":"/Users/octocat/Copilot/codex-copilot-private","local_state":"visible","connection_state":"connected","sync_state":"current","action":"reuse","detail":"Visible; matches GitHub."},{"id":"codex-organization","product":"codex","role":"organization","rank":30,"repository_owner":"acme-co","repository_name":"codex-copilot-internal","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."},{"id":"codex-foundation","product":"codex","role":"foundation","rank":40,"repository_owner":"enac","repository_name":"codex-copilot","repository_visibility":"private","remote_state":"ready","local_path":null,"local_state":"missing","connection_state":"planned","sync_state":"not-checked","action":"download","detail":"Will download."}],"inventory":[{"id":"personal-claude","scope":"personal","title":"Claude personal space","state":"ready","action":"reuse","detail":"Existing rank-10 package will be reused.","source_path":null,"destination_path":null,"reversible":false},{"id":"personal-codex","scope":"personal","title":"Codex personal space","state":"missing","action":"create","detail":"Rank-10 package will be initialized after creation.","source_path":null,"destination_path":null,"reversible":false},{"id":"layer-manifest","scope":"machine","title":"Copilot layers","state":"partial","action":"repair","detail":"Existing supported layers will be kept and missing layers added.","source_path":"/tmp/copilot.layers.yml","destination_path":"/tmp/copilot.layers.yml","reversible":true}],"inventory_summary":{"reused":1,"changes":2,"review":0},"completed_actions":[]}'
+    elif [ "$onboard_apply" -eq 1 ]; then
+printf '%s\n' '{"schema_version":"2.0","scope":"personal","owner":"octocat","mode":"apply","result":"applied","repositories":[{"component":"knowledge","role":"personal","unit":null,"owner":"octocat","name":"knowledge-copilot-private","visibility":"private","state":"created","action":"none","detail":"Created private repository.","rank":10,"package_state":"seeded","package_action":"none","package_detail":"Set up and ready."},{"component":"cli","role":"personal","unit":null,"owner":"octocat","name":"cli-copilot-private","visibility":"private","state":"created","action":"none","detail":"Created private repository.","rank":10,"package_state":"seeded","package_action":"none","package_detail":"Set up and ready."},{"component":"claude","role":"personal","unit":null,"owner":"octocat","name":"claude-copilot-private","visibility":"private","state":"existing-private","action":"none","detail":"Existing private repository will be reused.","rank":10,"package_state":"ready","package_action":"none","package_detail":"Already set up. Everything in here will be kept."},{"component":"codex","role":"personal","unit":null,"owner":"octocat","name":"codex-copilot-private","visibility":"private","state":"created","action":"none","detail":"Created private repository.","rank":10,"package_state":"seeded","package_action":"none","package_detail":"Set up and ready."}],"summary":{"existing":1,"missing":0,"created":3,"blocked":0}}'
+    else
+printf '%s\n' '{"schema_version":"2.0","scope":"personal","owner":"octocat","mode":"plan","result":"changes-required","repositories":[{"component":"knowledge","role":"personal","unit":null,"owner":"octocat","name":"knowledge-copilot-private","visibility":null,"state":"missing","action":"create","detail":"Repository does not exist and can be created privately.","rank":10,"package_state":"missing","package_action":"seed","package_detail":"Will be set up right after this space is created."},{"component":"cli","role":"personal","unit":null,"owner":"octocat","name":"cli-copilot-private","visibility":null,"state":"missing","action":"create","detail":"Repository does not exist and can be created privately.","rank":10,"package_state":"missing","package_action":"seed","package_detail":"Will be set up right after this space is created."},{"component":"claude","role":"personal","unit":null,"owner":"octocat","name":"claude-copilot-private","visibility":"private","state":"existing-private","action":"none","detail":"Existing private repository will be reused.","rank":10,"package_state":"ready","package_action":"none","package_detail":"Already set up. Everything in here will be kept."},{"component":"codex","role":"personal","unit":null,"owner":"octocat","name":"codex-copilot-private","visibility":null,"state":"missing","action":"create","detail":"Repository does not exist and can be created privately.","rank":10,"package_state":"missing","package_action":"seed","package_detail":"Will be set up right after this space is created."}],"summary":{"existing":1,"missing":3,"created":0,"blocked":0}}'
+    fi
+    exit 0
+    ;;
+
+  doctor)
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+
+    resolve_fixture_path() {
+      local name="$1"
+      if [ -f "$CORPUS_DIR/$name.json" ]; then
+        echo "$CORPUS_DIR/$name.json"
+      elif [ -f "$INVALID_DIR/$name.json" ]; then
+        echo "$INVALID_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
+
+    path="$(resolve_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
+
+    body="$(cat "$path")"
+    printf '%s\n' "$body"
+
+    # Compute the contractually-correct exit code from the body itself (not from which
+    # directory it lives in): 1 iff the JSON parses AND contains a checker with
+    # severity:"fail"; 0 otherwise (covers both a genuinely clean fixture and a poisoned
+    # one that isn't a checker-severity-fail case — e.g. unparseable JSON or a missing
+    # required field — those rely on the app's OWN fail-closed parsing, not the exit code).
+    exit_code="$(python3 - "$path" <<'PY'
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        data = json.load(f)
+    checkers = data.get("checkers", [])
+    if isinstance(checkers, list) and any(
+        isinstance(c, dict) and c.get("severity") == "fail" for c in checkers
+    ):
+        print(1)
+    else:
+        print(0)
+except Exception:
+    print(0)
+PY
+    )"
+
+    exit "$exit_code"
+    ;;
+
+  deprovision)
+    # `mock-cc deprovision <org> --json` — `$subverb` carries the org
+    # (`copilot deprovision <org> --json`'s positional argument); this stub
+    # never reads it (no fixture varies by org), it only exists so callers
+    # proving arg-forwarding have something real to assert on.
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable, flock held) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+
+    resolve_deprovision_fixture_path() {
+      local name="$1"
+      if [ -f "$DEPROVISION_CORPUS_DIR/$name.json" ]; then
+        echo "$DEPROVISION_CORPUS_DIR/$name.json"
+      elif [ -f "$DEPROVISION_INVALID_DIR/$name.json" ]; then
+        echo "$DEPROVISION_INVALID_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
+
+    path="$(resolve_deprovision_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown deprovision fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
+
+    # Unlike `doctor`, this contract has no documented per-body exit-code
+    # convention (cli-contract.md's `deprovision` row names none) — every
+    # fixture (corpus/ or invalid/) is emitted verbatim on a clean exit 0.
+    # The app's OWN fail-closed parsing (`model::deprovision::
+    # parse_deprovision_body`) is what's under test for the invalid/
+    # corpus, exactly like doctor's `checker-missing-*` fixtures rely on the
+    # app failing closed on CONTENT, not on the exit code.
+    cat "$path"
+    exit 0
+    ;;
+
+  update)
+    # `mock-cc update --json` — no positional org/target argument (unlike
+    # `deprovision <org>`); the real `copilot update --json` verb takes none
+    # per cli-contract.md's `update` row. WS-A Stream-Z: `--fanout` switches
+    # to the projects/corpus/ (fanout_report shape) fixture set; `--project
+    # <path>` reuses the SAME update/corpus/ fixture set, stamped with the
+    # given path (additive `path` field, update.schema.json).
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable, flock held) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+
+    if [ "$fanout" -eq 1 ]; then
+      resolve_projects_fixture_path() {
+        local name="$1"
+        if [ -f "$PROJECTS_CORPUS_DIR/$name.json" ]; then
+          echo "$PROJECTS_CORPUS_DIR/$name.json"
+        elif [ -f "$name" ]; then
+          echo "$name"
+        else
+          echo ""
+        fi
+      }
+
+      path="$(resolve_projects_fixture_path "$fixture")"
+      if [ -z "$path" ]; then
+        echo "mock-cc: unknown projects fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+        exit 2
+      fi
+
+      cat "$path"
+      exit 0
+    fi
+
+    resolve_update_fixture_path() {
+      local name="$1"
+      if [ -f "$UPDATE_CORPUS_DIR/$name.json" ]; then
+        echo "$UPDATE_CORPUS_DIR/$name.json"
+      elif [ -f "$UPDATE_INVALID_DIR/$name.json" ]; then
+        echo "$UPDATE_INVALID_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
+
+    path="$(resolve_update_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown update fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
+
+    # Same simpler convention as `deprovision`: no documented per-body exit
+    # code for `update` (cli-contract.md names none), so every fixture
+    # (corpus/ or invalid/) is emitted verbatim on a clean exit 0 — the
+    # app's OWN fail-closed parsing (`model::update::parse_update_body`) is
+    # what's under test for the invalid/ corpus.
+    if [ -n "$project_path" ]; then
+      # Stamp the caller's own --project path into the body's additive
+      # `path` field (update.schema.json) -- never touches any other field.
+      python3 - "$path" "$project_path" <<'PY'
+import json, sys
+path, project_path = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as f:
+        body = json.load(f)
+    if isinstance(body, dict):
+        body["path"] = project_path
+    print(json.dumps(body))
+except Exception:
+    # Fall back to verbatim emission for a deliberately-malformed
+    # invalid/ fixture (unparseable JSON) -- stamping a path onto
+    # something that can't parse would defeat its own purpose.
+    with open(path) as f:
+        sys.stdout.write(f.read())
+PY
+    else
+      cat "$path"
+    fi
+    exit 0
+    ;;
+
+  freshness)
+    # `mock-cc freshness --json` (bare, cheap single-SHA poll) vs.
+    # `mock-cc freshness --all-projects --json` (WS-A Stream-Z, Component
+    # Sync per-project sweep -- reads projects/corpus/, the
+    # `all_projects_freshness` shape).
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+
+    if [ "$all_projects" -eq 1 ]; then
+      resolve_projects_fixture_path() {
+        local name="$1"
+        if [ -f "$PROJECTS_CORPUS_DIR/$name.json" ]; then
+          echo "$PROJECTS_CORPUS_DIR/$name.json"
+        elif [ -f "$name" ]; then
+          echo "$name"
+        else
+          echo ""
+        fi
+      }
+
+      path="$(resolve_projects_fixture_path "$fixture")"
+      if [ -z "$path" ]; then
+        echo "mock-cc: unknown projects fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+        exit 2
+      fi
+
+      cat "$path"
+      exit 0
+    fi
+
+    # Bare freshness -- a small canned single-SHA body (freshness.schema.json).
+    printf '%s\n' '{"schema_version":"1.0","current_lock_sha":"a1b2c3d","latest_lock_sha":"a1b2c3d","stale":false,"offline":false,"checked_at":"2026-07-16T14:02:11Z"}'
+    exit 0
+    ;;
+
+  layers)
+    # `mock-cc layers --json` (list) vs. `mock-cc layers join <id> --json`
+    # (WS-A Stream-Z, D7.1) -- `$subverb` carries "join" and `$arg3` carries
+    # the layer `<id>` for the join form.
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. no GitHub identity resolvable) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+
+    if [ "$subverb" = "join" ]; then
+      layer_id="${arg3:-unknown-layer}"
+      case "$fixture" in
+        available)
+          printf '{"schema_version":"1.0","result":"joined","tier":"department","id":"%s","synced_lock_sha":"deadbee0123"}\n' "$layer_id"
+          exit 0
+          ;;
+        joined)
+          printf '{"schema_version":"1.0","result":"already-joined","tier":"department","id":"%s"}\n' "$layer_id"
+          exit 0
+          ;;
+        not-entitled)
+          printf '{"schema_version":"1.0","result":"not-entitled","tier":"department","id":"%s"}\n' "$layer_id"
+          exit 0
+          ;;
+        offline)
+          printf '{"schema_version":"1.0","result":"offline","tier":"department","id":"%s","reason":"mirror sync unreachable"}\n' "$layer_id"
+          exit 0
+          ;;
+        error)
+          printf '{"schema_version":"1.0","result":"error","tier":"department","id":"%s","reason":"unknown layer id"}\n' "$layer_id"
+          exit 1
+          ;;
+        *)
+          echo "mock-cc: unknown layers-join fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+          exit 2
+          ;;
+      esac
+    fi
+
+    resolve_layers_fixture_path() {
+      local name="$1"
+      if [ -f "$LAYERS_CORPUS_DIR/$name.json" ]; then
+        echo "$LAYERS_CORPUS_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
+
+    path="$(resolve_layers_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown layers fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
+
+    # Same simpler convention as `deprovision`/`update`: no per-body
+    # severity concept for `layers` (list), always exit 0 once a fixture
+    # body is found.
+    cat "$path"
+    exit 0
+    ;;
+
+  connections)
+    # `mock-cc connections --json` (task 221 bridge stage C). Two special
+    # fixture names BEFORE the ordinary corpus lookup:
+    #   exit-2            — same generic simulated env/credential error every
+    #                        other verb supports.
+    #   verb-unavailable  — simulates an installed `cc` build that PREDATES
+    #                        this verb entirely: exit 2, NOTHING on stdout, a
+    #                        Click-style usage error on stderr. Verified live
+    #                        against the bundled 0.3.2 app's real `cc 2.1.2`
+    #                        helper (task 221 stage C) — that exact command
+    #                        produces empty stdout, "Error: No such command
+    #                        'connections'." on stderr, exit 2.
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+    if [ "$fixture" = "verb-unavailable" ]; then
+      echo "Usage: cc [OPTIONS] COMMAND [ARGS]..." >&2
+      echo "Try 'cc --help' for help." >&2
+      echo "Error: No such command 'connections'." >&2
+      exit 2
+    fi
+
+    resolve_connections_fixture_path() {
+      local name="$1"
+      if [ -f "$CONNECTIONS_CORPUS_DIR/$name.json" ]; then
+        echo "$CONNECTIONS_CORPUS_DIR/$name.json"
+      elif [ -f "$name" ]; then
+        echo "$name"
+      else
+        echo ""
+      fi
+    }
+
+    path="$(resolve_connections_fixture_path "$fixture")"
+    if [ -z "$path" ]; then
+      echo "mock-cc: unknown connections fixture '$fixture'. Run 'CT_FIXTURE=list mock-cc doctor --json' to list available fixtures." >&2
+      exit 2
+    fi
+
+    # Same simpler convention as `layers`/`deprovision`/`update`: no
+    # per-body severity concept here, always exit 0 once a fixture body is
+    # found (`result` inside the body itself carries any degradation).
+    cat "$path"
+    exit 0
+    ;;
+
+  connect)
+    # `mock-cc connect <service-id> [--check] --json` (task 222,
+    # connect.schema.json). Derives its answer from the SAME connections
+    # corpus body `connections` above serves, for the same reason the real
+    # verb reuses `cc connections`' machinery: there must be exactly one
+    # description of what a service requires and what is missing.
+    #
+    # The load-bearing behaviour this fixture exists to prove is not the
+    # happy path — it is that a VALUE only ever arrives on stdin. This mock
+    # compares every supplied value against its own argv and against its
+    # environment, and fails LOUDLY if it finds one there, so a future change
+    # that starts passing a credential as an argument or an env var breaks a
+    # test instead of shipping.
+    if [ "$fixture" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. keychain unavailable) — no trustworthy body emitted" >&2
+      exit 2
+    fi
+    if [ "$fixture" = "verb-unavailable" ]; then
+      echo "Usage: cc [OPTIONS] COMMAND [ARGS]..." >&2
+      echo "Try 'cc --help' for help." >&2
+      echo "Error: No such command 'connect'." >&2
+      exit 2
+    fi
+
+    connect_corpus="${fixture:-ready-and-needs-connect}"
+    connect_path="$CONNECTIONS_CORPUS_DIR/$connect_corpus.json"
+    if [ ! -f "$connect_path" ]; then
+      echo "mock-cc: unknown connections fixture '$connect_corpus' for 'connect'." >&2
+      exit 2
+    fi
+
+    connect_stdin=""
+    if [ "$connect_check" -eq 0 ]; then
+      # Read stdin whole. An empty stdin is a real, testable case
+      # (`invalid-input`), not an error here.
+      connect_stdin="$(cat)"
+    fi
+
+    python3 - "$connect_path" "$subverb" "$connect_check" "$connect_stdin" "${args[@]}" <<'PY'
+import json
+import os
+import sys
+
+corpus_path, service_id, check_flag, stdin_raw = sys.argv[1:5]
+argv_rest = sys.argv[5:]
+check = check_flag == "1"
+
+with open(corpus_path, encoding="utf-8") as handle:
+    report = json.load(handle)
+
+row = next((r for r in report.get("connections", []) if r.get("id") == service_id), None)
+
+def emit(payload):
+    print(json.dumps(payload))
+    sys.exit(0)
+
+if row is None:
+    emit({
+        "schema_version": "1.0",
+        "result": "unknown-service",
+        "detail": f"There is no connection called '{service_id}' in your organization's setup.",
+        "mode": "check" if check else "connect",
+        "service": None,
+        "credentials": None,
+    })
+
+if check:
+    emit({
+        "schema_version": "1.0",
+        "result": "ok",
+        "detail": None,
+        "mode": "check",
+        "service": row,
+        "credentials": None,
+    })
+
+required = [entry["name"] for entry in row.get("requires_secret", [])]
+missing = list(row.get("missing", []))
+
+try:
+    supplied = json.loads(stdin_raw) if stdin_raw.strip() else None
+    if not isinstance(supplied, dict) or not all(isinstance(v, str) for v in supplied.values()):
+        raise ValueError
+except (ValueError, TypeError):
+    emit({
+        "schema_version": "1.0",
+        "result": "invalid-input",
+        "detail": "Control Tower sent something this helper could not read. Nothing was saved.",
+        "mode": "connect",
+        "service": row,
+        "credentials": [
+            {"name": name, "outcome": "failed", "detail": "no value was provided for this credential."}
+            for name in required
+        ],
+    })
+
+# The whole point of the fixture: a value must never have travelled by any
+# route other than stdin.
+for name, value in supplied.items():
+    if not value:
+        continue
+    if any(value == token or value in token for token in argv_rest):
+        print(f"mock-cc: FATAL — the value for {name} appeared in argv. Values must only ever reach the CLI on stdin.", file=sys.stderr)
+        sys.exit(2)
+    if any(value == env_value for env_value in os.environ.values()):
+        print(f"mock-cc: FATAL — the value for {name} appeared in the environment. Values must only ever reach the CLI on stdin.", file=sys.stderr)
+        sys.exit(2)
+
+credentials = []
+stored = set()
+for name in required:
+    if name not in missing:
+        credentials.append({"name": name, "outcome": "already-present", "detail": None})
+        continue
+    value = supplied.get(name)
+    if value is None:
+        credentials.append({"name": name, "outcome": "failed", "detail": "no value was provided for this credential."})
+    elif value == "":
+        credentials.append({"name": name, "outcome": "failed", "detail": "value must not be empty."})
+    elif value == "MOCK-KEYCHAIN-REFUSES":
+        credentials.append({"name": name, "outcome": "failed", "detail": "this Mac's keychain refused to save it."})
+    else:
+        credentials.append({"name": name, "outcome": "stored", "detail": None})
+        stored.add(name)
+
+fresh = dict(row)
+fresh["missing"] = [name for name in missing if name not in stored]
+fresh["secret_state"] = "ready" if not fresh["missing"] else "needs-connect"
+
+emit({
+    "schema_version": "1.0",
+    "result": "ok",
+    "detail": None,
+    "mode": "connect",
+    "service": fresh,
+    "credentials": credentials,
+})
+PY
+    exit 0
+    ;;
+
+  auth)
+    # `mock-cc auth login --json ...` is accepted as an alias for `mock-cc auth --json
+    # ...` (D-3-M3 recommendation #2: the wizard's host/GitHub sign-in step is one more
+    # `cc auth` integration, never a `gh auth status` screen-scrape). `status`
+    # (WS-A Stream-Z) is the other recognized subverb; anything else is ignored
+    # (forward-compatible with a future `cc auth <integration> --json` naming a real
+    # per-integration verb).
+
+    if [ "$auth_scenario" = "exit-2" ]; then
+      echo "mock-cc: simulated env error (e.g. credential store unreachable) — no ceremony/poll/status body emitted" >&2
+      exit 2
+    fi
+
+    if [ "$subverb" = "status" ]; then
+      # Offline-safe "who is signed in" -- no --poll/ceremony concept. Driven
+      # by the SAME scenario selection as the ceremony/poll forms: only
+      # "authorized" renders a signed-in identity, every other scenario name
+      # (including the default-unset case) is an honest "signed-out".
+      if [ "$auth_scenario" = "status-not-valid-json" ]; then
+        printf '%s\n' '{"schema_version":"1.0","kind":"status","status":'
+      elif [ "$auth_scenario" = "authorized" ]; then
+        printf '%s\n' '{"schema_version":"1.0","kind":"status","status":"authorized","identity":{"login":"octocat"}}'
+      else
+        printf '%s\n' '{"schema_version":"1.0","kind":"status","status":"signed-out"}'
+      fi
+      exit 0
+    fi
+
+    if [ "$subverb" = "grant" ]; then
+      if [ "$poll" -eq 0 ]; then
+        printf '%s\n' '{"schema_version":"1.0","kind":"grant-device-code","permission":"write:public_key","user_code":"GRNT-KEY1","verification_uri":"https://example.com/device","expires_in":900,"interval":5,"device_code":"mock-grant-device-code-0000"}'
+      else
+        printf '%s\n' '{"schema_version":"1.0","kind":"grant-poll","status":"granted"}'
+      fi
+      exit 0
+    fi
+
+    case "$auth_scenario" in
+      authorized|denied|expired|timeout|pending|authorized-leaked-field-adversarial) ;;
+      org-required-then-authorized|org-required-then-not-found|org-required-then-no-company-app|org-required-then-network-unavailable) ;;
+      *)
+        echo "mock-cc: unknown auth scenario '$auth_scenario'. Valid: authorized, denied, expired, timeout, pending, authorized-leaked-field-adversarial, org-required-then-authorized, org-required-then-not-found, org-required-then-no-company-app, org-required-then-network-unavailable, exit-2." >&2
+        exit 2
+        ;;
+    esac
+
+    # The four `org-required-then-*` scenarios (org-question copy spec
+    # §2.1.1/§6): every call with no `--org` fails org-required, regardless
+    # of --poll — a genuinely fresh Mac hits this on the ceremony AND would
+    # hit it again on a poll that (unrealistically) omitted --org, since the
+    # real CLI re-resolves the organization's client id on every call
+    # (Appendix E.3). A call that DOES carry `--org` resolves per scenario;
+    # `org-required-then-authorized` reduces to the ordinary `authorized`
+    # scenario from here on, so the ceremony/poll logic below never needs to
+    # know the difference.
+    case "$auth_scenario" in
+      org-required-then-authorized|org-required-then-not-found|org-required-then-no-company-app|org-required-then-network-unavailable)
+        if [ "$ecosystem_onboard" -eq 0 ]; then
+          printf '%s\n' '{"schema_version":"1.0","error":{"code":"org-required","message":"Nobody'\''s told me which organization you'\''re with yet, so I can'\''t sign you in."}}'
+          exit 2
+        fi
+        case "$auth_scenario" in
+          org-required-then-not-found)
+            printf '%s\n' '{"schema_version":"1.0","error":{"code":"org-not-found","message":"'"${org_value:-that name}"' doesn'\''t look like an organization on GitHub."}}'
+            exit 2
+            ;;
+          org-required-then-no-company-app)
+            printf '%s\n' '{"schema_version":"1.0","error":{"code":"no-company-app","message":"GitHub reports your organization'\''s sign-in app isn'\''t finished being set up yet."}}'
+            exit 2
+            ;;
+          org-required-then-network-unavailable)
+            printf '%s\n' '{"schema_version":"1.0","error":{"code":"network-unavailable","message":"I couldn'\''t reach the network to check your organization'\''s sign-in setup."}}'
+            exit 2
+            ;;
+          org-required-then-authorized)
+            auth_scenario="authorized"
+            ;;
+        esac
+        ;;
+    esac
+
+    if [ "$poll" -eq 0 ]; then
+      # INITIATE — the ceremony is identical regardless of scenario; the outcome
+      # hasn't happened yet. Canned per the frozen SHAPE (no schema exists upstream
+      # yet — D-3-M3 batches the real freeze to WS-A). Never a token. WS-A
+      # Stream-Z additively folds in schema_version/kind/device_code (see the
+      # header comment above) -- the wizard's own validator/Rust seam ignore
+      # unknown fields, so this is safe for the existing consumer.
+      printf '%s\n' '{"schema_version":"1.0","kind":"device-code","user_code":"WDJB-MJHT","verification_uri":"https://example.com/device","expires_in":900,"interval":5,"device_code":"mock-device-code-0000"}'
+      exit 0
+    fi
+
+    # POLL — a single terminal-or-pending status object. Never a token, except the
+    # one deliberately-obvious adversarial fixture below (negative-test only).
+    case "$auth_scenario" in
+      authorized-leaked-field-adversarial)
+        # Deliberately poisoned NEGATIVE-TEST fixture: an authorized outcome plus an
+        # extra, unexpected, obviously-synthetic token-shaped field. The real CLI
+        # NEVER emits this; it exists solely so the Rust seam's parser (S3) can be
+        # proven to drop/ignore unknown fields rather than forward them into the
+        # WizardState DTO (fitness fn 2: no-secret-on-wizard-DTO). See
+        # fixtures/wizard/README.md.
+        printf '%s\n' '{"schema_version":"1.0","kind":"poll","status":"authorized","access_token":"FAKE-SYNTHETIC-NOT-A-REAL-TOKEN-0000000000"}'
+        ;;
+      *)
+        printf '{"schema_version":"1.0","kind":"poll","status":"%s"}\n' "$auth_scenario"
+        ;;
+    esac
+    exit 0
+    ;;
+
+  config)
+    # `cc config set github_app.org <name>` (org-question copy spec §2.1.1,
+    # `CliClient.configSetGithubAppOrg`) -- the one config verb the app calls,
+    # ONLY after a device code has already come back for a real organization
+    # name. Succeeds (exit 0, no stdout) by default: the real `cc config set`
+    # has no `--json` output either (Appendix E.4's own open contract
+    # question), so `configSetGithubAppOrg` reads only the exit code, never a
+    # body. `CT_CONFIG_SET_FAILS=1` forces it to fail instead, for the copy
+    # spec's own "the pointer could not be written to this Mac" -> H2 row.
+    if [ "$subverb" = "set" ]; then
+      if [ "${CT_CONFIG_SET_FAILS:-0}" = "1" ]; then
+        echo "mock-cc: simulated config-set failure" >&2
+        exit 1
+      fi
+      exit 0
+    fi
+    echo "mock-cc: unsupported config invocation (only 'config set' is implemented)" >&2
+    exit 1
+    ;;
+
+  *)
+    echo "mock-cc: verb '$verb' is not implemented — this stub only emits 'doctor --json', 'auth --json [--poll]' / 'auth status --json', 'layers --json' / 'layers join <id> --json', 'connections --json', 'connect <service-id> [--check] --json', 'freshness --json' / 'freshness --all-projects --json', 'deprovision <org> --json', 'update --json' / 'update --project <path> --json' / 'update --fanout --json', and 'config set <key> <value>'" >&2
+    exit 2
+    ;;
+esac

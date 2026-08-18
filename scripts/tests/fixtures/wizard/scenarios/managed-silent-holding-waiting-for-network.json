@@ -1,0 +1,23 @@
+{
+  "fixture_version": "1",
+  "scenario_id": "managed-silent-holding-waiting-for-network",
+  "title": "Managed run, valid profile but offline -> Holding(WaitingForNetwork), never Healthy",
+  "path": "managed",
+  "env": {
+    "CT_MANAGED_OVERRIDE": "1",
+    "CT_CLI_PATH": "scripts/tests/fixtures/mock-cc",
+    "CT_FIXTURE": "waiting-for-network-startup"
+  },
+  "managed_profile_fixture": "../../settings/valid-multi-layer.yml",
+  "managed_profile_state": "valid",
+  "wizard_auth_scenario": null,
+  "wizard_answers": null,
+  "questions_expected": 0,
+  "expected": {
+    "wizard_terminal": "Holding(WaitingForNetwork)",
+    "doctor_status": "waiting-for-network",
+    "doctor_fixture": "waiting-for-network-startup",
+    "reaches_done": false
+  },
+  "notes": "S4: profile schema-validates clean, but the machine is offline / the first check hasn't completed -- foundation-only or no network yet. Reuses the existing corpus/waiting-for-network-startup.json (a lifecycle state distinct from a CONFIRMED offline.json verdict, per the main README's corpus map). Distinguishing seed-coming vs solo uses the managed EcosystemSeedURL key (C4) -- out of scope for this fixture's env block since that's a forced-domain read, not something mock-cc emits."
+}

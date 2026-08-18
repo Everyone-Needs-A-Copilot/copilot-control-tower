@@ -626,11 +626,11 @@ final class PublisherSetupModel: ObservableObject {
     }
 
     nonisolated private static func readAppVersion() -> String {
-        let path = "src-tauri/tauri.conf.json"
+        let path = "controltower.compat.json"
         let url = URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).standardizedFileURL
         guard let data = try? Data(contentsOf: url),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let version = object["version"] as? String
+              let version = object["app_version"] as? String
         else {
             return "unknown"
         }

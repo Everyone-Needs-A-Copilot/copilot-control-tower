@@ -1,5 +1,0 @@
-{
-  "hosts": [
-    { "machine_id": "MBP-SOLO-001", "status": "it-config-incomplete", "badge_state": "wrench", "actionable_items": [] }
-  ]
-}

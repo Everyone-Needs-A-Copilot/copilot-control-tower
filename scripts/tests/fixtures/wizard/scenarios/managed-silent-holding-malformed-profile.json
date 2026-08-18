@@ -1,0 +1,23 @@
+{
+  "fixture_version": "1",
+  "scenario_id": "managed-silent-holding-malformed-profile",
+  "title": "Managed run, present-but-invalid MDM profile -> immediate honest holding (never false-Healthy)",
+  "path": "managed",
+  "env": {
+    "CT_MANAGED_OVERRIDE": "1",
+    "CT_CLI_PATH": "scripts/tests/fixtures/mock-cc",
+    "CT_FIXTURE": "it-config-incomplete-org-mdm"
+  },
+  "managed_profile_fixture": "../../settings/invalid-missing-required-field.yml",
+  "managed_profile_state": "present-but-invalid",
+  "wizard_auth_scenario": null,
+  "wizard_answers": null,
+  "questions_expected": 0,
+  "expected": {
+    "wizard_terminal": "Holding(ItConfigIncomplete)",
+    "doctor_status": "it-config-incomplete",
+    "doctor_fixture": "it-config-incomplete-org-mdm",
+    "reaches_done": false
+  },
+  "notes": "S4: the managed profile is schema-validated FIRST, before any materialize step. A present-but-invalid profile (reusing M2's settings/invalid-missing-required-field.yml -- missing the required `auth` field) must route IMMEDIATELY to Holding(ItConfigIncomplete), never a retry-then-silent-Healthy and never a doctor poll at all in the real flow (the CLI is never invoked past profile validation). doctor_fixture here is cross-referenced only to show what the eventual doctor verdict WOULD look like if this same broken profile were later materialized and diagnosed -- the wizard's own terminal comes from the profile-validation step, not from doctor, per this scenario."
+}

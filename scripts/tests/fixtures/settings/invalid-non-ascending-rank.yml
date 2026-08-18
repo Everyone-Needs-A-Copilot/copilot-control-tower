@@ -1,0 +1,22 @@
+# Invalid: ranks are unique (30, 10) but the LIST ORDER disagrees with
+# ascending rank — `org-acme` (rank 30) appears before `personal-pablo`
+# (rank 10). "`rank` is precedence of record; list order MUST agree."
+version: 1
+layers:
+  - id: org-acme
+    role: org
+    product: claude
+    rank: 30
+    source:
+      repo: git@github-work:acme-corp/copilot-org.git
+    auth: ssh-work
+    activation: always
+
+  - id: personal-pablo
+    role: personal
+    product: claude
+    rank: 10
+    source:
+      repo: git@github-personal:pablitoalejo/claude-copilot-private.git
+    auth: ssh-personal
+    activation: always

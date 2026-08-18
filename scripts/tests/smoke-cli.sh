@@ -8,7 +8,7 @@
 # 2. Compiles a throwaway scratch driver
 #    (scripts/tests/fixtures/smoke-cli/main.swift) together with
 #    native/cli-client.swift + native/cli-dtos.swift + native/render-state.swift
-#    + native/models.swift, and runs it against `src-tauri/fixtures/mock-cc`
+#    + native/models.swift, and runs it against `scripts/tests/fixtures/mock-cc`
 #    for a spread of the real doctor/auth/layers/projects fixture corpus,
 #    asserting the specific badge/sentence/decode outcomes the Phase F plan
 #    names (at minimum: healthy-clean-fleet -> .none/"Everything is set up.",
@@ -27,7 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-MOCK_CC="${REPO_ROOT}/src-tauri/fixtures/mock-cc"
+MOCK_CC="${REPO_ROOT}/scripts/tests/fixtures/mock-cc"
 if [[ ! -x "${MOCK_CC}" ]]; then
     echo "FATAL: mock CLI not found or not executable at ${MOCK_CC}" >&2
     exit 1

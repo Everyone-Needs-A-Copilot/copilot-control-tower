@@ -1,6 +1,0 @@
-{
-  "status": "rolled-back",
-  "available_version": "1.3.0",
-  "current_version": "1.2.0",
-  "message": "An update didn't start cleanly, so I rolled it back. Nothing broke."
-}

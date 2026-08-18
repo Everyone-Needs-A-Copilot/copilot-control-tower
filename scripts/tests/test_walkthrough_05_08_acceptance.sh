@@ -63,7 +63,7 @@ check_rg 05-11 "unresolved states retain reason and actor routes" 'case .couldNo
 check_rg 06-V "high-fidelity wizard uses native cards, hierarchy, and status labels" 'sectionCard("Your Copilot setup")' native/wizard.swift
 
 # Walkthrough 07 / 08: project integration and aftercare.
-check_rg 07-01 "schema fixture covers all five project classifications" '"could-not-verify": 1' src-tauri/fixtures/workspaces/status-all-1.1.json critical
+check_rg 07-01 "schema fixture covers all five project classifications" '"could-not-verify": 1' scripts/tests/fixtures/workspaces/status-all-1.1.json critical
 check_rg 07-02 "individual register renders only Python-authored default selections" 'reconciliationProjectSelectionRow(selection, report: report)' native/wizard.swift
 check_rg 07-03 "Ready details expose capability and evidence" 'wizardProjectEvidencePanel(workspace)' native/wizard.swift
 check_rg 07-04 "safe finish is review-first" 'case .safeFinish, .excluded: return "Review"' native/control-tower-tray.swift critical

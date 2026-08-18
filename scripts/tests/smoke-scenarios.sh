@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # smoke-scenarios.sh — the full SELFTEST scenario matrix (S1..S41) for both
 # native binaries, driven entirely by the mock CLI
-# (`src-tauri/fixtures/mock-cc`) and the SELFTEST contract:
+# (`scripts/tests/fixtures/mock-cc`) and the SELFTEST contract:
 #
 #   CT_SELFTEST=1                       -> prints `SELFTEST badge=<...>
 #                                           sentence=<...>`, optionally
@@ -120,12 +120,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-MOCK_CC="${REPO_ROOT}/src-tauri/fixtures/mock-cc"
+MOCK_CC="${REPO_ROOT}/scripts/tests/fixtures/mock-cc"
 USER_BIN="${REPO_ROOT}/.copilot/control-tower-tray/Copilot Control Tower"
 ADMIN_BIN="${REPO_ROOT}/.copilot/control-tower-admin/Copilot Control Tower (Admin)"
 DEFAULT_TIMEOUT="${CT_SMOKE_SCENARIO_TIMEOUT:-30}"
 CT_DEFAULTS_DOMAIN="${CT_DEFAULTS_DOMAIN:-com.everyoneneedsacopilot.controltower}"
-LAYERS_AVAILABLE_FIXTURE="${REPO_ROOT}/src-tauri/fixtures/layers/corpus/available.json"
+LAYERS_AVAILABLE_FIXTURE="${REPO_ROOT}/scripts/tests/fixtures/layers/corpus/available.json"
 
 ONLY=""
 SKIP_BUILD=0
@@ -429,7 +429,7 @@ scenario_S15() {
     fi
     # Extract the first layer's `"id"` value without depending on jq/python3
     # being installed — the fixture corpus format is simple enough for a
-    # single grep+sed pass (see src-tauri/fixtures/layers/README.md).
+    # single grep+sed pass (see scripts/tests/fixtures/layers/README.md).
     local dept_id
     dept_id="$(grep -m1 '"id"' "${LAYERS_AVAILABLE_FIXTURE}" | sed -E 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
     if [[ -z "${dept_id}" ]]; then
@@ -1015,7 +1015,7 @@ scenario_S44() {
 }
 
 # `mock-cc CT_FIXTURE=verb-unavailable` reproduces the bundled helper's exact
-# observed shape (exit 2, no readable body — src-tauri/fixtures/connections/README.md).
+# observed shape (exit 2, no readable body — scripts/tests/fixtures/connections/README.md).
 scenario_S45() {
     local id="S45"
     should_run "${id}" || return 0

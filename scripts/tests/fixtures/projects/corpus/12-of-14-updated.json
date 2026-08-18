@@ -1,0 +1,365 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-07-16T14:02:11Z",
+  "triggered_by": "cadence-sync",
+  "summary": {
+    "updated": 12,
+    "held": 1,
+    "up_to_date": 1,
+    "failed": 0,
+    "total": 14
+  },
+  "results": [
+    {
+      "path": "/Users/dev/projects/proj-01",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-01",
+        "result": "applied",
+        "lock_before": "00003e9",
+        "lock_after": "00007d1",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bb9",
+            "to": "0000fa1",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-02",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-02",
+        "result": "applied",
+        "lock_before": "00003ea",
+        "lock_after": "00007d2",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bba",
+            "to": "0000fa2",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-03",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-03",
+        "result": "applied",
+        "lock_before": "00003eb",
+        "lock_after": "00007d3",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bbb",
+            "to": "0000fa3",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-04",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-04",
+        "result": "applied",
+        "lock_before": "00003ec",
+        "lock_after": "00007d4",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bbc",
+            "to": "0000fa4",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-05",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-05",
+        "result": "applied",
+        "lock_before": "00003ed",
+        "lock_after": "00007d5",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bbd",
+            "to": "0000fa5",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-06",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-06",
+        "result": "applied",
+        "lock_before": "00003ee",
+        "lock_after": "00007d6",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bbe",
+            "to": "0000fa6",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-07",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-07",
+        "result": "applied",
+        "lock_before": "00003ef",
+        "lock_after": "00007d7",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bbf",
+            "to": "0000fa7",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-08",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-08",
+        "result": "applied",
+        "lock_before": "00003f0",
+        "lock_after": "00007d8",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bc0",
+            "to": "0000fa8",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-09",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-09",
+        "result": "applied",
+        "lock_before": "00003f1",
+        "lock_after": "00007d9",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bc1",
+            "to": "0000fa9",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-10",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-10",
+        "result": "applied",
+        "lock_before": "00003f2",
+        "lock_after": "00007da",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bc2",
+            "to": "0000faa",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-11",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-11",
+        "result": "applied",
+        "lock_before": "00003f3",
+        "lock_after": "00007db",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bc3",
+            "to": "0000fab",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-12",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-12",
+        "result": "applied",
+        "lock_before": "00003f4",
+        "lock_after": "00007dc",
+        "changed": [
+          {
+            "dimension": "claude",
+            "layer": "claude",
+            "item": ".claude/commands/continue.md",
+            "op": "updated",
+            "from": "0000bc4",
+            "to": "0000fac",
+            "signed": true,
+            "severity_trailer": null,
+            "shadowed_by": null
+          }
+        ],
+        "held_for_approval": [],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-13",
+      "component": "claude",
+      "report": {
+        "schema_version": "1.0",
+        "host": "acme-imac.local",
+        "path": "/Users/dev/projects/proj-13",
+        "result": "held",
+        "lock_before": "0002329",
+        "lock_after": "0002329",
+        "changed": [],
+        "held_for_approval": [
+          {
+            "dimension": "claude",
+            "from": "5.8.1",
+            "to": "5.9.0",
+            "reason": "dirty-working-tree"
+          }
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "path": "/Users/dev/projects/proj-14",
+      "component": "codex",
+      "result": "up-to-date"
+    }
+  ]
+}

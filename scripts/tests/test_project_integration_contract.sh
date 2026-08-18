@@ -13,9 +13,9 @@ CC=/usr/bin/cc PATH=/usr/bin:$PATH /usr/bin/env swiftc \
   -o "${BUILD_DIR}/project-integration-contract"
 
 "${BUILD_DIR}/project-integration-contract" \
-  "${ROOT_DIR}/src-tauri/fixtures/workspaces/status-all-1.1.json" \
-  "${ROOT_DIR}/src-tauri/fixtures/workspaces/status-project-guided-1.1.json" \
-  "${ROOT_DIR}/src-tauri/fixtures/workspaces/status-project-owner-1.1.json"
+  "${ROOT_DIR}/scripts/tests/fixtures/workspaces/status-all-1.1.json" \
+  "${ROOT_DIR}/scripts/tests/fixtures/workspaces/status-project-guided-1.1.json" \
+  "${ROOT_DIR}/scripts/tests/fixtures/workspaces/status-project-owner-1.1.json"
 
 expected_schema_sha="470a663277f77b0d60359103e1f206852f05c1b7392f3b5c31b1810b90c75c33"
 actual_schema_sha="$(shasum -a 256 "${ROOT_DIR}/docs/01-architecture/schemas/workspaces.schema.json" | awk '{print $1}')"

@@ -3,7 +3,7 @@
 #
 # Builds the User app (`scripts/build-user.command`) and the Admin app
 # (`scripts/build-admin.command`), then launches each bundle executable under `CT_SELFTEST=1`
-# against the mock CLI (`src-tauri/fixtures/mock-cc`) with a healthy fixture,
+# against the mock CLI (`scripts/tests/fixtures/mock-cc`) with a healthy fixture,
 # asserting:
 #   1. the process exits status 0 — NOT killed by a signal. This is the
 #      regression gate for the SwiftUI AttributeGraph launch-time abort
@@ -41,7 +41,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-MOCK_CC="${REPO_ROOT}/src-tauri/fixtures/mock-cc"
+MOCK_CC="${REPO_ROOT}/scripts/tests/fixtures/mock-cc"
 USER_BIN="${REPO_ROOT}/build/Copilot Control Tower.app/Contents/MacOS/Copilot Control Tower"
 ADMIN_BIN="${REPO_ROOT}/build/Copilot Control Tower Admin.app/Contents/MacOS/Copilot Control Tower Admin"
 LAUNCH_TIMEOUT_SECS="${CT_SMOKE_LAUNCH_TIMEOUT:-20}"
