@@ -59,7 +59,29 @@ HOST_SCOPE = "single-machine-single-user"
 DEFAULT_OUT_DIR = SCRIPT_DIR.parent.parent / "output"
 DEFAULT_RULES_PATH = SCRIPT_DIR / "rules.yaml"
 
-KNOWLEDGE_REPO_ROOT = Path("/Volumes/Dev/Sites/CSE/knowledge-copilot-internal")
+# Same two-spelling contract as collectors/paths.py's CSE_ROOT_CANDIDATES:
+# the owner's primary machine first (where /Users/pabs/Sites is itself a
+# symlink to this path), then secondary machines where /Volumes/Dev is
+# never mounted and /Users/pabs/Sites is the real tree. This is a
+# standalone bench, so it keeps its own copy rather than importing across
+# the benches/ <-> collectors/ boundary (same rationale as mcp_twin).
+_CSE_ROOT_CANDIDATES = [
+    Path("/Volumes/Dev/Sites/CSE"),
+    Path("/Users/pabs/Sites/CSE"),
+]
+
+
+def _resolve_cse_root() -> Path:
+    """First candidate that exists as a directory, else the first
+    (historical) candidate unchanged — callers already surface a normal
+    read error when nothing resolves."""
+    for candidate in _CSE_ROOT_CANDIDATES:
+        if candidate.is_dir():
+            return candidate
+    return _CSE_ROOT_CANDIDATES[0]
+
+
+KNOWLEDGE_REPO_ROOT = _resolve_cse_root() / "knowledge-copilot-internal"
 TONE_OF_VOICE_PATH = KNOWLEDGE_REPO_ROOT / "01-company" / "01-brand" / "02-tone-of-voice.md"
 CW_EXTENSION_PATH = KNOWLEDGE_REPO_ROOT / ".claude" / "extensions" / "cw.extension.md"
 

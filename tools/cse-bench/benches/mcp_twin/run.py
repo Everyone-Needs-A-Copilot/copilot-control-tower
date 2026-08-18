@@ -112,8 +112,34 @@ COPILOT_BIN = "/opt/homebrew/bin/copilot"
 # ROOTS" note for the fuller rationale (this script is a standalone
 # bench, not a collectors/ module, so it keeps its own copy rather than
 # importing across the benches/ <-> collectors/ boundary).
-COPILOT_ROOT = Path("/Volumes/Dev/Sites/COPILOT")
-CSE_ROOT = Path("/Volumes/Dev/Sites/CSE")
+# Each root keeps the same two-spelling candidate list as
+# collectors/paths.py: primary machine (/Volumes/Dev, where
+# /Users/pabs/Sites symlinks to it) first, then secondary machines where
+# /Volumes/Dev is never mounted. Resolved separately per root and never
+# falling back from one to the other -- the two roots hold disjoint repo
+# sets, so a silent cross-root fallback would resolve a lookup against an
+# unrelated top level instead of failing loudly.
+_COPILOT_ROOT_CANDIDATES = [
+    Path("/Volumes/Dev/Sites/COPILOT"),
+    Path("/Users/pabs/Sites/COPILOT"),
+]
+_CSE_ROOT_CANDIDATES = [
+    Path("/Volumes/Dev/Sites/CSE"),
+    Path("/Users/pabs/Sites/CSE"),
+]
+
+
+def _resolve_root(candidates: list[Path]) -> Path:
+    """First candidate that exists as a directory, else the first
+    (historical) candidate unchanged."""
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return candidates[0]
+
+
+COPILOT_ROOT = _resolve_root(_COPILOT_ROOT_CANDIDATES)
+CSE_ROOT = _resolve_root(_CSE_ROOT_CANDIDATES)
 CLI_COPILOT_DOCS = CSE_ROOT / "cli-copilot" / "docs" / "services"
 
 CONTEXT_WINDOW_TOKENS_ASSUMED = 200_000
