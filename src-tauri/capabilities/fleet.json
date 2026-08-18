@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "fleet",
-  "description": "Capability for the IT fleet-dashboard window (M7/S4 frontend, S9 live wiring, task 68). Same least-privilege discipline as capabilities/settings.json/wizard.json — scoped to the DISJOINT IPC surface this window actually calls: get_fleet() only, the SAME read-only-snapshot-pull shape as allow-get-bob-lane/allow-get-security-banner in capabilities/default.json, applied to render::fleet::get_fleet's mock/local FleetView instead. Never get_state/refresh_now/hide_popover/open_settings_window/wizard_*/check_for_update/apply_update — this window has no doctor-popover, Settings, wizard, or self-update concerns. No core:event:allow-listen: the fleet dashboard is a get-on-open snapshot pull (src/fleet-main.ts's runTauri), no live push event it subscribes to yet. No fs/shell/http/dialog plugin is linked at all — get_fleet reads only already-managed Rust state (DoctorState's snapshot, LocalSink's recorded entries), never touches the filesystem or network from the webview. The `fleet` window itself (tauri.conf.json) has no open-window command wired to it yet (Admin-mode's own window-open IPC surface is a later, unscheduled stream, per the admin module's own doc) — this capability exists so get_fleet is a real, ACL-enforced allow-list entry the moment that command lands, rather than an unreachable command with no capability at all.",
-  "windows": ["fleet"],
-  "permissions": ["allow-get-fleet"]
-}

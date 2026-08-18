@@ -1,9 +1,0 @@
-{
-  "schema_version": "1.0",
-  "app_version": "0.0.1",
-  "channel": "stable",
-  "pub_date": "2020-01-01T00:00:00Z",
-  "notes": "Fixture: a validly-signed but OLDER manifest — must be refused as a downgrade.",
-  "artifact_url": "https://updates.example.invalid/ControlTower-0.0.1.app.tar.gz",
-  "artifact_sha256": "00257ba89d2130599e7558426af8a2422daff27bc7459ad89624670758780d6d"
-}

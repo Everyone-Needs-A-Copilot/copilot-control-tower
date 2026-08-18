@@ -1,9 +1,0 @@
-{
-  "schema_version": "1.0",
-  "result": "applied",
-  "lock_before": "a1b2c3d",
-  "lock_after": "e4f5a6b",
-  "changed": [
-    { "dimension": "cli", "layer": "org", "item": "x", "signed": true }
-  ]
-}
