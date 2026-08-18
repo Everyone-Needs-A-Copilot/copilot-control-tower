@@ -88,7 +88,12 @@ COLLECTOR_NAME = "knowledge_soul"
 
 COPILOT_ROOT = resolve_copilot_root()
 CSE_ROOT = resolve_cse_root()
-KNOWLEDGE_ROOT = CSE_ROOT / "knowledge-copilot"
+# The org layer, not the public foundation repo: ECOSYSTEM.md and the
+# dossier tree this collector reads live only in knowledge-copilot-internal
+# (renamed from knowledge-copilot 2026-07-17; the public knowledge-copilot
+# was re-created separately and numbers its layers 01/02/03, not the
+# 02/03/04 in _DOSSIER_LAYERS below).
+KNOWLEDGE_ROOT = CSE_ROOT / "knowledge-copilot-internal"
 ECOSYSTEM_MD = KNOWLEDGE_ROOT / "ECOSYSTEM.md"
 
 # ECOSYSTEM.md's prose hardcodes the owner's primary-machine roots
@@ -234,7 +239,7 @@ def _registry_reverse_check(ecosystem_text: str) -> dict:
     # would silently stop seeing half the ecosystem. Each root is checked
     # only against ITS OWN known prefixes (never the other root's), same
     # never-fall-back-across-roots rule as the forward check above.
-    for root, prefixes in _ROOT_PREFIX_GROUPS:
+    for prefixes, root in _ROOT_PREFIX_GROUPS:
         for entry in sorted(root.iterdir(), key=lambda p: p.name):
             name = entry.name
             if name.startswith(".") or name == ARCHIVE_DIR_NAME:
