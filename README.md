@@ -56,6 +56,12 @@ This and the five other invariants in [`CLAUDE.md`](CLAUDE.md) are architectural
 
 Building, signing, notarizing, and stapling a candidate does not publish it. Publishing a release is a separate owner-gated action.
 
+## Building from a tag
+
+`v0.6.9` is the only tag that builds correctly. Its `packaging/cc/cc` is the real signed, notarized CLI and matches the `packaging/cc/PINNED_SHA256` recorded beside it; `scripts/verify-vendored-cc.sh packaging/cc/cc` confirms the checksum, the upstream Developer ID signature, and its Designated Requirement.
+
+Every tag before `v0.6.9` carries a 1342-byte placeholder at that path instead. A history rewrite that stripped blobs over 5 MB removed all committed revisions of the binary, and because git-filter-repo rewrites an incremental stream, the path inherited an early placeholder rather than disappearing. Those binaries were signed and notarized, so they cannot be rebuilt byte-identically to satisfy the `PINNED_SHA256` each of those tags records. Building an older tag would produce an app bundling the placeholder — don't ship one. Build from `v0.6.9` or from `main`.
+
 ## Read next
 
 | Doc | What |
