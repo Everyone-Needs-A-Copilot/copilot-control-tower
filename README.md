@@ -1,6 +1,6 @@
 # Copilot Control Tower
 
-> **Status line — prepared for the 2026-08-06 release.** Version: **v0.6.5** (build **32**), the native SwiftUI/AppKit release that writes one Python-authored Sites-level project work order, opens a plain Terminal at that projects folder, and lets the person start and control one Claude Code or Codex conversation themselves. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.9.1`. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
+> **Status line — prepared for the 2026-08-12 release.** Version: **v0.6.9** (build **36**), the native SwiftUI/AppKit release that writes one Python-authored Sites-level project work order, opens a plain Terminal at that projects folder, and lets the person start and control one Claude Code or Codex conversation themselves. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.10.2`, and the User app carries a per-user crash-only LaunchAgent. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
 
 **The always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem — the technical superpowers of a deeply skilled engineer, in the hands of someone who has never opened a terminal.**
 
@@ -45,7 +45,7 @@ This and the five other invariants in [`CLAUDE.md`](CLAUDE.md) are architectural
 ## Tech
 
 - **Native macOS SwiftUI/AppKit**, one signed binary per face, macOS-only. This supersedes an earlier Tauri v2/Rust-core plan.
-- The Tauri v2 source tree (`src-tauri/`, `package.json`, `dist/`) remains on disk as a retired reference implementation. It is not built, not tested in CI (the job that would run its tests is disabled), and not part of any release. Do not read it as describing the current app.
+- The retired Tauri v2 source tree (`src-tauri/`) was removed from this repository in commit `chore: remove retired src-tauri tree`; it survives only in git history. It was never built, never part of any release, and does not describe the current app.
 - Windows was designed against under the retired Rust core and is now formally out of scope; see the superseded banner on [`docs/01-architecture/windows-parity.md`](docs/01-architecture/windows-parity.md).
 - A vendored, independently notarized copy of the `cc` CLI helper ships inside each app bundle (`Contents/Resources/cc`) and is preferred over any machine-installed copy.
 - Developer ID signed, hardened runtime, notarized and stapled. Signing identity: `Developer ID Application: Pablo Alejo Jr (3SYGVX2HB8)`. Signed releases and their provenance are retained under [`release/`](release/).

@@ -7,7 +7,7 @@
 | **Status** | **SHIPPED.** v0.4.0, native SwiftUI/AppKit, DOGFOODING on one org (16/16 live apply); remaining items are the V-5 cold-laptop proof and the publicize step. |
 | **Product** | **Copilot Control Tower** — the always-on, self-healing menu-bar client of the Copilot ecosystem, plus its Admin-mode org setup tool |
 | **Repo** | `Everyone-Needs-A-Copilot/copilot-control-tower` |
-| **Stack** | Native macOS **SwiftUI/AppKit**, compiled by `swiftc` (no Xcode project, no package manager), **single process**, macOS-only. A retired Tauri v2/Rust core remains on disk at `src-tauri/` as a historical reference; it is not built, not tested in an active CI job, and not part of any release. |
+| **Stack** | Native macOS **SwiftUI/AppKit**, compiled by `swiftc` (no Xcode project, no package manager), **single process**, macOS-only. A retired Tauri v2/Rust core at `src-tauri/` was removed from this repository in commit `chore: remove retired src-tauri tree`; it survives only in git history; it was not built, not tested in an active CI job, and not part of any release. |
 | **Bundle identifier** | `com.everyoneneedsacopilot.controltower` |
 | **Brand** | Aviator-sunglasses silhouette, template-icon friendly (renders correctly as a monochrome macOS menu-bar template image) |
 | **Executables** | `Copilot Control Tower.app` (User), `Copilot Control Tower Admin.app` (User surface + Admin, built with `-D CT_ADMIN_BUILD`), `Publisher Setup.app` (owner-only release tooling) |

@@ -5,7 +5,7 @@
 ## System Context
 
 - Project: `copilot-control-tower`
-- Stack: **Native macOS SwiftUI/AppKit**, compiled by `swiftc` from an explicit file list in [`native/`](../../native/) — no Xcode project, no Swift Package Manager manifest, no web framework. A retired Tauri v2/Rust/TypeScript/Vite tree remains on disk at `src-tauri/` as a historical reference; it is not built by any release script and not the target of this guidance.
+- Stack: **Native macOS SwiftUI/AppKit**, compiled by `swiftc` from an explicit file list in [`native/`](../../native/) — no Xcode project, no Swift Package Manager manifest, no web framework. A retired Tauri v2/Rust/TypeScript/Vite tree at `src-tauri/` was removed from this repository in commit `chore: remove retired src-tauri tree`; it survives only in git history; it was not built by any release script and is not the target of this guidance.
 - Description: Open-source macOS-only menu-bar app that supervises the `copilot`/`cc` CLI and provides an Admin mode for org setup and deployment.
 
 ## Principles

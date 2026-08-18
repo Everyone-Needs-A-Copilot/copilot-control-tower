@@ -36,7 +36,7 @@ A PR that adds resolution/sync/merge/signature logic to the app, weakens the sec
 
 ## What this project is
 
-Control Tower is a native macOS menu-bar app (SwiftUI/AppKit) that is a thin **face + supervisor** over the `copilot`/`cc` CLI, plus an Admin-mode IT deploy tool. An earlier Tauri v2/Rust plan was retired before the app shipped; that code remains on disk at `src-tauri/` as a read-only historical reference, not the build target. Start with:
+Control Tower is a native macOS menu-bar app (SwiftUI/AppKit) that is a thin **face + supervisor** over the `copilot`/`cc` CLI, plus an Admin-mode IT deploy tool. An earlier Tauri v2/Rust plan was retired before the app shipped; that code was removed from this repository in commit `chore: remove retired src-tauri tree`; it survives only in git history. Start with:
 
 - [`docs/START-HERE.md`](docs/START-HERE.md) — orientation and where the project currently stands
 - [`docs/00-overview/product-brief.md`](docs/00-overview/product-brief.md) — what it is and isn't
