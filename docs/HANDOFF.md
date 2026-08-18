@@ -48,7 +48,7 @@ One thing to decide as you pick this up: whether to **push the `ws-a-doctor-slic
 
 | | |
 |---|---|
-| **Repo (app + spec)** | `/Volumes/Dev/Sites/COPILOT/copilot-control-tower`, private, **public at launch** |
+| **Repo (app + spec)** | `/Volumes/Dev/Sites/CSE/copilot-control-tower`, private, **public at launch** |
 | **Spec / design** | ✅ **Complete.** Full PCC product-creation front-end (Phases 1–5) + `SOUL.md` **RATIFIED v1.3** + hardened architecture + parallel PRD + 2 red-teams + versioned `--json` schemas + threat model + test plan + observability/release/OSS/incident/Windows docs. |
 | **CLI engine (WS-A)** | 🟡 **5 core verbs built & tested**, on an **unpushed branch** in the *other* repo; see "The engine" below. |
 | **The app itself** | ❌ **Not started.** No Tauri code exists yet. **← this is the job.** |
@@ -112,7 +112,7 @@ Built & tested (pure resolver + thin verbs; `cc/core/ecosystem/{manifest,resolve
 
 **To run it:**
 ```bash
-cd /Volumes/Dev/Sites/COPILOT/claude-copilot && git checkout ws-a-doctor-slice
+cd /Volumes/Dev/Sites/CSE/claude-copilot && git checkout ws-a-doctor-slice
 cd tools/cc && uv run pytest        # full suite green
 uv run cc doctor --json             # read verbs are SAFE to run live
 uv run cc resolve --explain --json

@@ -42,11 +42,11 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from collectors.paths import resolve_copilot_root
+from collectors.paths import resolve_cse_root
 
 COLLECTOR_NAME = "cli_soul"
 
-CLI_COPILOT_ROOT = resolve_copilot_root() / "cli-copilot"
+CLI_COPILOT_ROOT = resolve_cse_root() / "cli-copilot"
 TEST_RELATIVE_PATH = Path("tests") / "test_soul_conformance.py"
 
 _SUBPROCESS_TIMEOUT_SECONDS = 120

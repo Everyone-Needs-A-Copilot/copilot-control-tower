@@ -1,7 +1,7 @@
 """collectors/knowledge_soul.py — Knowledge-SOUL collector (S-3 / TASK-109).
 
 Measures Knowledge Copilot against its OWN SOUL promise
-(``/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal/SOUL.md``): never become a
+(``/Volumes/Dev/Sites/CSE/knowledge-copilot-internal/SOUL.md``): never become a
 stale content dump, a marketing-only narrative, or a place where
 contradictory product facts quietly coexist; quality bar "cross-linked
 where decisions depend"; anti-patterns "updating a product description
@@ -13,12 +13,14 @@ This collector computes six metrics, read-only, against a live checkout of
 knowledge-copilot on this machine:
 
 1. **registry_integrity** — forward check: every backtick-wrapped absolute
-   ``/Volumes/Dev/Sites/COPILOT/...`` path in ``ECOSYSTEM.md`` (its "Local
-   path" column values) resolves on disk. Reverse check: every top-level
-   directory under ``/Volumes/Dev/Sites/COPILOT/`` that ``ECOSYSTEM.md``
-   does not cover with a literal Local-path entry (the stale-clone problem
-   — a directory sitting on disk that the registry's actual path table
-   never points at, whether or not the name is discussed in prose).
+   ``/Volumes/Dev/Sites/CSE/...`` or ``/Volumes/Dev/Sites/COPILOT/...`` path
+   in ``ECOSYSTEM.md`` (its "Local path" column values) resolves on disk
+   under whichever of those two roots it was written against (see the
+   "TWO ROOTS" note below). Reverse check: every top-level directory under
+   EITHER root that ``ECOSYSTEM.md`` does not cover with a literal
+   Local-path entry (the stale-clone problem — a directory sitting on disk
+   that the registry's actual path table never points at, whether or not
+   the name is discussed in prose).
 2. **cross_link_integrity** — every relative markdown link found in scope
    (non-archive) ``.md`` files: % resolving on disk, broken-link count,
    top-10 offending source files by broken-link count.
@@ -75,37 +77,53 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Callable, Optional
 
-from collectors.paths import COPILOT_ROOT_CANDIDATES, resolve_copilot_root
+from collectors.paths import (
+    CSE_ROOT_CANDIDATES,
+    COPILOT_ROOT_CANDIDATES,
+    resolve_cse_root,
+    resolve_copilot_root,
+)
 
 COLLECTOR_NAME = "knowledge_soul"
 
 COPILOT_ROOT = resolve_copilot_root()
-KNOWLEDGE_ROOT = COPILOT_ROOT / "knowledge-copilot"
+CSE_ROOT = resolve_cse_root()
+KNOWLEDGE_ROOT = CSE_ROOT / "knowledge-copilot"
 ECOSYSTEM_MD = KNOWLEDGE_ROOT / "ECOSYSTEM.md"
 
-# ECOSYSTEM.md's prose hardcodes the owner's primary-machine root
-# (/Volumes/Dev/Sites/COPILOT) regardless of which root THIS machine
-# actually resolved (collectors.paths.resolve_copilot_root()) -- on a
-# secondary machine where /Volumes/Dev is never mounted, matching only
-# against the resolved COPILOT_ROOT silently produced a vacuous "0/0"
-# forward check (nothing in the doc starts with /Users/pabs/...) and a
-# reverse check that over-flagged every top-level directory as
-# "uncovered" (the doc's own /Volumes/Dev/... paths never textually
-# matched an /Users/pabs/... comparison string). Fix: match against BOTH
-# known root prefixes, then translate whichever one matched to this
-# machine's actually-resolved COPILOT_ROOT before checking existence.
-_KNOWN_ROOT_PREFIXES = [str(root) + "/" for root in COPILOT_ROOT_CANDIDATES]
+# ECOSYSTEM.md's prose hardcodes the owner's primary-machine roots
+# (/Volumes/Dev/Sites/COPILOT for the ~14 product repos that did not move;
+# /Volumes/Dev/Sites/CSE for the 20 framework/product repos that did --
+# see collectors/paths.py's "TWO ROOTS" note) regardless of which root
+# THIS machine actually resolved. On a secondary machine where
+# /Volumes/Dev is never mounted, matching only against the resolved
+# root(s) would silently produce a vacuous "0/0" forward check (nothing
+# in the doc starts with /Users/pabs/...) and a reverse check that
+# over-flags every top-level directory as "uncovered" (the doc's own
+# /Volumes/Dev/... paths never textually match an /Users/pabs/...
+# comparison string). Fix: match against every known prefix from EITHER
+# root's candidate list, then translate whichever one matched to THAT
+# root's actually-resolved value on this machine before checking
+# existence -- never fall back across roots (a CSE-prefixed doc path must
+# resolve against CSE_ROOT, never silently against COPILOT_ROOT, and vice
+# versa; that would turn a real broken-link into a false "resolves").
+_ROOT_PREFIX_GROUPS: list[tuple[list[str], Path]] = [
+    ([str(root) + "/" for root in COPILOT_ROOT_CANDIDATES], COPILOT_ROOT),
+    ([str(root) + "/" for root in CSE_ROOT_CANDIDATES], CSE_ROOT),
+]
+_KNOWN_ROOT_PREFIXES = [prefix for prefixes, _ in _ROOT_PREFIX_GROUPS for prefix in prefixes]
 
 
 def _resolve_against_known_root(val: str) -> Path:
-    """Translate a path written against ANY known COPILOT_ROOT candidate
-    into the equivalent path under THIS machine's actually-resolved
-    COPILOT_ROOT, so existence checks are honest even when the doc's
-    prose hardcodes a different machine's root than the one that resolved
-    here."""
-    for prefix in _KNOWN_ROOT_PREFIXES:
-        if val.startswith(prefix):
-            return COPILOT_ROOT / val[len(prefix):]
+    """Translate a path written against ANY known COPILOT_ROOT or
+    CSE_ROOT candidate into the equivalent path under THIS machine's
+    actually-resolved root of the SAME kind, so existence checks are
+    honest even when the doc's prose hardcodes a different machine's
+    spelling of that root than the one that resolved here."""
+    for prefixes, resolved_root in _ROOT_PREFIX_GROUPS:
+        for prefix in prefixes:
+            if val.startswith(prefix):
+                return resolved_root / val[len(prefix):]
     return Path(val)
 MANIFEST_JSON = KNOWLEDGE_ROOT / "knowledge-manifest.json"
 
@@ -193,10 +211,10 @@ def _metric_1_registry_integrity(errors: list[dict]) -> dict:
         "forward_check": {
             "definition": (
                 "every backtick-wrapped absolute path in ECOSYSTEM.md (its Local-path column "
-                "values) matching either known COPILOT root prefix -- /Volumes/Dev/Sites/COPILOT "
-                "or /Users/pabs/Sites/COPILOT, see collectors/paths.py -- deduped in document "
-                "order, translated to this machine's actually-resolved root, and checked with "
-                "Path.exists()"
+                "values) matching a known COPILOT or CSE root prefix -- /Volumes/Dev/Sites/COPILOT, "
+                "/Users/pabs/Sites/COPILOT, /Volumes/Dev/Sites/CSE, or /Users/pabs/Sites/CSE, see "
+                "collectors/paths.py -- deduped in document order, translated to this machine's "
+                "actually-resolved root OF THE SAME KIND, and checked with Path.exists()"
             ),
             "n_paths": n_total,
             "n_resolving": n_resolving,
@@ -209,27 +227,36 @@ def _metric_1_registry_integrity(errors: list[dict]) -> dict:
 
 def _registry_reverse_check(ecosystem_text: str) -> dict:
     entries = []
-    for entry in sorted(COPILOT_ROOT.iterdir(), key=lambda p: p.name):
-        name = entry.name
-        if name.startswith(".") or name == ARCHIVE_DIR_NAME:
-            continue
-        if not entry.is_dir():  # follows symlinks -> a symlink to a dir counts
-            continue
-        literal_path = f"{COPILOT_ROOT}/{name}"
-        # "Covered" means the doc's prose contains the literal path under
-        # EITHER known root prefix, not just this machine's resolved one --
-        # ECOSYSTEM.md hardcodes the owner's primary-machine root regardless
-        # of which root actually resolved here.
-        covered = any(f"{prefix}{name}" in ecosystem_text for prefix in _KNOWN_ROOT_PREFIXES)
-        name_mentioned = bool(re.search(r"\b" + re.escape(name) + r"\b", ecosystem_text))
-        entries.append(
-            {
-                "name": name,
-                "path": literal_path,
-                "covered_by_local_path": covered,
-                "name_mentioned_in_doc": name_mentioned,
-            }
-        )
+    # Iterate BOTH roots -- ECOSYSTEM.md's Local-path column now covers
+    # products under either the CSE root (the 20 moved framework/product
+    # repos) or the COPILOT root (the ~14 that did not move), so the
+    # stale-clone reverse check must scan both trees, not just one, or it
+    # would silently stop seeing half the ecosystem. Each root is checked
+    # only against ITS OWN known prefixes (never the other root's), same
+    # never-fall-back-across-roots rule as the forward check above.
+    for root, prefixes in _ROOT_PREFIX_GROUPS:
+        for entry in sorted(root.iterdir(), key=lambda p: p.name):
+            name = entry.name
+            if name.startswith(".") or name == ARCHIVE_DIR_NAME:
+                continue
+            if not entry.is_dir():  # follows symlinks -> a symlink to a dir counts
+                continue
+            literal_path = f"{root}/{name}"
+            # "Covered" means the doc's prose contains the literal path under
+            # EITHER known spelling of THIS entry's own root, not just this
+            # machine's resolved one -- ECOSYSTEM.md hardcodes the owner's
+            # primary-machine root regardless of which root actually
+            # resolved here.
+            covered = any(f"{prefix}{name}" in ecosystem_text for prefix in prefixes)
+            name_mentioned = bool(re.search(r"\b" + re.escape(name) + r"\b", ecosystem_text))
+            entries.append(
+                {
+                    "name": name,
+                    "path": literal_path,
+                    "covered_by_local_path": covered,
+                    "name_mentioned_in_doc": name_mentioned,
+                }
+            )
 
     uncovered = [e for e in entries if not e["covered_by_local_path"]]
     unmentioned = [e["name"] for e in uncovered if not e["name_mentioned_in_doc"]]
@@ -237,11 +264,13 @@ def _registry_reverse_check(ecosystem_text: str) -> dict:
 
     return {
         "definition": (
-            "top-level entries under this machine's actually-resolved COPILOT_ROOT that resolve "
-            "to a directory (symlinks followed), excluding dotfiles and _archive itself; "
-            "'covered' means the literal absolute path string, under EITHER known root prefix "
-            "(/Volumes/Dev/Sites/COPILOT or /Users/pabs/Sites/COPILOT), appears in ECOSYSTEM.md "
-            "as an actual Local-path table entry -- a bare name mention in prose does not count "
+            "top-level entries under this machine's actually-resolved COPILOT_ROOT AND CSE_ROOT "
+            "that resolve to a directory (symlinks followed), excluding dotfiles and _archive "
+            "itself; 'covered' means the literal absolute path string, under EITHER known spelling "
+            "of that entry's own root (/Volumes/Dev/Sites/COPILOT or /Users/pabs/Sites/COPILOT for "
+            "unmoved repos; /Volumes/Dev/Sites/CSE or /Users/pabs/Sites/CSE for moved ones), "
+            "appears in ECOSYSTEM.md as an actual Local-path table entry -- a bare name mention "
+            "in prose does not count "
             "as covered"
         ),
         "n_top_level_dirs": len(entries),

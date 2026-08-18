@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-CLAUDE_ROOT="${CT_RECONCILE_CLAUDE_ROOT:-/Volumes/Dev/Sites/COPILOT/claude-copilot}"
+CLAUDE_ROOT="${CT_RECONCILE_CLAUDE_ROOT:-/Volumes/Dev/Sites/CSE/claude-copilot}"
 CC_PATH="${CT_RECONCILE_CC_PATH:-${CLAUDE_ROOT}/tools/cc/.venv/bin/cc}"
 GATE="${SCRIPT_DIR}/verify_vendored_cc_reconcile_contract.sh"
 FIXTURE_DIR="${SCRIPT_DIR}/fixtures/reconcile-contract"

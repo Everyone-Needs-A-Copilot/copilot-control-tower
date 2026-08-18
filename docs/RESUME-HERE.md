@@ -41,8 +41,8 @@ archaeology dig.
 
 | Repo | Path | Branch | Pushed? | Merged to `main`? |
 |---|---|---|---|---|
-| **Control Tower (the app)** | `/Volumes/Dev/Sites/COPILOT/copilot-control-tower` | `app-build` (→ `8dd4f71`) | ✅ origin/app-build | ❌ **not yet** |
-| **CLI engine (`cc`)** | `/Volumes/Dev/Sites/COPILOT/claude-copilot` | `ws-a-doctor-slice` (→ `2a02a45`) | ✅ in sync | ❌ (own PR track) |
+| **Control Tower (the app)** | `/Volumes/Dev/Sites/CSE/copilot-control-tower` | `app-build` (→ `8dd4f71`) | ✅ origin/app-build | ❌ **not yet** |
+| **CLI engine (`cc`)** | `/Volumes/Dev/Sites/CSE/claude-copilot` | `ws-a-doctor-slice` (→ `2a02a45`) | ✅ in sync | ❌ (own PR track) |
 
 **Open decision at restart:** merge `app-build` → `main` (open a PR for review), or
 keep iterating on the branch. Recommendation: open the PR now so the build is

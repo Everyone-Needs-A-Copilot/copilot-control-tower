@@ -1,7 +1,10 @@
 """collectors/tasksdb.py — Task Copilot store collector.
 
-Scans every Task Copilot SQLite store on this machine
-(default: /Volumes/Dev/Sites/COPILOT/*/.copilot/tasks.db) read-only and
+Scans every Task Copilot SQLite store on this machine (default: every
+``.copilot/tasks.db`` one level under EITHER the CSE root or the COPILOT
+root -- see ``collectors/paths.py``'s "TWO ROOTS" note; Task Copilot is
+used across the whole ecosystem, not just the 20 repos that moved, so
+this collector must glob both trees, never just one) read-only and
 produces adoption/throughput metrics: task counts by status, completion
 rate, a rework signal, work-product mix, PRD counts, agent-assignment
 mix, and a created/completed-per-month trend since the corpus's earliest
@@ -32,11 +35,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from collectors.paths import resolve_copilot_root
+from collectors.paths import resolve_copilot_root, resolve_cse_root
 
 COLLECTOR_NAME = "tasksdb"
 
-DEFAULT_GLOB = str(resolve_copilot_root() / "*" / ".copilot" / "tasks.db")
+# Two glob patterns, one per root -- see the module docstring. Neither
+# falls back to the other; a root that doesn't exist on this machine
+# simply contributes zero raw_paths (glob.glob() on a nonexistent parent
+# returns []), and the existing repos_matched/repos_found counters below
+# already surface that honestly rather than needing their own check here.
+DEFAULT_GLOBS = [
+    str(resolve_cse_root() / "*" / ".copilot" / "tasks.db"),
+    str(resolve_copilot_root() / "*" / ".copilot" / "tasks.db"),
+]
+
+# Legacy single-pattern alias, COPILOT-root only. Kept for backward
+# compatibility with collectors/economy.py, collectors/solutions.py, and
+# collectors/upkeep.py, which import this name directly and were NOT part
+# of the two-root migration (out of scope here -- see the directory-
+# migration follow-up note in these three modules' own history/PR). Do
+# NOT use this for new code; it has the same "misses every repo under the
+# other root" gap that DEFAULT_GLOBS above exists to fix. New callers
+# should take DEFAULT_GLOBS (or their own two-root list) instead.
+DEFAULT_GLOB = DEFAULT_GLOBS[-1]
 
 # tasks.db stores timestamps as SQLite's `datetime('now')` output: naive
 # "YYYY-MM-DD HH:MM:SS" strings, always UTC (no offset in the string).
@@ -239,8 +260,9 @@ def _aggregate_totals(per_repo: dict) -> dict:
     }
 
 
-def collect(glob_pattern: str = DEFAULT_GLOB) -> dict:
-    """Scan every Task Copilot store matching glob_pattern.
+def collect(glob_patterns: list[str] = DEFAULT_GLOBS) -> dict:
+    """Scan every Task Copilot store matching any pattern in glob_patterns
+    (one pattern per root by default -- see the module docstring).
 
     Returns {"metrics": {...}, "errors": [...]}. The schema_version /
     collector / generated_at envelope is added by cse_bench.py, not here.
@@ -248,7 +270,9 @@ def collect(glob_pattern: str = DEFAULT_GLOB) -> dict:
     errors: list[dict] = []
     per_repo: dict = {}
 
-    raw_paths = sorted(Path(p) for p in glob.glob(glob_pattern))
+    raw_paths = sorted(
+        {Path(p) for pattern in glob_patterns for p in glob.glob(pattern)}
+    )
     deduped = _dedupe_by_real_path(raw_paths)
     aliases_detected = {name: aliases for _, name, aliases in deduped if aliases}
 
@@ -279,7 +303,7 @@ def collect(glob_pattern: str = DEFAULT_GLOB) -> dict:
     totals = _aggregate_totals(per_repo)
 
     metrics = {
-        "source_glob": glob_pattern,
+        "source_globs": glob_patterns,
         "repos_matched": len(raw_paths),
         "repos_found": len(deduped),
         "repos_scanned": sorted(per_repo.keys()),

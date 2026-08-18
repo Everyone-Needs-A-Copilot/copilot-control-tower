@@ -45,9 +45,10 @@ produced it.
 ## What it measures, and how
 
 1. **Finds the two MCP servers.** Scans `.mcp.json` across
-   `/Volumes/Dev/Sites/COPILOT/*/` (one level, matching F-17's search
-   scope) plus `~/.claude.json`'s top-level and per-project `mcpServers`
-   blocks. Reports server name, command, args (file paths), and env
+   `/Volumes/Dev/Sites/CSE/*/` and `/Volumes/Dev/Sites/COPILOT/*/` (one
+   level each, matching F-17's search scope) plus `~/.claude.json`'s
+   top-level and per-project `mcpServers` blocks. Reports server name,
+   command, args (file paths), and env
    **variable names only** — env *values* (API keys, DB passwords) are
    never read for this purpose and never appear in output.
 

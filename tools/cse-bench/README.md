@@ -72,6 +72,7 @@ version before assuming a field exists.
 ## Collectors
 
 - **`tasksdb`** (B-4) — scans every Task Copilot SQLite store matching
+  `/Volumes/Dev/Sites/CSE/*/.copilot/tasks.db` or
   `/Volumes/Dev/Sites/COPILOT/*/.copilot/tasks.db` read-only (WAL-safe
   `file:...?mode=ro` URI). Emits per-repo and total task counts by
   status, completion rate, a cancelled/reopened rework signal, work

@@ -15,7 +15,7 @@
 # read of each file at that timestamp.
 
 schema_version: voice-lint-rules/1
-knowledge_repo_root: /Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal
+knowledge_repo_root: /Volumes/Dev/Sites/CSE/knowledge-copilot-internal
 sources:
   tone_of_voice: 01-company/01-brand/02-tone-of-voice.md
   cw_extension: .claude/extensions/cw.extension.md

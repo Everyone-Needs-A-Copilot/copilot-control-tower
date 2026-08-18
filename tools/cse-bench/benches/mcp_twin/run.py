@@ -106,8 +106,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 OUT_DIR = SCRIPT_DIR.parent.parent / "output"  # tools/cse-bench/output/
 
 COPILOT_BIN = "/opt/homebrew/bin/copilot"
+# Two roots: cli-copilot is one of the 20 framework/product repos that
+# moved to CSE; other .mcp.json-bearing project repos scanned below did
+# not move and still live under COPILOT. See collectors/paths.py's "TWO
+# ROOTS" note for the fuller rationale (this script is a standalone
+# bench, not a collectors/ module, so it keeps its own copy rather than
+# importing across the benches/ <-> collectors/ boundary).
 COPILOT_ROOT = Path("/Volumes/Dev/Sites/COPILOT")
-CLI_COPILOT_DOCS = COPILOT_ROOT / "cli-copilot" / "docs" / "services"
+CSE_ROOT = Path("/Volumes/Dev/Sites/CSE")
+CLI_COPILOT_DOCS = CSE_ROOT / "cli-copilot" / "docs" / "services"
 
 CONTEXT_WINDOW_TOKENS_ASSUMED = 200_000
 MCP_DEFER_THRESHOLD_FRACTION = 0.10  # changelog-sourced, unverified -- see f17_caveats
@@ -216,16 +223,19 @@ def _redact_mcp_server(name: str, cfg: dict) -> dict:
 
 
 def discover_mcp_configs(errors: list[dict]) -> dict:
-    """Scans .mcp.json across /Volumes/Dev/Sites/COPILOT/*/ (one level, per
-    the task's own search scope) plus ~/.claude.json's mcpServers block
-    (top-level and per-project), redacting all env values. Returns the
-    full inventory (for provenance/transparency) plus, separately, the
-    resolved location of the two twin servers this bench cares about.
+    """Scans .mcp.json across /Volumes/Dev/Sites/CSE/*/ and
+    /Volumes/Dev/Sites/COPILOT/*/ (one level each, per the task's own
+    search scope, covering both the moved and unmoved repo trees) plus
+    ~/.claude.json's mcpServers block (top-level and per-project),
+    redacting all env values. Returns the full inventory (for
+    provenance/transparency) plus, separately, the resolved location of
+    the two twin servers this bench cares about.
     """
     found_by_server: dict[str, list[dict]] = {}
     all_servers: list[dict] = []
 
-    for mcp_json in sorted(COPILOT_ROOT.glob("*/.mcp.json")):
+    scanned_mcp_jsons = sorted(set(CSE_ROOT.glob("*/.mcp.json")) | set(COPILOT_ROOT.glob("*/.mcp.json")))
+    for mcp_json in scanned_mcp_jsons:
         try:
             data = json.loads(mcp_json.read_text())
         except (OSError, json.JSONDecodeError) as exc:
@@ -290,7 +300,11 @@ def discover_mcp_configs(errors: list[dict]) -> dict:
             errors.append({"item": "mcp_config_missing", "server": spec["mcp_server_name"], "error": "no .mcp.json defines this server on this machine"})
 
     return {
-        "search_scope": [str(COPILOT_ROOT / "*" / ".mcp.json"), str(claude_json_path)],
+        "search_scope": [
+            str(CSE_ROOT / "*" / ".mcp.json"),
+            str(COPILOT_ROOT / "*" / ".mcp.json"),
+            str(claude_json_path),
+        ],
         "servers_found_total": len(all_servers),
         "servers_found": all_servers,
         "claude_json": claude_json_summary,

@@ -12,7 +12,7 @@
 	<key>ProgramArguments</key>
 	<array>
 		<string>/bin/bash</string>
-		<string>/Volumes/Dev/Sites/COPILOT/copilot-control-tower/tools/cse-bench/retention/retain_transcripts.sh</string>
+		<string>/Volumes/Dev/Sites/CSE/copilot-control-tower/tools/cse-bench/retention/retain_transcripts.sh</string>
 	</array>
 	<key>StartInterval</key>
 	<integer>3600</integer>

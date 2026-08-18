@@ -14,7 +14,7 @@
 #                         source-vs-packaged diff. Default:
 #                         <claude-root>/tools/cc/.venv/bin/cc.
 #   --claude-root PATH   claude-copilot checkout. Default:
-#                         /Volumes/Dev/Sites/COPILOT/claude-copilot (or
+#                         /Volumes/Dev/Sites/CSE/claude-copilot (or
 #                         $CT_TOPOLOGY_CLAUDE_ROOT).
 #   --keep                Do not delete the scratch directory on exit; its
 #                         path is printed for post-mortem inspection.
@@ -58,7 +58,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 FIXTURES_DIR="${SCRIPT_DIR}/fixtures/onboard-topology"
 SCHEMA_PATH="${REPO_ROOT}/docs/01-architecture/schemas/onboard.schema.json"
 
-CLAUDE_ROOT="${CT_TOPOLOGY_CLAUDE_ROOT:-/Volumes/Dev/Sites/COPILOT/claude-copilot}"
+CLAUDE_ROOT="${CT_TOPOLOGY_CLAUDE_ROOT:-/Volumes/Dev/Sites/CSE/claude-copilot}"
 CC_PATH=""
 SOURCE_CC=""
 KEEP=false

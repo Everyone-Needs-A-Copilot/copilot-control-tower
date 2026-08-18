@@ -121,9 +121,9 @@ mutation engine:
 
 ## Deferred verbs
 
-No CLI verb inventory above may list `repair` or `publish` — neither exists in `claude-copilot/tools/cc/src/cc/commands/`. Their scope is ratified in [`ADR-008`](/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/02-enac-self-onboarding/decisions/ADR-008-repair-and-publish-deferred.md):
+No CLI verb inventory above may list `repair` or `publish` — neither exists in `claude-copilot/tools/cc/src/cc/commands/`. Their scope is ratified in [`ADR-008`](/Volumes/Dev/Sites/CSE/copilot-control-tower/docs/40-initiatives/02-enac-self-onboarding/decisions/ADR-008-repair-and-publish-deferred.md):
 
-- **`repair`.** History remediation now lives inside `cc onboard`'s own routing rather than a standalone verb: its closed 8-state classifier (see the `cc onboard --json` row above, and [`ADR-006`](/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/02-enac-self-onboarding/decisions/ADR-006-ecosystem-setup-preflighted-saga.md)) routes fast-forwardable rows to an in-onboard fast-forward repair and every review-state (dirty, ahead-only, divergent-identical, divergent-different, wrong-origin, unreadable) to the owner. A first-class `cc repair` verb is deferred; none is scheduled.
+- **`repair`.** History remediation now lives inside `cc onboard`'s own routing rather than a standalone verb: its closed 8-state classifier (see the `cc onboard --json` row above, and [`ADR-006`](/Volumes/Dev/Sites/CSE/copilot-control-tower/docs/40-initiatives/02-enac-self-onboarding/decisions/ADR-006-ecosystem-setup-preflighted-saga.md)) routes fast-forwardable rows to an in-onboard fast-forward repair and every review-state (dirty, ahead-only, divergent-identical, divergent-different, wrong-origin, unreadable) to the owner. A first-class `cc repair` verb is deferred; none is scheduled.
 - **`publish`.** The author-side push of a writable org/department tier is formally deferred. The subsection below records the design intent ratified 2026-07-07 for if/when it is built; it is **not** a claim that the verb currently exists.
 
 ### `copilot publish --json` — deferred design (WS-A addition — 2026-07-07)
@@ -234,7 +234,7 @@ Control Tower renders these actions and never computes compatibility itself.
 
 ## Concurrency (the double-write fix)
 
-- **`flock` on `copilot.lock`** across `update` / `onboard` / `deprovision`; fail-fast if held. A **global per-host mutex across all verbs** so `deprovision` drains pending syncs before wiping. *The CLI self-serializes — Control Tower is not the lock.* (Fixes red-team B-C1.) There is no standalone `repair` verb to serialize; `onboard`'s in-transaction history repair (row `action: repair`, [`ADR-008`](/Volumes/Dev/Sites/COPILOT/copilot-control-tower/docs/40-initiatives/02-enac-self-onboarding/decisions/ADR-008-repair-and-publish-deferred.md)) is covered by `onboard`'s own lock.
+- **`flock` on `copilot.lock`** across `update` / `onboard` / `deprovision`; fail-fast if held. A **global per-host mutex across all verbs** so `deprovision` drains pending syncs before wiping. *The CLI self-serializes — Control Tower is not the lock.* (Fixes red-team B-C1.) There is no standalone `repair` verb to serialize; `onboard`'s in-transaction history repair (row `action: repair`, [`ADR-008`](/Volumes/Dev/Sites/CSE/copilot-control-tower/docs/40-initiatives/02-enac-self-onboarding/decisions/ADR-008-repair-and-publish-deferred.md)) is covered by `onboard`'s own lock.
 
 ## CLI-updater ownership
 

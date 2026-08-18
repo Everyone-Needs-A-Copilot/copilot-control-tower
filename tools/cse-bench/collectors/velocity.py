@@ -1,7 +1,7 @@
 """collectors/velocity.py — repo velocity collector.
 
 Runs `git -C <repo> log --since=90.days` class plumbing against every CSE
-repo under /Volumes/Dev/Sites/COPILOT/ and reports commits in the last 90
+repo under /Volumes/Dev/Sites/CSE/ and reports commits in the last 90
 days, the last-commit ISO timestamp, the current branch, and a dirty-tree
 flag (count of changed/untracked paths only -- never filenames, which
 could carry sensitive path fragments into a shared benchmark output).
@@ -29,11 +29,11 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from collectors.paths import resolve_copilot_root
+from collectors.paths import resolve_cse_root
 
 COLLECTOR_NAME = "velocity"
 
-COPILOT_ROOT = resolve_copilot_root()
+COPILOT_ROOT = resolve_cse_root()
 REPOS = [
     "claude-copilot",
     "codex-copilot",

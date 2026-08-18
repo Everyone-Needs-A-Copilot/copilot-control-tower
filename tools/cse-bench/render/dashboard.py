@@ -1700,7 +1700,7 @@ def render_framework_section(outputs: dict, claims_by_id: dict) -> str:
                 "disciplined, resumable, inspectable work instead of starting from zero every morning"
             ),
             soul_note=(
-                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/claude-copilot/SOUL.md</code> — explicitly does '
+                'SOUL: <code>/Volumes/Dev/Sites/CSE/claude-copilot/SOUL.md</code> — explicitly does '
                 "NOT claim speed or output quality (Gate 3: Honesty Test, Principle 4)."
             ),
             lede=(
@@ -1762,7 +1762,7 @@ def render_knowledge_section(outputs: dict, claims_by_id: dict) -> str:
                 "ecosystem accurately enough to make good build, integrate, extend, and operating decisions"
             ),
             soul_note=(
-                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/knowledge-copilot-internal/SOUL.md</code> — must never '
+                'SOUL: <code>/Volumes/Dev/Sites/CSE/knowledge-copilot-internal/SOUL.md</code> — must never '
                 "become a stale content dump, a marketing-only narrative, or a place where contradictory "
                 "product facts quietly coexist."
             ),
@@ -1811,7 +1811,7 @@ def render_integration_section(outputs: dict, claims_by_id: dict) -> str:
                 "services themselves"
             ),
             soul_note=(
-                'SOUL: <code>/Volumes/Dev/Sites/COPILOT/cli-copilot-internal/SOUL.md</code> — one binary, one '
+                'SOUL: <code>/Volumes/Dev/Sites/CSE/cli-copilot-internal/SOUL.md</code> — one binary, one '
                 "grammar; client, never server; honest, hint-bearing failure."
             ),
             lede="Measured against uniformity and honest failure per service — never against how many services exist.",

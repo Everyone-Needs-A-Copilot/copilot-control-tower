@@ -81,8 +81,8 @@ REUSE (imported via sys.path insertion, not copied -- see
 collectors/transcripts.py's own module docstring for why this is the
 established pattern in this package)
 ----------------------------------------------------------------------
-  - collectors/tasksdb.py: ``DEFAULT_GLOB`` (the canonical
-    ``*/.copilot/tasks.db`` glob) and ``_dedupe_by_real_path`` (the
+  - collectors/tasksdb.py: ``DEFAULT_GLOBS`` (the canonical two-root,
+    per-root ``*/.copilot/tasks.db`` globs) and ``_dedupe_by_real_path`` (the
     symlinked-product-directory dedup this collector would otherwise have
     to reimplement to avoid double-counting a store like
     shared-docs/knowledge-copilot-internal).
@@ -158,8 +158,8 @@ from product_usage import (  # noqa: E402
 )
 from session_metrics import compute_session_metrics, median_iqr  # noqa: E402
 
-from collectors.paths import resolve_copilot_root  # noqa: E402
-from collectors.tasksdb import DEFAULT_GLOB as TASKSDB_GLOB  # noqa: E402
+from collectors.paths import resolve_copilot_root, resolve_cse_root  # noqa: E402
+from collectors.tasksdb import DEFAULT_GLOBS as TASKSDB_GLOBS  # noqa: E402
 from collectors.tasksdb import _dedupe_by_real_path  # noqa: E402
 from collectors.transcripts import DEFAULT_ARCHIVE_ROOT  # noqa: E402
 from collectors.transcripts import DEFAULT_LIVE_ROOT  # noqa: E402
@@ -170,9 +170,15 @@ from collectors.transcripts import _merge_indexes  # noqa: E402
 
 DEFAULT_STATS_CACHE_PATH = Path.home() / ".claude" / "stats-cache.json"
 DEFAULT_QA_GATE_STATE_PATH = (
-    resolve_copilot_root() / "claude-copilot" / ".claude" / "hooks" / "state" / "qa-gate.json"
+    resolve_cse_root() / "claude-copilot" / ".claude" / "hooks" / "state" / "qa-gate.json"
 )
-DEFAULT_QA_GATE_ECOSYSTEM_GLOB = str(resolve_copilot_root() / "*" / ".claude" / "hooks" / "state" / "qa-gate.json")
+# Ecosystem-wide: the SubagentStop hook can fire in ANY repo it's
+# installed in, moved or not -- so, like tasksdb's glob, this must cover
+# both roots (see collectors/paths.py's "TWO ROOTS" note), never just one.
+DEFAULT_QA_GATE_ECOSYSTEM_GLOBS = [
+    str(resolve_cse_root() / "*" / ".claude" / "hooks" / "state" / "qa-gate.json"),
+    str(resolve_copilot_root() / "*" / ".claude" / "hooks" / "state" / "qa-gate.json"),
+]
 DEFAULT_TRANSCRIPTS_LATEST_PATH = Path(__file__).resolve().parents[1] / "output" / "transcripts-latest.json"
 
 TOKEN_ESTIMATE_METHOD = "heuristic:chars/4"
@@ -313,8 +319,10 @@ def _percentile(sorted_values: list[int], pct: float) -> Optional[float]:
 # ---------------------------------------------------------------------------
 
 
-def _scan_work_products(glob_pattern: str, errors: list[dict]) -> dict:
-    raw_paths = sorted(Path(p) for p in glob.glob(glob_pattern))
+def _scan_work_products(glob_patterns: list[str], errors: list[dict]) -> dict:
+    raw_paths = sorted(
+        {Path(p) for pattern in glob_patterns for p in glob.glob(pattern)}
+    )
     deduped = _dedupe_by_real_path(raw_paths)
 
     wp_tokens: list[int] = []
@@ -368,7 +376,7 @@ def _scan_work_products(glob_pattern: str, errors: list[dict]) -> dict:
         }
 
     return {
-        "source_glob": glob_pattern,
+        "source_globs": glob_patterns,
         "repos_scanned": sorted(per_repo.keys()),
         "n_total_work_products": n_total,
         "n_with_inline_content": n_with_content,
@@ -709,7 +717,10 @@ def _scan_qa_gate_state(errors: list[dict]) -> dict:
 
     primary_summary = _summarize(DEFAULT_QA_GATE_STATE_PATH)
     ecosystem_hits = []
-    for p in sorted(Path(m) for m in glob.glob(DEFAULT_QA_GATE_ECOSYSTEM_GLOB)):
+    ecosystem_matches = sorted(
+        {Path(m) for pattern in DEFAULT_QA_GATE_ECOSYSTEM_GLOBS for m in glob.glob(pattern)}
+    )
+    for p in ecosystem_matches:
         summary = _summarize(p)
         # repo name is 4 path components up from the state file:
         # <repo>/.claude/hooks/state/qa-gate.json
@@ -720,7 +731,7 @@ def _scan_qa_gate_state(errors: list[dict]) -> dict:
         "primary_path": str(DEFAULT_QA_GATE_STATE_PATH),
         "primary_exists": DEFAULT_QA_GATE_STATE_PATH.is_file(),
         "primary_summary": primary_summary,
-        "ecosystem_glob": DEFAULT_QA_GATE_ECOSYSTEM_GLOB,
+        "ecosystem_globs": DEFAULT_QA_GATE_ECOSYSTEM_GLOBS,
         "ecosystem_repos_with_state_file": ecosystem_hits,
         "note": (
             "qa-gate.json is written by claude-copilot/.claude/hooks/subagent-stop.sh's SubagentStop "
@@ -777,7 +788,7 @@ def _read_discipline_snapshot(path: Path, errors: list[dict]) -> dict:
 
 
 def collect(
-    tasksdb_glob: str = TASKSDB_GLOB,
+    tasksdb_globs: list[str] = TASKSDB_GLOBS,
     archive_root: Optional[str] = None,
     live_root: Optional[str] = None,
     stats_cache_path: Optional[str] = None,
@@ -797,7 +808,7 @@ def collect(
     )
 
     # --- work products (metric 1, first half) -----------------------------
-    wp_scan = _scan_work_products(tasksdb_glob, errors)
+    wp_scan = _scan_work_products(tasksdb_globs, errors)
 
     # --- merged transcript corpus (metrics 1-second-half, 2, 3, 4) --------
     archive_files = _index_jsonl_files(archive_root_p)

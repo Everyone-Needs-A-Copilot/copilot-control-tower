@@ -10,8 +10,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CC_PATH="${CT_ACCEPTANCE_CC:-${REPO_ROOT}/packaging/cc/cc}"
-CLAUDE_ROOT="${CT_ACCEPTANCE_CLAUDE_ROOT:-/Volumes/Dev/Sites/COPILOT/claude-copilot}"
-CODEX_ROOT="${CT_ACCEPTANCE_CODEX_ROOT:-/Volumes/Dev/Sites/COPILOT/codex-copilot}"
+CLAUDE_ROOT="${CT_ACCEPTANCE_CLAUDE_ROOT:-/Volumes/Dev/Sites/CSE/claude-copilot}"
+CODEX_ROOT="${CT_ACCEPTANCE_CODEX_ROOT:-/Volumes/Dev/Sites/CSE/codex-copilot}"
 
 passes=0
 failures=0

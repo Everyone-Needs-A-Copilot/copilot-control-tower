@@ -38,7 +38,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-SOURCE_ROOT="/Volumes/Dev/Sites/COPILOT/claude-copilot"
+SOURCE_ROOT="/Volumes/Dev/Sites/CSE/claude-copilot"
 REF=""
 OUTPUT_DIR=""
 FORCE=false

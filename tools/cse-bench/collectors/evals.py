@@ -41,11 +41,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from collectors.paths import resolve_copilot_root
+from collectors.paths import resolve_cse_root
 
 COLLECTOR_NAME = "evals"
 
-CLAUDE_ROOT = resolve_copilot_root() / "claude-copilot"
+CLAUDE_ROOT = resolve_cse_root() / "claude-copilot"
 AGENTS_DIR = CLAUDE_ROOT / ".claude" / "agents"
 EVALS_DIR = CLAUDE_ROOT / ".claude" / "evals"
 
