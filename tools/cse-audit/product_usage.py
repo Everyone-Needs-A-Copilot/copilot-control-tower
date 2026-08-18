@@ -711,7 +711,11 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--projects-dir", default=str(Path.home() / ".claude" / "projects"))
-    ap.add_argument("--knowledge-repo", default="/Volumes/Dev/Sites/CSE/knowledge-copilot-internal")
+    _cse_root = next(
+        (c for c in (Path("/Volumes/Dev/Sites/CSE"), Path("/Users/pabs/Sites/CSE")) if c.is_dir()),
+        Path("/Volumes/Dev/Sites/CSE"),
+    )
+    ap.add_argument("--knowledge-repo", default=str(_cse_root / "knowledge-copilot-internal"))
     ap.add_argument("--out", default=str(Path(__file__).parent / "output"))
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()

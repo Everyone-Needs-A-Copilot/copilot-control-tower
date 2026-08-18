@@ -66,7 +66,17 @@ BENCH_ROOT = SCRIPT_DIR.parent.parent  # .../tools/cse-bench
 DEFAULT_BANK_PATH = SCRIPT_DIR / "bank.yaml"
 DEFAULT_OUT_DIR = BENCH_ROOT / "output"
 DEFAULT_DOSSIER_ROOT = (
-    Path(os.environ.get("CC_KNOWLEDGE_REPO", "/Volumes/Dev/Sites/CSE/knowledge-copilot-internal"))
+    Path(
+        os.environ.get("CC_KNOWLEDGE_REPO")
+        or next(
+            (
+                str(c / "knowledge-copilot-internal")
+                for c in (Path("/Volumes/Dev/Sites/CSE"), Path("/Users/pabs/Sites/CSE"))
+                if c.is_dir()
+            ),
+            "/Volumes/Dev/Sites/CSE/knowledge-copilot-internal",
+        )
+    )
     / "02-products"
     / "04-applications"
 )
