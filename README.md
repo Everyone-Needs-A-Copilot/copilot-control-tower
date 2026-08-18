@@ -1,6 +1,6 @@
 # Copilot Control Tower
 
-> **Status line — prepared for the 2026-08-12 release.** Version: **v0.6.9** (build **36**), the native SwiftUI/AppKit release that writes one Python-authored Sites-level project work order, opens a plain Terminal at that projects folder, and lets the person start and control one Claude Code or Codex conversation themselves. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.10.2`, and the User app carries a per-user crash-only LaunchAgent. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
+> **Status line — prepared for the 2026-08-12 release.** Version: **v0.6.9** (build **36**), the native SwiftUI/AppKit release that writes one Python-authored Sites-level project work order, opens a plain Terminal at that projects folder, and lets the person start and control one Claude Code or Codex conversation themselves. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.12.7`, and the User app carries a per-user crash-only LaunchAgent. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
 
 **The always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem — the technical superpowers of a deeply skilled engineer, in the hands of someone who has never opened a terminal.**
 

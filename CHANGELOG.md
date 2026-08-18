@@ -28,8 +28,8 @@ All notable changes to Copilot Control Tower are recorded here.
 ### Changed
 
 - The app and Admin bundle are version `0.6.9` build `36`. The release
-  candidate continues to require and bundle exactly `cc 2.10.2`;
-  `controltower.compat.json` declares `cc >=2.10.2,<3.0.0`.
+  candidate continues to require and bundle exactly `cc 2.12.7`;
+  `controltower.compat.json` declares `cc >=2.12.7,<3.0.0`.
 
 ### Rollback
 
