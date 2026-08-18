@@ -14,88 +14,75 @@ unset BASH_ENV ENV
     echo "error: release stream capability is invalid" >&2
     exit 1
 }
-[[ -n "${CT_RELEASE_LAUNCHER_PATH:-}" &&
+[[ -n "${CT_RELEASE_ANCHOR_PATH:-}" &&
    -n "${CT_RELEASE_IMPLEMENTATION_PATH:-}" ]] || {
-    echo "error: release launcher paths are unavailable" >&2
+    echo "error: protected publisher bootstrap paths are unavailable" >&2
     exit 1
 }
-SCRIPT_DIR="$(cd "$(dirname "${CT_RELEASE_IMPLEMENTATION_PATH}")" && pwd -P)"
-[[ "${CT_RELEASE_LAUNCHER_PATH}" == "${SCRIPT_DIR}/package-user-release" &&
-   "${CT_RELEASE_IMPLEMENTATION_PATH}" == "${SCRIPT_DIR}/package-user-release.program" ]] || {
-    echo "error: release launcher paths are inconsistent" >&2
+canonical_regular_file() {
+    local candidate="$1" directory basename_value canonical_directory
+    [[ "${candidate}" == /* && -f "${candidate}" && ! -L "${candidate}" ]] || return 1
+    directory="$(dirname "${candidate}")"
+    basename_value="$(basename "${candidate}")"
+    canonical_directory="$(cd "${directory}" 2>/dev/null && pwd -P)" || return 1
+    printf '%s/%s\n' "${canonical_directory}" "${basename_value}"
+}
+anchor_path="$(canonical_regular_file "${CT_RELEASE_ANCHOR_PATH}")" || {
+    echo "error: publisher bootstrap path or mode is unsafe" >&2
+    exit 1
+}
+implementation_path="$(canonical_regular_file "${CT_RELEASE_IMPLEMENTATION_PATH}")" || {
+    echo "error: release implementation path is unsafe" >&2
+    exit 1
+}
+SCRIPT_DIR="$(dirname "${implementation_path}")"
+[[ "${anchor_path}" == "/Library/PrivilegedHelperTools/com.everyoneneedsacopilot.controltower.publisher-bootstrap.app/Contents/MacOS/ct-publisher-bootstrap" &&
+   "$(basename "${implementation_path}")" == "package-user-release.program" ]] || {
+    echo "error: publisher bootstrap paths are inconsistent" >&2
     exit 1
 }
 parent_path="$(/bin/ps -p "${PPID}" -o comm= | /usr/bin/xargs)"
-[[ "$(cd "$(dirname "${parent_path}")" 2>/dev/null && pwd -P)/$(basename "${parent_path}")" == \
-   "${CT_RELEASE_LAUNCHER_PATH}" ]] || {
+parent_path="$(canonical_regular_file "${parent_path}")" || {
     echo "error: release implementation has an untrusted parent" >&2
     exit 1
 }
-[[ -f "${parent_path}" && ! -L "${parent_path}" &&
-   $((8#$(/usr/bin/stat -f '%Lp' "${parent_path}") & 8#022)) == 0 ]] || {
-    echo "error: release launcher path or mode is unsafe" >&2
+[[ "${parent_path}" == "${anchor_path}" ]] || {
+    echo "error: release implementation has an untrusted parent" >&2
+    exit 1
+}
+[[ $((8#$(/usr/bin/stat -f '%Lp' "${parent_path}") & 8#022)) == 0 ]] || {
+    echo "error: publisher bootstrap path or mode is unsafe" >&2
     exit 1
 }
 /usr/bin/codesign --verify --strict "${parent_path}" >/dev/null 2>&1 || {
-    echo "error: release launcher code identity is invalid" >&2
+    echo "error: publisher bootstrap code identity is invalid" >&2
     exit 1
 }
-launcher_manifest="${SCRIPT_DIR}/package-user-release.sha256"
-[[ -f "${launcher_manifest}" && ! -L "${launcher_manifest}" ]] || {
-    echo "error: release launcher identity manifest is missing" >&2
-    exit 1
-}
-while read -r expected_hash relative_path; do
-    case "${relative_path}" in
-        package-user-release|package-user-release.swift|package-user-release.program) ;;
-        *) echo "error: release launcher identity manifest is invalid" >&2; exit 1 ;;
-    esac
-    actual_hash="$(/usr/bin/shasum -a 256 "${SCRIPT_DIR}/${relative_path}" | /usr/bin/awk '{print $1}')"
-    [[ "${actual_hash}" == "${expected_hash}" ]] || {
-        echo "error: release launcher identity hash mismatch: ${relative_path}" >&2
-        exit 1
-    }
-done < "${launcher_manifest}"
-[[ "$(/usr/bin/wc -l < "${launcher_manifest}" | /usr/bin/tr -d ' ')" == "3" ]] || {
-    echo "error: release launcher identity manifest is incomplete" >&2
-    exit 1
-}
+RELEASE_VERIFIER="${CT_RELEASE_ANCHOR_PATH}"
 unset CT_RELEASE_STREAM CT_RELEASE_STREAM_CHALLENGE CT_RELEASE_EXPECTED_CHALLENGE \
-    CT_RELEASE_LAUNCHER_PATH CT_RELEASE_IMPLEMENTATION_PATH
+    CT_RELEASE_ANCHOR_PATH CT_RELEASE_IMPLEMENTATION_PATH
 
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-[[ "$(/usr/bin/git -C "${REPO_ROOT}" rev-parse --show-toplevel 2>/dev/null)" == "${REPO_ROOT}" &&
-   "$(/usr/bin/git -C "${REPO_ROOT}" remote get-url origin 2>/dev/null)" == \
-       "https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower.git" ]] || {
-    echo "error: release launcher is not inside the canonical repository checkout" >&2
-    exit 1
-}
-SOURCE_REF=""
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 OUTPUT_DIR=""
 VERIFY_SOURCE_ONLY=0
 VERIFIED_SOURCE_REF=""
 VERIFIED_SOURCE_COMMIT=""
 VERIFIED_SOURCE_TREE=""
-CANONICAL_REMOTE=""
-
-source "${SCRIPT_DIR}/release-source-integrity.sh"
-CANONICAL_REMOTE="${RELEASE_CANONICAL_REMOTE}"
+CANONICAL_REMOTE="https://github.com/Everyone-Needs-A-Copilot/copilot-control-tower.git"
 
 usage() {
     cat <<'EOF'
-Usage: scripts/package-user-release [options]
+Internal verified release program. Invoke scripts/package-user-release instead.
 
 Options:
-  --source-ref REF   Remote branch or tag to clone. Defaults to the current branch.
   --output-dir PATH  Final artifact directory. Defaults to dist/user-release.
   --verify-source-only  Verify immutable source and stop before credentials/build.
   -h, --help            Show this help.
 
-The default entrypoint requires local HEAD to equal origin/REF, then builds
-from a clean detached temporary clone of that pushed ref. Internal checkout
-arguments grant no authority: the inner build independently re-verifies the
-approved remote ref, exact commit, committed tree, detached state, and clean
-worktree before and after build verification.
+The compiled outer launcher fetches into a config-null bare Git store and
+materializes this program into a no-.git source tree. This program repeatedly
+asks the compiled verifier to compare that tree with the advertised immutable
+ref while passing no publisher authority to the verifier process.
 EOF
 }
 
@@ -110,11 +97,6 @@ require_cmd() {
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --source-ref)
-            [[ $# -ge 2 ]] || die "--source-ref requires a value"
-            SOURCE_REF="$2"
-            shift 2
-            ;;
         --output-dir)
             [[ $# -ge 2 ]] || die "--output-dir requires a value"
             OUTPUT_DIR="$2"
@@ -149,7 +131,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-release_reject_git_authority_environment || exit 1
 [[ -z "${CT_RELEASE_CHECKOUT:-}" ]] ||
     die "CT_RELEASE_CHECKOUT is not a supported release authority"
 
@@ -157,12 +138,10 @@ inner_values=0
 [[ -n "${VERIFIED_SOURCE_REF}" ]] && inner_values=$((inner_values + 1))
 [[ -n "${VERIFIED_SOURCE_COMMIT}" ]] && inner_values=$((inner_values + 1))
 [[ -n "${VERIFIED_SOURCE_TREE}" ]] && inner_values=$((inner_values + 1))
-[[ "${inner_values}" == "0" || "${inner_values}" == "3" ]] ||
-    die "verified source arguments must be supplied together"
+[[ "${inner_values}" == "3" ]] || die "verified source identity is required"
 
 require_cmd codesign
 require_cmd ditto
-require_cmd git
 require_cmd hdiutil
 require_cmd plutil
 require_cmd shasum
@@ -179,62 +158,28 @@ if [[ "${VERIFY_SOURCE_ONLY}" != "1" && -z "${CT_NOTARY_KEYCHAIN_PROFILE:-}" &&
     die "notarization credentials are not configured"
 fi
 
-if [[ "${inner_values}" == "0" ]]; then
-    cd "${REPO_ROOT}"
-    [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]] ||
-        die "working tree is not clean; commit and push the exact release source first"
-    [[ -n "${SOURCE_REF}" ]] || SOURCE_REF="$(git branch --show-current)"
-    [[ -n "${SOURCE_REF}" ]] || die "--source-ref is required from a detached HEAD"
-
-    local_commit="$(git rev-parse HEAD)"
-    remote_url="$(git remote get-url origin)"
-    [[ "${remote_url}" == "${CANONICAL_REMOTE}" ]] ||
-        die "origin is not the approved release remote"
-    resolved="$(release_resolve_remote_ref "${CANONICAL_REMOTE}" "${SOURCE_REF}")" || exit 1
-    IFS=$'\t' read -r approved_ref remote_commit <<< "${resolved}"
-    [[ "${local_commit}" == "${remote_commit}" ]] ||
-        die "local HEAD ${local_commit} is not the pushed ${approved_ref} commit ${remote_commit}"
-    source_tree="$(git rev-parse 'HEAD^{tree}')"
-
-    [[ -n "${OUTPUT_DIR}" ]] || OUTPUT_DIR="${REPO_ROOT}/dist/user-release"
-    case "${OUTPUT_DIR}" in
-        /*) ;;
-        *) OUTPUT_DIR="${REPO_ROOT}/${OUTPUT_DIR}" ;;
-    esac
-    [[ ! -e "${OUTPUT_DIR}" ]] ||
-        die "output directory already exists: ${OUTPUT_DIR}"
-
-    scratch="$(mktemp -d "${TMPDIR:-/tmp}/control-tower-release.XXXXXX")"
-    cleanup() {
-        rm -rf "${scratch}"
-    }
-    trap cleanup EXIT
-
-    checkout="${scratch}/checkout"
-    release_trusted_git clone --quiet --no-checkout "${CANONICAL_REMOTE}" "${checkout}"
-    git -C "${checkout}" checkout --quiet --detach "${local_commit}"
-    release_verify_checkout "${checkout}" "${CANONICAL_REMOTE}" "${approved_ref}" \
-        "${local_commit}" "${source_tree}" || exit 1
-
-    inner_args=(
-        --output-dir "${OUTPUT_DIR}"
-        --verified-source-ref "${approved_ref}"
-        --verified-source-commit "${local_commit}"
-        --verified-source-tree "${source_tree}"
-    )
-    [[ "${VERIFY_SOURCE_ONLY}" == "1" ]] && inner_args+=(--verify-source-only)
-    "${checkout}/scripts/package-user-release" "${inner_args[@]}"
-    exit 0
-fi
-
 cd "${REPO_ROOT}"
 verified_source_ref="${VERIFIED_SOURCE_REF}"
 source_commit="${VERIFIED_SOURCE_COMMIT}"
 source_tree="${VERIFIED_SOURCE_TREE}"
-release_verify_checkout "${REPO_ROOT}" "${CANONICAL_REMOTE}" "${verified_source_ref}" \
-    "${source_commit}" "${source_tree}" || exit 1
+
+verify_materialized_source() {
+    /usr/bin/env -i \
+        PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+        HOME=/var/empty \
+        TMPDIR="${TMPDIR:-/tmp}" \
+        "${RELEASE_VERIFIER}" \
+        --verify-materialized-source \
+        --verified-source-ref "${verified_source_ref}" \
+        --verified-source-commit "${source_commit}" \
+        --verified-source-tree "${source_tree}" \
+        --verified-source-remote "${CANONICAL_REMOTE}" \
+        --materialized-root "${REPO_ROOT}" >/dev/null
+}
+
+verify_materialized_source
 if [[ "${VERIFY_SOURCE_ONLY}" == "1" ]]; then
-    echo "release source verified: ${verified_source_ref} ${source_commit} ${source_tree}"
+    echo "release source verified without Git metadata: ${verified_source_ref} ${source_commit} ${source_tree}"
     exit 0
 fi
 [[ -n "${OUTPUT_DIR}" ]] || OUTPUT_DIR="${REPO_ROOT}/dist/user-release"
@@ -263,7 +208,13 @@ cleanup_stage() {
 trap cleanup_stage EXIT
 
 echo "release: building native User app from ${source_commit}"
-vendored_cc="${REPO_ROOT}/packaging/cc/cc"
+vendored_cc="${CT_VENDORED_CC_PATH:-}"
+[[ "${vendored_cc}" == /* && -f "${vendored_cc}" && ! -L "${vendored_cc}" ]] ||
+    die "CT_VENDORED_CC_PATH must name a regular, non-symlink absolute file"
+vendored_mode="$(/usr/bin/stat -f '%Lp' "${vendored_cc}")"
+[[ $((8#${vendored_mode} & 8#022)) == 0 ]] ||
+    die "CT_VENDORED_CC_PATH is group/world writable"
+scripts/verify-vendored-cc.sh --release "${vendored_cc}"
 vendored_cc_version="$(<"${REPO_ROOT}/packaging/cc/VERSION")"
 vendored_cc_sha="$(shasum -a 256 "${vendored_cc}" | awk '{print $1}')"
 CT_FORCE_REBUILD=1 CT_SKIP_ADHOC_SIGN=1 CT_VENDORED_CC_PATH="${vendored_cc}" \
@@ -296,8 +247,7 @@ scripts/tests/test_native_watchdog.sh
 
 # Re-check after every pre-sign build/test step. A build from bytes that no
 # longer match the reviewed commit must never reach Developer ID credentials.
-release_verify_checkout "${REPO_ROOT}" "${CANONICAL_REMOTE}" "${verified_source_ref}" \
-    "${source_commit}" "${source_tree}" || exit 1
+verify_materialized_source
 
 echo "release: applying Developer ID signature"
 scripts/sign.sh "${app_path}"
@@ -358,8 +308,7 @@ checksum="$(shasum -a 256 "${final_dmg}" | awk '{print $1}')"
 printf '%s  %s\n' "${checksum}" "$(basename "${final_dmg}")" \
     > "${final_dmg}.sha256"
 
-release_verify_checkout "${REPO_ROOT}" "${CANONICAL_REMOTE}" "${verified_source_ref}" \
-    "${source_commit}" "${source_tree}" || exit 1
+verify_materialized_source
 
 cat > "${OUTPUT_DIR}/release-metadata.json" <<EOF
 {

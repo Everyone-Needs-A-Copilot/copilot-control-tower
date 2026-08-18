@@ -2,7 +2,7 @@
 
 This is the release-owner path for producing a macOS artifact that Gatekeeper
 can trust. It is intentionally separate from the Admin/IT standup path in
-[`../06-deployment/standup-runbook.md`](../06-deployment/standup-runbook.md):
+`../06-deployment/standup-runbook.md`:
 the publisher signs and notarizes the app; an administrator deploys an
 already-built artifact plus org policy.
 
@@ -20,7 +20,7 @@ workflow without creating a separate product or giving fleet administrators
 release-signing authority.
 
 For the full role split and handoff, see
-[`../10-reference/publisher-admin-experience.md`](../10-reference/publisher-admin-experience.md).
+`../10-reference/publisher-admin-experience.md`.
 
 ## Publisher vs. administrator
 
@@ -55,7 +55,7 @@ In Keychain Access:
 2. Choose **Keychain Access > Certificate Assistant > Request a Certificate
    From a Certificate Authority**.
 3. Enter the Apple Developer account email.
-4. Use a clear common name, for example `Pablo Developer ID Application`.
+4. Use a clear common name, for example `the owner Developer ID Application`.
 5. Leave the CA Email Address field empty.
 6. Choose **Saved to disk**.
 7. Save the `.certSigningRequest` file.
@@ -280,24 +280,29 @@ verification. See `AGENTS.md` and `CLAUDE.md` for the same standing rule.
 
 This repo intentionally does not commit release credentials. `.gitignore`
 excludes `.env` and `.env.*`, so a local release file may exist without being
-tracked.
+tracked. The release authority file belongs at the fixed publisher location,
+not in a source checkout:
 
-Create `.env.release.local`:
+Create
+`~/Library/Application Support/Copilot Control Tower Publisher/.env.release.local`:
 
 ```bash
 export CT_SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)'
 export APPLE_SIGNING_IDENTITY="$CT_SIGN_IDENTITY"
+export CT_INSTALLER_IDENTITY='Developer ID Installer: Your Name (TEAMID)'
 export CT_NOTARY_KEYCHAIN_PROFILE='ct-notary'
+export CT_VENDORED_CC_PATH='/absolute/path/to/the/verified/cc'
 ```
 
 Protect it:
 
 ```bash
-chmod 600 .env.release.local
+chmod 600 "$HOME/Library/Application Support/Copilot Control Tower Publisher/.env.release.local"
 ```
 
-Do not source this file into the public packaging command. The verified inner
-launcher reads it only after immutable-source authentication.
+Do not source this file into the public packaging command. The independently
+installed Publisher Bootstrap reads it only after immutable-source
+authentication.
 
 Do not commit `.env.release.local`, `.p12` files, `.p8` files, app-specific
 passwords, or certificate export passwords.
@@ -312,25 +317,165 @@ release notes.
 Use the terminal commands only as a fallback for debugging or headless
 publisher machines.
 
-The release command packages the native Swift User app—not the historical
-Tauri surface—and builds an exact pushed branch or tag from a temporary clone.
-Before any signing work, it verifies that `packaging/cc/cc` matches its pinned
+The release command packages the native Swift User app and builds an exact
+pushed branch or tag from a config-null bare Git store materialized without a
+`.git` directory. Before any signing work, it verifies that the helper named by
+`CT_VENDORED_CC_PATH` matches its pinned
 checksum, is a signed universal Mach-O with matching upstream Apple
 notarization evidence, satisfies `controltower.compat.json`, and is not a
 development placeholder:
 
 ```bash
-./scripts/package-user-release
+./scripts/package-user-release --source-ref main
 ```
 
-The public command is a credential-free bootstrap. Do not `source` the local
+The public command is a credential-free adapter. Do not `source` the local
 release file into its environment. It accepts only a source ref and output
-intent, resolves that ref through config-free Git, clones a clean detached
-checkout, proves the launcher/source/program bytes are the objects committed in
-that advertised tree, and recompiles the launcher as an identity check. Only
-the verified inner launcher reads `.env.release.local` from the original
-publisher checkout and exposes those values to the immutable release program.
-Pass a branch or tag explicitly when needed:
+intent, then transfers control to the protected Publisher Bootstrap at
+`/Library/PrivilegedHelperTools/com.everyoneneedsacopilot.controltower.publisher-bootstrap.app`.
+That separate root-owned, Developer-ID-signed, notarized, and stapled executable
+checks every root-only ancestor before it checks its
+root-owned source approval, resolves the exact public ref through config-free
+Git, fetches it into a private bare object store, and materializes regular
+source files without repository metadata. Only after every byte and mode
+matches the approved Git tree does it read the fixed publisher authority file
+and execute the immutable release program.
+
+Initial provisioning and anchor updates are a separate, attended first-trust
+ceremony, not part of an application release. This repository deliberately
+cannot complete that ceremony. A program launched from a mutable publisher
+checkout cannot make itself independent by hashing or re-fetching itself, and
+administrator authorization does not authenticate the bytes requesting it.
+
+The credential-free preparation command may produce review inputs only:
+
+```bash
+./scripts/provision-publisher-bootstrap.sh \
+  --source-ref refs/heads/REVIEWED_BRANCH_OR_TAG \
+  --source-commit EXACT_40_CHARACTER_COMMIT \
+  --source-tree EXACT_40_CHARACTER_TREE \
+  --package-version STRICTLY_MONOTONIC_X.Y.Z \
+  --output-dir /absolute/new/path/publisher-anchor-inputs
+```
+
+The preparation command starts with an empty environment, re-fetches and
+byte-verifies the exact Git object, materializes only regular authenticated
+blobs, and emits an ad-hoc application input, unsigned payload-only package
+input, exact `source-input.json`, and
+`approval-manifest.template.json`. It never reads `.env.release.local` or any
+other release authority and never signs, notarizes, staples, installs, invokes
+an administrator prompt, or writes a protected path. Its output remains
+same-user replaceable and therefore is **not approved or installable**.
+
+The package input contains only these two eventual protected destinations:
+
+- `/Library/PrivilegedHelperTools/com.everyoneneedsacopilot.controltower.publisher-bootstrap.app`
+- `/Library/Application Support/Everyone Needs a Copilot/Publisher Bootstrap/approved-source.json`
+
+`pkgbuild` receives no scripts directory. The template is intentionally marked
+`INCOMPLETE-INDEPENDENT-AUTHORITY-REQUIRED` and contains null final-signature,
+package-digest, anti-rollback, and owner-approval fields. No local program may
+fill those fields and then treat its own output as independent approval.
+
+### Required independent authority
+
+Stop here unless every item below is available:
+
+1. An independently controlled Developer ID Application and Developer ID
+   Installer signing context for Team ID `3SYGVX2HB8`.
+2. An independently authenticated executor that rebuilds or verifies the exact
+   remote/ref/commit/tree and signs the final application and zero-script
+   package without executing mutable checkout code after credentials become
+   reachable.
+3. One completed, immutable `OWNER-APPROVED` manifest containing the exact
+   source identity, monotonically advancing package version, application
+   CDHash and bundle digest, final signed-package SHA-256, previous approved
+   version, version floor, and owner approval record.
+4. The completed manifest's SHA-256 delivered to the attended owner through a
+   channel independent of this user session.
+
+Notarize and staple the independently signed app and package in that external
+context. Notarization is distribution evidence; it is not source approval or
+downgrade prevention. Before any root write, validate the completed manifest
+and exact signed package using an independently authenticated copy of the tuple
+policy:
+
+```bash
+/independently/authenticated/verify-publisher-approval-tuple.py \
+  /independently/supplied/approval-manifest.json \
+  OUT_OF_BAND_EXPECTED_MANIFEST_SHA256 \
+  /path/to/exact/Copilot-Control-Tower-Publisher-Bootstrap.pkg
+```
+
+The policy refuses an incomplete or non-exact schema, manifest-digest mismatch,
+package A/B substitution, wrong team or identifiers, and a package version that
+does not advance the independently approved floor. Package structural
+verification must additionally refuse scripts, extra archive members or
+payload paths, unsafe types, ACLs or modes, incorrect root:wheel BOM entries,
+altered receipt or app bytes, wrong package/app identity, or missing Gatekeeper
+and stapling evidence.
+
+The attended authority must then copy the exact approved package and completed
+manifest into a newly created root-owned, non-writable staging directory,
+recompute both digests there, and invoke Apple's Installer on that protected
+file without returning control to same-user code. A package in a user-owned
+output directory—even mode `0444`—is replaceable and must never be passed
+directly to Installer. The concrete root-staging executor is not yet
+provisioned; until it is independently supplied and reviewed, installation is
+hard-blocked.
+
+The future attended command shape, executed only by that trusted transaction,
+is:
+
+```bash
+/usr/sbin/installer \
+  -pkg /root-owned/non-writable/staging/EXACT_APPROVED_PACKAGE.pkg \
+  -target /
+```
+
+Apple Installer validates the Developer ID Installer signature and performs the
+privileged placement. The package has no preinstall or postinstall script. If
+Installer fails, stop: do not repair or roll back with repository shell. Source
+QA proves the command ordering and absence of package scripts; it does not prove
+macOS Installer replacement or rollback behavior. Preserve the machine for
+attended installed-state QA, compare the prior protected installation, and use
+only a separately retained and independently signed prior package if an
+operator-approved rollback is required.
+
+After Installer reports success, the same trusted transaction must verify the
+installed receipt version, exact source/application tuple, complete root-owned
+ancestry, signature, notarization, staple, and application digest against the
+same independently supplied manifest. The repository verifier now refuses to
+claim production installed trust unless all three binding inputs are present:
+
+```bash
+./scripts/verify-publisher-bootstrap.sh \
+  --approval-manifest /root-owned/non-writable/staging/approval-manifest.json \
+  --expected-approval-manifest-sha256 OUT_OF_BAND_EXPECTED_MANIFEST_SHA256 \
+  --approved-package /root-owned/non-writable/staging/EXACT_APPROVED_PACKAGE.pkg
+```
+
+Running it without the independent tuple fails closed. Its source implementation
+can check the complete root-owned, non-writable, non-ACL ancestor chain plus
+exact app, signed-receipt, package-receipt version, and manifest bindings, but a
+mutable checkout copy is not itself authority. Independent QA and security of
+the trusted executor and real installed state—including same-team A/B
+substitution, downgrade, race, success replacement, and rollback behavior—is
+required before the anchor can authorize a release candidate.
+
+The former `/Applications` location is rejected because an administrator can
+replace its directory entry before self-verification. Neither the package
+builder nor the package reads, copies, moves, removes, verifies, or restores
+that bundle. Remove
+`/Applications/Copilot Control Tower Publisher Bootstrap.app` only as a
+separate, explicit administrator operation after the new root-only installation
+has passed its credential-free verifier and independent installed-state QA and
+security review. Never use those rejected bytes as migration input or rollback.
+Repository-built launchers have no release authority and cannot self-approve an
+update.
+
+After the protected anchor has been independently verified, pass a branch or
+tag explicitly when needed:
 
 ```bash
 ./scripts/package-user-release --source-ref app-build
@@ -396,21 +541,15 @@ Native smoke SELFTESTs likewise run before any status item or window is
 created. Visual-test builds remain the explicit path for screenshots; routine
 QA must not steal focus by flashing the User or Admin window for each scenario.
 
-## 8. Promote the proven path into CI
+## 8. CI and publication boundary
 
-After the local path is proven, configure the GitHub `release` environment
-secrets used by [`../../.github/workflows/release.yml`](../../.github/workflows/release.yml):
-
-- `APPLE_SIGNING_IDENTITY`
-- `APPLE_CERTIFICATE`
-- `APPLE_CERTIFICATE_PASSWORD`
-- `APPLE_NOTARY_KEY_ID`
-- `APPLE_NOTARY_KEY_ISSUER`
-- `APPLE_NOTARY_KEY`
-
-The workflow is tag-triggered (`v*`) and should remain owner-gated. Do not use
-CI to discover missing credentials for the first time; prove them locally first,
-then transfer only the minimum required secrets into the release environment.
+This public source repository intentionally has no secret-bearing release
+workflow. CI runs source and invariant checks only. Candidate creation uses the
+compiled credential-free local bootstrap: the outer process resolves and
+materializes an anonymously readable immutable ref without release authority;
+only verified inner code may read the publisher's local signing identity and
+Keychain-backed notarization profile. Publishing a GitHub release is a later,
+explicit owner action and is never implied by a successful candidate build.
 
 ## 9. Stable-promotion caveat
 
@@ -420,7 +559,7 @@ path adds a second release-trust gate: the update manifest must be signed by
 the compiled-in update-signing roots.
 
 Production two-of-N custody is documented separately in
-[`../06-deployment/two-of-n-custody-runbook.md`](../06-deployment/two-of-n-custody-runbook.md)
+`../06-deployment/two-of-n-custody-runbook.md`
 and [`../05-security/signing-custody.md`](../05-security/signing-custody.md).
 Until real production keys and custodians are assigned, treat local
 signing/notarization as "artifact is ready for admin validation," not "stable

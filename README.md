@@ -50,6 +50,12 @@ This and the five other invariants in [`CLAUDE.md`](CLAUDE.md) are architectural
 - A vendored, independently notarized copy of the `cc` CLI helper ships inside each app bundle (`Contents/Resources/cc`) and is preferred over any machine-installed copy.
 - Developer ID signed, hardened runtime, notarized and stapled. Signing identity: `Developer ID Application: Pablo Alejo Jr (3SYGVX2HB8)`. Signed releases and their provenance are retained under [`release/`](release/).
 
+## Release integrity
+
+[`scripts/package-user-release`](scripts/package-user-release) is an inert adapter to the separately installed Publisher Bootstrap trust anchor. The root-owned, Developer-ID-signed, notarized, and stapled anchor under the root-only `/Library/PrivilegedHelperTools` trust root resolves an operator-approved immutable ref from this exact canonical HTTPS repository, fetches it into a config-isolated bare Git store, materializes a source tree with no `.git` directory, and repeatedly verifies the materialized bytes before making release authority available. Repository source cannot install or self-authorize an anchor merely by rebuilding itself. Its publisher preparation command is permanently credential-free: it emits only unsigned review inputs and an intentionally incomplete external-approval manifest template. First installation remains hard-blocked until an independently controlled Installer signing context, out-of-band exact tuple, root-owned staging transaction, and monotonic version floor are present.
+
+Building, signing, notarizing, and stapling a candidate does not publish it. Publishing a release is a separate owner-gated action.
+
 ## Read next
 
 | Doc | What |
@@ -67,4 +73,4 @@ Control Tower is a client of the Copilot Solutioning Ecosystem. Self-contained c
 
 ## License
 
-To be selected at public launch.
+Apache License 2.0 — see [`LICENSE`](LICENSE).

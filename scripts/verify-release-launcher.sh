@@ -17,7 +17,7 @@ cp scripts/package-user-release "${scratch}/committed"
 /usr/bin/codesign --remove-signature "${scratch}/committed"
 cmp "${scratch}/package-user-release" "${scratch}/committed"
 
-for relative in package-user-release package-user-release.swift package-user-release.program; do
+for relative in package-user-release package-user-release.swift; do
     expected="$(/usr/bin/awk -v path="${relative}" '$2 == path { print $1 }' \
         scripts/package-user-release.sha256)"
     actual="$(/usr/bin/shasum -a 256 "scripts/${relative}" | /usr/bin/awk '{print $1}')"
