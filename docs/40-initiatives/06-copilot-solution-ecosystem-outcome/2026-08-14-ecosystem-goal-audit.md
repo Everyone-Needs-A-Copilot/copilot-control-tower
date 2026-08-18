@@ -32,7 +32,7 @@ This is not a rejection of the work. It is a rejection of a completion claim.
 
 ## Goal used for this audit
 
-The governing goal comes from the [Initiative 05 outcome audit](../05-ecosystem-conformance-audit/retrospectives/2026-08-12-work-audit.html):
+The governing goal comes from the Initiative 05 outcome audit (removed — see Initiative 05 note):
 
 > Give every person access to a trustworthy, company-aware, multidisciplinary solution team—one that helps them turn real problems into working solutions without requiring technical expertise, while safely carrying the organization's accumulated knowledge and capabilities to them.
 

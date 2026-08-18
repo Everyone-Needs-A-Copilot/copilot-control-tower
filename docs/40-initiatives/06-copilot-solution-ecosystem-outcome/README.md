@@ -90,8 +90,8 @@ The initiative is complete only when all of the following are true:
 - [Clean framework environment protocol](validation/clean-framework-environment-validation-protocol.md)
 - [Current progress and acceptance-evidence review](retrospectives/2026-08-12-progress-evidence-review.md)
 - [Readable standalone HTML progress report](retrospectives/2026-08-12-progress-evidence-review.html)
-- [Initiative 05 post-handoff audit](../05-ecosystem-conformance-audit/retrospectives/2026-08-12-work-audit.md)
-- [Readable Initiative 05 HTML audit](../05-ecosystem-conformance-audit/retrospectives/2026-08-12-work-audit.html)
+- Initiative 05 post-handoff audit (removed — see Initiative 05 note)
+- Readable Initiative 05 HTML audit (removed — see Initiative 05 note)
 
 Live assignments, dependencies, QA state, and work products are maintained in Task Copilot rather than duplicated here.
 

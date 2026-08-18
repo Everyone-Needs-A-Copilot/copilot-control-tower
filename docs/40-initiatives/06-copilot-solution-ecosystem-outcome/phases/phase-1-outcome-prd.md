@@ -2,7 +2,7 @@
 
 > **Owner rebaseline, 2026-08-14:** [ADR-010](../decisions/adr-010-technical-ecosystem-first.md) and the [Phase 5 technical completion plan](phase-5-technical-ecosystem-completion-plan.md) are authoritative where this PRD requires a non-technical participant, long-term human proof, or Control Tower to complete Initiative 06. The active verdict is technical readiness for Pablo's direct dogfooding through Claude Code and Codex. The original long-term product goal is preserved as future validation.
 
-Status: Active Date: 2026-08-12 Product owner: Pablo Alejo Delivery owner: Codex Execution record: PRD-23, parent TASK-278, framework delivery TASK-279 through TASK-300 plus TASK-303 App split: PRD-24, parent TASK-301; TASK-286/287/289/298 and all attached evidence retained there Source target: [Initiative 05 goal-driven audit](../../05-ecosystem-conformance-audit/retrospectives/2026-08-12-work-audit.md)
+Status: Active Date: 2026-08-12 Product owner: Pablo Alejo Delivery owner: Codex Execution record: PRD-23, parent TASK-278, framework delivery TASK-279 through TASK-300 plus TASK-303 App split: PRD-24, parent TASK-301; TASK-286/287/289/298 and all attached evidence retained there Source target: Initiative 05 goal-driven audit (removed — see Initiative 05 note)
 
 Current evidence snapshot: [2026-08-12 progress and acceptance-evidence review](../retrospectives/2026-08-12-progress-evidence-review.md). The initiative remains active. Owner decisions and several release mutations have occurred, but no final outcome claim is permitted while runtime and publisher-anchor security remain open, provider-side accounting purge and human reviews are incomplete, hosted CI is in maintenance mode, and evaluation/fleet/external validation are absent.
 
