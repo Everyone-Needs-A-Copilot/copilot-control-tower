@@ -1,5 +1,9 @@
 {
   "installType": "copy",
   "pluginPath": "./plugins/codex-copilot",
-  "projectName": "copilot-control-tower"
+  "projectName": "copilot-control-tower",
+  "frameworkVersion": "0.6.5",
+  "frameworkCommit": "32066b4",
+  "updatedAt": "2026-08-26",
+  "updatedBy": "codex-copilot 0.6.5 update-project.sh"
 }

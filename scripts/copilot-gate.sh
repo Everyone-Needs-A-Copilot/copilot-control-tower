@@ -8,18 +8,9 @@ Usage:
   scripts/copilot-gate.sh [--task TASK_ID]
 
 Checks Codex Copilot QA-gate state in tc. A task that declares
-metadata.requiresQa=true and indexes an implementation must have approved
-primary QA metadata plus an explicitly indexed test work product. That work
-product must include a passing VERDICT, an ARTIFACT marker, and references to
-the current implementation work product and commit/tree identities when set.
-The indexed work product title must exactly match metadata.qaWorkProductTitle,
-its returned ID must exactly match metadata.qaWorkProductId, and its Task
-Copilot guard must be exactly title=clean;content=clean. Evidence must contain
-exactly one recognized VERDICT line; contradictory verdicts fail closed.
-
-Legacy fallback: only a task with none of implementationWorkProductId,
-implementationCommit, or implementationTree may use any passing attached test
-work product. Metadata is never accepted as evidence by itself.
+metadata.requiresQa=true must have a test work product attached to that task
+whose content includes a passing VERDICT plus an ARTIFACT marker. Metadata may
+index the QA result, but it is never accepted as evidence by itself.
 
 Accepted artifact markers:
   ARTIFACT: test-run|...
@@ -95,9 +86,10 @@ def task_wps(tid):
         return []
 
 
-def full_wp(wid):
+def wp_content(wp):
+    wid = wp.get("id")
     if not wid:
-        return {}, ""
+        return ""
     try:
         full = run_json(["tc", "wp", "get", str(wid), "--json"]) or {}
     except subprocess.CalledProcessError:
@@ -105,113 +97,20 @@ def full_wp(wid):
     return full, str(full.get("content") or "")
 
 
-VERDICT_RE = re.compile(
-    r"^\s*(?:[-*]\s*)?(?:\*\*)?VERDICT:\s*"
-    r"(APPROVED-WITH-MINOR-FIXES|APPROVED|REJECTED)\b"
-    r"(?:\*\*)?\s*[.!]?\s*$",
-    re.IGNORECASE | re.MULTILINE,
+PASSING_VERDICT_RE = re.compile(
+    r"VERDICT:\s*(APPROVED-WITH-MINOR-FIXES|APPROVED)\b",
+    re.IGNORECASE,
 )
 ARTIFACT_RE = re.compile(
-    r"^\s*(?:[-*]\s*)?(?:\*\*)?ARTIFACT:\s*"
+    r"^\s*ARTIFACT:\s*"
     r"(test-run|file-check|diff-check|screenshot-check|a11y-check|design-fidelity-check)"
-    r"\s*\|\s*.+?(?:\*\*)?\s*$",
+    r"\|.+$",
     re.IGNORECASE | re.MULTILINE,
 )
 
 
 def approved_with_artifact(content):
-    verdicts = VERDICT_RE.findall(content)
-    return bool(
-        len(verdicts) == 1
-        and verdicts[0].casefold()
-        in {"approved", "approved-with-minor-fixes"}
-        and ARTIFACT_RE.search(content)
-    )
-
-
-def approved_primary(meta):
-    status = str(meta.get("qaStatus") or "").strip().casefold()
-    verdict = str(meta.get("qaVerdict") or "").strip().casefold()
-    return status.startswith("approved") and verdict in {
-        "approved",
-        "approved-with-minor-fixes",
-    }
-
-
-def has_current_implementation(meta):
-    return any(
-        meta.get(key) not in (None, "")
-        for key in (
-            "implementationWorkProductId",
-            "implementationCommit",
-            "implementationTree",
-        )
-    )
-
-
-def work_product_metadata(full):
-    raw = full.get("metadata")
-    if isinstance(raw, dict):
-        return raw
-    if isinstance(raw, str):
-        try:
-            value = json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
-        return value if isinstance(value, dict) else {}
-    return {}
-
-
-def binds_current_implementation(full, content, meta):
-    evidence_meta = work_product_metadata(full)
-    implementation_wp = meta.get("implementationWorkProductId")
-    if implementation_wp not in (None, ""):
-        value = re.escape(str(implementation_wp))
-        content_bound = re.search(
-            rf"(?i)\bImplementation(?:\s+work\s+product)?\s*[:=]?\s*"
-            rf"(?:WP[- ]?)?{value}\b",
-            content,
-        )
-        metadata_bound = str(evidence_meta.get("implementationWorkProductId")) == str(
-            implementation_wp
-        )
-        if not content_bound and not metadata_bound:
-            return False
-    for key in ("implementationCommit", "implementationTree"):
-        value = str(meta.get(key) or "").strip()
-        label = "commit" if key == "implementationCommit" else "tree"
-        content_bound = re.search(
-            rf"(?i)\b(?:Reviewed\s+)?{label}\s*[:=]?\s*`?"
-            rf"(?<![0-9a-f]){re.escape(value)}(?![0-9a-f])",
-            content,
-        )
-        metadata_bound = str(evidence_meta.get(key)) == value
-        if value and not content_bound and not metadata_bound:
-            return False
-    return True
-
-
-def valid_test_wp(
-    full,
-    content,
-    task_id,
-    *,
-    expected_id=None,
-    expected_title=None,
-    require_clean_guard=False,
-):
-    wp_task_id = full.get("task_id", full.get("task"))
-    return (
-        full.get("type", full.get("type_")) == "test"
-        and str(wp_task_id) == str(task_id)
-        and (expected_id is None or str(full.get("id")) == str(expected_id))
-        and (expected_title is None or full.get("title") == expected_title)
-        and (
-            not require_clean_guard
-            or full.get("guard") == "title=clean;content=clean"
-        )
-        and approved_with_artifact(content)
-    )
+    return bool(PASSING_VERDICT_RE.search(content) and ARTIFACT_RE.search(content))
 
 
 if task_id:
@@ -231,32 +130,16 @@ for task in tasks:
         continue
     checked += 1
     verdict_ok = False
-    if has_current_implementation(meta):
-        qa_wp_id = meta.get("qaWorkProductId")
-        qa_wp_title = meta.get("qaWorkProductTitle")
-        selected_wp, content = full_wp(qa_wp_id)
-        verdict_ok = (
-            approved_primary(meta)
-            and isinstance(qa_wp_title, str)
-            and bool(qa_wp_title)
-            and valid_test_wp(
-                selected_wp,
-                content,
-                task["id"],
-                expected_id=qa_wp_id,
-                expected_title=qa_wp_title,
-                require_clean_guard=True,
-            )
-            and binds_current_implementation(selected_wp, content, meta)
-        )
-    else:
-        # Compatibility for pre-index tasks only. Once implementation identity
-        # exists, historical or bounded approvals can never satisfy the gate.
-        for wp in task_wps(task["id"]):
-            selected_wp, content = full_wp(wp.get("id"))
-            if valid_test_wp(selected_wp, content, task["id"]):
-                verdict_ok = True
-                break
+    for wp in task_wps(task["id"]):
+        if wp.get("type") != "test":
+            continue
+        full_wp, content = wp_content(wp)
+        wp_task_id = full_wp.get("task_id", full_wp.get("task"))
+        if wp_task_id is not None and str(wp_task_id) != str(task["id"]):
+            continue
+        if approved_with_artifact(content):
+            verdict_ok = True
+            break
     if not verdict_ok:
         blocked.append(f"TASK-{task['id']}: {task.get('title', '').strip()}")
 

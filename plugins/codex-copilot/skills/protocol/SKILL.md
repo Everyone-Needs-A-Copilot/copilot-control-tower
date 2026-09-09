@@ -65,6 +65,33 @@ Keep these instruments separate:
 
 For experience work that does not materially change screens, components, or interface states, `$uid` may be skipped only when the checkpoint states why.
 
+## User-Facing Output
+
+- Lead with what is now true—the answer, decision, result, or blocker—not what was investigated.
+- Include only what the user needs to trust the result, decide, or act. Preserve required findings, uncertainty, citations, QA evidence, safety warnings, blockers, and next actions.
+- Default to at most 6 sentences or 5 bullets; exceed that only when requested or required by risk, complexity, or completeness.
+- Keep progress updates to one sentence: material result plus next active step. Lead completion reports with the outcome, then give only changed scope, verification, and any remaining caveat or action.
+- Omit preambles, generic closers, self-narration, repeated findings, evidence inventories, command traces, and chronology unless requested or necessary.
+- Store detailed analysis and evidence in `tc` work products. Content outranks form; length never removes a required fact, artifact, verdict, identifier, or blocker.
+
+## Unknowns
+
+Every design-stage lens (`$sd`, `$uxd`, `$uids`, `$ind`, `$ta`) ends with an `unknowns:` line. `unknowns: none` is permitted and is a claim you own; omitting the line is not.
+
+An unknown that would change the work escalates rather than being noted:
+
+```
+QUESTION: [the one thing that changes the answer]
+OPTIONS: [A — consequence] | [B — consequence]
+CONTEXT: [why this cannot be resolved from what you were given]
+```
+
+One question, not a checklist. Each option carries its consequence so the user can decide in one pass. `CONTEXT:` states what you already ruled out — that is what makes it a question rather than a request to be told what to do.
+
+**Resolving a genuine ambiguity silently is a defect, not efficiency.** Measured on an identical brief carrying a real contradiction ("Level 4 finish throughout" against "Garage included"): the arm with no framework asked, got the answer, and priced 25 fewer labour hours. The arm running the full design chain asked nothing and priced a guess. Inferring an answer where the brief is undecided converts the user's decision into your hidden assumption and buries it in a deliverable, where it resurfaces as rework. Guessing is acceptable only when the guess is stated as one.
+
+This applies with more force here than in a delegating framework, not less: running the lenses inline means no handoff document exists where an unstated assumption might be caught by the next specialist reading it.
+
 ## Checkpoints
 
 For design-heavy flows, stop after major design stages unless the user clearly asked for uninterrupted execution.
@@ -76,12 +103,7 @@ Checkpoint stages:
 - after `uids`
 - after `ta` when the plan materially shapes implementation
 
-Each checkpoint should summarize:
-
-- what was decided
-- whether any applicable soul or architecture principle changed the direction
-- what happens next
-- what the user can correct before continuing
+Each checkpoint follows `references/checkpoints.md`: outcome first, only real decision-specific options, and no evidence inventory. Include soul, architecture, QA, or next-step context only when it changes the decision.
 
 ## Main-session pattern
 
