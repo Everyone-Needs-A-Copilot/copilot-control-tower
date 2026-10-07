@@ -2,6 +2,16 @@
 
 You are starting a new conversation. **The Agent-First Protocol is now active.**
 
+## Project Protocol Precedence
+
+**First check the current project's `.claude/commands/protocol.md`.** Claude Code's filename precedence favors this machine copy at `~/.claude/commands/protocol.md`; explicitly check for a project override before routing.
+
+1. Read `.claude/commands/protocol.md` relative to the current project's root, if the project has one.
+2. **If its content differs:** follow the PROJECT instructions in full instead of everything below for the rest of this conversation. Declare `[Protocol: project]`. Non-software projects may legitimately use different flows.
+3. **If it is absent, or identical to this file:** this file governs, unchanged. Declare it: `[Protocol: machine]`.
+
+Check once before flow detection/routing, never mid-flow or skipped because intent seems obvious.
+
 ## Command Argument Handling
 
 This command supports an optional task description argument for quick task initiation:
@@ -10,17 +20,49 @@ This command supports an optional task description argument for quick task initi
 - `/protocol` - Interactive mode (select task type manually)
 - `/protocol [description]` - Auto-detect intent and route to appropriate agent chain
 
-**Examples:**
-```
-/protocol add user voice profiles          → Experience Flow (sd → uxd → uids → uid → ta → me)
-/protocol fix login authentication bug     → Defect Flow (qa → me → qa)
-/protocol refactor auth module             → Technical Flow (ta → me)
-/protocol improve the dashboard            → Clarification Flow (ask user)
-```
+Each flow below includes an invocation example and its route.
+
+## Fixed Delivery Boundary
+
+Before implementation, state the deliverable, required acceptance criteria,
+affected consumers, verification lane/cap and exclusions in `tc`. Freeze this
+batch scope; use the engineering/QA Proportional Verification fixed finish line.
+After current source-bound QA approval satisfies every required criterion, close
+the task, report completion and separately pending work, then stop. Unrelated
+findings do not authorize another improvement cycle. Missing required evidence or
+an exhausted cap remains incomplete; never weaken acceptance to declare completion.
 
 ## Intent Detection & Flow Routing
 
 When an argument is provided, the system detects intent via keyword matching and routes to the appropriate agent chain:
+
+## Record the Chosen Route (Claude Production Journey)
+
+After this file has chosen the classification, ordered specialist chain, and
+reasoned transition/checkpoint/skip events, record those existing decisions;
+do not ask `cc` to classify the prompt or expand a flow name. For a Task
+Copilot-backed Claude journey, compute the user prompt SHA-256 and run:
+
+Persisted route fields use disclosure-safe identifiers, not prose: runtime,
+classification, specialist, and event reason values must be lowercase slugs
+matching `[a-z][a-z0-9-]{0,63}` (for example `implementation` and
+`protocol-supplied`). Keep human explanation in the conversation; never place
+a person name, email, filesystem path, credential-shaped value, or free-form
+prompt text in these fields. The session ID must be an opaque runtime token
+containing only letters, digits, `.`, `_`, or `-`.
+
+```bash
+cc journey begin --task <N> --session <current-session-id> --runtime claude \
+  --classification <chosen-classification> \
+  --specialists-json '<exact ordered JSON array>' \
+  --events-json '<exact reasoned RouteEvent JSON array>' \
+  --prompt-sha256 <64-lowercase-hex> --json
+```
+
+Keep the returned opaque `run_id`. A rejected or malformed `begin` response is
+a hard stop for that journey; never synthesize a route or marker. Question-only
+responses and workflows for which no Task Copilot journey is begun retain their
+existing behavior.
 
 ### Flow A: Experience-First (DEFAULT)
 
@@ -51,6 +93,46 @@ sd (journey mapping) → uxd (interactions) → uids (visual design) → uid (co
 
 Invoking @agent-sd for service design...
 ```
+
+---
+
+### Flow F: Critique (OPT-IN — not the default, and deliberately so)
+
+**Detection:** Never automatic. Reached only when the user asks for it: `/protocol --critique <request>`, or wording like "explore options", "give me alternatives", "I don't know what this should be yet".
+
+**Shape:** three candidates in parallel → mutual critique → synthesis.
+
+```
+sd, uxd, ind          each produce a DIFFERENT candidate direction, in parallel,
+                      without seeing the others
+      ↓
+uids, uid, ta, qa     each critiques ALL THREE from its own lens — no handoff,
+                      no elaboration, only "what breaks here and why"
+      ↓
+Feature Filter        SOUL.md Section 5's five gates, applied to each candidate
+                      rather than to one, so the gates SELECT instead of approve
+      ↓
+synthesis             one direction, grafting what the runners-up got right;
+                      state what was taken from each and what was dropped
+      ↓
+me                    implementation
+```
+
+**Checkpoints:** After the critique round, before synthesis. That is the moment the user's judgement is worth most — three live options with their weaknesses named, rather than one direction already elaborated four stages deep.
+
+**Why this exists as an alternative.** Flow A is a waterfall with human gates, and a pipeline's error compounds: if `sd` frames the journey wrongly, every downstream specialist elaborates the wrong frame with rising confidence and rising cost, and nothing revisits. The checkpoints are supposed to catch that, but a checkpoint reviews the stage that just ran, not the framing three stages back.
+
+Same agents, different topology. Plausibly cheaper too — three shallow passes plus a synthesis costs less than six deep sequential ones with a full handoff document between each — though that is a prediction, not a measurement.
+
+**Why it is NOT the default.** No evidence supports it over Flow A. None. Flow A is what this framework has always done and what every result in `copilot-bench` describes. Making an unevidenced re-architecture the default would be exactly the mistake this framework's own Honesty Test exists to prevent: claiming better output with no data for it.
+
+So it ships as an opt-in, alongside a way to find out. Paired against Flow A on identical work in `copilot-bench`, the comparison is: which produces the direction the user leaves alone? That is `cc survival` and blind scoring, not token counts — a cheaper wrong answer is not a better one.
+
+**Two things to watch, stated up front so a favourable result is not over-read:**
+- Three parallel candidates cost three framings. If they converge on near-identical directions, the divergence was theatre and the flow is paying triple for one candidate. Say so when it happens.
+- Critique is easier than creation. A round where every lens finds fault with every candidate and nothing is chosen has produced sophistication, not a decision. The synthesis step is mandatory for that reason, and it must name a winner.
+
+**Unknowns still apply.** Every specialist in this flow emits its `Unknowns:` line, and a genuine contradiction in the brief escalates as a `QUESTION:` block before three candidates are built on top of it. Divergent exploration is not a substitute for asking; a wrong brief produces three wrong candidates.
 
 ---
 
@@ -196,36 +278,28 @@ Invoking @agent-do for deployment planning...
 After each design stage (sd, uxd, uids), present:
 
 ```
-[PROTOCOL: <TYPE> | Agent: @agent-<name> | Action: CHECKPOINT]
+[ONE headline sentence: what is now true, not what was investigated.]
+[At most 2–3 more sentences, only when the decision is unintelligible without them.]
 
-Task: TASK-xxx | WP: WP-xxx
+1. [Decision-specific option, stated as the outcome it produces.]
+2. [Decision-specific option.]
+3. [Decision-specific option, only when real.]
 
-[~100 token summary from agent]
+Which one?
 
-Key decisions:
-- [Decision 1]
-- [Decision 2]
-
----
-Does this align with your vision?
-
-Options:
-1. Yes, proceed to [next stage]
-2. No, I need changes: [describe what to change]
-3. Skip [next stage] (warning: you'll miss [benefit])
-4. Go back to [previous stage]
-5. Show me the full work product (WP-xxx)
-
-[Wait for explicit user response]
+[PROTOCOL: <TYPE> | Agent: @agent-<name> | Action: CHECKPOINT] | Task: TASK-xxx | WP: WP-xxx
 ```
 
-**Verbosity Levels:**
+**Checkpoint format rules — these override the general Output Contract for checkpoints:**
+- Headline first. The reader must know the state of the world from the first sentence alone.
+- Put 2–3 numbered, decision-specific options immediately before the question. State each as an outcome, not an action label.
+- Ask the question in four words or fewer, normally "Which one?"
+- Do not print generic standing options such as change, back, skip, or show the work product; they remain available without being advertised.
+- Put protocol, Task, and WP metadata on one trailing line, never before the outcome.
+- If there is no real decision, do not manufacture options or ask for approval. State the outcome and proceed.
+- Keep evidence, findings, and file traces in the work product unless one is necessary to understand the decision.
 
-| Flag | Tokens | Content |
-|------|--------|---------|
-| Default | ~100 | Balanced summary + key decisions |
-| `--verbose` | ~200 | Detailed summary + reasoning |
-| `--minimal` | ~50 | Concise summary + binary y/n |
+**Verbosity Levels:** Default checkpoint length follows the Output Contract's `$CC_OUTPUT_VERBOSITY` (concise by default). `--verbose` and `--minimal` override it for this invocation only, mapping to `detailed` and a binary-only trim of `concise`, respectively — same content requirements, different length.
 
 ### Handling User Responses
 
@@ -301,6 +375,7 @@ Override default behavior with flags:
 | `--skip-uids` | Skip UI design (visual) stage |
 | `--skip-uid` | Skip UI component implementation stage |
 | `--design-only` | Stop after design stages (no ta/me) |
+| `--critique` | Flow F: three parallel candidates, mutual critique, Feature-Filter selection, synthesis. Opt-in; no evidence yet that it beats Flow A |
 
 **Examples:**
 ```
@@ -328,7 +403,7 @@ User can interrupt at any checkpoint:
 
 ## CRITICAL: Token Efficiency Rules
 
-This framework exists to prevent context bloat. Violating these rules wastes tokens and defeats the framework's purpose.
+Prevent context bloat:
 
 **The main session (you) should NEVER:**
 - Read more than 3 files directly (use agents instead)
@@ -370,7 +445,7 @@ This framework exists to prevent context bloat. Violating these rules wastes tok
 | `Plan` | Returns full plans to context, no Task Copilot | `@agent-ta` with PRD creation |
 | `general-purpose` | No Task Copilot integration | Specific framework agent |
 
-Generic agents bypass Task Copilot entirely. Their outputs bloat context.
+Generic agents bypass Task Copilot and bloat context.
 
 ---
 
@@ -472,17 +547,19 @@ When beginning a new initiative or major task:
    tc progress                         # Task Copilot status summary
    ```
 
-2. **Create PRD if needed:**
+2. **Load optional context if the task needs it beyond mandatory instructions** (see `.claude/agents/_shared/optional-context.md` for the full contract, embedded in ta/me/qa): run `cc skill select "<task topic>" --required <skill> --max-chars 12000 --json` once per task, use `selected[].content`, and store the receipt once as a task-bound `type: context` work product. Visible fallbacks apply when `cc` is unavailable, a required skill is missing, no optional skill matches, or no knowledge repos are configured — name which one applied and continue.
+
+3. **Create PRD if needed:**
    ```bash
    tc prd create --title "<title>" --description "<description>" --content "<content>" --json
    ```
 
-3. **Create tasks from PRD:**
+4. **Create tasks from PRD:**
    ```bash
    tc task create --title "<title>" --prd <prd-id> --agent "<agent>" --metadata '{"phase":"<phase>","complexity":"<complexity>"}' --json
    ```
 
-4. **Store session focus in memory:**
+5. **Store session focus in memory:**
    ```bash
    cc memory store --type context "Focus: <initiative title> | Active PRD: <prd-id>"
    ```
@@ -534,35 +611,96 @@ cc memory store --type lesson "<key learning>"           # repeat for each key l
 
 ---
 
+## Optional Context
+
+Mandatory repository/project/system instructions always apply; never filter or load them here.
+
+Load needed additional knowledge once; use `selected[].content` or do not load it:
+
+    cc skill select "<task topic>" --required <skill> --max-chars 12000 --json
+
+Record one receipt per task, not per load:
+
+    tc wp store --task <id> --type context --title "Context selection receipt" --file receipt.json
+
+Keep `query`, `max_chars`, `loaded_characters`, `mandatory_over_budget`; each
+`selected`/`excluded` entry's `name`, `source`, `source_revision`, `selection_reason`
+or `reason`, not content. Before reselection read the receipt; skip held revisions.
+Reload only changes; record both revisions and announce the change.
+
+Retain required skills in full if `mandatory_over_budget: true`; report `max_chars`
+and overage `loaded_characters - max_chars`. Characters are not tokens; receipts
+prove selection, not reading/obedience.
+
+Keep every required name in `selected[]`; identical aliases have `duplicate_of`,
+empty `content`, zero charged characters/bytes: use the selected entry named by
+`duplicate_of`. Optional
+duplicates stay `excluded[]` as `duplicate-content`.
+
+**Visible fallbacks:** name the applicable one, then continue:
+
+- `cc` absent/nonzero: report failure/stderr; use repository instructions and prior memory only.
+- Exit 2, `Required skill not found: <name>`: name it, never substitute; proceed without it or emit `<promise>BLOCKED</promise>` if indispensable.
+- `selected: []`: report no match for the query; use repository instructions, never widen the query to force a match.
+- `CC_KNOWLEDGE_REPOS` empty: "Knowledge tier
+  unconfigured; optional context limited to project and machine skills." Never block.
+
+---
+
 ## Extension Resolution
 
-Before invoking any agent, check for knowledge repository extensions:
+Before invoking any agent, resolve its extension by running ONE command -- never hand-execute manifest lookups, precedence comparisons, or skills checks yourself:
 
-1. **Check the knowledge repository for an agent extension** matching the agent ID
-2. **Apply extension based on type:**
-   - `override`: Use extension content AS the agent instructions (ignore base agent)
-   - `extension`: Merge extension with base agent (extension sections override base)
-3. **If no extension exists:** Use base agent unchanged
+```bash
+cc extensions resolve --agent <id> --json
+```
 
-### Required Skills Check
+This walks the REAL configured knowledge repos (`CC_KNOWLEDGE_REPOS`, exported by `cc env` -- personal-over-org precedence falls out of that list's order, not a separate rank comparison), matches `extensions[]` entries by agent ID, verifies `requiredSkills` against `cc skill get`, and applies `fallbackBehavior`. A missing or malformed manifest is skipped silently by the command itself -- it never blocks the invocation and never raises.
 
-If the extension has `requiredSkills`:
-1. Verify each skill is available via `cc skill get <name>`
-2. If skills unavailable, apply `fallbackBehavior`:
-   - `use_base`: Use base agent silently
-   - `use_base_with_warning`: Use base agent, warn user that proprietary features unavailable
-   - `fail`: Don't proceed, explain missing skills
+**The JSON response is the ONLY source of truth for what to do next.** Read `action`:
+
+| `action` | Meaning | What to do |
+|---|---|---|
+| `no_extension` | No repo declares an entry for this agent | Use the base agent, unchanged. |
+| `apply` | Matched, `requiredSkills` satisfied | Read `file` and compose per `type` (below). |
+| `fallback_use_base` | Matched, skills missing, `fallbackBehavior: use_base` | Use the base agent. No warning. |
+| `fallback_use_base_with_warning` | Matched, skills missing, `fallbackBehavior: use_base_with_warning` | Use the base agent. Surface `warning` to the user. |
+| `fallback_fail` | Matched, skills missing, `fallbackBehavior: fail` | Do NOT proceed with either base or extension. Explain `warning` (the missing skills) to the user and stop. |
+
+**Composition, by `type` (when `action == apply`):**
+- `override`: read `file` and use its content AS the agent instructions in full, in place of the base agent file. This is a pure substitution -- no merge, no ambiguity.
+- `extension`: read the base agent file AND `file`; APPEND the extension content after the base content. This is a deterministic append, not a section-level merge -- the framework does not attempt to algorithmically decide which of two overlapping prose sections "wins" (that judgment call is what earlier docs called "aspirational" when they claimed a merge). Label the appended block explicitly (e.g. "Extension (type: extension, source: <source_repo>) -- appended, not merged") and apply the agent's own Runtime Precedence "content outranks form" clause to resolve any conflict between the two bodies of text.
+- `skills`: no content changes to the base agent -- this type only asserts the declared skills should be available.
+
+`cc.core.extensions_resolver.compose_agent_content()` implements this composition mechanically if you are scripting it; when reading manually, follow the same three rules above.
 
 ### Extension Status in Protocol Declaration
 
-When an extension is active, update the protocol declaration:
+**Populate the parenthetical ONLY from the JSON response you just received -- never from memory, inference, or what a manifest "should" contain.** If `cc extensions resolve` was not run this turn, the declaration must not name an extension source at all.
+
+`action: apply`, `type: override`:
 ```
-[PROTOCOL: EXPERIENCE | Agent: @agent-sd (Moments Framework override) | Action: INVOKING]
+[PROTOCOL: EXPERIENCE | Agent: @agent-sd (override, source: <source_repo from JSON>) | Action: INVOKING]
 ```
 
-When falling back to base with warning:
+`action: apply`, `type: extension`:
+```
+[PROTOCOL: EXPERIENCE | Agent: @agent-cw (extension, source: <source_repo from JSON>) | Action: INVOKING]
+```
+
+`action: no_extension`:
+```
+[PROTOCOL: EXPERIENCE | Agent: @agent-ta | Action: INVOKING]
+```
+
+`action: fallback_use_base` or `fallback_use_base_with_warning`:
 ```
 [PROTOCOL: EXPERIENCE | Agent: @agent-sd (base - extension unavailable) | Action: INVOKING]
+```
+
+`action: fallback_fail` -- do not invoke the agent; state the blocker instead:
+```
+[PROTOCOL: EXPERIENCE | Agent: @agent-sd (BLOCKED - required skills unavailable, fallbackBehavior: fail) | Action: ASKING]
 ```
 
 ---
@@ -740,19 +878,10 @@ When routing to agents or making technical decisions, reference Constitution con
    - Summary content (~100 tokens)
    - Key decisions
    - Handoff context (50 chars)
-3. Present to user:
-   [PROTOCOL: <TYPE> | Agent: @agent-<name> | Action: CHECKPOINT]
-
-   [Agent summary content]
-
-   Does this align with your vision?
-
-   Options:
-   1. Yes, proceed to [next stage]
-   2. No, I need changes: [describe what to change]
-   3. Skip [next stage] (warning: you'll miss [benefit])
-   4. Go back to [previous stage]
-   5. Show me the full work product (WP-xxx)
+3. Present to the user with the Checkpoint Pattern above: outcome headline,
+   only real decision-specific options, a question of four words or fewer,
+   and protocol/Task/WP metadata on one trailing line. Do not print standing
+   options or an evidence inventory.
 
 4. Wait for explicit user response
 5. Parse user response:
@@ -790,23 +919,46 @@ Do you want to proceed? (yes to skip, no to return)
 When invoking an agent:
 
 ```
-1. Show invocation notice:
+1. For an active journey, prepare the exact next specialist before showing or
+   issuing the Agent call:
+   cc journey prepare --run <run-id> --specialist <exact-next-agent> --json
+
+   The response contains `invocation_marker` and `agent_prompt_fragment`. It is
+   prepared evidence only, not dispatch or completion evidence. A missing,
+   malformed, wrong-stage, or rejected response is a hard stop.
+
+2. Show invocation notice:
    [PROTOCOL: <TYPE> | Agent: @agent-<name> | Action: INVOKING]
 
    [Brief description of what agent will do]
    Invoking @agent-<name>...
 
-2. Call agent with context:
+3. Assemble the complete Agent prompt. For an active journey, the exact returned
+   `agent_prompt_fragment` MUST begin at byte 0 of the Agent prompt, unchanged,
+   before all task/context text. Do not copy a marker from prose or reconstruct
+   the Knowledge frame:
    @agent-<name>
 
+   CC-JOURNEY-INVOCATION: <opaque marker from prepare>
+   CC-JOURNEY-KNOWLEDGE-BEGIN
+   <exact prepared Knowledge bytes>
+   CC-JOURNEY-KNOWLEDGE-END
    Task: [description or TASK-xxx ID]
    Context: [handoff context from previous agent if applicable]
    [Any specific constraints or user feedback]
 
-3. Wait for agent response
-4. If agent returns checkpoint summary: Follow checkpoint handling logic
-5. If agent returns completion (no checkpoint): Present summary, determine next step
-6. If agent returns blocker: Surface to user, ask how to proceed
+   Before issuing the Agent call, compute the SHA-256 of those exact complete
+   bytes and bind it once:
+   `cc journey bind-prompt --run <run-id> --specialist <exact-next-agent>
+   --prompt-sha256 <64-lowercase-hex> --json`. A rejected binding is a hard
+   stop; after binding, changing even task or handoff text requires a new run.
+
+4. Call the agent with those exact bytes, then wait for its response. The
+   hook's permit means dispatch was observed and
+   authorized only; never describe it as specialist completion.
+5. If agent returns checkpoint summary: Follow checkpoint handling logic
+6. If agent returns completion (no checkpoint): Present summary, determine next step
+7. If agent returns blocker: Surface to user, ask how to proceed
 ```
 
 ### Iteration Handling (Change Requests)
@@ -871,12 +1023,7 @@ Main session must track:
 - Write code (delegate to @agent-me)
 - Duplicate agent summaries (agents return ~100 tokens, main session adds ~50 tokens max)
 
-**Main session response budget:**
-- Protocol declaration: ~30 tokens
-- Agent invocation notice: ~20 tokens
-- Checkpoint presentation: ~150 tokens (agent summary + options)
-- User guidance: ~30 tokens
-- Total per interaction: ~230 tokens average
+**Main session response length:** governed by the Output Contract's verbosity knob (see `## Output Contract` below), same as checkpoint presentations — no separate budget to track here.
 
 ---
 
@@ -886,8 +1033,11 @@ Before presenting the protocol acknowledgment, check knowledge status:
 
 ### Check Knowledge Configuration
 
+Check the REAL configured knowledge repos (`CC_KNOWLEDGE_REPOS`, exported by `cc env`) -- never the machine template path (`~/.claude/knowledge/`), which is not a member of that list on a correctly onboarded machine and reports a false negative for anyone whose knowledge repos live elsewhere (the normal case):
+
 ```bash
-ls ~/.claude/knowledge/knowledge-manifest.json 2>/dev/null && echo "KNOWLEDGE_CONFIGURED" || echo "NO_KNOWLEDGE"
+eval "$(cc env)"
+if [ -n "$CC_KNOWLEDGE_REPOS" ]; then echo "KNOWLEDGE_CONFIGURED"; else echo "NO_KNOWLEDGE"; fi
 ```
 
 **Decision Matrix:**
@@ -897,6 +1047,7 @@ ls ~/.claude/knowledge/knowledge-manifest.json 2>/dev/null && echo "KNOWLEDGE_CO
 | KNOWLEDGE_CONFIGURED | Any | Proceed normally (knowledge available) |
 | NO_KNOWLEDGE | Experience-first features | Offer knowledge setup contextually |
 | NO_KNOWLEDGE | Technical/Defect work | Proceed without mention |
+| NO_KNOWLEDGE | Agent runs `cc skill select` for optional context | Selection still runs against project/machine skills only; report "Knowledge tier unconfigured; optional context limited to project and machine skills." Never block. |
 
 ### When to Offer Knowledge Setup
 
@@ -932,6 +1083,22 @@ Offer when relevant. Never block work.
 
 ---
 
+## Output Contract
+
+BLUF: lead with the answer or finding. Content outranks form — this contract shapes HOW, never WHAT. Use plain English; depth follows substance, not effort.
+
+User-facing output follows this contract; handoffs, work products, QA markers and Task/WP IDs favor exactness, without length limits.
+
+- Keep what readers need to trust/decide/act: required findings, uncertainty, citations, QA evidence, safety warnings, blockers, next actions.
+- Default ≤6 sentences or 5 bullets; exceed for requests/risk/complexity/completeness.
+- Decision: outcome → 2–3 numbered outcome options → ≤4-word question (usually "Which one?"). No generic options; no decision, no options/approval question.
+- Progress: one sentence, result + next step. Completion: outcome, scope, verification, remaining caveat/action.
+- Define necessary jargon once; lists only for scanning.
+
+**Pre-send deletion pass:** cut preambles/closers, self-narration, repetition, unneeded evidence/command chronology, empty hedges; keep real uncertainty.
+**Verify before sending:** first sentence states the current answer/decision/result/blocker; needed decision/verification/caveat/action last.
+`$CC_OUTPUT_VERBOSITY` / `$CC_OUTPUT_AUDIENCE` relax length/vocabulary, never outcome-first.
+
 ## Acknowledge
 
 Respond with:
@@ -941,3 +1108,37 @@ Ready for your request.
 ```
 
 Or with knowledge tip if applicable (see Knowledge Status Check above).
+
+<!-- cse-design-quality:start -->
+## Design Quality Routing
+
+For material product-facing work, carry one named surface contract through service/interaction design, visual design, implementation and QA. Use `cc design guide` for focused actions and `cc design context` for explicit source authority; retain the existing specialist chain and required walkthroughs. Record initial critique before detector evidence, inspect the rendered result, and leave approval to task-bound QA. Static findings and screenshot comparisons inform judgment; neither replaces behavioral verification.
+<!-- cse-design-quality:end -->
+
+<!-- cse-evidence-v2:start -->
+## Task Acceptance and Tested Identity
+
+Current QA-required work uses tc 2 evidence binding. Before implementation,
+register a JSON acceptance contract with `tc task contract <id> --file <path>`:
+`schemaVersion: 2`, `criteria: [{id, expected}]`, and explicit project-relative
+`sources` files/directories covering implementation, dependencies and relevant
+configuration. Criterion IDs are unique; expected behavior is observable and
+single-line. Keep generated review outputs outside source scopes.
+
+Before running verification, capture `tc task evidence-identity <id>` and retain
+its exact `IDENTITY:` line in the task work product. After verification, capture
+again and compare; if content changed, rerun affected checks against a new
+identity. Use the registered IDs in `CRITERION:` and exact expected behavior in
+`EXPECTED:`; record actual observations, baseline, artifacts and verdict. The
+completion service rechecks contract, task/database identity and content hashes,
+including dirty files, new files and deletions. It also enforces unfinished task
+dependencies. Do not downgrade requiresQa or replace source evidence with prose.
+
+A v1 packet for pending work must be migrated with a registered contract and
+fresh verification. Historical completed records remain readable and explicitly
+historical; they are not current strict QA evidence. cc design review/report
+checks the named database's acceptance contract and source coverage; detector or
+report readiness still never grants task approval. CLI/API and native adapters
+share the same tc authority. Missing current capabilities require a verified tc
+installation; legacy artifact inspection is not a current completion proof.
+<!-- cse-evidence-v2:end -->
