@@ -44,7 +44,7 @@
           "path": ".claude/commands/reflect.md"
         },
         {
-          "checksum": "sha256:f1161a603855e2b1442a6270669e6663af07cd4fee5b16b616266b31189cac42",
+          "checksum": "sha256:f9c4a4c7543be0d671c90e6e7aa86af9e691d053f5f22b9d5d8df0679981accd",
           "ownership": "framework",
           "path": ".claude/fitness-check.sh"
         },
@@ -67,8 +67,8 @@
         }
       ],
       "ownership_mode": "customized-preserve",
-      "release_tag": "v5.15.12",
-      "version": "5.15.12"
+      "release_tag": "v5.15.14",
+      "version": "5.15.14"
     },
     {
       "component": "codex",
