@@ -26,7 +26,7 @@ Open-source native macOS menu-bar app that is the always-on, self-healing face a
 - The UI/UX is designed through Product Creation Copilot, not hand-invented. See `docs/03-design/ui-ux/README.md`.
 - `SOUL.md` is the product taste and purpose lens: read it before substantial product-facing work to decide whether a direction should be built, reshaped, deferred, or rejected. `docs/01-architecture/12-architecture-guiding-principles.md` is the technical lens: read it before durable architecture, migration, data, security, or performance work. When either changes the route, say so before continuing.
 - This file is the project's source of truth for the invariants above.
-- These project rules also live in `AGENTS.md` for Codex. Change both files together.
+- Keep shared project requirements consistent between CLAUDE.md and AGENTS.md; preserve their scope and keep tool-specific instructions in the appropriate entrypoint.
 
 ## Claude Copilot
 
