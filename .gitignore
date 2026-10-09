@@ -50,7 +50,7 @@ yarn-error.log*
 .claude/hooks/state/.freeze
 
 # Task Copilot local state (tc init) — local SQLite task DB, not shared config
-.copilot/
+.copilot/*
 
 # session review artifacts (not source)
 scratchpad/
@@ -60,3 +60,13 @@ scratchpad/
 tools/cse-bench/output/
 __pycache__/
 *.pyc
+
+# >>> tc task state (committed so tasks travel with the project)
+!.copilot/tasks.db
+!.copilot/tasks.db-history
+!.copilot/wp/
+.copilot/*.db-wal
+.copilot/*.db-shm
+.copilot/*-journal
+.copilot/tasks.db-archive-stamp
+# <<< tc task state
