@@ -197,4 +197,4 @@ chmod 600 "${ENV_FILE}"
 echo "Wrote ${ENV_FILE} with mode 600."
 echo
 echo "Next:"
-echo "  ./scripts/package-user-release"
+echo "  ./scripts/release-local.sh --tag vX.Y.Z   (ADR-012 direct local release)"

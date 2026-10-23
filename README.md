@@ -52,6 +52,8 @@ This and the five other invariants in [`CLAUDE.md`](CLAUDE.md) are architectural
 
 ## Release integrity
 
+The active release path is [`scripts/release-local.sh --tag vX.Y.Z`](scripts/release-local.sh): the publisher runs it on their own Mac to build an exact signed tag from a clean clone, sign it with the Developer ID Application identity, notarize, staple, and write the SHA-256 ([ADR-012](docs/40-initiatives/06-copilot-solution-ecosystem-outcome/decisions/adr-012-direct-local-developer-id-release.md)). The Publisher Bootstrap described next is a deferred, inactive option.
+
 [`scripts/package-user-release`](scripts/package-user-release) is an inert adapter to the separately installed Publisher Bootstrap trust anchor. The root-owned, Developer-ID-signed, notarized, and stapled anchor under the root-only `/Library/PrivilegedHelperTools` trust root resolves an operator-approved immutable ref from this exact canonical HTTPS repository, fetches it into a config-isolated bare Git store, materializes a source tree with no `.git` directory, and repeatedly verifies the materialized bytes before making release authority available. Repository source cannot install or self-authorize an anchor merely by rebuilding itself. Its publisher preparation command is permanently credential-free: it emits only unsigned review inputs and an intentionally incomplete external-approval manifest template. First installation remains hard-blocked until an independently controlled Installer signing context, out-of-band exact tuple, root-owned staging transaction, and monotonic version floor are present.
 
 Building, signing, notarizing, and stapling a candidate does not publish it. Publishing a release is a separate owner-gated action.

@@ -60,7 +60,7 @@ The real build path, read directly from the packaging scripts:
 
 - `bash scripts/build-user.command --build-only` compiles the User app (`Copilot Control Tower.app`) via `swiftc` over the explicit source list in that script — never a glob, so a new `.swift` file must be added to the script to be included.
 - `bash scripts/build-admin.command --build-only` compiles the Admin app the same way, adding `admin.swift`/`admin-support.swift` and building with `-D CT_ADMIN_BUILD`.
-- `scripts/package-user-release.sh` is the one real release pipeline: it builds via the script above, verifies the vendored `cc` helper (`verify-vendored-cc.sh`, checksum plus verify-not-resign, never re-signing someone else's binary), runs the headless smoke/acceptance harnesses in `scripts/tests/`, then signs, notarizes, staples, and produces the DMG in `dist/user-release/`.
+- `scripts/release-local.sh --tag vX.Y.Z` is the one active release pipeline (ADR-012; the Publisher Bootstrap adapter `scripts/package-user-release` is a deferred option). It builds from a clean clone of the signed tag via the scripts above, verifies the vendored `cc` helper (`verify-vendored-cc.sh`, checksum plus verify-not-resign, never re-signing someone else's binary), runs the headless smoke/acceptance harnesses in `scripts/tests/`, then signs, notarizes, staples, and produces the DMG in `dist/release-X.Y.Z/`.
 - Local and CI builds should stay at parity — if your local build diverges, that's a bug to report, not a workaround to script around. The GitHub Actions release workflow's Rust job is currently gated behind a disabled variable and does not gate real releases; releases are cut locally today.
 
 ## Making a change

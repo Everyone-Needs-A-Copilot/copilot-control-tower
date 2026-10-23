@@ -42,6 +42,31 @@ not blur. An admin may need to know the publisher's Team ID to reference in the
 org's signed inherited config; the admin should never need the publisher's
 Developer ID private key or notarization credential.
 
+## Active release procedure (direct local path)
+
+Per [ADR-012](../40-initiatives/06-copilot-solution-ecosystem-outcome/decisions/adr-012-direct-local-developer-id-release.md), releases use standard Developer ID signing and notarization run by the publisher on the publisher's own Mac, where the signing identity already lives. This supersedes the Publisher Bootstrap requirement described in section 7, which is kept as a deferred option.
+
+Prerequisites, all provisioned on the publisher Mac: a Developer ID Application identity for Team ID 3SYGVX2HB8 in the login keychain, the `ct-notary` notarytool keychain profile, and a mode-0600 `.env.release.local` holding only the identity string and the profile name. No Developer ID Installer certificate is needed, because the artifact is a DMG of an app; that certificate only ever signed the deferred bootstrap package.
+
+Cut the release first by the repo's conventions: bump the app version and build in both Info.plists, `controltower.compat.json`, and the CHANGELOG, merge through a pull request, then create and push a signed annotated tag `vX.Y.Z` on the merged commit. Then run one command from the publisher checkout:
+
+```bash
+./scripts/release-local.sh --tag vX.Y.Z
+```
+
+The command does the following, stopping at the first failure:
+
+- Proves the source: the tag is annotated and passes `git verify-tag`, matches the tag object and commit that origin advertises, and is cloned from origin into a private scratch directory whose HEAD equals the tag commit. Versions in both Info.plists (and builds), `controltower.compat.json`, and the CHANGELOG must all equal the tag.
+- Runs the credential-free integrity gates: the release launcher byte match (locally under the pinned Swift toolchain, otherwise the pinned-toolchain `shipping-swift-fitness` CI result for that exact commit is required), and vendored `cc` verification including the `controltower.compat.json` range.
+- Reads `.env.release.local` and preflights the `ct-notary` profile before any expensive work.
+- Builds the User app and the Admin bundle from the clone, runs the headless Detect and setup-transaction proofs and the crash-only launchd test, then signs both with hardened runtime (the Admin bundle's bundled `gh` and `jq` first).
+- Notarizes and staples the User app, then builds the drag-install DMG from the stapled app, signs the DMG, and notarizes and staples it. The Admin bundle is notarized, stapled, and zipped.
+- Verifies with `stapler validate`, `codesign --verify --strict --deep`, and `spctl`, then writes `.sha256` sidecars, `release-metadata.json`, the compatibility file and the helper notarization record into `dist/release-X.Y.Z/`, and runs the install-artifact verification.
+
+The tool is taken from your checkout and the source is taken from the tag, so an older tag can be built with a newer tool. Publishing is a separate step: upload the DMG, the Admin zip and the `.sha256` files to the matching GitHub release with `gh release upload vX.Y.Z <files>` and confirm the assets are live.
+
+If the preflight reports HTTP 403 with a missing or expired agreement, the Apple account holder must accept the current agreement at developer.apple.com; then re-run the same command, which starts again from a clean clone. Do not recreate the `ct-notary` profile for that error. The **Build, Sign, and Notarize** button in Publisher Setup.app still targets the deferred bootstrap adapter and is not part of the active path; use the terminal command above. See Credential troubleshooting below for other notarytool failures.
+
 ## 1. Create the Developer ID Application certificate
 
 Use Apple's official Developer ID certificate flow:
@@ -300,14 +325,18 @@ Protect it:
 chmod 600 "$HOME/Library/Application Support/Copilot Control Tower Publisher/.env.release.local"
 ```
 
-Do not source this file into the public packaging command. The independently
-installed Publisher Bootstrap reads it only after immutable-source
-authentication.
+Under the active direct path, `scripts/release-local.sh` reads this file itself
+after proving the source; never print or copy its contents. The deferred
+Publisher Bootstrap instead reads it only after immutable-source
+authentication, and `CT_INSTALLER_IDENTITY` is needed only by that deferred path.
 
 Do not commit `.env.release.local`, `.p12` files, `.p8` files, app-specific
 passwords, or certificate export passwords.
 
-## 7. Build, sign, notarize, and staple locally
+## 7. Deferred option: Publisher Bootstrap release path
+
+**Status: deferred and inactive.** ADR-012 replaced this procedure with the direct local path above. Everything in this section describes the Publisher Bootstrap design, which remains in the repository so it can be restored; follow the "Restoring the bootstrap path" steps in ADR-012 before using any of it. Until then, `scripts/package-user-release` is an inert adapter that fails closed without the root-installed anchor, and no release should be attempted through it.
+
 
 After Publisher Setup creates the local env file and notary profile, use the
 app's **Build, Sign, and Notarize** button. The app runs the same release
@@ -542,6 +571,8 @@ created. Visual-test builds remain the explicit path for screenshots; routine
 QA must not steal focus by flashing the User or Admin window for each scenario.
 
 ## 8. CI and publication boundary
+
+Under the active direct path, signing and notarization run on the publisher Mac and publishing is a separate owner action. The text below describes the deferred bootstrap design.
 
 This public source repository intentionally has no secret-bearing release
 workflow. CI runs source and invariant checks only. Candidate creation uses the
