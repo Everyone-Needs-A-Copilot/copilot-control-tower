@@ -61,6 +61,13 @@ assert launcher < env_read and vendored < env_read, "credential-free integrity g
 assert env_read < preflight < build_user < build_admin < detect < sign_user < sign_admin, "preflight, build, then sign"
 assert sign_admin < notarize_user < payload < dmg < dmg_sign < dmg_notarize, "app is stapled before DMG assembly; DMG is signed before notarization"
 assert notarize_admin > sign_admin
+syntax_gate = at("check-release-script-syntax.sh")
+install_gate = at("release-gate-install-artifact.sh")
+ready = at('echo "release: ready"')
+assert versions < syntax_gate < only < env_read, "script parse gate runs after version proof and before credentials"
+assert sha < install_gate < ready, "affirmative install-artifact gate must precede 'ready'"
+assert "scripts/verify-user-install-artifact.sh --release-dir" not in text, "verifier exit status alone must never gate the release"
+assert text.count('echo "release: ready"') == 1
 assert dmg_notarize < stapler < spctl < sha < install_check, "validate before checksum and install-artifact check"
 
 assert "shipping-swift-fitness" in text and "no\n# way to skip" in text.replace("there is no\n# way","no\n# way") or "shipping-swift-fitness" in text, "launcher gate falls back to pinned-toolchain CI, never a skip"
@@ -96,6 +103,7 @@ git -C "${work}" remote add origin "${origin}"
 
 mkdir -p "${work}/scripts" "${work}/packaging/macos"
 cp "${SCRIPT}" "${work}/scripts/release-local.sh"
+cp "${ROOT}/scripts/check-release-script-syntax.sh" "${ROOT}/scripts/release-gate-install-artifact.sh" "${work}/scripts/"
 write_inputs() {
     local version="$1" build="$2" compat="${3:-$1}"
     for face in User Admin; do
@@ -198,4 +206,47 @@ status=0; output="$(release --tag v1.3.4)" || status=$?
 grep -Eq "byte-identical|release launcher byte match" <<<"${output}" || fail "launcher gate did not run: ${output}"
 [[ ! -e "${work}/dist" ]] || fail "failed run left an output directory"
 echo "PASS: a failing integrity gate stops the full run before any artifact is produced"
+
+# Negative control for the v0.6.10 failure: a tag whose verifier cannot be
+# parsed by the macOS system bash (3.2) must fail the release before
+# credentials, builds, or any artifact, and must never print "ready". The
+# verifier has an EXIT trap, as the real one does, because that trap is what
+# let bash 3.2 report success for an unparseable script.
+write_inputs 1.3.5 7 1.3.5
+mkdir -p "${work}/packaging/cc" "${work}/.github/workflows"
+printf '1.0.0\n' > "${work}/packaging/cc/VERSION"
+cp "${ROOT}/.github/workflows/native-invariants.yml" "${work}/.github/workflows/"
+cat > "${work}/scripts/verify-user-install-artifact.sh" <<'VERIFIER'
+#!/bin/bash
+set -euo pipefail
+trap 'true' EXIT
+[[ "a" ==
+   "a" ]] || exit 1
+echo "install-artifact verification: PASS version=1.3.5 build=7 cc=1.0.0"
+VERIFIER
+chmod +x "${work}/scripts/verify-user-install-artifact.sh"
+git -C "${work}" add -A && git -C "${work}" commit -q -m "unparseable verifier"
+git -C "${work}" tag -s -m broken v1.3.5 && git -C "${work}" push -q origin main refs/tags/v1.3.5
+status=0; output="$(release --tag v1.3.5)" || status=$?
+[[ "${status}" -ne 0 ]] || fail "release with an unparseable verifier unexpectedly succeeded: ${output}"
+grep -Fq "do not parse under /bin/bash" <<<"${output}" || fail "parse gate did not fire: ${output}"
+grep -Fq "release: ready" <<<"${output}" && fail "printed ready for an unparseable verifier"
+grep -Fqi "env.release" <<<"${output}" && fail "unparseable verifier reached the credential step"
+[[ ! -e "${work}/dist" ]] || fail "failed run left an output directory"
+echo "PASS: an unparseable release script fails the release before credentials and never prints ready"
+
+# Positive control: the same tag with a parseable verifier passes the parse
+# gate (then stops at the launcher gate like the full-run fixture above).
+cat > "${work}/scripts/verify-user-install-artifact.sh" <<'VERIFIER'
+#!/bin/bash
+set -euo pipefail
+echo "install-artifact verification: PASS version=1.3.6 build=7 cc=1.0.0"
+VERIFIER
+write_inputs 1.3.6 7 1.3.6
+git -C "${work}" add -A && git -C "${work}" commit -q -m "parseable verifier"
+git -C "${work}" tag -s -m fixed v1.3.6 && git -C "${work}" push -q origin main refs/tags/v1.3.6
+status=0; output="$(release --tag v1.3.6)" || status=$?
+grep -Fq "do not parse" <<<"${output}" && fail "parseable scripts were rejected by the parse gate: ${output}"
+grep -Eq "byte-identical|release launcher byte match" <<<"${output}" || fail "full run did not reach the launcher gate: ${output}"
+echo "PASS: parseable release scripts pass the parse gate and the run proceeds"
 echo "release-local test: PASS"

@@ -166,6 +166,12 @@ changelog_version="$(sed -n 's/^## \[\([0-9][0-9.]*\)\].*/\1/p' "${changelog}" |
     die "CHANGELOG.md top entry ${changelog_version} does not match tag ${TAG}"
 echo "release: version ${VERSION} build ${user_build} agrees across plists, compat file, and changelog"
 
+# Every script the release will run must parse under the macOS system bash
+# (3.2). The tool's own checker judges the tag's files, so a tag cannot weaken
+# the check, and a parse error stops the release before credentials or builds.
+"${SCRIPT_DIR}/check-release-script-syntax.sh" "${checkout}" ||
+    die "release scripts in ${TAG} do not parse under /bin/bash (3.2); refusing to release"
+
 if [[ "${VERIFY_SOURCE_ONLY}" == "1" ]]; then
     echo "release source verified: ${TAG} ${tag_commit}"
     exit 0
@@ -399,7 +405,15 @@ cat > "${OUTPUT_DIR}/release-metadata.json" <<EOF
 EOF
 
 echo "release: verifying the drag-installed artifact without executing from the mounted DMG"
-scripts/verify-user-install-artifact.sh --release-dir "${OUTPUT_DIR}"
+# Fail closed: the verifier's exit status alone is not trusted. The tool's gate
+# parses the verifier and requires its exact PASS line for this release.
+"${SCRIPT_DIR}/release-gate-install-artifact.sh" \
+    --verifier "${checkout}/scripts/verify-user-install-artifact.sh" \
+    --release-dir "${OUTPUT_DIR}" \
+    --version "${VERSION}" \
+    --build "${build_number}" \
+    --cc "${vendored_cc_version}" ||
+    die "install-artifact verification did not affirmatively pass; the release is NOT ready"
 
 echo "release: ready"
 echo "  app: ${final_app}"

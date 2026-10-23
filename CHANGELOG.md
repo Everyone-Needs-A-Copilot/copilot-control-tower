@@ -2,6 +2,22 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.11] - 2026-10-23
+
+### Fixed
+
+- `scripts/verify-user-install-artifact.sh` no longer fails to parse under the macOS system `/bin/bash` (3.2). A `[[ ... ==` split across two lines, introduced in `c9c7c0c` and first present in a release tag at `v0.6.10`, is now a single-line comparison. `v0.6.9` did not contain the line.
+- `scripts/release-local.sh` now fails closed. It parses every release script under `/bin/bash` before credentials or builds, and it prints `release: ready` only when the install-artifact verifier exits 0 and prints its exact `install-artifact verification: PASS` line for this version, build, and `cc` version. Previously bash 3.2 ran the verifier's `EXIT` trap after the syntax error and reported exit status 0, so `v0.6.10` printed `ready` with nothing verified.
+
+### Changed
+
+- The app and Admin bundle are version `0.6.11` build `38`. No Swift source or `--json` contract changed: `schema_version` did not move, and `controltower.compat.json` still declares `cc >=2.12.7,<3.0.0` with the same `schema_version` range.
+- `scripts/tests/test_release_fail_closed.sh` and `scripts/tests/test_release_local.sh` run in native CI; they run `/bin/bash -n` over every release script and carry negative controls for an unparseable or failing verifier.
+
+### Rollback
+
+- Reinstall the signed `0.6.9` DMG, `Copilot-Control-Tower_0.6.9_arm64.dmg`. `0.6.10` could not complete `release-local.sh` verification (its verifier does not parse), so it is not a rollback target. Reinstalling changes only the app/helper and supervision registration.
+
 ## [0.6.10] - 2026-10-23
 
 ### Changed

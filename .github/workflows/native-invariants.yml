@@ -37,6 +37,10 @@ jobs:
         run: ./scripts/build-user.command --build-only
       - name: Exercise crash-only launchd lifecycle
         run: ./scripts/tests/test_native_watchdog.sh
+      - name: Enforce fail-closed release verification under the system bash
+        run: |
+          ./scripts/tests/test_release_fail_closed.sh
+          ./scripts/tests/test_release_local.sh
       - name: Enforce immutable release-source provenance
         run: |
           ./scripts/verify-release-launcher.sh

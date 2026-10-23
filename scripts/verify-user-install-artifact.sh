@@ -135,8 +135,10 @@ watchdog_plist="${watchdog_root}/com.everyoneneedsacopilot.controltower.plist"
     die "installed watchdog does not fail closed on SuccessfulExit"
 [[ "$(plutil -extract RunAtLoad raw "${watchdog_plist}")" == "false" ]] ||
     die "installed watchdog unexpectedly owns login launch"
-[[ "$(plutil -extract ProgramArguments.0 raw "${watchdog_plist}")" ==
-   "__APP_PATH__/Contents/MacOS/Copilot Control Tower" ]] ||
+# Keep every [[ ... ]] on one line: bash 3.2 (the macOS /bin/bash) cannot parse
+# a binary operator followed by a newline inside [[ ]].
+expected_watchdog_executable="__APP_PATH__/Contents/MacOS/Copilot Control Tower"
+[[ "$(plutil -extract ProgramArguments.0 raw "${watchdog_plist}")" == "${expected_watchdog_executable}" ]] ||
     die "installed watchdog template names the wrong native executable"
 
 codesign --verify --deep --strict --verbose=2 "${installed_app}"
