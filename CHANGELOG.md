@@ -2,6 +2,28 @@
 
 All notable changes to Copilot Control Tower are recorded here.
 
+## [0.6.10] - 2026-10-23
+
+### Changed
+
+- The app and Admin bundle are version `0.6.10` build `37`. No Swift source or
+  `--json` contract changed: `schema_version` did not move, and
+  `controltower.compat.json` still declares `cc >=2.12.7,<3.0.0` with the same
+  `schema_version` range.
+- The native CI gate now pins the Xcode 26.6 toolchain (`swiftlang-6.3.3.1.3`)
+  explicitly. The macOS runner's Command Line Tools moved to 27.0, whose SDK
+  declares SwiftUI `@State` as a macro implemented by `libSwiftUIMacros.dylib`,
+  a plugin shipped only inside Xcode, so a Command-Line-Tools-only build cannot
+  compile any SwiftUI view state. The committed release launcher stays
+  byte-identical under the pinned toolchain; moving to Swift 6.4 requires Xcode
+  27 on the runner and a regenerated launcher.
+- Framework-owned instruction files were refreshed to Claude Copilot 5.26.0.
+
+### Rollback
+
+- Reinstall the signed `0.6.9` DMG, `Copilot-Control-Tower_0.6.9_arm64.dmg`.
+  Reinstalling changes only the app/helper and supervision registration.
+
 ## [0.6.9] - 2026-08-12
 
 ### Added
