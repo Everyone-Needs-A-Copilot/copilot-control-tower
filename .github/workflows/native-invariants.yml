@@ -25,7 +25,8 @@ jobs:
           brew install ripgrep
           rg --version
           swiftc --version
-          swiftc --version | grep -F 'swiftlang-6.3.3.1.3'
+          swiftc --version | grep -F 'swiftlang-6.4.0.34.1'
+          xcrun --sdk macosx --show-sdk-version
           test "$(xcrun --sdk macosx --show-sdk-version)" = '26.5'
       - name: Enforce native witness and plain-language boundaries
         run: ./scripts/tests/test_native_invariants.sh
