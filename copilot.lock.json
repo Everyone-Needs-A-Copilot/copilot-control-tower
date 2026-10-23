@@ -4,17 +4,17 @@
       "component": "claude",
       "files": [
         {
-          "checksum": "sha256:d90043209c2ca9768d235ff1cdf76917791558c32bc64915f8f6c940b281e8d6",
+          "checksum": "sha256:a12d84848696e0db14005a9380c19110ad9afd3d7c1a53ae387a1c4e3c181d10",
           "ownership": "framework",
           "path": ".claude/commands/protocol.md"
         },
         {
-          "checksum": "sha256:5cec14f382c2c926d730a56750df72ccc6183fa4df9ffed8283eeaef27b1ae2b",
+          "checksum": "sha256:8f46333a585b6281c949f9576c76514a560bc97c97dc58ed6c7e1a354617cb94",
           "ownership": "framework",
           "path": ".claude/commands/continue.md"
         },
         {
-          "checksum": "sha256:5f4ea43edec12739a1ba6dcb292d3c666520ad4a8a39a8a2fd7826297ec357b6",
+          "checksum": "sha256:2983eae992bfcd89a2ce9273dc32fe15edc0a372fc7eb8c8b41b7c3bf81d7384",
           "ownership": "framework",
           "path": ".claude/commands/pause.md"
         },
@@ -39,9 +39,14 @@
           "path": ".claude/commands/orchestrate.md"
         },
         {
-          "checksum": "sha256:adcc6b49a350722620fa23256d600102beef4c017d70876e80b6fd1e7efa58ba",
+          "checksum": "sha256:b4aba6c7cc68273f9ec9805f4ce7cd5162da5636d09321620b57d367ae50e38b",
           "ownership": "framework",
           "path": ".claude/commands/reflect.md"
+        },
+        {
+          "checksum": "sha256:396604c2e0bc57fffa8ef3fca9e91f6eb235e471c960c617b6dccd75827dceef",
+          "ownership": "framework",
+          "path": ".claude/commands/cleanup.md"
         },
         {
           "checksum": "sha256:f9c4a4c7543be0d671c90e6e7aa86af9e691d053f5f22b9d5d8df0679981accd",
@@ -52,6 +57,16 @@
           "checksum": "sha256:3933ed9d1f1f125ea3b46806c7ee5d3d470c0e70bbb8ad28eaedeb2657f33238",
           "ownership": "framework",
           "path": ".claude/hooks/copilot-hook.sh"
+        },
+        {
+          "checksum": "sha256:e2d632f8c0c224c0396b9b914f5dacf549142d146bd1c8c890324b1910b2e171",
+          "ownership": "framework",
+          "path": ".claude/agents/_shared/work-lifecycle.md"
+        },
+        {
+          "checksum": "sha256:324c77a7944ef50adf68d27ef1658bd45a035396e46a22eca10731a14245fee0",
+          "ownership": "framework",
+          "path": ".claude/skills/cleanup/SKILL.md"
         }
       ],
       "managed_outputs": [
@@ -67,8 +82,8 @@
         }
       ],
       "ownership_mode": "customized-preserve",
-      "release_tag": "v5.15.14",
-      "version": "5.15.14"
+      "release_tag": "v5.26.0",
+      "version": "5.26.0"
     },
     {
       "component": "codex",
