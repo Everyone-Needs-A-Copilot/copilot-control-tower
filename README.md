@@ -1,6 +1,6 @@
 # Copilot Control Tower
 
-> **Status line — prepared for the 2026-08-12 release.** Version: **v0.6.9** (build **36**), the native SwiftUI/AppKit release that writes one Python-authored Sites-level project work order, opens a plain Terminal at that projects folder, and lets the person start and control one Claude Code or Codex conversation themselves. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.12.7`, and the User app carries a per-user crash-only LaunchAgent. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
+> **Status line — prepared for the 2026-10-23 release.** Version: **v0.6.10** (build **37**), the native SwiftUI/AppKit release that writes one Python-authored Sites-level project work order, opens a plain Terminal at that projects folder, and lets the person start and control one Claude Code or Codex conversation themselves. Python independently verifies every project and remains the only completion authority. The bundle requires and carries exactly `cc 2.12.7`, and the User app carries a per-user crash-only LaunchAgent. See [`CHANGELOG.md`](CHANGELOG.md) for the exact contract, safety, and rollback notes.
 
 **The always-on menu-bar client + open-source IT setup/deploy tool for the Copilot ecosystem — the technical superpowers of a deeply skilled engineer, in the hands of someone who has never opened a terminal.**
 
@@ -58,7 +58,7 @@ Building, signing, notarizing, and stapling a candidate does not publish it. Pub
 
 ## Building from a tag
 
-`v0.6.9` is the only tag that builds correctly. Its `packaging/cc/cc` is the real signed, notarized CLI and matches the `packaging/cc/PINNED_SHA256` recorded beside it; `scripts/verify-vendored-cc.sh packaging/cc/cc` confirms the checksum, the upstream Developer ID signature, and its Designated Requirement.
+`v0.6.9` and `v0.6.10` are the only tags that build correctly. Its `packaging/cc/cc` is the real signed, notarized CLI and matches the `packaging/cc/PINNED_SHA256` recorded beside it; `scripts/verify-vendored-cc.sh packaging/cc/cc` confirms the checksum, the upstream Developer ID signature, and its Designated Requirement.
 
 Every tag before `v0.6.9` carries a 1342-byte placeholder at that path instead. A history rewrite that stripped blobs over 5 MB removed all committed revisions of the binary, and because git-filter-repo rewrites an incremental stream, the path inherited an early placeholder rather than disappearing. Those binaries were signed and notarized, so they cannot be rebuilt byte-identically to satisfy the `PINNED_SHA256` each of those tags records. Building an older tag would produce an app bundling the placeholder — don't ship one. Build from `v0.6.9` or from `main`.
 
