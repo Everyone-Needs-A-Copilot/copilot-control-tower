@@ -325,10 +325,7 @@ Protect it:
 chmod 600 "$HOME/Library/Application Support/Copilot Control Tower Publisher/.env.release.local"
 ```
 
-Under the active direct path, `scripts/release-local.sh` reads this file itself
-after proving the source; never print or copy its contents. The deferred
-Publisher Bootstrap instead reads it only after immutable-source
-authentication, and `CT_INSTALLER_IDENTITY` is needed only by that deferred path.
+Under the active direct path, `scripts/release-local.sh` reads this file itself after proving the source; never print or copy its contents. The deferred Publisher Bootstrap instead reads it only after immutable-source authentication, and `CT_INSTALLER_IDENTITY` is needed only by that deferred path.
 
 Do not commit `.env.release.local`, `.p12` files, `.p8` files, app-specific
 passwords, or certificate export passwords.
