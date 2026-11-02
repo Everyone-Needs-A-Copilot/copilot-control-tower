@@ -9,7 +9,7 @@ Verify shared Copilot tooling.
 
 ## Workflow
 
-1. Verify Python, `cc`, and `tc`.
+1. Verify Python 3.10 or newer (`cc` and `tc` require it; macOS system `python3` may be 3.9), `cc`, and `tc`.
 2. Confirm `cc` resolves to the Copilot CLI, not the system C compiler.
 3. Confirm `cc docs sources` works for Live Docs capability.
 4. Confirm `tc` supports required commands.
@@ -23,3 +23,10 @@ Verify shared Copilot tooling.
 - missing tools
 - safe install commands
 - verification commands
+
+## Work Lifecycle
+
+Apply the [shared work lifecycle](../cleanup/references/work-lifecycle.md) once
+per task, including direct invocation of this skill: start/resume, maintain,
+pause/handoff, finish and later reuse. Keep the checkpoint proportional in the
+existing record; a small answer does not need a new task or document.

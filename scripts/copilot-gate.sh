@@ -62,7 +62,7 @@ task_id = sys.argv[1]
 
 
 def run_json(cmd):
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=15)
     text = result.stdout.strip()
     return json.loads(text) if text else None
 
@@ -120,6 +120,10 @@ else:
 
 blocked = []
 checked = 0
+capability = subprocess.run(["tc", "task", "--help"], capture_output=True, text=True, timeout=5)
+task_authority = capability.returncode == 0 and bool(re.search(r"\bcheck-qa\b", capability.stdout))
+if not task_authority:
+    print("Legacy artifact inspection: tc task check-qa is unavailable; this is not tc 1.4 completion validation.", file=sys.stderr)
 
 for task in tasks:
     if not task:
@@ -129,6 +133,17 @@ for task in tasks:
     if not requires_qa:
         continue
     checked += 1
+    if task_authority:
+        try:
+            result = run_json(["tc", "task", "check-qa", str(task["id"]), "--json"])
+            approved = (isinstance(result, dict) and result.get("approved") is True
+                        and str(result.get("task_id")) == str(task["id"])
+                        and type(result.get("work_product_id")) is int)
+        except (subprocess.SubprocessError, ValueError):
+            approved = False
+        if not approved:
+            blocked.append(f"TASK-{task['id']}: task authority rejected or returned invalid evidence")
+        continue
     verdict_ok = False
     for wp in task_wps(task["id"]):
         if wp.get("type") != "test":
