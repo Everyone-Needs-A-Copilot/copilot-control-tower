@@ -46,6 +46,14 @@ Codex skills are the primary path in Codex sessions. Use `cc skill search "<topi
 
 Optional parity specialists (`kc`, `cco`, `cw`, `cs`, `cpa`) live in dormant packs. Activate them with `scripts/activate-pack.py` when the project needs those capabilities; do not load them globally by default.
 
+For optional context beyond an already loaded specialist, use
+`cc skill select "<topic>" --required <necessary-skill> --max-chars 12000 --json`
+when available. Store the selection receipt once in the task work product; compare
+source identities to avoid repeated loading. Character counts are not tokens.
+Mandatory repository/system constraints always apply and are never relevance-filtered.
+`cc doctor --runtime-details --json` separates project installation from unknown
+runtime trust/dispatch; `--exercise-runtime` runs direct diagnostic hooks only.
+
 ## Task Copilot Pattern
 
 For substantial work, use `tc` as the execution record:
@@ -58,11 +66,10 @@ tc task update <taskId> --status completed --json
 
 If no task exists, create a PRD and task rather than writing planning state into ad hoc markdown.
 
-`--task` on `tc wp store` is optional (`task_id` is schema-nullable): if a
-work product needs to be externalized and no task ID exists yet, omit
-`--task` and store a standalone work product instead — it stays fully
-listable/gettable/searchable. No task ID is never a valid reason to skip
-storage and fall back to inlining the full deliverable in chat.
+Current `tc wp store` requires `--task`. If a work product needs to be
+externalized and no task exists, create the appropriate PRD/task first, then
+attach the work product to that task. Do not document standalone storage as an
+available CLI path or use missing task context to skip the durable record.
 
 Never trust `which tc` as an availability gate — the common
 `alias which='type -all'` dotfile pattern makes `which <anything>` fail
@@ -94,8 +101,9 @@ Lead user-facing output with the answer, decision, result, or blocker. Include o
 
 - Default to at most 6 sentences or 5 bullets unless requested depth, risk, complexity, or completeness requires more.
 - Use one-sentence progress updates: material result plus next active step.
-- Lead completion reports with the outcome, then give only changed scope, verification, and any remaining caveat or action.
-- For a real decision, use an outcome headline, 2–3 numbered outcome options, and a question of at most 4 words. With no real decision, do not manufacture options or ask for approval.
+- Completion reports have four lines: Works (with evidence), Unverified (untested, why), Parked (ideas left out, task IDs), Decision needed (or “none”). No confidence percentages; a bare “done” is incomplete.
+- Decisions lead with a recommendation. If every option is reversible within current authorization, take it and report instead of asking; otherwise ask in one sentence. Options only when irreversible, outward or budget-affecting.
+- Fan-out: at most three concurrent subagents unless the done block says otherwise; close each when done; one QA pass per batch.
 - Never omit a required finding, uncertainty, citation, safety warning, QA artifact/verdict, Task/WP identifier, or blocker to meet a length target.
 
 ## Quality Gates
@@ -107,3 +115,50 @@ Lead user-facing output with the answer, decision, result, or blocker. Include o
 - `sec` reviews security-sensitive changes before closure.
 - `do` owns deployment planning before deploy or CI changes.
 - Destructive actions require explicit current user approval.
+
+## Optional Context
+
+Mandatory repository/project/system instructions always apply; never filter or load them here.
+
+Load needed additional knowledge once; use `selected[].content` or do not load it:
+
+    cc skill select "<task topic>" --required <skill> --max-chars 12000 --json
+
+Record one receipt per task, not per load:
+
+    tc wp store --task <id> --type context --title "Context selection receipt" --file receipt.json
+
+Keep `query`, `max_chars`, `loaded_characters`, `mandatory_over_budget`; each
+`selected`/`excluded` entry's `name`, `source`, `source_revision`, `selection_reason`
+or `reason`, not content. Before reselection read the receipt; skip held revisions.
+Reload only changes; record both revisions and announce the change.
+
+Retain required skills in full if `mandatory_over_budget: true`; report `max_chars`
+and overage `loaded_characters - max_chars`. Characters are not tokens; receipts
+prove selection, not reading/obedience.
+
+Keep every required name in `selected[]`; identical aliases have `duplicate_of`,
+empty `content`, zero charged characters/bytes: use the selected entry named by
+`duplicate_of`. Optional
+duplicates stay `excluded[]` as `duplicate-content`.
+
+**Visible fallbacks:** name the applicable one, then continue:
+
+- `cc` absent/nonzero: report failure/stderr; use repository instructions and prior memory only.
+- Exit 2, `Required skill not found: <name>`: name it, never substitute; proceed without it or emit `<promise>BLOCKED</promise>` if indispensable.
+- `selected: []`: report no match for the query; use repository instructions, never widen the query to force a match.
+- `CC_KNOWLEDGE_REPOS` empty: "Knowledge tier
+  unconfigured; optional context limited to project and machine skills." Never block.
+
+Every explicitly required skill name remains in `selected[]`. Identical required
+content is emitted once: subsequent required aliases have `duplicate_of`, empty
+`content`, and zero charged characters/bytes; use the named selected entry's
+content. Optional duplicates remain in `excluded[]` as `duplicate-content`.
+
+## Work Lifecycle
+
+Read [the runtime-neutral lifecycle](../../cleanup/references/work-lifecycle.md)
+once per task. It governs direct specialist work as well as protocol routing,
+including proportionate checkpoints and later measurement of lesson application.
+The coordinator owns continuity and artifact disposition; QA owns evidence-bound
+acceptance. Existing tc/cc systems retain their authority.

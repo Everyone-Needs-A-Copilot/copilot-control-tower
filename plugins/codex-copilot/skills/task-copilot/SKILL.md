@@ -28,7 +28,7 @@ Fallback:
 1. retrieve the task
 2. do the work
 3. store the work product
-4. complete the task
+4. verify required delivery and lifecycle criteria through task-bound QA before completing the task
 
 Commands:
 
@@ -68,7 +68,22 @@ Implementation tasks that require verification should use metadata like:
 {"requiresQa": true, "qaStatus": "pending"}
 ```
 
-After QA approval, record `qaStatus`, `qaWpId`, and `verifiedAt` when possible. Use `scripts/copilot-gate.sh` to inspect the convention.
+For current tc 2.0.0 work, register a schemaVersion 2 acceptance contract before
+implementation with `tc task contract <id> --file acceptance.json --json`.
+Include observable criteria and source scopes covering implementation, dependencies
+and relevant authority. Capture `tc task evidence-identity <id>` before checks,
+compare a second capture afterwards, and preserve the exact identity in the
+same task's `test` work product with observed results for every criterion.
+
+Use one verdict per result. Metadata alone, an artifact marker alone or stale
+source evidence cannot support approval. Completion also rejects unfinished
+dependencies. Historical completed records remain historical; pending work needs
+a current contract and fresh verification.
+
+After QA approval, metadata may index `qaStatus`, `qaWpId` and `verifiedAt`.
+Inspect with `tc task check-qa <id> --json` and `scripts/copilot-gate.sh --task <id>`.
+In the framework checkout, `docs/02-user-guides/04-quality-gates.md` contains a
+complete example; the standalone project plugin does not ship that docs tree.
 
 ## When no task exists
 
@@ -87,6 +102,9 @@ Link the initiative README to its PRD and tasks. Do not reproduce a live task bo
 
 ## Work-product guidance
 
+`tc wp store` requires a task ID. Create a PRD/task first when needed; the current
+CLI does not provide standalone work-product storage.
+
 Store detailed output when:
 
 - the analysis is long
@@ -99,3 +117,19 @@ Read `references/work-product-types.md` for type guidance.
 For a large work product that benefits from token-free review, use
 `tc wp render <id> --html`. The HTML is a rendering of the authoritative work
 product, not a second source of task state.
+
+## Work Lifecycle
+
+Apply the [shared work lifecycle](../cleanup/references/work-lifecycle.md) once
+per task, including direct invocation of this skill: start/resume, maintain,
+pause/handoff, finish and later reuse. Keep the checkpoint proportional in the
+existing record; a small answer does not need a new task or document.
+
+For substantial QA-required work, include an observable `WORK-LIFECYCLE` (or
+equivalent) criterion before acceptance is frozen. QA inspects the maintained
+record, applicable lesson-to-decision/check evidence, recovery/retirement results
+and explicit holds, using the shared lifecycle's acceptance guidance. A missing
+checkpoint cannot pass on metadata or a bare approval. A verified, in-scope hold
+can satisfy delivery checkpoint evidence while cleanup remains pending; it does
+not establish a cleanup or product-quality success. Preserve frozen scope and
+cumulative history for existing work.

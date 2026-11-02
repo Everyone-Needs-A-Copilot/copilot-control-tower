@@ -17,6 +17,7 @@ Use this skill to make quality concrete.
 - Prefer deterministic tests that explain the expected behavior.
 - Report residual risk honestly.
 - Use Live Docs when verifying behavior tied to installed third-party APIs.
+- Verify the fixed acceptance scope with Proportional Verification.
 
 ## Success Criteria
 
@@ -52,6 +53,10 @@ Return:
 
 ## Iteration Loop
 
+Read `../specialist-agents/references/verification-policy.md` once per task before
+selecting checks. Apply its behavior/consumer lanes, first-divergent-state diagnosis,
+two-hypothesis checkpoint, execution caps and authorized test-migration contract. Check the task's tier first (`tc task tier <id> --check`): on a T1/T2 task verify only that a valid tc attestation exists (`tc task check-qa <id> --json`) and that the diff does not need a higher tier; do not build a per-criterion packet. `tc task qa-packet <id>` pre-fills the T3 packet's IDENTITY and each criterion's exact text.
+
 If tests fail, identify whether the problem is product code, test code, environment, or missing requirements. Route product bugs back to `$me`; route architectural problems to `$ta`; route security findings to `$sec`.
 
 ## Methodology
@@ -62,12 +67,13 @@ For write paths, exercise a real or in-memory database—a Fake, not a Mock—an
 
 ## Anti-Generic Rules
 
-- Do not accept "existing tests pass" as sufficient for new behavior.
+- Do not accept a green run without mapping coverage to required behavior and affected consumers.
 - Do not test implementation details when behavior can be verified.
 - Do not treat a clean mock-smell scan as proof that write-path tests are meaningful; naming and helper indirection can evade heuristic detectors, so review database-write assertions directly.
 - Do not skip UI state, accessibility, or responsive checks for product-facing changes.
 - Do not approve without an external artifact such as a test run, file check, diff check, screenshot, accessibility check, or design-fidelity comparison.
 - Do not approve tasks that cannot pass the Codex QA gate convention.
+- Do not approve missing required evidence, and do not expand completed work into unrelated repairs.
 
 ## Route To Other Specialist
 
@@ -93,3 +99,96 @@ Task: TASK-123 | WP: WP-456
 ARTIFACT: test-run|pytest tests/test_auth.py exit=0 "3 passed"
 VERDICT: APPROVED
 ```
+
+## Delivery Evidence
+
+Define observable acceptance criteria before editing. For each required criterion,
+record the input/state, expected result, observed result, a local artifact or
+failable command, and the tested identity: repository/worktree, revision plus dirty
+changes, runtime/configuration, and relevant server/process/data-store identity.
+Capture the failing or old behavior during reproduction when possible; otherwise
+name the missing baseline. UI comparisons use comparable viewport, data and state.
+
+Keep this compact packet in the task-bound QA work product:
+
+```text
+CRITERION: <required behavior and input/state>
+EXPECTED: <observable outcome>
+OBSERVED: <actual outcome, including persisted effect when relevant>
+IDENTITY: <checkout/revision + dirty fingerprint; runtime/config/server/data>
+BASELINE: <before artifact and identity, or unavailable + reason>
+ARTIFACT: <accepted type>|<local artifact or failable command + exit/result>
+UNTESTED: <required cases not exercised, or none>
+LANE: <agreed lane command(s); elapsed vs cap>
+OUTSIDE LANE: <any check run outside the agreed lane + reason, or none>
+VERDICT: <supported QA verdict>
+```
+
+Report every registered criterion ID in the packet; a missing ID is a gap, not a pass. For a contract that carries a lane, the `LANE:` line stays within its cap and each `OUTSIDE LANE:` entry names a reason.
+
+Artifact existence, playable media and build success do not establish behavioral
+correctness. A stale artifact, wrong test environment, failed criterion or untested
+required case cannot support approval; rerun against the intended identity or
+reject with the gap. Use the smallest artifact that proves the criterion, including
+non-UI command/output evidence. Keep capture local; uploads, review triggers,
+comments and publication require authority for that destination/action.
+
+<!-- cse-design-quality:start -->
+## Design Quality Contract
+
+Use `critique`, `audit` and `compare`: inspect the rendered product and task behavior, record initial design judgment before viewing detector output, and verify every required criterion against relevant artifacts. Check `tc task get <id> --json` in the named project; design review/report bind criteria and source coverage to that database task’s registered acceptance contract. Reject unresolved required criteria and stale evidence. A missing/unsupported detector stays unavailable; an optional scan may be replaced only by explicit `scan_alternative` evidence. Issue the task-bound ARTIFACT/VERDICT after your own checks and run the existing QA gate.
+
+For material product-facing work, use `cc design template` to draft a task-bound surface contract, then `cc design context --contract <file> --action <action> --json` to load explicit product/design authority and one focused guide. Inspect omitted authority before editing. Surface modes (`persuade`, `operate`, `read`, `experience`) describe the user's job; they do not prescribe a style. Existing product facts, design systems, accessibility requirements and owner decisions govern the result.
+
+After implementation, record design judgment with `cc design review` before `cc design audit --review ...`; then use `cc design report` to check criterion coverage, artifact hashes and freshness. A sequential critique is labeled sequential; claim independence only with evidence. Changed source, linked stylesheets or authority requires a fresh review and affected checks. Detector findings are contextual candidates, and report readiness never grants QA approval. Keep task execution and the final evidence-bound verdict in `tc`.
+
+Load `cc design guide` for the full action catalog; retrieve focused guidance as needed instead of loading every playbook. `cc design compare` packages actual comparable captures for review; `cc design guide live` defines optional visual iteration ownership and cleanup. Native feedback is opt-in per project/runtime through `cc design feedback-config`; it neither installs a detector implicitly nor replaces explicit QA. See `cc design guide audit` for verification JSON and fallback rules.
+<!-- cse-design-quality:end -->
+
+For optional context selection, apply the full contract in `../specialist-agents/references/shared-behaviors.md`: load once per task, preserve mandatory instructions, record hashes/omissions, and surface missing-context fallbacks.
+
+<!-- cse-evidence-v2:start -->
+## Task Acceptance and Tested Identity
+
+Current QA-required work uses tc 2 evidence binding. Before implementation,
+register a JSON acceptance contract with `tc task contract <id> --file <path>`:
+`schemaVersion: 2`, `criteria: [{id, expected}]`, and explicit project-relative
+`sources` files/directories covering implementation, dependencies and relevant
+configuration. Criterion IDs are unique; expected behavior is observable and
+single-line. Keep generated review outputs outside source scopes.
+
+Before running verification, capture `tc task evidence-identity <id>` and retain
+its exact `IDENTITY:` line in the task work product. After verification, capture
+again and compare; if content changed, rerun affected checks against a new
+identity. Use the registered IDs in `CRITERION:` and exact expected behavior in
+`EXPECTED:`; record actual observations, baseline, artifacts and verdict. The
+completion service rechecks contract, task/database identity and content hashes,
+including dirty files, new files and deletions. It also enforces unfinished task
+dependencies. Do not downgrade requiresQa or replace source evidence with prose.
+Tier scope: the contract, identity and per-criterion packet above are the T3 path. T1/T2 tasks finish with `tc task attest` (tc-generated receipt); untiered tasks are T3.
+
+A v1 packet for pending work must be migrated with a registered contract and
+fresh verification. Historical completed records remain readable and explicitly
+historical; they are not current strict QA evidence. cc design review/report
+checks the named database's acceptance contract and source coverage; detector or
+report readiness still never grants task approval. CLI/API and native adapters
+share the same tc authority. Missing current capabilities require a verified tc
+installation; legacy artifact inspection is not a current completion proof.
+Cross-repo scopes: schemaVersion 3 adds `externalSources: [{repo, ref, paths}]` for repos registered with `tc repo add`, hashed at the ref's commit; commit to the ref before QA.
+<!-- cse-evidence-v2:end -->
+
+## Work Lifecycle
+
+Apply the [shared work lifecycle](../cleanup/references/work-lifecycle.md) once
+per task, including direct invocation of this skill: start/resume, maintain,
+pause/handoff, finish and later reuse. Keep the checkpoint proportional in the
+existing record; a small answer does not need a new task or document.
+
+For substantial QA-required work, include an observable `WORK-LIFECYCLE` (or
+equivalent) criterion before acceptance is frozen. QA inspects the maintained
+record, applicable lesson-to-decision/check evidence, recovery/retirement results
+and explicit holds, using the shared lifecycle's acceptance guidance. A missing
+checkpoint cannot pass on metadata or a bare approval. A verified, in-scope hold
+can satisfy delivery checkpoint evidence while cleanup remains pending; it does
+not establish a cleanup or product-quality success. Preserve frozen scope and
+cumulative history for existing work.
