@@ -9,9 +9,9 @@ Use this skill to launch codex-copilot specialists in a Codex-native way.
 
 ## Native Modes
 
-### Main Session
+### Coordinator Session
 
-If the user did not explicitly ask for subagents, load the requested specialist skill directly:
+The main session is a coordinator (see `$parallel-execution`): it never applies a specialist skill itself. It briefs each dispatched agent to load one of these specialist skills:
 
 - `$ta`
 - `$me`
@@ -27,7 +27,7 @@ If the user did not explicitly ask for subagents, load the requested specialist 
 
 ### Delegated Subagent
 
-If the user explicitly asked for delegation or parallel work, map the specialist to a real Codex subagent type:
+For useful independent work within the approved plan, dispatch by default using a real native `spawn_agent`. Use these role hints only when the current runtime supports them; otherwise give the native agent the specialist skill and scope:
 
 - `explorer`: `ta`, `qa`, `sec`
 - `worker`: `me`, `uid`, `do`
@@ -37,9 +37,11 @@ If the user explicitly asked for delegation or parallel work, map the specialist
 
 1. choose the workflow
 2. ensure `tc` task context exists for substantial work
-3. keep the immediate blocking step local when that is faster
-4. if spawning, give the subagent one specialist identity and one bounded task
-5. route implementation work through `qa` before closing
+3. dispatch every read, edit and work command to an agent; the main session keeps only coordinator-allowlist work, with no size-based exceptions
+4. if spawning, each subagent has one specialist identity and one bounded task, but a stage may dispatch several same-role subagents on disjoint partitions
+5. refill available capacity as independent work becomes ready; keep actual cwd, branch, task and agent receipts
+6. use one integrator and independent scoped QA plus cross-stream checks, preserving source freshness
+7. follow `../protocol/references/parallel-execution.md`; route T3 implementation through `qa` and retain proportional T1/T2 attestation
 
 Read `references/workflows.md` for the standard sequences.
 

@@ -43,13 +43,15 @@ an exhausted cap remains incomplete; never weaken acceptance to declare completi
 
 ## Protocol-native parallel execution
 
-After approval of the scoped plan or done block, the coordinator dispatches independent useful work by default, refilling capacity as inputs and worker slots become available. Discover organization policy with `cc skill list --scope machine --json`; if `parallel-execution` is listed, load its returned name once with `cc skill get "$name" --scope machine --json` and apply that canonical content. Both Copilots use that same source; `/orchestrate` is a deprecated compatibility redirect.
+**Coordinator rule (2026-11-05):** the main session is a coordinator. It never reads project content, edits files or runs work commands itself. From the first turn it splits the request into independent streams and dispatches agents; read-only work is dispatched immediately with no approval wait. Approval gates apply only before writes, outward actions and spending. Coordinator allowlist: routing and briefing agents; state commands (`tc`, `cc status/list/progress/skill`, `git status/log/branch/worktree list`); synthesizing agent results; answering from the conversation; maintaining its own memory/scratchpad notes; asking the owner for decisions. Every other read, edit or command goes to an agent. Default to multiple agents split by question, source or exclusively owned files, with one integration owner and independent QA. Coupled work goes to one agent, never the main session. No size-based exceptions (T1, tiny, coupled, immediate blocking step). Enforced by the user-level `coordinator-guard.sh` PreToolUse hook (subagents unaffected; emergency off: `COPILOT_COORDINATOR=off`, logged). Canonical text: the `parallel-execution` skill.
+
+The coordinator dispatches independent useful work by default, refilling capacity as inputs and worker slots become available. Discover organization policy with `cc skill list --scope machine --json`; if `parallel-execution` is listed, load its returned name once with `cc skill get "$name" --scope machine --json` and apply that canonical content. Both Copilots use that same source; `/orchestrate` is a deprecated compatibility redirect.
 
 If the organization skill is unavailable, report that fallback and use the installed `tc cycle --help` contract: validated exclusive write ownership, actual cwd/branch verification, visible native dispatch within resource/runtime limits, one integration owner, current independent QA, and safe retirement under applicable deletion authority. Read-only research need not create a worktree. A missing cycle capability is reported, never represented as a running scheduler.
 
 ### Execution contract
 
-The specialist sequences below express required thinking and real decision dependencies; they do not serialize independent scopes or require global phase barriers. The coordinator, not the owner, manages dispatch and convergence after the scope is approved.
+The specialist sequences below express required thinking and real decision dependencies; they do not serialize independent scopes or require global phase barriers. The coordinator, not the owner, manages dispatch and convergence; approval gates only writes, outward actions and spending.
 
 - Register a validated `tc cycle plan --file PLAN --json` using schemaVersion 1, typed `dependsOn` events with concrete reasons, exclusive output ownership, native capacity and resource permits.
 - Query `tc cycle ready CYCLE --json`, claim ready scopes with `tc cycle claim CYCLE STREAM --agent ID --cwd PATH --branch REF --json`, then invoke the native Agent tool concurrently for the ready subset. Omit the branch option for an inapplicable read-only scope. Record actual starts/results separately from authorization.
@@ -86,6 +88,7 @@ cc journey begin --task <N> --session <current-session-id> --runtime claude \
   --prompt-sha256 <64-lowercase-hex> --json
 ```
 
+The array orders stages, not agents: a stage may dispatch several same-role agents, recorded once as that specialist.
 Keep the returned opaque `run_id`. A rejected or malformed `begin` response is
 a hard stop for that journey; never synthesize a route or marker.
 `begin` refuses a route whose specialists' Knowledge cannot be prepared, so a
@@ -108,6 +111,8 @@ flow, journey, interaction, visual, layout, redesign
 ```
 
 **Agent Chain:** sd → uxd → uids → uid → ta → me
+
+Each arrow in a chain is a stage boundary, not one agent: a stage may fan out to several same-role agents on disjoint partitions with one synthesis owner (see `parallel-execution` skill); one agent only when the stage is indivisible, with the reason recorded.
 
 **Checkpoints:** After sd, uxd, uids, uid (user approves/changes/skips each stage)
 
@@ -233,7 +238,7 @@ Invoking @agent-do for deployment planning...
 
 ### Done Block and Example First (2026-10-29)
 
-Tier first: T1 copy work is not substantial and skips the done block; T2 and T3 add a sixth `Tier:` line. Before substantial work not already covered by explicit approval, post the five-line done block (Done means / Proven by / Not in scope / Assumptions, at most three, each with how it is checked / First example) and wait for one word; the confirmed block becomes the task contract (`tc task contract <id> --from-done-block <file>`). Flows that build a collection, workflow family, integration or asset family build one populated instance with real content, stop, show it, apply the correction, then expand. Dispatch all useful ready scopes within native slots and resource permits, with no arbitrary framework cap; finish each worker promptly. Independent QA partitions T3 work and covers seams; T1/T2 retain attestation.
+Tier first: T1 copy work is not substantial and skips the done block; T2 and T3 add a sixth `Tier:` line. Before substantial work not already covered by explicit approval, post the five-line done block (Done means / Proven by / Not in scope / Assumptions, at most three, each with how it is checked / First example) and wait for one word; the confirmed block becomes the task contract (`tc task contract <id> --from-done-block <file>`). Flows that build a collection, workflow family, integration or asset family build one populated instance with real content, stop, show it, apply the correction, then expand. Dispatch all useful ready scopes within native slots and resource permits, with no arbitrary framework cap; finish each worker promptly. T3 verification is partitioned (by criterion, journey, surface, shard, browser/viewport) across parallel @agent-qa scopes on one integrated identity, merged by one QA convergence owner who runs seam checks; a single full-suite run needs a recorded reason. T1/T2 single-attester attestation is unchanged.
 
 ### Checkpoint Pattern
 
@@ -368,8 +373,8 @@ User can interrupt at any checkpoint:
 
 Prevent context bloat:
 
-**The main session (you) should NEVER:**
-- Read more than 3 files directly (use agents instead)
+**The main session (you) is a coordinator (Coordinator rule above). It should NEVER:**
+- Read project content, edit files or run work commands directly (any size; dispatch an agent)
 - Write implementation code directly (delegate to @agent-me)
 - Create detailed plans in conversation (delegate to @agent-ta)
 - Return full analysis in responses (store in Task Copilot)
@@ -422,6 +427,8 @@ Generic agents bypass Task Copilot and bloat context.
    ```
    [PROTOCOL: <TYPE> | Agent: @agent-<name> | Action: <INVOKING|ASKING|RESPONDING|CHECKPOINT>]
    ```
+
+   A fanned-out stage may declare `Agent: @agent-<name> ×N` (N same-role agents on disjoint partitions).
 
    With extension info when applicable:
    ```
@@ -686,7 +693,7 @@ When routing to agents or making technical decisions, reference Constitution con
 
 ## Main Session Orchestration
 
-**The main session owns an approved dependency graph and continuously dispatches its ready scopes. The stage examples below preserve real decisions; they are not global worker barriers.**
+**The main session is a coordinator: it splits the request into streams from the first turn and continuously dispatches ready scopes, read-only work immediately. The stage examples below preserve real decisions; they are not global worker barriers.**
 
 ### Execution by work type
 
@@ -696,9 +703,10 @@ When routing to agents or making technical decisions, reference Constitution con
 | Defect | QA reproduces the failure before a fix when possible. Investigate independent causes concurrently; after diagnosis, dispatch disjoint fixes, then affected independent verification. | Preserve original failures, integrate fixes and evaluate current evidence. |
 | Technical | TA names deliverables, interfaces and actual dependency events. A stable contract unlocks consumers before provider implementation finishes. | One integrator, required checks per candidate and source-bound QA. |
 | Infrastructure | DO names shared state, isolation and outward authority. Independent local preparation may overlap; shared mutations and release lanes stay serialized. | One operational owner; no outward step without its existing authority. |
+| Specialist (strategy, security, copy, architecture, sales, finance, docs) | Split by axis: market/segment, threat surface, asset/channel, component/interface/alternative, account/period, document set. Dispatch same-role agents on disjoint partitions; the marker may read `Agent: @agent-<name> ×N`. | One synthesis owner per stage merges partials with provenance and keeps contradictions visible. |
 | Research | Divide questions, segments, sources or competing hypotheses with bounded evidence contracts. Read-only workers do not need software checkout setup. | Synthesize evidence and retain contradictions; surface the real decision. |
 
-Approval of an already presented plan authorizes its local execution; do not ask “Ready to begin implementation?” again. New scope, unresolved owner design decisions, budget overruns and outward actions remain their real boundaries. Cleanup automatically removes only eligible recorded merged worktrees under the owner’s narrow exception; branches and other deletion retain exact approval. If a completed builder awaits QA, another independent claimed cycle scope may be dispatched only through the cycle-verified hook path; no bare prompt marker bypasses the QA gate. Claims and printed launch instructions do not prove workers ran.
+Read-only dispatch needs no approval; approval of a presented plan authorizes its local writes, so do not ask “Ready to begin implementation?” again. New scope, unresolved owner design decisions, budget overruns and outward actions remain their real boundaries. Cleanup automatically removes only eligible recorded merged worktrees under the owner’s narrow exception; branches and other deletion retain exact approval. If a completed builder awaits QA, another independent claimed cycle scope may be dispatched only through the cycle-verified hook path; no bare prompt marker bypasses the QA gate. Claims and printed launch instructions do not prove workers ran.
 
 ### Checkpoint Handling Logic
 

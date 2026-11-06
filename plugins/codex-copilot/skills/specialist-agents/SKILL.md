@@ -11,11 +11,11 @@ This skill provides Codex-native specialist playbooks modeled on the original Cl
 
 ### Local mode
 
-Apply the specialist lens in the main session when the user did not ask for subagents.
+Dispatch the immediate blocking stage's specialist lens to one or more same-role agents on disjoint partitions; coupled work goes to one agent, never the main session. No size-based exceptions.
 
 ### Delegated mode
 
-If the user explicitly asked for delegation, pass the relevant specialist instructions into a `spawn_agent` task.
+Within the approved plan, pass one relevant specialist identity and bounded independent scope into each native `spawn_agent` task by default. Follow `../protocol/references/parallel-execution.md`; no separate delegation request is required.
 
 Keep prompts short. Give the subagent:
 
