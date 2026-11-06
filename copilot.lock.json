@@ -4,7 +4,7 @@
       "component": "claude",
       "files": [
         {
-          "checksum": "sha256:f456da5ce429ec270163f571b5a8da255b5bec074fb81d800b1e9946d5857252",
+          "checksum": "sha256:9ad4a5feda4b9e47a2bdf66400c4ef2f06c9c252d84ef34b6529c44145cb0bb4",
           "ownership": "framework",
           "path": ".claude/commands/protocol.md"
         },
@@ -87,8 +87,8 @@
         }
       ],
       "ownership_mode": "customized-preserve",
-      "release_tag": "v5.34.1",
-      "version": "5.34.1"
+      "release_tag": "v5.34.5",
+      "version": "5.34.5"
     },
     {
       "component": "codex",
